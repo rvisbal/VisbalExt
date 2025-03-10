@@ -4,6 +4,10 @@
   "version": "0.0.1",
   "description": "A basic extension for Cursor with find functionality",
   "main": "dist/extension.js",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/yourusername/visbal-ext.git"
+  },
   "scripts": {
     "build": "tsc",
     "watch": "tsc -w",
@@ -15,7 +19,9 @@
   },
   "activationEvents": [
     "onCommand:visbal-ext.helloWorld",
-    "onCommand:visbal-ext.showFindModel"
+    "onCommand:visbal-ext.showFindModel",
+    "onCommand:visbal-ext.showLogSummary",
+    "onLanguage:log"
   ],
   "contributes": {
     "commands": [
@@ -26,6 +32,11 @@
       {
         "command": "visbal-ext.showFindModel",
         "title": "Show Find Model"
+      },
+      {
+        "command": "visbal-ext.showLogSummary",
+        "title": "Show Log Summary",
+        "icon": "$(notebook)"
       }
     ],
     "menus": {
@@ -33,6 +44,13 @@
         {
           "command": "visbal-ext.showFindModel",
           "group": "navigation"
+        }
+      ],
+      "editor/title": [
+        {
+          "command": "visbal-ext.showLogSummary",
+          "group": "navigation",
+          "when": "resourceExtname == .log"
         }
       ]
     }

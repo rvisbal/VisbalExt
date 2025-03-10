@@ -3,3 +3,6 @@ dist
 *.vsix
 .vscode-test/
 .DS_Store 
+.sfdx/
+.vs/
+temp/
