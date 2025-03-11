@@ -1,0 +1,7 @@
+---
+description: when engine AI generates code follow the following standards
+globs: 
+alwaysApply: false
+---
+Modules should be ppaplace in its own file or class
+when creating console.log follow the format "format [FileName] methodName -- message" example "[VisbalLogView] resolveWebviewView -- Resolving webview view"

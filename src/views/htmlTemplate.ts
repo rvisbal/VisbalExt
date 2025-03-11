@@ -1,369 +1,403 @@
-import { ParsedLogData, Tab, LogCategory } from './types';
 import { styles } from './styles';
 
 /**
- * Returns the HTML template for the webview
- * @param parsedData The parsed log data
- * @param logFileName The log file name
- * @param fileSize The file size in KB
- * @param currentTab The current active tab
- * @param tabs The available tabs
- * @param categories The available categories
- * @returns The HTML template
+ * Returns the HTML template for the log list view
  */
-export function getHtmlTemplate(
-    parsedData: ParsedLogData, 
-    logFileName: string, 
-    fileSize: string,
-    currentTab: string,
-    tabs: Tab[],
-    categories: LogCategory[]
-): string {
+export function getLogListTemplate(): string {
     return `<!DOCTYPE html>
     <html lang="en">
     <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Log Summary</title>
+        <title>Salesforce Debug Logs</title>
         <style>
             ${styles}
         </style>
     </head>
     <body>
-        <div class="header">
-            <div class="file-info">
-                <span class="file-name">${logFileName}</span>
-                <div class="file-stats">
-                    <span class="file-size">${fileSize} KB</span>
-                    <span class="file-status">Ready</span>
-                    <span class="file-issues">${parsedData.events.length} events</span>
+        <div class="container">
+            <div class="header">
+                <h1>Salesforce Debug Logs</h1>
+                <div class="actions">
+                    <button id="refreshButton" class="button">
+                        <span class="icon refresh-icon"></span>
+                        <span class="button-text">Refresh</span>
+                    </button>
+                    <button id="refreshSoqlButton" class="button">
+                        <span class="icon refresh-icon"></span>
+                        <span class="button-text">Refresh (SOQL)</span>
+                    </button>
                 </div>
             </div>
             
-            <div class="categories">
-                ${categories.map(cat => `
-                    <div class="category">
-                        <span class="category-name">${cat.label}:</span>
-                        <span class="category-state ${cat.state.toLowerCase()}">${cat.state}</span>
-                    </div>
-                `).join('')}
+            <div id="loadingIndicator" class="loading-container hidden">
+                <div class="loading-spinner"></div>
+                <div class="loading-text">Loading logs...</div>
             </div>
-        </div>
-        
-        <div class="tabs">
-            ${tabs.map(tab => `
-                <div class="tab ${currentTab === tab.id ? 'active' : ''}" data-tab="${tab.id}">
-                    <span class="tab-icon">${tab.icon}</span>
-                    <span class="tab-label">${tab.label}</span>
+            
+            <div id="errorContainer" class="error-container hidden">
+                <div class="error-icon">⚠️</div>
+                <div id="errorMessage" class="error-message"></div>
+            </div>
+            
+            <div id="logsContainer" class="logs-container">
+                <div id="noLogsMessage" class="no-logs-message">
+                    No logs found. Click Refresh to fetch logs.
                 </div>
-            `).join('')}
-        </div>
-        
-        <div id="overview" class="tab-content ${currentTab === 'overview' ? 'active' : ''}"></div>
-        <div id="timeline" class="tab-content ${currentTab === 'timeline' ? 'active' : ''}"></div>
-        <div id="callTree" class="tab-content ${currentTab === 'callTree' ? 'active' : ''}"></div>
-        <div id="analysis" class="tab-content ${currentTab === 'analysis' ? 'active' : ''}"></div>
-        <div id="database" class="tab-content ${currentTab === 'database' ? 'active' : ''}"></div>
-        
-        <div class="bottom-legend">
-            <div class="bottom-category Code">Code Unit</div>
-            <div class="bottom-category Workflow">Workflow</div>
-            <div class="bottom-category Method">Method</div>
-            <div class="bottom-category Flow">Flow</div>
-            <div class="bottom-category DML">DML</div>
-            <div class="bottom-category SOQL">SOQL</div>
-            <div class="bottom-category System">System Method</div>
+                <table id="logsTable" class="logs-table hidden">
+                    <thead>
+                        <tr>
+                            <th>User</th>
+                            <th>Application</th>
+                            <th>Operation</th>
+                            <th>Status</th>
+                            <th>Size</th>
+                            <th>Date</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="logsTableBody">
+                        <!-- Logs will be inserted here -->
+                    </tbody>
+                </table>
+            </div>
         </div>
         
         <script>
-            // Get vscode API
-            const vscode = acquireVsCodeApi();
-            
-            // Tab switching functionality
-            document.querySelectorAll('.tab').forEach(tab => {
-                tab.addEventListener('click', function() {
-                    const tabId = this.getAttribute('data-tab');
-                    
-                    // Log the click event
-                    console.log('RV:TAB CLICKED:', tabId);
-                    
-                    // Update active tab UI immediately
-                    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-                    this.classList.add('active');
-                    
-                    // Update tab content visibility immediately
-                    document.querySelectorAll('.tab-content').forEach(content => {
-                        content.classList.remove('active');
-                    });
-                    const tabContent = document.getElementById(tabId);
-                    if (tabContent) {
-                        tabContent.classList.add('active');
-                    }
-                    
-                    // Send message to extension
-                    vscode.postMessage({
-                        command: 'switchTab',
-                        tab: tabId
-                    });
-                });
-            });
-            
-            // Handle messages from the extension
-            window.addEventListener('message', event => {
-                const message = event.data;
+            (function() {
+                console.log('[VisbalLogView:WebView] init -- Initializing webview script');
                 
-                console.log('RV:MESSAGE RECEIVED:', message.command, message.tab);
+                // Elements
+                const refreshButton = document.getElementById('refreshButton');
+                const refreshSoqlButton = document.getElementById('refreshSoqlButton');
+                const logsTable = document.getElementById('logsTable');
+                const logsTableBody = document.getElementById('logsTableBody');
+                const noLogsMessage = document.getElementById('noLogsMessage');
+                const loadingIndicator = document.getElementById('loadingIndicator');
+                const errorContainer = document.getElementById('errorContainer');
+                const errorMessage = document.getElementById('errorMessage');
                 
-                switch (message.command) {
-                    case 'initializeView':
-                        console.log('RV:INITIALIZING VIEW:', message.tab);
-                        initializeView(message.tab, message.data);
-                        break;
-                }
-            });
-            
-            // Initialize the current view
-            function initializeView(tabId, data) {
-                console.log('RV:INIT START:', tabId);
-                console.log('RV:INIT DATA STRUCTURE:', {
-                    hasEvents: !!data?.events,
-                    eventCount: data?.events?.length || 0,
-                    hasCodeUnits: !!data?.codeUnits,
-                    codeUnitCount: data?.codeUnits?.length || 0,
-                    hasExecutionUnits: !!data?.executionUnits,
-                    executionUnitCount: data?.executionUnits?.length || 0,
-                    hasStatistics: !!data?.statistics,
-                    dmlCount: data?.statistics?.dmlCount || 0,
-                    soqlCount: data?.statistics?.soqlCount || 0
+                // VSCode API
+                const vscode = acquireVsCodeApi();
+                console.log('[VisbalLogView:WebView] init -- Acquired VSCode API');
+                
+                // State
+                let logs = [];
+                
+                // Initialize
+                document.addEventListener('DOMContentLoaded', () => {
+                    console.log('[VisbalLogView:WebView] DOMContentLoaded -- DOM content loaded, requesting logs');
+                    // Request logs on load
+                    vscode.postMessage({ command: 'fetchLogs' });
                 });
                 
-                // Make sure the correct tab is active in the UI
-                document.querySelectorAll('.tab').forEach(tab => {
-                    if (tab.getAttribute('data-tab') === tabId) {
-                        tab.classList.add('active');
-                    } else {
-                        tab.classList.remove('active');
-                    }
+                // Event listeners
+                refreshButton.addEventListener('click', () => {
+                    console.log('[VisbalLogView:WebView] refreshButton.click -- Refresh button clicked, requesting logs');
+                    vscode.postMessage({ command: 'fetchLogs' });
+                    // Show loading state on the refresh button
+                    toggleRefreshButtonLoading(true);
                 });
                 
-                // Make sure the correct tab content is visible
-                document.querySelectorAll('.tab-content').forEach(content => {
-                    if (content.id === tabId) {
-                        content.classList.add('active');
-                    } else {
-                        content.classList.remove('active');
-                    }
+                // SOQL Refresh button event listener
+                refreshSoqlButton.addEventListener('click', () => {
+                    console.log('[VisbalLogView:WebView] refreshSoqlButton.click -- SOQL Refresh button clicked, requesting logs via SOQL');
+                    vscode.postMessage({ command: 'fetchLogsSoql' });
+                    // Show loading state on the SOQL refresh button
+                    toggleSoqlRefreshButtonLoading(true);
                 });
                 
-                const tabContent = document.getElementById(tabId);
-                if (!tabContent) {
-                    console.error('Tab content element not found for tab:', tabId);
-                    return;
-                }
-                
-                // Clear the tab content
-                tabContent.innerHTML = '';
-                
-                // Check if we have data
-                if (!data || !data.events || data.events.length === 0) {
-                    console.error('No data available for tab:', tabId);
-                    const errorMessage = document.createElement('div');
-                    errorMessage.className = 'error-message';
-                    errorMessage.textContent = 'No log data found. The log file may be empty or in an unsupported format.';
-                    tabContent.appendChild(errorMessage);
-                    return;
-                }
-                
-                console.log('RV:DATA STATS:', {
-                    events: data.events.length,
-                    codeUnits: data.codeUnits.length,
-                    executionUnits: data.executionUnits.length,
-                    dmlCount: data.statistics.dmlCount,
-                    soqlCount: data.statistics.soqlCount
-                });
-                
-                // Create loading container
-                const loadingContainer = document.createElement('div');
-                loadingContainer.className = 'loading-container';
-                
-                // Create loading indicator
-                const loadingIndicator = document.createElement('div');
-                loadingIndicator.className = 'loading-indicator';
-                
-                const spinner = document.createElement('div');
-                spinner.className = 'loading-spinner';
-                loadingIndicator.appendChild(spinner);
-                
-                const loadingText = document.createElement('span');
-                loadingText.textContent = 'Processing log data...';
-                loadingIndicator.appendChild(loadingText);
-                
-                loadingContainer.appendChild(loadingIndicator);
-                
-                // Create progress container
-                const progressContainer = document.createElement('div');
-                progressContainer.className = 'progress-container';
-                
-                const progressBar = document.createElement('div');
-                progressBar.className = 'progress-bar';
-                progressBar.style.width = '0%';
-                progressContainer.appendChild(progressBar);
-                
-                const progressText = document.createElement('div');
-                progressText.className = 'progress-text';
-                progressText.textContent = 'Initializing...';
-                progressContainer.appendChild(progressText);
-                
-                loadingContainer.appendChild(progressContainer);
-                
-                // Create debug info container
-                const debugInfo = document.createElement('div');
-                debugInfo.className = 'debug-info';
-                debugInfo.textContent = \`Tab: \${tabId}
-Events: \${data.events.length}
-Code Units: \${data.codeUnits.length}
-Execution Units: \${data.executionUnits.length}
-DML Count: \${data.statistics.dmlCount}
-SOQL Count: \${data.statistics.soqlCount}\`;
-                loadingContainer.appendChild(debugInfo);
-                
-                tabContent.appendChild(loadingContainer);
-                
-                console.log('RV:LOADING CONTAINER ADDED');
-                
-                // Use setTimeout to allow the UI to update before heavy processing
-                setTimeout(() => {
-                    console.log('RV:PROCESSING START:', tabId);
+                // Handle messages from the extension
+                window.addEventListener('message', event => {
+                    const message = event.data;
+                    console.log('[VisbalLogView:WebView] message -- Received message from extension:', message.command, message);
                     
-                    // Update progress to 10%
-                    progressBar.style.width = '10%';
-                    progressText.textContent = 'Preparing data...';
-                    
-                    // Use another setTimeout to ensure the progress bar animation is visible
-                    setTimeout(() => {
-                        try {
-                            console.log('RV:RENDERING START:', tabId);
-                            
-                            // Render the appropriate view based on the tab
-                            switch (tabId) {
-                                case 'overview':
-                                    renderOverviewView(data, tabContent, loadingContainer, progressBar, progressText);
-                                    break;
-                                case 'timeline':
-                                    renderTimelineView(data.events.slice(0, 200), tabContent, loadingContainer, progressBar, progressText);
-                                    break;
-                                case 'callTree':
-                                    renderCallTreeView(data.codeUnits, tabContent, loadingContainer, progressBar, progressText);
-                                    break;
-                                case 'analysis':
-                                    renderAnalysisView(data.events, tabContent, loadingContainer, progressBar, progressText);
-                                    break;
-                                case 'database':
-                                    renderDatabaseView(data.events, tabContent, loadingContainer, progressBar, progressText);
-                                    break;
+                    switch (message.command) {
+                        case 'updateLogs':
+                            console.log('[VisbalLogView:WebView] message.updateLogs -- Updating logs, received ' + message.logs.length + ' logs');
+                            if (!message.logs || !Array.isArray(message.logs)) {
+                                console.error('[VisbalLogView:WebView] message.updateLogs -- Invalid logs data received:', message.logs);
+                                showError('Invalid logs data received from extension');
+                                return;
                             }
+                            logs = message.logs;
+                            console.log('[VisbalLogView:WebView] message.updateLogs -- Logs array updated, calling renderLogs()');
+                            renderLogs();
+                            // Reset refresh button state
+                            toggleRefreshButtonLoading(false);
+                            toggleSoqlRefreshButtonLoading(false);
+                            break;
+                        case 'loading':
+                            console.log('[VisbalLogView:WebView] message.loading -- Setting loading state: ' + message.loading);
+                            toggleLoading(message.loading);
+                            // Also update refresh button state
+                            toggleRefreshButtonLoading(message.loading);
+                            toggleSoqlRefreshButtonLoading(message.loading);
+                            break;
+                        case 'error':
+                            console.error('[VisbalLogView:WebView] message.error -- Received error:', message.error);
+                            showError(message.error);
+                            // Reset refresh button state on error
+                            toggleRefreshButtonLoading(false);
+                            toggleSoqlRefreshButtonLoading(false);
+                            break;
+                        case 'downloadStatus':
+                            console.log('[VisbalLogView:WebView] message.downloadStatus -- Download status update for log ' + message.logId + ': ' + message.status);
+                            updateDownloadStatus(message.logId, message.status, message.error);
+                            break;
+                    }
+                });
+                
+                // Render logs
+                function renderLogs() {
+                    console.log('[VisbalLogView:WebView] renderLogs -- Rendering logs');
+                    console.log('[VisbalLogView:WebView] renderLogs -- Logs array length:', logs.length);
+                    console.log('[VisbalLogView:WebView] renderLogs -- Logs array sample:', JSON.stringify(logs.slice(0, 2)));
+                    
+                    // Clear the table
+                    logsTableBody.innerHTML = '';
+                    
+                    // Hide error if shown
+                    errorContainer.classList.add('hidden');
+                    
+                    // Check if we have logs
+                    if (logs.length === 0) {
+                        console.log('[VisbalLogView:WebView] renderLogs -- No logs to display');
+                        logsTable.classList.add('hidden');
+                        noLogsMessage.classList.remove('hidden');
+                        return;
+                    }
+                    
+                    // Show the table and hide the no logs message
+                    console.log('[VisbalLogView:WebView] renderLogs -- Showing table, hiding no logs message');
+                    logsTable.classList.remove('hidden');
+                    noLogsMessage.classList.add('hidden');
+                    
+                    // Sort logs by date (newest first)
+                    logs.sort((a, b) => {
+                        return new Date(b.lastModifiedDate) - new Date(a.lastModifiedDate);
+                    });
+                    
+                    console.log('[VisbalLogView:WebView] renderLogs -- Adding ' + logs.length + ' logs to table');
+                    // Add logs to the table
+                    logs.forEach((log, index) => {
+                        console.log('[VisbalLogView:WebView] renderLogs -- Processing log ' + index + ':', log.id);
+                        const row = document.createElement('tr');
+                        
+                        // Format date
+                        const date = new Date(log.lastModifiedDate);
+                        const formattedDate = date.toLocaleString();
+                        
+                        // Format size
+                        const formattedSize = formatFileSize(log.logLength);
+                        
+                        try {
+                            // Create row with string concatenation instead of template literals
+                            row.innerHTML = 
+                                '<td>' + (log.logUser?.name || 'Unknown') + '</td>' +
+                                '<td>' + (log.application || 'Unknown') + '</td>' +
+                                '<td>' + (log.operation || 'Unknown') + '</td>' +
+                                '<td>' + (log.status || 'Unknown') + '</td>' +
+                                '<td>' + formattedSize + '</td>' +
+                                '<td>' + formattedDate + '</td>' +
+                                '<td>' +
+                                    '<button class="button download-button" data-log-id="' + log.id + '" data-downloaded="' + log.downloaded + '">' +
+                                        '<span class="icon ' + (log.downloaded ? 'check-icon' : 'download-icon') + '"></span>' +
+                                        '<span class="button-text">' + (log.downloaded ? 'Downloaded' : 'Download') + '</span>' +
+                                    '</button>' +
+                                '</td>';
+                            
+                            logsTableBody.appendChild(row);
+                            console.log('[VisbalLogView:WebView] renderLogs -- Added log ' + index + ' to table');
                         } catch (error) {
-                            console.error('RENDERING ERROR:', error);
-                            
-                            // Show error message
-                            loadingContainer.innerHTML = '';
-                            const errorMessage = document.createElement('div');
-                            errorMessage.className = 'error-message';
-                            errorMessage.textContent = \`Error processing log data: \${error.message}\`;
-                            loadingContainer.appendChild(errorMessage);
-                            
-                            // Add error details
-                            const errorDetails = document.createElement('div');
-                            errorDetails.className = 'debug-info';
-                            errorDetails.textContent = error.stack;
-                            loadingContainer.appendChild(errorDetails);
-                            
-                            console.error('Error processing log data:', error);
+                            console.error('[VisbalLogView:WebView] renderLogs -- Error rendering log ' + index + ':', error);
                         }
-                    }, 100);
-                }, 100);
-            }
-            
-            // Render overview view
-            function renderOverviewView(data, container, loadingContainer, progressBar, progressText) {
-                console.log('RV:OVERVIEW START');
+                    });
+                    
+                    console.log('[VisbalLogView:WebView] renderLogs -- Adding event listeners to download buttons');
+                    // Add event listeners to download buttons
+                    document.querySelectorAll('.download-button').forEach(button => {
+                        button.addEventListener('click', () => {
+                            const logId = button.getAttribute('data-log-id');
+                            const isDownloaded = button.getAttribute('data-downloaded') === 'true';
+                            
+                            if (!isDownloaded) {
+                                console.log('[VisbalLogView:WebView] downloadButton.click -- Download button clicked for log: ' + logId);
+                                vscode.postMessage({ 
+                                    command: 'downloadLog', 
+                                    logId: logId 
+                                });
+                                
+                                // Update button to show downloading state
+                                button.disabled = true;
+                                button.querySelector('.icon').className = 'icon loading-icon';
+                                button.querySelector('.button-text').textContent = 'Downloading...';
+                            }
+                        });
+                    });
+                    
+                    console.log('[VisbalLogView:WebView] renderLogs -- Logs rendered successfully');
+                }
                 
-                // Update progress
-                progressBar.style.width = '50%';
-                progressText.textContent = 'Creating overview...';
+                // Update download status for a log
+                function updateDownloadStatus(logId, status, error) {
+                    console.log('[VisbalLogView:WebView] updateDownloadStatus -- Updating download status for log ' + logId + ': ' + status);
+                    const button = document.querySelector(\`.download-button[data-log-id="\${logId}"]\`);
+                    if (!button) {
+                        console.warn('[VisbalLogView:WebView] updateDownloadStatus -- Button not found for log ' + logId);
+                        return;
+                    }
+                    
+                    const icon = button.querySelector('.icon');
+                    const text = button.querySelector('.button-text');
+                    
+                    switch (status) {
+                        case 'downloading':
+                            console.log('[VisbalLogView:WebView] updateDownloadStatus -- Setting downloading state for log ' + logId);
+                            button.disabled = true;
+                            icon.className = 'icon loading-icon';
+                            text.textContent = 'Downloading...';
+                            break;
+                        case 'downloaded':
+                            console.log('[VisbalLogView:WebView] updateDownloadStatus -- Setting downloaded state for log ' + logId);
+                            button.disabled = false;
+                            icon.className = 'icon check-icon';
+                            text.textContent = 'Downloaded';
+                            button.setAttribute('data-downloaded', 'true');
+                            
+                            // Update the log in the state
+                            const log = logs.find(l => l.id === logId);
+                            if (log) {
+                                log.downloaded = true;
+                                console.log('[VisbalLogView:WebView] updateDownloadStatus -- Updated log ' + logId + ' in state as downloaded');
+                            }
+                            break;
+                        case 'error':
+                            console.error('[VisbalLogView:WebView] updateDownloadStatus -- Download error for log ' + logId + ': ' + error);
+                            button.disabled = false;
+                            icon.className = 'icon error-icon';
+                            text.textContent = 'Failed';
+                            button.setAttribute('title', error || 'Download failed');
+                            break;
+                    }
+                }
                 
-                // Create the overview container
-                const overviewContainer = document.createElement('div');
-                overviewContainer.className = 'overview-container';
+                // Toggle loading indicator
+                function toggleLoading(isLoading) {
+                    console.log('[VisbalLogView:WebView] toggleLoading -- Toggling loading indicator: ' + isLoading);
+                    if (isLoading) {
+                        loadingIndicator.classList.remove('hidden');
+                    } else {
+                        loadingIndicator.classList.add('hidden');
+                    }
+                }
                 
-                // Add a welcome message
-                const welcomeMessage = document.createElement('h2');
-                welcomeMessage.textContent = 'Hello! Welcome to the Log Summary View';
-                overviewContainer.appendChild(welcomeMessage);
+                // Toggle refresh button loading state
+                function toggleRefreshButtonLoading(isLoading) {
+                    console.log('[VisbalLogView:WebView] toggleRefreshButtonLoading -- Toggling refresh button loading state: ' + isLoading);
+                    const icon = refreshButton.querySelector('.icon');
+                    const buttonText = document.createElement('span');
+                    buttonText.textContent = 'Refresh';
+                    
+                    if (isLoading) {
+                        refreshButton.disabled = true;
+                        icon.className = 'icon loading-icon';
+                        // Replace button text with just the icon when loading
+                        refreshButton.innerHTML = '';
+                        refreshButton.appendChild(icon);
+                        buttonText.className = 'button-text';
+                        buttonText.textContent = 'Refreshing...';
+                        refreshButton.appendChild(buttonText);
+                    } else {
+                        refreshButton.disabled = false;
+                        icon.className = 'icon refresh-icon';
+                        // Restore original button content
+                        refreshButton.innerHTML = '';
+                        refreshButton.appendChild(icon);
+                        buttonText.className = 'button-text';
+                        buttonText.textContent = 'Refresh';
+                        refreshButton.appendChild(buttonText);
+                    }
+                }
                 
-                // Add a description
-                const description = document.createElement('p');
-                description.textContent = 'This extension helps you analyze Salesforce debug logs. Use the tabs above to explore different aspects of your log file.';
-                overviewContainer.appendChild(description);
+                // Toggle SOQL refresh button loading state
+                function toggleSoqlRefreshButtonLoading(isLoading) {
+                    console.log('[VisbalLogView:WebView] toggleSoqlRefreshButtonLoading -- Toggling SOQL refresh button loading state: ' + isLoading);
+                    const icon = refreshSoqlButton.querySelector('.icon');
+                    const buttonText = document.createElement('span');
+                    buttonText.textContent = 'Refresh (SOQL)';
+                    
+                    if (isLoading) {
+                        refreshSoqlButton.disabled = true;
+                        icon.className = 'icon loading-icon';
+                        // Replace button text with just the icon when loading
+                        refreshSoqlButton.innerHTML = '';
+                        refreshSoqlButton.appendChild(icon);
+                        buttonText.className = 'button-text';
+                        buttonText.textContent = 'Refreshing (SOQL)...';
+                        refreshSoqlButton.appendChild(buttonText);
+                    } else {
+                        refreshSoqlButton.disabled = false;
+                        icon.className = 'icon refresh-icon';
+                        // Restore original button content
+                        refreshSoqlButton.innerHTML = '';
+                        refreshSoqlButton.appendChild(icon);
+                        buttonText.className = 'button-text';
+                        buttonText.textContent = 'Refresh (SOQL)';
+                        refreshSoqlButton.appendChild(buttonText);
+                    }
+                }
                 
-                // Add log statistics
-                const statsSection = document.createElement('div');
-                statsSection.className = 'overview-section';
-                statsSection.innerHTML = \`
-                    <h3>Log Statistics</h3>
-                    <table class="overview-table">
-                        <tr>
-                            <td>Total Events:</td>
-                            <td>\${data.events.length}</td>
-                        </tr>
-                        <tr>
-                            <td>Code Units:</td>
-                            <td>\${data.codeUnits.length}</td>
-                        </tr>
-                        <tr>
-                            <td>DML Operations:</td>
-                            <td>\${data.statistics.dmlCount}</td>
-                        </tr>
-                        <tr>
-                            <td>SOQL Queries:</td>
-                            <td>\${data.statistics.soqlCount}</td>
-                        </tr>
-                    </table>
-                \`;
-                overviewContainer.appendChild(statsSection);
+                // Show error message
+                function showError(message) {
+                    console.error('[VisbalLogView:WebView] showError -- Showing error: ' + message);
+                    errorMessage.innerHTML = message.replace(/\n/g, '<br>');
+                    errorContainer.classList.remove('hidden');
+                }
                 
-                // Add tab descriptions
-                const tabsSection = document.createElement('div');
-                tabsSection.className = 'overview-section';
-                tabsSection.innerHTML = \`
-                    <h3>Available Views</h3>
-                    <ul class="tab-descriptions">
-                        <li><strong>Timeline</strong> - Visualize events over time</li>
-                        <li><strong>Call Tree</strong> - Explore the hierarchy of code execution</li>
-                        <li><strong>Analysis</strong> - Performance metrics and statistics</li>
-                        <li><strong>Database</strong> - SOQL queries and DML operations</li>
-                    </ul>
-                \`;
-                overviewContainer.appendChild(tabsSection);
+                // Format file size
+                function formatFileSize(bytes) {
+                    if (bytes === 0) return '0 Bytes';
+                    
+                    const k = 1024;
+                    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+                    const i = Math.floor(Math.log(bytes) / Math.log(k));
+                    
+                    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+                }
                 
-                // Update progress
-                progressBar.style.width = '100%';
-                progressText.textContent = 'Complete!';
-                
-                // Remove loading container and add content
-                container.removeChild(loadingContainer);
-                container.appendChild(overviewContainer);
-                
-                console.log('RV:OVERVIEW COMPLETE');
-            }
-            
-            // Render timeline view
-            function renderTimelineView(events, container, loadingContainer, progressBar, progressText) {
-                // ... existing code ...
-            }
-            
-            // ... other render functions ...
+                console.log('[VisbalLogView:WebView] init -- Webview script initialization complete');
+            })();
         </script>
+    </body>
+    </html>`;
+}
+
+/**
+ * Returns the HTML template for the log detail view
+ */
+export function getHtmlTemplate(
+    parsedData: any, 
+    logFileName: string, 
+    fileSize: string,
+    currentTab: string,
+    tabs: any[],
+    categories: any[]
+): string {
+    // Original implementation for log detail view
+    return `<!DOCTYPE html>
+    <html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Log Summary: ${logFileName}</title>
+        <style>
+            ${styles}
+        </style>
+    </head>
+    <body>
+        <h1>Log Detail View</h1>
+        <p>This is a placeholder for the log detail view.</p>
     </body>
     </html>`;
 } 

@@ -1,9 +1,30 @@
 import * as vscode from 'vscode';
-import { getHtmlTemplate } from './htmlTemplate';
+import { getLogListTemplate } from './htmlTemplate';
 import { styles } from './styles';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
+import { exec } from 'child_process';
+import { promisify } from 'util';
+
+const execAsync = promisify(exec);
+
+/**
+ * Interface for Salesforce Debug Log
+ */
+interface SalesforceLog {
+    id: string;
+    logUser: {
+        name: string;
+    };
+    application: string;
+    operation: string;
+    request: string;
+    status: string;
+    logLength: number;
+    lastModifiedDate: string;
+    downloaded: boolean;
+}
 
 /**
  * VisbalLogView class for displaying logs in the panel area
@@ -13,23 +34,24 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
     private _view?: vscode.WebviewView;
     private _extensionUri: vscode.Uri;
     private _downloadedLogs: Set<string> = new Set<string>();
+    private _isLoading: boolean = false;
 
     constructor(private readonly _context: vscode.ExtensionContext) {
         this._extensionUri = _context.extensionUri;
+        console.log('[VisbalLogView] constructor -- Initializing VisbalLogView');
         this._checkDownloadedLogs();
     }
 
     /**
      * Resolves the webview view
      * @param webviewView The webview view to resolve
-     * @param context The context in which the view is being resolved
-     * @param token A cancellation token that indicates the result is no longer needed
      */
     public resolveWebviewView(
         webviewView: vscode.WebviewView,
         context: vscode.WebviewViewResolveContext,
         token: vscode.CancellationToken
     ): void | Thenable<void> {
+        console.log('[VisbalLogView] resolveWebviewView -- Resolving webview view');
         this._view = webviewView;
 
         // Set options for the webview
@@ -38,90 +60,44 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
             localResourceRoots: [this._extensionUri]
         };
 
-        // Set the initial HTML content
-        webviewView.webview.html = this._getHtmlForWebview(webviewView.webview);
+        // Set the HTML content
+        webviewView.webview.html = this._getWebviewContent();
+        console.log('[VisbalLogView] resolveWebviewView -- Webview HTML content set');
 
         // Handle messages from the webview
-        webviewView.webview.onDidReceiveMessage(
-            message => {
-                switch (message.command) {
-                    case 'alert':
-                        vscode.window.showInformationMessage(message.text);
-                        return;
-                    case 'fetchLogs':
-                        this._fetchLogs();
-                        return;
-                    case 'downloadLog':
-                        this._downloadLog(message.logId);
-                        return;
-                }
-            },
-            undefined,
-            this._context.subscriptions
-        );
-
-        // Initial fetch of logs
-        this._fetchLogs();
-    }
-
-    /**
-     * Refreshes the view with the latest logs
-     */
-    public refresh(): void {
-        if (this._view) {
-            this._checkDownloadedLogs();
-            this._fetchLogs();
-        }
-    }
-
-    /**
-     * Checks which logs have already been downloaded
-     */
-    private _checkDownloadedLogs(): void {
-        // Clear the set
-        this._downloadedLogs.clear();
-        
-        // Get the logs directory
-        const logsDir = this._getLogsDirectory();
-        
-        // If the directory doesn't exist, create it
-        if (!fs.existsSync(logsDir)) {
-            try {
-                fs.mkdirSync(logsDir, { recursive: true });
-            } catch (error) {
-                console.error('Error creating logs directory:', error);
-                return;
+        webviewView.webview.onDidReceiveMessage(async (message) => {
+            console.log(`[VisbalLogView] resolveWebviewView -- Received message from webview: ${message.command}`, message);
+            switch (message.command) {
+                case 'fetchLogs':
+                    console.log('[VisbalLogView] resolveWebviewView -- Fetching logs from command');
+                    await this._fetchLogs();
+                    break;
+                case 'fetchLogsSoql':
+                    console.log('[VisbalLogView] resolveWebviewView -- Fetching logs via SOQL from command');
+                    await this._fetchLogsSoql();
+                    break;
+                case 'downloadLog':
+                    console.log(`[VisbalLogView] resolveWebviewView -- Downloading log: ${message.logId}`);
+                    await this._downloadLog(message.logId);
+                    break;
             }
-        }
-        
-        // Read the directory
-        try {
-            const files = fs.readdirSync(logsDir);
-            
-            // Add each log ID to the set
-            files.forEach(file => {
-                // Extract the log ID from the filename (assuming format: logId.log)
-                const logId = path.parse(file).name;
-                if (logId) {
-                    this._downloadedLogs.add(logId);
-                }
-            });
-            
-            console.log(`Found ${this._downloadedLogs.size} downloaded logs`);
-        } catch (error) {
-            console.error('Error reading logs directory:', error);
-        }
-    }
+        });
 
-    /**
-     * Gets the logs directory path
-     */
-    private _getLogsDirectory(): string {
-        // Get the home directory
-        const homeDir = os.homedir();
-        
-        // Construct the path to the logs directory
-        return path.join(homeDir, '.sfdx', 'tools', 'debug', 'logs');
+        // Wait for the webview to be ready before fetching logs
+        setTimeout(() => {
+            if (webviewView.visible) {
+                console.log('[VisbalLogView] resolveWebviewView -- View is visible, fetching logs after delay');
+                this._fetchLogs();
+            }
+        }, 1000); // Add a small delay to ensure the webview is fully loaded
+
+        // Fetch logs when the view becomes visible
+        webviewView.onDidChangeVisibility(() => {
+            if (webviewView.visible) {
+                console.log('[VisbalLogView] resolveWebviewView -- View became visible, fetching logs');
+                this._fetchLogs();
+            }
+        });
     }
 
     /**
@@ -129,41 +105,265 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
      * @param logId The ID of the log to download
      */
     private async _downloadLog(logId: string): Promise<void> {
+        console.log(`[VisbalLogView] _downloadLog -- Starting download for log: ${logId}`);
+        if (!this._view) {
+            console.log('[VisbalLogView] _downloadLog -- View is not available, cannot download log');
+            return;
+        }
+
         try {
-            // Show progress notification
-            await vscode.window.withProgress(
-                {
-                    location: vscode.ProgressLocation.Notification,
-                    title: `Downloading log ${logId}`,
-                    cancellable: false
-                },
-                async (progress) => {
-                    progress.report({ increment: 0 });
-                    
-                    // Simulate fetching the log content (replace with actual API call)
-                    const logContent = await this._fetchLogContent(logId);
-                    
-                    progress.report({ increment: 50, message: 'Saving log...' });
-                    
-                    // Save the log to the logs directory
-                    const logsDir = this._getLogsDirectory();
-                    const logPath = path.join(logsDir, `${logId}.log`);
-                    
-                    fs.writeFileSync(logPath, logContent);
-                    
-                    // Add the log ID to the downloaded logs set
-                    this._downloadedLogs.add(logId);
-                    
-                    // Update the view
-                    this._fetchLogs();
-                    
-                    progress.report({ increment: 100, message: 'Done' });
-                    
-                    vscode.window.showInformationMessage(`Log ${logId} downloaded successfully`);
-                }
+            // Show loading state
+            console.log('[VisbalLogView] _downloadLog -- Sending downloading status to webview');
+            this._view.webview.postMessage({ 
+                command: 'downloadStatus', 
+                logId: logId, 
+                status: 'downloading' 
+            });
+
+            // Fetch the log content
+            console.log(`[VisbalLogView] _downloadLog -- Fetching content for log: ${logId}`);
+            const logContent = await this._fetchLogContent(logId);
+            console.log(`[VisbalLogView] _downloadLog -- Received log content, length: ${logContent.length} characters`);
+
+            // Create logs directory if it doesn't exist
+            const logsDir = path.join(os.homedir(), 'visbal_logs');
+            console.log(`[VisbalLogView] _downloadLog -- Saving log to directory: ${logsDir}`);
+            if (!fs.existsSync(logsDir)) {
+                console.log('[VisbalLogView] _downloadLog -- Creating logs directory');
+                fs.mkdirSync(logsDir, { recursive: true });
+            }
+
+            // Save the log to a file
+            const timestamp = new Date().toISOString().replace(/:/g, '-');
+            const filename = `log_${logId}_${timestamp}.log`;
+            const filePath = path.join(logsDir, filename);
+            
+            console.log(`[VisbalLogView] _downloadLog -- Writing log to file: ${filePath}`);
+            fs.writeFileSync(filePath, logContent);
+            console.log('[VisbalLogView] _downloadLog -- Log file written successfully');
+
+            // Add to downloaded logs
+            this._downloadedLogs.add(logId);
+            this._saveDownloadedLogs();
+            console.log(`[VisbalLogView] _downloadLog -- Added log ${logId} to downloaded logs`);
+
+            // Show success message
+            vscode.window.showInformationMessage(`Log downloaded to ${filePath}`);
+            console.log('[VisbalLogView] _downloadLog -- Showed success message to user');
+            
+            // Update download status in the view
+            console.log('[VisbalLogView] _downloadLog -- Sending downloaded status to webview');
+            this._view.webview.postMessage({ 
+                command: 'downloadStatus', 
+                logId: logId, 
+                status: 'downloaded',
+                filePath: filePath
+            });
+            
+            // Offer to open the log file
+            console.log('[VisbalLogView] _downloadLog -- Offering to open the log file');
+            const openFile = await vscode.window.showInformationMessage(
+                `Log saved to ${filePath}`, 
+                'Open File'
             );
+            
+            if (openFile === 'Open File') {
+                console.log('[VisbalLogView] _downloadLog -- User chose to open the file');
+                const fileUri = vscode.Uri.file(filePath);
+                vscode.workspace.openTextDocument(fileUri).then(doc => {
+                    console.log('[VisbalLogView] _downloadLog -- Opening document in editor');
+                    vscode.window.showTextDocument(doc);
+                });
+            }
         } catch (error: any) {
-            vscode.window.showErrorMessage(`Error downloading log: ${error.message}`);
+            console.error(`[VisbalLogView] _downloadLog -- Error downloading log ${logId}:`, error);
+            
+            // Show error message
+            vscode.window.showErrorMessage(`Failed to download log: ${error.message}`);
+            
+            // Update download status in the view
+            console.log('[VisbalLogView] _downloadLog -- Sending error status to webview');
+            this._view.webview.postMessage({ 
+                command: 'downloadStatus', 
+                logId: logId, 
+                status: 'error',
+                error: error.message
+            });
+        }
+    }
+
+    /**
+     * Fetches logs and updates the view
+     */
+    private async _fetchLogs(): Promise<void> {
+        console.log('[VisbalLogView] _fetchLogs -- Starting to fetch logs');
+        if (!this._view || this._isLoading) {
+            console.log('[VisbalLogView] _fetchLogs -- View not available or already loading, skipping fetch');
+            return;
+        }
+
+        // Set loading flag
+        this._isLoading = true;
+        console.log('[VisbalLogView] _fetchLogs -- Set loading flag to true');
+
+        // Show loading state
+        console.log('[VisbalLogView] _fetchLogs -- Sending loading state to webview');
+        this._view.webview.postMessage({ command: 'loading', loading: true });
+
+        try {
+            // Fetch logs from Salesforce
+            console.log('[VisbalLogView] _fetchLogs -- Calling _fetchSalesforceLogs');
+            const logs = await this._fetchSalesforceLogs();
+            console.log(`[VisbalLogView] _fetchLogs -- Received ${logs.length} logs from Salesforce`);
+            
+            // Update download status
+            console.log('[VisbalLogView] _fetchLogs -- Updating download status for logs');
+            logs.forEach(log => {
+                log.downloaded = this._downloadedLogs.has(log.id);
+                if (log.downloaded) {
+                    console.log(`[VisbalLogView] _fetchLogs -- Log ${log.id} is marked as downloaded`);
+                }
+            });
+
+            // Send logs to the webview
+            console.log('[VisbalLogView] _fetchLogs -- Sending logs to webview');
+            console.log(`[VisbalLogView] _fetchLogs -- Logs data structure: ${JSON.stringify(logs.slice(0, 2))}`); // Log sample of logs
+            this._view?.webview.postMessage({ 
+                command: 'updateLogs', 
+                logs: logs 
+            });
+        } catch (error: any) {
+            console.error('[VisbalLogView] _fetchLogs -- Error fetching logs:', error);
+            
+            // Format a more user-friendly error message
+            let errorMessage = `Error fetching logs: ${error.message}`;
+            console.log(`[VisbalLogView] _fetchLogs -- Error message: ${errorMessage}`);
+            
+            // Add helpful suggestions based on the error
+            if (error.message.includes('SFDX CLI is not installed')) {
+                console.log('[VisbalLogView] _fetchLogs -- Adding CLI installation suggestion');
+                errorMessage += '\n\nPlease install the Salesforce CLI from https://developer.salesforce.com/tools/sfdxcli';
+            } else if (error.message.includes('No default Salesforce org found')) {
+                console.log('[VisbalLogView] _fetchLogs -- Adding default org suggestion');
+                errorMessage += '\n\nPlease set a default org using one of these commands:\n- sf org login web\n- sfdx force:auth:web:login --setdefaultusername';
+            } else if (error.message.includes('Command failed')) {
+                // For general command failures, suggest updating the CLI
+                console.log('[VisbalLogView] _fetchLogs -- Adding CLI update suggestion');
+                errorMessage += '\n\nTry updating your Salesforce CLI with one of these commands:\n- npm update -g @salesforce/cli\n- sfdx update';
+            }
+            
+            // Send error to webview
+            console.log('[VisbalLogView] _fetchLogs -- Sending error to webview');
+            this._view?.webview.postMessage({ 
+                command: 'error', 
+                error: errorMessage
+            });
+        } finally {
+            // Clear loading flag
+            this._isLoading = false;
+            console.log('[VisbalLogView] _fetchLogs -- Set loading flag to false');
+            
+            // Hide loading state
+            console.log('[VisbalLogView] _fetchLogs -- Sending loading:false to webview');
+            this._view?.webview.postMessage({ command: 'loading', loading: false });
+        }
+    }
+
+    /**
+     * Fetches logs from Salesforce using SFDX CLI
+     * @returns Array of Salesforce logs
+     */
+    private async _fetchSalesforceLogs(): Promise<SalesforceLog[]> {
+        console.log('[VisbalLogView] _fetchSalesforceLogs -- Starting to fetch Salesforce logs');
+        try {
+            // Check if SFDX CLI is installed
+            try {
+                console.log('[VisbalLogView] _fetchSalesforceLogs -- Checking if SFDX CLI is installed');
+                const { stdout: versionOutput } = await execAsync('sfdx --version');
+                console.log(`[VisbalLogView] _fetchSalesforceLogs -- SFDX CLI version: ${versionOutput.trim()}`);
+            } catch (error) {
+                console.error('[VisbalLogView] _fetchSalesforceLogs -- SFDX CLI not installed:', error);
+                throw new Error('SFDX CLI is not installed. Please install it to use this feature.');
+            }
+            
+            // Try to get the default org using the new command format first
+            let orgData;
+            console.log('[VisbalLogView] _fetchSalesforceLogs -- Trying to get default org with new CLI format');
+            try {
+                const { stdout: orgInfo } = await execAsync('sf org display --json');
+                console.log('[VisbalLogView] _fetchSalesforceLogs -- Successfully got org info with new CLI format');
+                orgData = JSON.parse(orgInfo);
+                console.log('[VisbalLogView] _fetchSalesforceLogs -- Parsed org data:', orgData.result?.username);
+            } catch (error) {
+                console.log('[VisbalLogView] _fetchSalesforceLogs -- Failed with new CLI format, trying old format', error);
+                // If the new command fails, try the old format
+                try {
+                    const { stdout: orgInfo } = await execAsync('sfdx force:org:display --json');
+                    console.log('[VisbalLogView] _fetchSalesforceLogs -- Successfully got org info with old CLI format');
+                    orgData = JSON.parse(orgInfo);
+                    console.log('[VisbalLogView] _fetchSalesforceLogs -- Parsed org data:', orgData.result?.username);
+                } catch (innerError) {
+                    console.error('[VisbalLogView] _fetchSalesforceLogs -- Failed to get org info with both formats:', innerError);
+                    throw new Error('Failed to get default org information. Please ensure you have a default org set.');
+                }
+            }
+            
+            if (!orgData.result || !orgData.result.username) {
+                console.error('[VisbalLogView] _fetchSalesforceLogs -- No username found in org data');
+                throw new Error('No default Salesforce org found. Please set a default org using Salesforce CLI.');
+            }
+            
+            console.log(`[VisbalLogView] _fetchSalesforceLogs -- Connected to org: ${orgData.result.username}`);
+            
+            // Try to fetch debug logs using the new command format first
+            let logsResponse;
+            console.log('[VisbalLogView] _fetchSalesforceLogs -- Trying to fetch logs with new CLI format');
+            try {
+                const { stdout: logsData } = await execAsync('sf apex list log --json');
+                console.log('[VisbalLogView] _fetchSalesforceLogs -- Successfully fetched logs with new CLI format');
+                logsResponse = JSON.parse(logsData);
+            } catch (error) {
+                console.log('[VisbalLogView] _fetchSalesforceLogs -- Failed with new CLI format, trying old format', error);
+                // If the new command fails, try the old format
+                try {
+                    console.log('[VisbalLogView] _fetchSalesforceLogs -- Executing: sfdx force:apex:log:list --json --limit 200');
+                    const { stdout: logsData } = await execAsync('sfdx force:apex:log:list --json --limit 200');
+                    console.log('[VisbalLogView] _fetchSalesforceLogs -- Successfully fetched logs with old CLI format');
+                    logsResponse = JSON.parse(logsData);
+                } catch (innerError) {
+                    console.error('[VisbalLogView] _fetchSalesforceLogs -- Failed to fetch logs with both formats:', innerError);
+                    throw new Error('Failed to fetch logs. Please ensure your Salesforce CLI is properly configured.');
+                }
+            }
+            
+            if (!logsResponse.result || !Array.isArray(logsResponse.result)) {
+                console.log('[VisbalLogView] _fetchSalesforceLogs -- No logs found in response:', logsResponse);
+                return [];
+            }
+            
+            console.log(`[VisbalLogView] _fetchSalesforceLogs -- Found ${logsResponse.result.length} debug logs`);
+            
+            // Format the logs
+            console.log('[VisbalLogView] _fetchSalesforceLogs -- Formatting logs');
+            const formattedLogs = logsResponse.result.map((log: any) => ({
+                id: log.Id,
+                logUser: {
+                    name: log.LogUser?.Name || 'Unknown User'
+                },
+                application: log.Application || 'Unknown',
+                operation: log.Operation || 'Unknown',
+                request: log.Request || '',
+                status: log.Status || 'Unknown',
+                logLength: log.LogLength || 0,
+                lastModifiedDate: log.LastModifiedDate || '',
+                downloaded: false // Will be updated later
+            }));
+            
+            console.log(`[VisbalLogView] _fetchSalesforceLogs -- Returning ${formattedLogs.length} formatted logs`);
+            return formattedLogs;
+        } catch (error: any) {
+            console.error('[VisbalLogView] _fetchSalesforceLogs -- Error in _fetchSalesforceLogs:', error);
+            throw error;
         }
     }
 
@@ -172,521 +372,258 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
      * @param logId The ID of the log to fetch
      */
     private async _fetchLogContent(logId: string): Promise<string> {
-        // Simulate fetching log content (replace with actual API call)
-        return new Promise((resolve) => {
-            setTimeout(() => {
-                resolve(`Log content for ${logId}\n\nThis is a simulated log content.\nIt would contain the actual log data in a real implementation.\n\nTimestamp: ${new Date().toISOString()}\nLog ID: ${logId}`);
-            }, 1000);
-        });
+        console.log(`[VisbalLogView] _fetchLogContent -- Starting to fetch content for log: ${logId}`);
+        try {
+            // Try to fetch the log using the new command format first
+            let log;
+            console.log('[VisbalLogView] _fetchLogContent -- Trying to fetch log content with new CLI format');
+            try {
+                const command = `sf apex get log -i ${logId} --json`;
+                console.log(`[VisbalLogView] _fetchLogContent -- Executing: ${command}`);
+                const { stdout: logData } = await execAsync(command);
+                console.log('[VisbalLogView] _fetchLogContent -- Successfully fetched log content with new CLI format');
+                log = JSON.parse(logData);
+            } catch (error) {
+                console.log('[VisbalLogView] _fetchLogContent -- Failed with new CLI format, trying old format', error);
+                // If the new command fails, try the old format
+                try {
+                    const command = `sfdx force:apex:log:get --logid ${logId} --json`;
+                    console.log(`[VisbalLogView] _fetchLogContent -- Executing: ${command}`);
+                    const { stdout: logData } = await execAsync(command);
+                    console.log('[VisbalLogView] _fetchLogContent -- Successfully fetched log content with old CLI format');
+                    log = JSON.parse(logData);
+                } catch (innerError) {
+                    console.error('[VisbalLogView] _fetchLogContent -- Failed to fetch log content with both formats:', innerError);
+                    throw new Error('Failed to fetch log content. Please ensure your Salesforce CLI is properly configured.');
+                }
+            }
+            
+            if (!log.result || !log.result.log) {
+                console.error('[VisbalLogView] _fetchLogContent -- Log not found or empty in response:', log);
+                throw new Error('Log not found or empty');
+            }
+            
+            console.log(`[VisbalLogView] _fetchLogContent -- Successfully retrieved log content, length: ${log.result.log.length} characters`);
+            return log.result.log;
+        } catch (error: any) {
+            console.error(`[VisbalLogView] _fetchLogContent -- Error fetching log with ID ${logId}:`, error);
+            throw error;
+        }
     }
 
     /**
-     * Fetches logs and updates the view
+     * Checks for previously downloaded logs
      */
-    private _fetchLogs(): void {
-        if (!this._view) {
+    private _checkDownloadedLogs(): void {
+        console.log('[VisbalLogView] _checkDownloadedLogs -- Checking for previously downloaded logs');
+        const downloadedLogs = this._context.globalState.get<string[]>('visbalDownloadedLogs', []);
+        this._downloadedLogs = new Set<string>(downloadedLogs);
+        console.log(`[VisbalLogView] _checkDownloadedLogs -- Found ${this._downloadedLogs.size} previously downloaded logs`);
+    }
+
+    /**
+     * Saves the list of downloaded logs to extension storage
+     */
+    private _saveDownloadedLogs(): void {
+        console.log(`[VisbalLogView] _saveDownloadedLogs -- Saving ${this._downloadedLogs.size} downloaded logs to extension storage`);
+        this._context.globalState.update('visbalDownloadedLogs', Array.from(this._downloadedLogs));
+    }
+
+    /**
+     * Gets the HTML for the webview
+     */
+    private _getWebviewContent(): string {
+        console.log('[VisbalLogView] _getWebviewContent -- Getting HTML content for webview');
+        return getLogListTemplate();
+    }
+
+    /**
+     * Refreshes the logs in the view
+     */
+    public refresh(): void {
+        console.log('[VisbalLogView] refresh -- Method called');
+        this._fetchLogs();
+    }
+
+    /**
+     * Fetches logs using SOQL query and updates the view
+     */
+    private async _fetchLogsSoql(): Promise<void> {
+        console.log('[VisbalLogView] _fetchLogsSoql -- Starting to fetch logs via SOQL');
+        if (!this._view || this._isLoading) {
+            console.log('[VisbalLogView] _fetchLogsSoql -- View not available or already loading, skipping fetch');
             return;
         }
 
+        // Set loading flag
+        this._isLoading = true;
+        console.log('[VisbalLogView] _fetchLogsSoql -- Set loading flag to true');
+
         // Show loading state
+        console.log('[VisbalLogView] _fetchLogsSoql -- Sending loading state to webview');
         this._view.webview.postMessage({ command: 'loading', loading: true });
 
-        // Simulate fetching logs (replace with actual log fetching logic)
-        setTimeout(() => {
-            const mockLogs = [
-                {
-                    id: '07L5g000000TgXXEA0',
-                    logUser: {
-                        name: 'Sample User'
-                    },
-                    application: 'API',
-                    operation: 'API',
-                    request: '/services/data/v55.0/sobjects/Account',
-                    status: 'Success',
-                    logLength: 15243,
-                    lastModifiedDate: new Date().toISOString(),
-                    downloaded: this._downloadedLogs.has('07L5g000000TgXXEA0')
-                },
-                {
-                    id: '07L5g000000TgXYEA0',
-                    logUser: {
-                        name: 'Sample User'
-                    },
-                    application: 'Apex',
-                    operation: 'Execution',
-                    request: '/apex/MyPage',
-                    status: 'Success',
-                    logLength: 32156,
-                    lastModifiedDate: new Date(new Date().setDate(new Date().getDate() - 1)).toISOString(),
-                    downloaded: this._downloadedLogs.has('07L5g000000TgXYEA0')
-                },
-                {
-                    id: '07L5g000000TgXZEA0',
-                    logUser: {
-                        name: 'Integration User'
-                    },
-                    application: 'Batch',
-                    operation: 'Batch',
-                    request: 'BatchJob',
-                    status: 'Success',
-                    logLength: 54321,
-                    lastModifiedDate: new Date(new Date().setDate(new Date().getDate() - 1)).toISOString(),
-                    downloaded: this._downloadedLogs.has('07L5g000000TgXZEA0')
+        try {
+            // Fetch logs from Salesforce using SOQL
+            console.log('[VisbalLogView] _fetchLogsSoql -- Calling _fetchSalesforceLogsSoql');
+            const logs = await this._fetchSalesforceLogsSoql();
+            console.log(`[VisbalLogView] _fetchLogsSoql -- Received ${logs.length} logs from Salesforce via SOQL`);
+            
+            // Update download status
+            console.log('[VisbalLogView] _fetchLogsSoql -- Updating download status for logs');
+            logs.forEach(log => {
+                log.downloaded = this._downloadedLogs.has(log.id);
+                if (log.downloaded) {
+                    console.log(`[VisbalLogView] _fetchLogsSoql -- Log ${log.id} is marked as downloaded`);
                 }
-            ];
-
-            // Send logs to the webview
-            this._view?.webview.postMessage({ 
-                command: 'updateLogs', 
-                logs: mockLogs 
             });
 
+            // Send logs to the webview
+            console.log('[VisbalLogView] _fetchLogsSoql -- Sending logs to webview');
+            console.log(`[VisbalLogView] _fetchLogsSoql -- Logs data structure: ${JSON.stringify(logs.slice(0, 2))}`); // Log sample of logs
+            this._view?.webview.postMessage({ 
+                command: 'updateLogs', 
+                logs: logs 
+            });
+        } catch (error: any) {
+            console.error('[VisbalLogView] _fetchLogsSoql -- Error fetching logs via SOQL:', error);
+            
+            // Format a more user-friendly error message
+            let errorMessage = `Error fetching logs via SOQL: ${error.message}`;
+            console.log(`[VisbalLogView] _fetchLogsSoql -- Error message: ${errorMessage}`);
+            
+            // Add helpful suggestions based on the error
+            if (error.message.includes('SFDX CLI is not installed')) {
+                console.log('[VisbalLogView] _fetchLogsSoql -- Adding CLI installation suggestion');
+                errorMessage += '\n\nPlease install the Salesforce CLI from https://developer.salesforce.com/tools/sfdxcli';
+            } else if (error.message.includes('No default Salesforce org found')) {
+                console.log('[VisbalLogView] _fetchLogsSoql -- Adding default org suggestion');
+                errorMessage += '\n\nPlease set a default org using one of these commands:\n- sf org login web\n- sfdx force:auth:web:login --setdefaultusername';
+            } else if (error.message.includes('Command failed')) {
+                // For general command failures, suggest updating the CLI
+                console.log('[VisbalLogView] _fetchLogsSoql -- Adding CLI update suggestion');
+                errorMessage += '\n\nTry updating your Salesforce CLI with one of these commands:\n- npm update -g @salesforce/cli\n- sfdx update';
+            }
+            
+            // Send error to webview
+            console.log('[VisbalLogView] _fetchLogsSoql -- Sending error to webview');
+            this._view?.webview.postMessage({ 
+                command: 'error', 
+                error: errorMessage
+            });
+        } finally {
+            // Clear loading flag
+            this._isLoading = false;
+            console.log('[VisbalLogView] _fetchLogsSoql -- Set loading flag to false');
+            
             // Hide loading state
+            console.log('[VisbalLogView] _fetchLogsSoql -- Sending loading:false to webview');
             this._view?.webview.postMessage({ command: 'loading', loading: false });
-        }, 1000);
+        }
     }
 
     /**
-     * Returns the HTML content for the webview
-     * @param webview The webview to get HTML for
+     * Fetches logs from Salesforce using SOQL query via SFDX CLI
+     * @returns Array of Salesforce logs
      */
-    private _getHtmlForWebview(webview: vscode.Webview): string {
-        return `
-        <!DOCTYPE html>
-        <html lang="en">
-        <head>
-            <meta charset="UTF-8">
-            <meta name="viewport" content="width=device-width, initial-scale=1.0">
-            <title>Visbal Log</title>
-            <style>
-                ${styles}
-                body {
-                    padding: 0;
-                    margin: 0;
-                    font-family: var(--vscode-font-family);
-                    font-size: var(--vscode-font-size);
-                    color: var(--vscode-foreground);
-                    background-color: var(--vscode-editor-background);
-                }
-                .container {
-                    padding: 16px;
-                    display: flex;
-                    flex-direction: column;
-                    height: 100vh;
-                }
-                .header {
-                    display: flex;
-                    justify-content: space-between;
-                    align-items: center;
-                    margin-bottom: 16px;
-                }
-                .title {
-                    font-size: 18px;
-                    font-weight: 600;
-                    display: flex;
-                    align-items: center;
-                    gap: 8px;
-                }
-                .title-icon {
-                    font-family: 'codicon';
-                }
-                .search-container {
-                    display: flex;
-                    align-items: center;
-                    gap: 8px;
-                    padding: 4px 8px;
-                    background-color: var(--vscode-input-background);
-                    border: 1px solid var(--vscode-input-border);
-                    border-radius: 4px;
-                    margin-bottom: 16px;
-                }
-                .search-icon {
-                    font-family: 'codicon';
-                    color: var(--vscode-input-placeholderForeground);
-                }
-                .search-input {
-                    flex: 1;
-                    background: transparent;
-                    border: none;
-                    color: var(--vscode-input-foreground);
-                    outline: none;
-                    font-size: 14px;
-                }
-                .table-container {
-                    flex: 1;
-                    overflow: auto;
-                    border: 1px solid var(--vscode-panel-border);
-                    border-radius: 4px;
-                }
-                table {
-                    width: 100%;
-                    border-collapse: collapse;
-                }
-                th {
-                    position: sticky;
-                    top: 0;
-                    background-color: var(--vscode-editor-background);
-                    color: var(--vscode-foreground);
-                    font-weight: 600;
-                    text-align: left;
-                    padding: 8px 16px;
-                    border-bottom: 1px solid var(--vscode-panel-border);
-                }
-                tr {
-                    cursor: pointer;
-                }
-                tr:hover {
-                    background-color: var(--vscode-list-hoverBackground);
-                }
-                tr:nth-child(even) {
-                    background-color: var(--vscode-editor-background);
-                }
-                td {
-                    padding: 8px 16px;
-                    border-bottom: 1px solid var(--vscode-panel-border);
-                    color: var(--vscode-foreground);
-                }
-                .loading-container {
-                    display: flex;
-                    flex-direction: column;
-                    align-items: center;
-                    justify-content: center;
-                    height: 100%;
-                    padding: 20px;
-                }
-                .loading-spinner {
-                    width: 40px;
-                    height: 40px;
-                    border: 4px solid rgba(74, 156, 214, 0.3);
-                    border-radius: 50%;
-                    border-top-color: #4a9cd6;
-                    animation: spin 1s linear infinite;
-                }
-                @keyframes spin {
-                    to { transform: rotate(360deg); }
-                }
-                .loading-text {
-                    margin-top: 16px;
-                    color: var(--vscode-descriptionForeground);
-                }
-                .error-container {
-                    display: flex;
-                    flex-direction: column;
-                    align-items: center;
-                    justify-content: center;
-                    height: 100%;
-                    padding: 20px;
-                    color: var(--vscode-errorForeground);
-                }
-                .error-icon {
-                    font-family: 'codicon';
-                    font-size: 24px;
-                    margin-bottom: 16px;
-                }
-                .refresh-button {
-                    margin-top: 16px;
-                    padding: 6px 12px;
-                    background-color: var(--vscode-button-background);
-                    color: var(--vscode-button-foreground);
-                    border: none;
-                    border-radius: 4px;
-                    cursor: pointer;
-                    font-size: 12px;
-                    display: flex;
-                    align-items: center;
-                    gap: 6px;
-                }
-                .refresh-button:hover {
-                    background-color: var(--vscode-button-hoverBackground);
-                }
-                .refresh-icon {
-                    font-family: 'codicon';
-                }
-                .download-status {
-                    display: flex;
-                    align-items: center;
-                    justify-content: center;
-                }
-                .download-icon {
-                    font-family: 'codicon';
-                    font-size: 14px;
-                }
-                .downloaded {
-                    color: var(--vscode-terminal-ansiGreen);
-                }
-                .not-downloaded {
-                    color: var(--vscode-terminal-ansiYellow);
-                }
-                .truncate {
-                    max-width: 150px;
-                    white-space: nowrap;
-                    overflow: hidden;
-                    text-overflow: ellipsis;
-                }
-            </style>
-        </head>
-        <body>
-            <div class="container">
-                <div class="header">
-                    <div class="title">
-                        <span class="title-icon">$(notebook)</span>
-                        <span>Visbal Log</span>
-                    </div>
-                    <button class="refresh-button" id="refresh-button">
-                        <span class="refresh-icon">$(refresh)</span>
-                        <span>Refresh</span>
-                    </button>
-                </div>
-                
-                <div class="search-container">
-                    <span class="search-icon">$(search)</span>
-                    <input type="text" class="search-input" placeholder="Search logs..." id="search-input">
-                </div>
-                
-                <div class="table-container" id="table-container">
-                    <div class="loading-container" id="loading-container">
-                        <div class="loading-spinner"></div>
-                        <div class="loading-text">Loading logs...</div>
-                    </div>
-                </div>
-            </div>
+    private async _fetchSalesforceLogsSoql(): Promise<SalesforceLog[]> {
+        console.log('[VisbalLogView] _fetchSalesforceLogsSoql -- Starting to fetch Salesforce logs via SOQL');
+        try {
+            // Check if SFDX CLI is installed
+            try {
+                console.log('[VisbalLogView] _fetchSalesforceLogsSoql -- Checking if SFDX CLI is installed');
+                const { stdout: versionOutput } = await execAsync('sfdx --version');
+                console.log(`[VisbalLogView] _fetchSalesforceLogsSoql -- SFDX CLI version: ${versionOutput.trim()}`);
+            } catch (error) {
+                console.error('[VisbalLogView] _fetchSalesforceLogsSoql -- SFDX CLI not installed:', error);
+                throw new Error('SFDX CLI is not installed. Please install it to use this feature.');
+            }
             
-            <script>
-                (function() {
-                    // Get VS Code API
-                    const vscode = acquireVsCodeApi();
-                    
-                    // Elements
-                    const tableContainer = document.getElementById('table-container');
-                    const loadingContainer = document.getElementById('loading-container');
-                    const refreshButton = document.getElementById('refresh-button');
-                    const searchInput = document.getElementById('search-input');
-                    
-                    // State
-                    let logs = [];
-                    let filteredLogs = [];
-                    
-                    // Initialize
-                    document.addEventListener('DOMContentLoaded', () => {
-                        // Request logs from extension
-                        vscode.postMessage({ command: 'fetchLogs' });
-                    });
-                    
-                    // Handle refresh button click
-                    refreshButton.addEventListener('click', () => {
-                        showLoading();
-                        vscode.postMessage({ command: 'fetchLogs' });
-                    });
-                    
-                    // Handle search input
-                    searchInput.addEventListener('input', () => {
-                        filterLogs();
-                    });
-                    
-                    // Handle messages from extension
-                    window.addEventListener('message', event => {
-                        const message = event.data;
-                        
-                        switch (message.command) {
-                            case 'updateLogs':
-                                logs = message.logs;
-                                filteredLogs = [...logs];
-                                renderLogs();
-                                break;
-                                
-                            case 'loading':
-                                if (message.loading) {
-                                    showLoading();
-                                }
-                                break;
-                                
-                            case 'error':
-                                showError(message.error);
-                                break;
-                        }
-                    });
-                    
-                    // Show loading state
-                    function showLoading() {
-                        tableContainer.innerHTML = '';
-                        tableContainer.appendChild(loadingContainer);
-                    }
-                    
-                    // Show error state
-                    function showError(errorMessage) {
-                        tableContainer.innerHTML = '';
-                        
-                        const errorContainer = document.createElement('div');
-                        errorContainer.className = 'error-container';
-                        
-                        const errorIcon = document.createElement('div');
-                        errorIcon.className = 'error-icon';
-                        errorIcon.innerHTML = '$(error)';
-                        errorContainer.appendChild(errorIcon);
-                        
-                        const errorText = document.createElement('div');
-                        errorText.textContent = errorMessage || 'An error occurred while fetching logs';
-                        errorContainer.appendChild(errorText);
-                        
-                        const retryButton = document.createElement('button');
-                        retryButton.className = 'refresh-button';
-                        
-                        const retryIcon = document.createElement('span');
-                        retryIcon.className = 'refresh-icon';
-                        retryIcon.innerHTML = '$(refresh)';
-                        retryButton.appendChild(retryIcon);
-                        
-                        const retryText = document.createElement('span');
-                        retryText.textContent = 'Try Again';
-                        retryButton.appendChild(retryText);
-                        
-                        retryButton.addEventListener('click', () => {
-                            showLoading();
-                            vscode.postMessage({ command: 'fetchLogs' });
-                        });
-                        
-                        errorContainer.appendChild(retryButton);
-                        tableContainer.appendChild(errorContainer);
-                    }
-                    
-                    // Filter logs based on search input
-                    function filterLogs() {
-                        const searchTerm = searchInput.value.toLowerCase();
-                        
-                        if (!searchTerm) {
-                            filteredLogs = [...logs];
-                        } else {
-                            filteredLogs = logs.filter(log => 
-                                log.id.toLowerCase().includes(searchTerm) ||
-                                log.logUser.name.toLowerCase().includes(searchTerm) ||
-                                log.application.toLowerCase().includes(searchTerm) ||
-                                log.operation.toLowerCase().includes(searchTerm) ||
-                                log.status.toLowerCase().includes(searchTerm)
-                            );
-                        }
-                        
-                        renderLogs();
-                    }
-                    
-                    // Render logs table
-                    function renderLogs() {
-                        tableContainer.innerHTML = '';
-                        
-                        if (!filteredLogs || filteredLogs.length === 0) {
-                            const noLogsContainer = document.createElement('div');
-                            noLogsContainer.className = 'loading-container';
-                            noLogsContainer.textContent = 'No logs found';
-                            tableContainer.appendChild(noLogsContainer);
-                            return;
-                        }
-                        
-                        const table = document.createElement('table');
-                        
-                        // Create table header
-                        const thead = document.createElement('thead');
-                        const headerRow = document.createElement('tr');
-                        
-                        const headers = [
-                            { id: 'id', label: 'ID' },
-                            { id: 'user', label: 'User' },
-                            { id: 'application', label: 'Application' },
-                            { id: 'operation', label: 'Operation' },
-                            { id: 'time', label: 'Time' },
-                            { id: 'status', label: 'Status' },
-                            { id: 'size', label: 'Size (bytes)' },
-                            { id: 'downloaded', label: 'Downloaded' }
-                        ];
-                        
-                        headers.forEach(header => {
-                            const th = document.createElement('th');
-                            th.textContent = header.label;
-                            headerRow.appendChild(th);
-                        });
-                        
-                        thead.appendChild(headerRow);
-                        table.appendChild(thead);
-                        
-                        // Create table body
-                        const tbody = document.createElement('tbody');
-                        
-                        filteredLogs.forEach(log => {
-                            const row = document.createElement('tr');
-                            
-                            // ID column
-                            const idCell = document.createElement('td');
-                            idCell.className = 'truncate';
-                            idCell.title = log.id;
-                            idCell.textContent = log.id;
-                            row.appendChild(idCell);
-                            
-                            // User column
-                            const userCell = document.createElement('td');
-                            userCell.textContent = log.logUser.name;
-                            row.appendChild(userCell);
-                            
-                            // Application column
-                            const appCell = document.createElement('td');
-                            appCell.textContent = log.application;
-                            row.appendChild(appCell);
-                            
-                            // Operation column
-                            const opCell = document.createElement('td');
-                            opCell.textContent = log.operation;
-                            row.appendChild(opCell);
-                            
-                            // Time column
-                            const timeCell = document.createElement('td');
-                            const date = new Date(log.lastModifiedDate);
-                            timeCell.textContent = date.toLocaleString();
-                            row.appendChild(timeCell);
-                            
-                            // Status column
-                            const statusCell = document.createElement('td');
-                            statusCell.textContent = log.status;
-                            row.appendChild(statusCell);
-                            
-                            // Size column
-                            const sizeCell = document.createElement('td');
-                            sizeCell.textContent = log.logLength;
-                            row.appendChild(sizeCell);
-                            
-                            // Downloaded column
-                            const downloadedCell = document.createElement('td');
-                            downloadedCell.className = 'download-status';
-                            
-                            const downloadIcon = document.createElement('span');
-                            downloadIcon.className = 'download-icon ' + (log.downloaded ? 'downloaded' : 'not-downloaded');
-                            downloadIcon.innerHTML = log.downloaded ? '$(check)' : '$(cloud-download)';
-                            downloadIcon.title = log.downloaded ? 'Downloaded' : 'Click to download';
-                            downloadedCell.appendChild(downloadIcon);
-                            
-                            row.appendChild(downloadedCell);
-                            
-                            // Add click event to row
-                            row.addEventListener('click', () => {
-                                if (!log.downloaded) {
-                                    vscode.postMessage({
-                                        command: 'downloadLog',
-                                        logId: log.id
-                                    });
-                                } else {
-                                    vscode.postMessage({
-                                        command: 'alert',
-                                        text: \`Log \${log.id} is already downloaded\`
-                                    });
-                                }
-                            });
-                            
-                            tbody.appendChild(row);
-                        });
-                        
-                        table.appendChild(tbody);
-                        tableContainer.appendChild(table);
-                    }
-                })();
-            </script>
-        </body>
-        </html>
-        `;
+            // Try to get the default org using the new command format first
+            let orgData;
+            console.log('[VisbalLogView] _fetchSalesforceLogsSoql -- Trying to get default org with new CLI format');
+            try {
+                const { stdout: orgInfo } = await execAsync('sf org display --json');
+                console.log('[VisbalLogView] _fetchSalesforceLogsSoql -- Successfully got org info with new CLI format');
+                orgData = JSON.parse(orgInfo);
+                console.log('[VisbalLogView] _fetchSalesforceLogsSoql -- Parsed org data:', orgData.result?.username);
+            } catch (error) {
+                console.log('[VisbalLogView] _fetchSalesforceLogsSoql -- Failed with new CLI format, trying old format', error);
+                // If the new command fails, try the old format
+                try {
+                    const { stdout: orgInfo } = await execAsync('sfdx force:org:display --json');
+                    console.log('[VisbalLogView] _fetchSalesforceLogsSoql -- Successfully got org info with old CLI format');
+                    orgData = JSON.parse(orgInfo);
+                    console.log('[VisbalLogView] _fetchSalesforceLogsSoql -- Parsed org data:', orgData.result?.username);
+                } catch (innerError) {
+                    console.error('[VisbalLogView] _fetchSalesforceLogsSoql -- Failed to get org info with both formats:', innerError);
+                    throw new Error('Failed to get default org information. Please ensure you have a default org set.');
+                }
+            }
+            
+            if (!orgData.result || !orgData.result.username) {
+                console.error('[VisbalLogView] _fetchSalesforceLogsSoql -- No username found in org data');
+                throw new Error('No default Salesforce org found. Please set a default org using Salesforce CLI.');
+            }
+            
+            console.log(`[VisbalLogView] _fetchSalesforceLogsSoql -- Connected to org: ${orgData.result.username}`);
+            
+            // SOQL query to fetch debug logs
+            const soqlQuery = "SELECT Id, LogUser.Name, Application, Operation, Request, Status, LogLength, LastModifiedDate FROM ApexLog ORDER BY LastModifiedDate DESC LIMIT 200";
+            console.log(`[VisbalLogView] _fetchSalesforceLogsSoql -- SOQL query: ${soqlQuery}`);
+            
+            // Try to execute SOQL query using the new command format first
+            let queryResult;
+            console.log('[VisbalLogView] _fetchSalesforceLogsSoql -- Trying to execute SOQL query with new CLI format');
+            try {
+                const command = `sf data query -q "${soqlQuery}" --json`;
+                console.log(`[VisbalLogView] _fetchSalesforceLogsSoql -- Executing: ${command}`);
+                const { stdout: queryData } = await execAsync(command);
+                console.log('[VisbalLogView] _fetchSalesforceLogsSoql -- Successfully executed SOQL query with new CLI format');
+                queryResult = JSON.parse(queryData);
+            } catch (error) {
+                console.log('[VisbalLogView] _fetchSalesforceLogsSoql -- Failed with new CLI format, trying old format', error);
+                // If the new command fails, try the old format
+                try {
+                    const command = `sfdx force:data:soql:query -q "${soqlQuery}" --json`;
+                    console.log(`[VisbalLogView] _fetchSalesforceLogsSoql -- Executing: ${command}`);
+                    const { stdout: queryData } = await execAsync(command);
+                    console.log('[VisbalLogView] _fetchSalesforceLogsSoql -- Successfully executed SOQL query with old CLI format');
+                    queryResult = JSON.parse(queryData);
+                } catch (innerError) {
+                    console.error('[VisbalLogView] _fetchSalesforceLogsSoql -- Failed to execute SOQL query with both formats:', innerError);
+                    throw new Error('Failed to execute SOQL query. Please ensure your Salesforce CLI is properly configured.');
+                }
+            }
+            
+            if (!queryResult.result || !queryResult.result.records || !Array.isArray(queryResult.result.records)) {
+                console.log('[VisbalLogView] _fetchSalesforceLogsSoql -- No logs found in query result:', queryResult);
+                return [];
+            }
+            
+            console.log(`[VisbalLogView] _fetchSalesforceLogsSoql -- Found ${queryResult.result.records.length} debug logs via SOQL`);
+            
+            // Format the logs
+            console.log('[VisbalLogView] _fetchSalesforceLogsSoql -- Formatting logs from SOQL query');
+            const formattedLogs = queryResult.result.records.map((log: any) => ({
+                id: log.Id,
+                logUser: {
+                    name: log.LogUser?.Name || 'Unknown User'
+                },
+                application: log.Application || 'Unknown',
+                operation: log.Operation || 'Unknown',
+                request: log.Request || '',
+                status: log.Status || 'Unknown',
+                logLength: log.LogLength || 0,
+                lastModifiedDate: log.LastModifiedDate || '',
+                downloaded: false // Will be updated later
+            }));
+            
+            console.log(`[VisbalLogView] _fetchSalesforceLogsSoql -- Returning ${formattedLogs.length} formatted logs from SOQL query`);
+            return formattedLogs;
+        } catch (error: any) {
+            console.error('[VisbalLogView] _fetchSalesforceLogsSoql -- Error in _fetchSalesforceLogsSoql:', error);
+            throw error;
+        }
     }
-} 
+}
