@@ -228,10 +228,45 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
             // Send logs to the webview
             console.log('[VisbalLogView] _fetchLogs -- Sending logs to webview');
             console.log(`[VisbalLogView] _fetchLogs -- Logs data structure: ${JSON.stringify(logs.slice(0, 2))}`); // Log sample of logs
-            this._view?.webview.postMessage({ 
-                command: 'updateLogs', 
-                logs: logs 
+            
+            // Validate logs before sending
+            if (!logs || !Array.isArray(logs)) {
+                console.error('[VisbalLogView] _fetchLogs -- Invalid logs array:', logs);
+                throw new Error('Invalid logs data structure');
+            }
+            
+            // Ensure all logs have the required properties
+            const validatedLogs = logs.filter(log => {
+                if (!log || typeof log !== 'object' || !log.id) {
+                    console.error('[VisbalLogView] _fetchLogs -- Invalid log entry:', log);
+                    return false;
+                }
+                return true;
             });
+            
+            console.log(`[VisbalLogView] _fetchLogs -- Validated ${validatedLogs.length} of ${logs.length} logs`);
+            
+            // Check if we have any valid logs
+            if (validatedLogs.length === 0) {
+                console.error('[VisbalLogView] _fetchLogs -- No valid logs found after validation');
+                throw new Error('No valid logs found after validation');
+            }
+            
+            // Send the validated logs to the webview
+            console.log('[VisbalLogView] _fetchLogs -- Posting message to webview with logs');
+            await this._view?.webview.postMessage({ 
+                command: 'updateLogs', 
+                logs: validatedLogs 
+            });
+            console.log('[VisbalLogView] _fetchLogs -- Message posted to webview');
+            
+            // Send a test message to verify webview communication
+            console.log('[VisbalLogView] _fetchLogs -- Sending test error message to webview');
+            await this._view?.webview.postMessage({ 
+                command: 'error', 
+                error: `Test message: ${validatedLogs.length} logs sent to webview` 
+            });
+            console.log('[VisbalLogView] _fetchLogs -- Test message sent');
         } catch (error: any) {
             console.error('[VisbalLogView] _fetchLogs -- Error fetching logs:', error);
             
@@ -434,7 +469,9 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
      */
     private _getWebviewContent(): string {
         console.log('[VisbalLogView] _getWebviewContent -- Getting HTML content for webview');
-        return getLogListTemplate();
+        const html = getLogListTemplate();
+        console.log('[VisbalLogView] _getWebviewContent -- HTML content length:', html.length);
+        return html;
     }
 
     /**
@@ -481,9 +518,28 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
             // Send logs to the webview
             console.log('[VisbalLogView] _fetchLogsSoql -- Sending logs to webview');
             console.log(`[VisbalLogView] _fetchLogsSoql -- Logs data structure: ${JSON.stringify(logs.slice(0, 2))}`); // Log sample of logs
+            
+            // Validate logs before sending
+            if (!logs || !Array.isArray(logs)) {
+                console.error('[VisbalLogView] _fetchLogsSoql -- Invalid logs array:', logs);
+                throw new Error('Invalid logs data structure');
+            }
+            
+            // Ensure all logs have the required properties
+            const validatedLogs = logs.filter(log => {
+                if (!log || typeof log !== 'object' || !log.id) {
+                    console.error('[VisbalLogView] _fetchLogsSoql -- Invalid log entry:', log);
+                    return false;
+                }
+                return true;
+            });
+            
+            console.log(`[VisbalLogView] _fetchLogsSoql -- Validated ${validatedLogs.length} of ${logs.length} logs`);
+            
+            // Send the validated logs to the webview
             this._view?.webview.postMessage({ 
                 command: 'updateLogs', 
-                logs: logs 
+                logs: validatedLogs 
             });
         } catch (error: any) {
             console.error('[VisbalLogView] _fetchLogsSoql -- Error fetching logs via SOQL:', error);
