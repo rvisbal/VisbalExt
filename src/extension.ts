@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
 import { FindModel } from './findModel';
 import { SearchLibrary } from './searchLibrary';
-import { LogSummary } from './logSummary';
+import { LogSummaryView } from './views/logSummaryView';
 
 // This method is called when your extension is activated
 export function activate(context: vscode.ExtensionContext) {
@@ -25,7 +25,7 @@ export function activate(context: vscode.ExtensionContext) {
   // Register the Show Log Summary command
   let showLogSummaryCommand = vscode.commands.registerCommand('visbal-ext.showLogSummary', () => {
     // Show the log summary
-    LogSummary.show(context);
+    LogSummaryView.show(context);
   });
 
   // Add commands to subscriptions
