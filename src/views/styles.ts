@@ -100,6 +100,87 @@ body {
     display: block;
 }
 
+/* Loading Indicator */
+.loading-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 40px;
+    margin: 20px;
+    background-color: #252525;
+    border: 1px solid #333;
+    border-radius: 4px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+.loading-indicator {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    color: #e0e0e0;
+    font-size: 16px;
+    font-weight: bold;
+    position: relative;
+}
+
+.loading-spinner {
+    width: 40px;
+    height: 40px;
+    border: 4px solid rgba(74, 156, 214, 0.3);
+    border-radius: 50%;
+    border-top-color: #4a9cd6;
+    margin-right: 15px;
+    animation: spin 1s linear infinite;
+}
+
+.loading-message {
+    margin-top: 10px;
+    color: #888;
+}
+
+.progress-container {
+    width: 100%;
+    max-width: 400px;
+    margin-top: 20px;
+    background-color: #333;
+    border-radius: 4px;
+    overflow: hidden;
+}
+
+.progress-bar {
+    height: 8px;
+    background-color: #4a9cd6;
+    width: 0%;
+    transition: width 0.3s ease;
+}
+
+.progress-text {
+    text-align: center;
+    margin-top: 5px;
+    font-size: 12px;
+    color: #888;
+}
+
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+
+/* Debug Info */
+.debug-info {
+    margin-top: 10px;
+    padding: 10px;
+    background-color: #2d2d2d;
+    border: 1px solid #444;
+    border-radius: 4px;
+    font-family: monospace;
+    font-size: 12px;
+    color: #888;
+    max-height: 100px;
+    overflow: auto;
+}
+
 /* Timeline View Styles */
 .timeline {
     position: relative;
@@ -174,6 +255,8 @@ body {
     border: 1px solid #333;
     color: #ddd;
     margin: 15px;
+    max-height: 200px;
+    overflow: auto;
 }
 
 /* Call Tree View Styles */
@@ -358,5 +441,15 @@ body {
     padding: 20px;
     color: #888;
     font-style: italic;
+}
+
+/* Error Message */
+.error-message {
+    padding: 20px;
+    margin: 20px;
+    background-color: #6c2022;
+    color: white;
+    border-radius: 4px;
+    font-weight: bold;
 }
 `; 
