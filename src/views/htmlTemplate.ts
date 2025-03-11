@@ -126,6 +126,7 @@ export function getLogListTemplate(): string {
                 <table id="logsTable" class="logs-table hidden">
                     <thead>
                         <tr>
+                            <th>ID</th>
                             <th>User</th>
                             <th>Application</th>
                             <th>Operation</th>
@@ -245,6 +246,7 @@ export function getLogListTemplate(): string {
                         
                         // Create row
                         row.innerHTML = 
+                            '<td><span title="' + log.id + '">' + log.id.substring(0, 15) + '...</span></td>' +
                             '<td>' + (log.logUser?.name || 'Unknown') + '</td>' +
                             '<td>' + (log.application || 'Unknown') + '</td>' +
                             '<td>' + (log.operation || 'Unknown') + '</td>' +
@@ -255,6 +257,7 @@ export function getLogListTemplate(): string {
                                 '<button class="button download-button" data-log-id="' + log.id + '">' +
                                     (log.downloaded ? 'Downloaded' : 'Download') +
                                 '</button>' +
+                                '<button class="button open-button" data-log-id="' + log.id + '" style="margin-left: 5px;">Open</button>' +
                             '</td>';
                         
                         logsTableBody.appendChild(row);
@@ -277,6 +280,23 @@ export function getLogListTemplate(): string {
                             // Update button to show downloading state
                             button.disabled = true;
                             button.textContent = 'Downloading...';
+                        });
+                    });
+
+                    // Add event listeners to open buttons
+                    document.querySelectorAll('.open-button').forEach(button => {
+                        button.addEventListener('click', () => {
+                            const logId = button.getAttribute('data-log-id');
+                            debug('Open button clicked for log: ' + logId);
+                            
+                            vscode.postMessage({ 
+                                command: 'openLog', 
+                                logId: logId 
+                            });
+                            
+                            // Update button to show loading state
+                            button.disabled = true;
+                            button.textContent = 'Opening...';
                         });
                     });
                 }

@@ -80,6 +80,10 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
                     console.log(`[VisbalLogView] resolveWebviewView -- Downloading log: ${message.logId}`);
                     await this._downloadLog(message.logId);
                     break;
+                case 'openLog':
+                    console.log(`[VisbalLogView] resolveWebviewView -- Opening log: ${message.logId}`);
+                    await this._openLog(message.logId);
+                    break;
             }
         });
 
@@ -98,6 +102,70 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
                 this._fetchLogs();
             }
         });
+    }
+
+    /**
+     * Opens a log directly in the editor
+     * @param logId The ID of the log to open
+     */
+    private async _openLog(logId: string): Promise<void> {
+        console.log(`[VisbalLogView] _openLog -- Starting to open log: ${logId}`);
+        if (!this._view) {
+            console.log('[VisbalLogView] _openLog -- View is not available, cannot open log');
+            return;
+        }
+
+        try {
+            // Show loading state
+            console.log('[VisbalLogView] _openLog -- Sending opening status to webview');
+            this._view.webview.postMessage({ 
+                command: 'downloadStatus', 
+                logId: logId, 
+                status: 'downloading' 
+            });
+
+            // Fetch the log content
+            console.log(`[VisbalLogView] _openLog -- Fetching content for log: ${logId}`);
+            const logContent = await this._fetchLogContent(logId);
+            console.log(`[VisbalLogView] _openLog -- Received log content, length: ${logContent.length} characters`);
+
+            // Create a temporary file
+            const tempFile = path.join(os.tmpdir(), `sf_log_${logId}.log`);
+            console.log(`[VisbalLogView] _openLog -- Creating temporary file: ${tempFile}`);
+            fs.writeFileSync(tempFile, logContent);
+
+            // Open the file in the editor
+            const fileUri = vscode.Uri.file(tempFile);
+            console.log(`[VisbalLogView] _openLog -- Opening file in editor: ${fileUri.fsPath}`);
+            const document = await vscode.workspace.openTextDocument(fileUri);
+            await vscode.window.showTextDocument(document);
+
+            // Update download status in the view
+            console.log('[VisbalLogView] _openLog -- Sending success status to webview');
+            this._view.webview.postMessage({ 
+                command: 'downloadStatus', 
+                logId: logId, 
+                status: 'downloaded'
+            });
+
+            // Mark as downloaded
+            this._downloadedLogs.add(logId);
+            this._saveDownloadedLogs();
+        } catch (error: any) {
+            console.error(`[VisbalLogView] _openLog -- Error opening log ${logId}:`, error);
+            
+            // Show error message
+            vscode.window.showErrorMessage(`Failed to open log: ${error.message}`);
+            
+            // Update status in the view
+            console.log('[VisbalLogView] _openLog -- Sending error status to webview');
+            this._view.webview.postMessage({ 
+                command: 'downloadStatus', 
+                logId: logId, 
+                status: 'error',
+                error: error.message
+            });
+        }
     }
 
     /**
@@ -120,35 +188,55 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
                 status: 'downloading' 
             });
 
-            // Fetch the log content
+            // Fetch the log content using CLI
             console.log(`[VisbalLogView] _downloadLog -- Fetching content for log: ${logId}`);
             const logContent = await this._fetchLogContent(logId);
             console.log(`[VisbalLogView] _downloadLog -- Received log content, length: ${logContent.length} characters`);
 
-            // Create logs directory if it doesn't exist
-            const logsDir = path.join(os.homedir(), 'visbal_logs');
-            console.log(`[VisbalLogView] _downloadLog -- Saving log to directory: ${logsDir}`);
-            if (!fs.existsSync(logsDir)) {
-                console.log('[VisbalLogView] _downloadLog -- Creating logs directory');
-                fs.mkdirSync(logsDir, { recursive: true });
+            // Create a file in the user's workspace or a temporary directory
+            let targetDir: string;
+            let targetFile: string;
+            
+            // Check if we have a workspace folder
+            if (vscode.workspace.workspaceFolders && vscode.workspace.workspaceFolders.length > 0) {
+                // Use the first workspace folder
+                targetDir = path.join(vscode.workspace.workspaceFolders[0].uri.fsPath, 'logs');
+                console.log(`[VisbalLogView] _downloadLog -- Using workspace folder: ${targetDir}`);
+            } else {
+                // Use the user's home directory
+                targetDir = path.join(os.homedir(), 'visbal_logs');
+                console.log(`[VisbalLogView] _downloadLog -- Using home directory: ${targetDir}`);
             }
-
-            // Save the log to a file
+            
+            // Create the directory if it doesn't exist
+            if (!fs.existsSync(targetDir)) {
+                console.log(`[VisbalLogView] _downloadLog -- Creating directory: ${targetDir}`);
+                fs.mkdirSync(targetDir, { recursive: true });
+            }
+            
+            // Create a filename with timestamp
             const timestamp = new Date().toISOString().replace(/:/g, '-');
             const filename = `log_${logId}_${timestamp}.log`;
-            const filePath = path.join(logsDir, filename);
+            targetFile = path.join(targetDir, filename);
             
-            console.log(`[VisbalLogView] _downloadLog -- Writing log to file: ${filePath}`);
-            fs.writeFileSync(filePath, logContent);
+            // Write the log content to the file
+            console.log(`[VisbalLogView] _downloadLog -- Writing log to file: ${targetFile}`);
+            fs.writeFileSync(targetFile, logContent);
             console.log('[VisbalLogView] _downloadLog -- Log file written successfully');
 
-            // Add to downloaded logs
+            // Mark as downloaded
             this._downloadedLogs.add(logId);
             this._saveDownloadedLogs();
             console.log(`[VisbalLogView] _downloadLog -- Added log ${logId} to downloaded logs`);
 
+            // Open the file in the editor
+            const fileUri = vscode.Uri.file(targetFile);
+            console.log(`[VisbalLogView] _downloadLog -- Opening file in editor: ${fileUri.fsPath}`);
+            const document = await vscode.workspace.openTextDocument(fileUri);
+            await vscode.window.showTextDocument(document);
+
             // Show success message
-            vscode.window.showInformationMessage(`Log downloaded to ${filePath}`);
+            vscode.window.showInformationMessage(`Log downloaded and opened: ${targetFile}`);
             console.log('[VisbalLogView] _downloadLog -- Showed success message to user');
             
             // Update download status in the view
@@ -157,24 +245,8 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
                 command: 'downloadStatus', 
                 logId: logId, 
                 status: 'downloaded',
-                filePath: filePath
+                filePath: targetFile
             });
-            
-            // Offer to open the log file
-            console.log('[VisbalLogView] _downloadLog -- Offering to open the log file');
-            const openFile = await vscode.window.showInformationMessage(
-                `Log saved to ${filePath}`, 
-                'Open File'
-            );
-            
-            if (openFile === 'Open File') {
-                console.log('[VisbalLogView] _downloadLog -- User chose to open the file');
-                const fileUri = vscode.Uri.file(filePath);
-                vscode.workspace.openTextDocument(fileUri).then(doc => {
-                    console.log('[VisbalLogView] _downloadLog -- Opening document in editor');
-                    vscode.window.showTextDocument(doc);
-                });
-            }
         } catch (error: any) {
             console.error(`[VisbalLogView] _downloadLog -- Error downloading log ${logId}:`, error);
             
@@ -418,8 +490,56 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
                 const { stdout: logData } = await execAsync(command);
                 console.log('[VisbalLogView] _fetchLogContent -- Successfully fetched log content with new CLI format');
                 log = JSON.parse(logData);
+                
+                // Debug the response structure
+                console.log(`[VisbalLogView] _fetchLogContent -- Response structure: ${JSON.stringify(Object.keys(log))}`);
+                if (log.result) {
+                    console.log(`[VisbalLogView] _fetchLogContent -- Result structure: ${typeof log.result} ${Array.isArray(log.result) ? 'array' : 'not array'}`);
+                    if (Array.isArray(log.result) && log.result.length > 0) {
+                        console.log(`[VisbalLogView] _fetchLogContent -- First result item keys: ${JSON.stringify(Object.keys(log.result[0]))}`);
+                    }
+                }
+                
+                // Handle different response formats
+                if (log.result) {
+                    if (typeof log.result === 'string') {
+                        // Direct log content as string
+                        console.log('[VisbalLogView] _fetchLogContent -- Found log content as string in result');
+                        return log.result;
+                    } else if (typeof log.result.log === 'string') {
+                        // Log content in result.log
+                        console.log('[VisbalLogView] _fetchLogContent -- Found log content in result.log');
+                        return log.result.log;
+                    } else if (Array.isArray(log.result) && log.result.length > 0) {
+                        // Array result format
+                        const firstResult = log.result[0];
+                        
+                        // Check for common properties that might contain the log
+                        if (firstResult.log) {
+                            console.log('[VisbalLogView] _fetchLogContent -- Found log content in result[0].log');
+                            return firstResult.log;
+                        } else if (firstResult.body) {
+                            console.log('[VisbalLogView] _fetchLogContent -- Found log content in result[0].body');
+                            return firstResult.body;
+                        } else if (firstResult.content) {
+                            console.log('[VisbalLogView] _fetchLogContent -- Found log content in result[0].content');
+                            return firstResult.content;
+                        } else if (firstResult.text) {
+                            console.log('[VisbalLogView] _fetchLogContent -- Found log content in result[0].text');
+                            return firstResult.text;
+                        } else {
+                            // If we can't find a specific property, try to stringify the first result
+                            console.log('[VisbalLogView] _fetchLogContent -- No specific log property found, using entire result object');
+                            return JSON.stringify(firstResult, null, 2);
+                        }
+                    }
+                }
+                
+                // If we couldn't find the log content in the expected places, try direct CLI output
+                console.log('[VisbalLogView] _fetchLogContent -- Could not find log content in JSON response, trying direct CLI output');
+                throw new Error('Log content not found in expected format');
             } catch (error) {
-                console.log('[VisbalLogView] _fetchLogContent -- Failed with new CLI format, trying old format', error);
+                console.log('[VisbalLogView] _fetchLogContent -- Failed with new CLI format or parsing, trying old format', error);
                 // If the new command fails, try the old format
                 try {
                     const command = `sfdx force:apex:log:get --logid ${logId} --json`;
@@ -427,19 +547,51 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
                     const { stdout: logData } = await execAsync(command);
                     console.log('[VisbalLogView] _fetchLogContent -- Successfully fetched log content with old CLI format');
                     log = JSON.parse(logData);
+                    
+                    // Debug the response structure
+                    console.log(`[VisbalLogView] _fetchLogContent -- Old format response structure: ${JSON.stringify(Object.keys(log))}`);
+                    
+                    if (log.result && log.result.log) {
+                        console.log(`[VisbalLogView] _fetchLogContent -- Found log content in old format result.log`);
+                        return log.result.log;
+                    } else {
+                        console.error('[VisbalLogView] _fetchLogContent -- Log not found in old format response:', log);
+                        throw new Error('Log content not found in old format response');
+                    }
                 } catch (innerError) {
                     console.error('[VisbalLogView] _fetchLogContent -- Failed to fetch log content with both formats:', innerError);
-                    throw new Error('Failed to fetch log content. Please ensure your Salesforce CLI is properly configured.');
+                    
+                    // Try one more approach - direct CLI output without JSON
+                    try {
+                        console.log('[VisbalLogView] _fetchLogContent -- Trying direct CLI output without JSON');
+                        const { stdout: directOutput } = await execAsync(`sf apex get log -i ${logId}`);
+                        console.log('[VisbalLogView] _fetchLogContent -- Successfully fetched log content with direct CLI output');
+                        if (directOutput && directOutput.trim().length > 0) {
+                            return directOutput;
+                        } else {
+                            throw new Error('Empty log content from direct CLI output');
+                        }
+                    } catch (directError) {
+                        try {
+                            console.log('[VisbalLogView] _fetchLogContent -- Trying direct CLI output with old format');
+                            const { stdout: oldDirectOutput } = await execAsync(`sfdx force:apex:log:get --logid ${logId}`);
+                            console.log('[VisbalLogView] _fetchLogContent -- Successfully fetched log content with direct CLI output (old format)');
+                            if (oldDirectOutput && oldDirectOutput.trim().length > 0) {
+                                return oldDirectOutput;
+                            } else {
+                                throw new Error('Empty log content from direct CLI output (old format)');
+                            }
+                        } catch (oldDirectError) {
+                            console.error('[VisbalLogView] _fetchLogContent -- All attempts to fetch log content failed');
+                            throw new Error('Failed to fetch log content. Please ensure your Salesforce CLI is properly configured.');
+                        }
+                    }
                 }
             }
             
-            if (!log.result || !log.result.log) {
-                console.error('[VisbalLogView] _fetchLogContent -- Log not found or empty in response:', log);
-                throw new Error('Log not found or empty');
-            }
-            
-            console.log(`[VisbalLogView] _fetchLogContent -- Successfully retrieved log content, length: ${log.result.log.length} characters`);
-            return log.result.log;
+            // This should not be reached due to the throws above, but just in case
+            console.error('[VisbalLogView] _fetchLogContent -- No log content found in any format');
+            throw new Error('Log content not found in any format');
         } catch (error: any) {
             console.error(`[VisbalLogView] _fetchLogContent -- Error fetching log with ID ${logId}:`, error);
             throw error;
