@@ -2,6 +2,7 @@ import * as vscode from 'vscode';
 import { FindModel } from './findModel';
 import { SearchLibrary } from './searchLibrary';
 import { LogSummaryView } from './views/logSummaryView';
+import { VisbalLogView } from './views/visbalLogView';
 
 // This method is called when your extension is activated
 export function activate(context: vscode.ExtensionContext) {
@@ -28,10 +29,25 @@ export function activate(context: vscode.ExtensionContext) {
     LogSummaryView.show(context);
   });
 
+  // Register the Visbal Log view provider
+  const visbalLogViewProvider = new VisbalLogView(context);
+  context.subscriptions.push(
+    vscode.window.registerWebviewViewProvider(
+      VisbalLogView.viewType,
+      visbalLogViewProvider
+    )
+  );
+
+  // Register the Refresh Visbal Log command
+  let refreshVisbalLogCommand = vscode.commands.registerCommand('visbal-ext.refreshVisbalLog', () => {
+    visbalLogViewProvider.refresh();
+  });
+
   // Add commands to subscriptions
   context.subscriptions.push(helloWorldCommand);
   context.subscriptions.push(showFindModelCommand);
   context.subscriptions.push(showLogSummaryCommand);
+  context.subscriptions.push(refreshVisbalLogCommand);
 }
 
 // This method is called when your extension is deactivated

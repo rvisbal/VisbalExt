@@ -21,6 +21,7 @@
     "onCommand:visbal-ext.helloWorld",
     "onCommand:visbal-ext.showFindModel",
     "onCommand:visbal-ext.showLogSummary",
+    "onView:visbalLogView",
     "onLanguage:log"
   ],
   "contributes": {
@@ -37,8 +38,31 @@
         "command": "visbal-ext.showLogSummary",
         "title": "Show Log Summary",
         "icon": "$(notebook)"
+      },
+      {
+        "command": "visbal-ext.refreshVisbalLog",
+        "title": "Refresh Visbal Log",
+        "icon": "$(refresh)"
       }
     ],
+    "viewsContainers": {
+      "panel": [
+        {
+          "id": "visbalLogContainer",
+          "title": "Visbal Log",
+          "icon": "$(notebook)"
+        }
+      ]
+    },
+    "views": {
+      "visbalLogContainer": [
+        {
+          "id": "visbalLogView",
+          "name": "Log Analyzer",
+          "type": "webview"
+        }
+      ]
+    },
     "menus": {
       "editor/context": [
         {
@@ -51,6 +75,13 @@
           "command": "visbal-ext.showLogSummary",
           "group": "navigation",
           "when": "resourceExtname == .log"
+        }
+      ],
+      "view/title": [
+        {
+          "command": "visbal-ext.refreshVisbalLog",
+          "when": "view == visbalLogView",
+          "group": "navigation"
         }
       ]
     }
