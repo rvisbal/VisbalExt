@@ -5,7 +5,7 @@ import { LogSummaryView } from './views/logSummaryView';
 
 // This method is called when your extension is activated
 export function activate(context: vscode.ExtensionContext) {
-  console.log('Congratulations, your extension "visbal-ext" is now active!');
+  console.log('RV:Congratulations, your extension "visbal-ext" is now active!');
 
   // Register the Hello World command
   let helloWorldCommand = vscode.commands.registerCommand('visbal-ext.helloWorld', () => {
