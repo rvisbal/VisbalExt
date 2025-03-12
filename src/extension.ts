@@ -3,6 +3,7 @@ import { FindModel } from './findModel';
 import { SearchLibrary } from './searchLibrary';
 import { LogSummaryView } from './views/logSummaryView';
 import { VisbalLogView } from './views/visbalLogView';
+import { LogDetailView } from './views/logDetailView';
 
 // This method is called when your extension is activated
 export function activate(context: vscode.ExtensionContext) {
@@ -42,6 +43,22 @@ export function activate(context: vscode.ExtensionContext) {
   let refreshVisbalLogCommand = vscode.commands.registerCommand('visbal-ext.refreshVisbalLog', () => {
     visbalLogViewProvider.refresh();
   });
+
+  // Register command to open log detail view
+  context.subscriptions.push(
+    vscode.commands.registerCommand('visbal.openLogDetail', (logFilePath: string, logId: string) => {
+      console.log(`[Extension] openLogDetail -- Opening log detail view for: ${logFilePath}`);
+      LogDetailView.createOrShow(context.extensionUri, logFilePath, logId);
+    })
+  );
+
+  // Register command to download log
+  context.subscriptions.push(
+    vscode.commands.registerCommand('visbal.downloadLog', (logId: string) => {
+      console.log(`[Extension] downloadLog -- Downloading log: ${logId}`);
+      vscode.commands.executeCommand('visbal.refreshLogs');
+    })
+  );
 
   // Add commands to subscriptions
   context.subscriptions.push(helloWorldCommand);

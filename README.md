@@ -14,6 +14,7 @@ Visbal is a VS Code extension that provides a streamlined interface for viewing,
 - **Multiple CLI Format Support**: Works with both new (`sf`) and legacy (`sfdx`) CLI formats
 - **SOQL Query Support**: Fetch logs using SOQL queries for more advanced filtering
 - **Informative Filenames**: Log files are saved with descriptive names that include ID, operation, status, size, and timestamp
+- **Tabbed Log Analysis**: Analyze logs with a tabbed interface showing overview, timeline, execution path, database operations, and governor limits
 
 ## Requirements
 
@@ -47,10 +48,19 @@ Visbal is a VS Code extension that provides a streamlined interface for viewing,
 4. Log files are saved with descriptive filenames in the format: `id_operation_status_size_timestamp.log`
    - Example: `07LAq00000NWz3MMAT_aura_success_2420000_2023-03-12T00-26-18.905Z.log`
 
-### Opening Previously Downloaded Logs
+### Opening and Analyzing Logs
 
 1. Click the "Open" button next to any previously downloaded log
-2. The log will open in the VS Code editor
+2. The log will open in the Log Detail View with multiple tabs:
+   - **Overview**: Summary of log events and categories
+   - **Timeline**: Chronological view of log events
+   - **Execution**: Apex code execution path
+   - **Database**: SOQL queries and DML operations
+   - **Limits**: Governor limits usage visualization
+   - **Raw Log**: Complete raw log content
+
+3. Use the search functionality to find specific content within the log
+4. Apply filters to focus on specific event types (Errors, Warnings, Debug, Info)
 
 ### Using SOQL Queries
 
@@ -98,6 +108,7 @@ This extension contributes the following settings:
 - Support for both new (`sf`) and legacy (`sfdx`) CLI formats
 - Large log handling with direct file output
 - Descriptive log filenames with operation, status, and size information
+- Tabbed log analysis interface for detailed log inspection
 
 ## Contributing
 

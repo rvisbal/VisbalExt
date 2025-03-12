@@ -6,6 +6,7 @@ import * as path from 'path';
 import * as os from 'os';
 import { exec } from 'child_process';
 import { promisify } from 'util';
+import { LogDetailView } from './logDetailView';
 
 const execAsync = promisify(exec);
 
@@ -137,11 +138,9 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
             if (localFilePath && fs.existsSync(localFilePath)) {
                 console.log(`[VisbalLogView] _openLog -- Found local file: ${localFilePath}`);
                 
-                // Open the file in the editor
-                const fileUri = vscode.Uri.file(localFilePath);
-                console.log(`[VisbalLogView] _openLog -- Opening local file in editor: ${fileUri.fsPath}`);
-                const document = await vscode.workspace.openTextDocument(fileUri);
-                await vscode.window.showTextDocument(document);
+                // Open the log in the detail view
+                console.log(`[VisbalLogView] _openLog -- Opening log in detail view: ${localFilePath}`);
+                LogDetailView.createOrShow(this._extensionUri, localFilePath, logId);
                 
                 // Update status in the view
                 console.log('[VisbalLogView] _openLog -- Sending success status to webview');
@@ -169,11 +168,9 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
             console.log(`[VisbalLogView] _openLog -- Creating temporary file: ${tempFile}`);
             fs.writeFileSync(tempFile, logContent);
 
-            // Open the file in the editor
-            const fileUri = vscode.Uri.file(tempFile);
-            console.log(`[VisbalLogView] _openLog -- Opening file in editor: ${fileUri.fsPath}`);
-            const document = await vscode.workspace.openTextDocument(fileUri);
-            await vscode.window.showTextDocument(document);
+            // Open the log in the detail view
+            console.log(`[VisbalLogView] _openLog -- Opening log in detail view: ${tempFile}`);
+            LogDetailView.createOrShow(this._extensionUri, tempFile, logId);
 
             // Update download status in the view
             console.log('[VisbalLogView] _openLog -- Sending success status to webview');
@@ -320,8 +317,9 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
                         // Open the file in the editor
                         const fileUri = vscode.Uri.file(targetFile);
                         console.log(`[VisbalLogView] _downloadLog -- Opening file in editor: ${fileUri.fsPath}`);
-                        const document = await vscode.workspace.openTextDocument(fileUri);
-                        await vscode.window.showTextDocument(document);
+                        
+                        // Open in the detail view instead of just the editor
+                        LogDetailView.createOrShow(this._extensionUri, targetFile, logId);
                         
                         // Show success message
                         vscode.window.showInformationMessage(`Log downloaded and opened: ${targetFile}`);
@@ -360,8 +358,9 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
                             // Open the file in the editor
                             const fileUri = vscode.Uri.file(targetFile);
                             console.log(`[VisbalLogView] _downloadLog -- Opening file in editor: ${fileUri.fsPath}`);
-                            const document = await vscode.workspace.openTextDocument(fileUri);
-                            await vscode.window.showTextDocument(document);
+                            
+                            // Open in the detail view instead of just the editor
+                            LogDetailView.createOrShow(this._extensionUri, targetFile, logId);
                             
                             // Show success message
                             vscode.window.showInformationMessage(`Log downloaded and opened: ${targetFile}`);
@@ -405,8 +404,9 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
             // Open the file in the editor
             const fileUri = vscode.Uri.file(targetFile);
             console.log(`[VisbalLogView] _downloadLog -- Opening file in editor: ${fileUri.fsPath}`);
-            const document = await vscode.workspace.openTextDocument(fileUri);
-            await vscode.window.showTextDocument(document);
+            
+            // Open in the detail view instead of just the editor
+            LogDetailView.createOrShow(this._extensionUri, targetFile, logId);
 
             // Show success message
             vscode.window.showInformationMessage(`Log downloaded and opened: ${targetFile}`);
