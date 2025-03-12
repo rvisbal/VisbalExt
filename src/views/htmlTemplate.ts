@@ -60,6 +60,18 @@ export function getLogListTemplate(): string {
                 background-color: var(--vscode-editor-background);
                 position: sticky;
                 top: 0;
+                cursor: pointer;
+            }
+            .logs-table th:hover {
+                background-color: var(--vscode-list-hoverBackground);
+            }
+            .logs-table th.sorted-asc::after {
+                content: " ▲";
+                font-size: 0.8em;
+            }
+            .logs-table th.sorted-desc::after {
+                content: " ▼";
+                font-size: 0.8em;
             }
             .no-logs-message {
                 padding: 20px;
@@ -99,6 +111,11 @@ export function getLogListTemplate(): string {
                 0% { transform: rotate(0deg); }
                 100% { transform: rotate(360deg); }
             }
+            .actions-cell {
+                display: flex;
+                justify-content: flex-end;
+                align-items: center;
+            }
         </style>
     </head>
     <body>
@@ -127,13 +144,13 @@ export function getLogListTemplate(): string {
                 <table id="logsTable" class="logs-table hidden">
                     <thead>
                         <tr>
-                            <th>ID</th>
-                            <th>User</th>
-                            <th>Application</th>
-                            <th>Operation</th>
-                            <th>Status</th>
-                            <th>Size</th>
-                            <th>Date</th>
+                            <th data-sort="id">ID</th>
+                            <th data-sort="logUser.name">User</th>
+                            <th data-sort="application">Application</th>
+                            <th data-sort="operation">Operation</th>
+                            <th data-sort="status">Status</th>
+                            <th data-sort="logLength">Size</th>
+                            <th data-sort="lastModifiedDate">Date</th>
                             <th>Actions</th>
                         </tr>
                     </thead>
@@ -158,6 +175,12 @@ export function getLogListTemplate(): string {
                 const loadingIndicator = document.getElementById('loadingIndicator');
                 const errorContainer = document.getElementById('errorContainer');
                 const errorMessage = document.getElementById('errorMessage');
+                
+                // Sorting state
+                let currentSort = {
+                    column: 'lastModifiedDate',
+                    direction: 'desc'
+                };
                 
                 // Debug function
                 function debug(message) {
@@ -208,6 +231,64 @@ export function getLogListTemplate(): string {
                     refreshSoqlButton.disabled = false;
                 }
                 
+                // Sort logs
+                function sortLogs(column, direction) {
+                    debug('Sorting logs by ' + column + ' ' + direction);
+                    
+                    // Update current sort
+                    currentSort = {
+                        column: column,
+                        direction: direction
+                    };
+                    
+                    // Sort logs
+                    logs.sort((a, b) => {
+                        // Handle nested properties (e.g., logUser.name)
+                        let aValue = column.includes('.') ? 
+                            column.split('.').reduce((obj, key) => obj && obj[key], a) : 
+                            a[column];
+                        let bValue = column.includes('.') ? 
+                            column.split('.').reduce((obj, key) => obj && obj[key], b) : 
+                            b[column];
+                        
+                        // Handle undefined values
+                        if (aValue === undefined) aValue = '';
+                        if (bValue === undefined) bValue = '';
+                        
+                        // Handle dates
+                        if (column === 'lastModifiedDate') {
+                            aValue = new Date(aValue).getTime();
+                            bValue = new Date(bValue).getTime();
+                        }
+                        
+                        // Handle numbers
+                        if (column === 'logLength') {
+                            aValue = Number(aValue) || 0;
+                            bValue = Number(bValue) || 0;
+                        }
+                        
+                        // Sort
+                        if (aValue < bValue) {
+                            return direction === 'asc' ? -1 : 1;
+                        }
+                        if (aValue > bValue) {
+                            return direction === 'asc' ? 1 : -1;
+                        }
+                        return 0;
+                    });
+                    
+                    // Update UI
+                    renderLogs();
+                    
+                    // Update sort indicators
+                    document.querySelectorAll('th').forEach(th => {
+                        th.classList.remove('sorted-asc', 'sorted-desc');
+                        if (th.getAttribute('data-sort') === column) {
+                            th.classList.add(direction === 'asc' ? 'sorted-asc' : 'sorted-desc');
+                        }
+                    });
+                }
+                
                 // Render logs
                 function renderLogs() {
                     debug('Rendering ' + logs.length + ' logs');
@@ -254,7 +335,7 @@ export function getLogListTemplate(): string {
                             '<td>' + (log.status || 'Unknown') + '</td>' +
                             '<td>' + formattedSize + '</td>' +
                             '<td>' + formattedDate + '</td>' +
-                            '<td>' +
+                            '<td class="actions-cell">' +
                                 '<button class="button download-button" data-log-id="' + log.id + '">' +
                                     (log.downloaded ? 'Downloaded' : 'Download') +
                                 '</button>' +
@@ -307,6 +388,20 @@ export function getLogListTemplate(): string {
                     debug('DOM content loaded, requesting logs');
                     vscode.postMessage({ command: 'fetchLogs' });
                     showLoading();
+                    
+                    // Add event listeners to table headers for sorting
+                    document.querySelectorAll('th[data-sort]').forEach(th => {
+                        th.addEventListener('click', () => {
+                            const column = th.getAttribute('data-sort');
+                            if (!column) return;
+                            
+                            // Toggle direction if clicking the same column
+                            const direction = (currentSort.column === column && currentSort.direction === 'asc') ? 'desc' : 'asc';
+                            
+                            // Sort logs
+                            sortLogs(column, direction);
+                        });
+                    });
                 });
                 
                 // Event listeners
@@ -340,8 +435,8 @@ export function getLogListTemplate(): string {
                             // Update logs
                             logs = message.logs;
                             
-                            // Render logs
-                            renderLogs();
+                            // Sort logs with current sort settings
+                            sortLogs(currentSort.column, currentSort.direction);
                             
                             // Hide loading state
                             hideLoading();
@@ -383,7 +478,7 @@ export function getLogListTemplate(): string {
                                             log.localFilePath = message.filePath;
                                             
                                             // Check if we already have an Open button
-                                            const openButton = document.querySelector('.open-icon[data-id="' + message.logId + '"]');
+                                            const openButton = document.querySelector('.open-button[data-log-id="' + message.logId + '"]');
                                             
                                             // If not, create one
                                             if (!openButton) {
@@ -426,7 +521,7 @@ export function getLogListTemplate(): string {
                             }
                             
                             // Reset any open button that might be in "Opening..." state
-                            const resetButton = document.querySelector('.open-icon[data-id="' + message.logId + '"]');
+                            const resetButton = document.querySelector('.open-button[data-log-id="' + message.logId + '"]');
                             if (resetButton && resetButton.textContent === 'Opening...') {
                                 resetButton.disabled = false;
                                 resetButton.textContent = 'Open';
@@ -1050,6 +1145,10 @@ export function getHtmlForWebview(extensionUri: vscode.Uri, webview: vscode.Webv
         text-align: left;
         padding: 8px;
         border-bottom: 1px solid var(--vscode-panel-border);
+        cursor: pointer;
+      }
+      .logs-table th:hover {
+        background-color: var(--vscode-list-hoverBackground);
       }
       .logs-table td {
         padding: 8px;
@@ -1061,6 +1160,7 @@ export function getHtmlForWebview(extensionUri: vscode.Uri, webview: vscode.Webv
       .action-cell {
         display: flex;
         gap: 8px;
+        justify-content: flex-end;
       }
       .checkbox-cell {
         text-align: center;
@@ -1071,6 +1171,14 @@ export function getHtmlForWebview(extensionUri: vscode.Uri, webview: vscode.Webv
       }
       .sort-icon.asc::after {
         content: "↑";
+      }
+      .sorted-asc::after {
+        content: " ▲";
+        font-size: 0.8em;
+      }
+      .sorted-desc::after {
+        content: " ▼";
+        font-size: 0.8em;
       }
       .download-icon::before {
         content: "⬇️";
@@ -1147,14 +1255,14 @@ export function getHtmlForWebview(extensionUri: vscode.Uri, webview: vscode.Webv
         <table class="logs-table">
           <thead>
             <tr>
-              <th>ID</th>
+              <th data-sort="id">ID</th>
               <th class="checkbox-cell">Downloaded</th>
-              <th>User</th>
-              <th>Application</th>
-              <th>Operation</th>
-              <th class="sort-icon">Time</th>
-              <th>Status</th>
-              <th>Size (bytes)</th>
+              <th data-sort="logUser.name">User</th>
+              <th data-sort="application">Application</th>
+              <th data-sort="operation">Operation</th>
+              <th data-sort="lastModifiedDate">Time</th>
+              <th data-sort="status">Status</th>
+              <th data-sort="logLength">Size (bytes)</th>
               <th>Actions</th>
             </tr>
           </thead>
@@ -1180,6 +1288,15 @@ export function getHtmlForWebview(extensionUri: vscode.Uri, webview: vscode.Webv
       const loadingIndicator = document.getElementById('loading-indicator');
       const errorContainer = document.getElementById('error-container');
       const errorMessage = document.getElementById('error-message');
+      
+      // Sorting state
+      let currentSort = {
+        column: 'lastModifiedDate',
+        direction: 'desc'
+      };
+      
+      // State
+      let logs = [];
       
       // Format file size
       function formatFileSize(bytes) {
@@ -1215,6 +1332,64 @@ export function getHtmlForWebview(extensionUri: vscode.Uri, webview: vscode.Webv
         errorContainer.classList.add('hidden');
       }
       
+      // Sort logs
+      function sortLogs(column, direction) {
+        console.log('Sorting logs by ' + column + ' ' + direction);
+        
+        // Update current sort
+        currentSort = {
+          column: column,
+          direction: direction
+        };
+        
+        // Sort logs
+        logs.sort((a, b) => {
+          // Handle nested properties (e.g., logUser.name)
+          let aValue = column.includes('.') ? 
+            column.split('.').reduce((obj, key) => obj && obj[key], a) : 
+            a[column];
+          let bValue = column.includes('.') ? 
+            column.split('.').reduce((obj, key) => obj && obj[key], b) : 
+            b[column];
+          
+          // Handle undefined values
+          if (aValue === undefined) aValue = '';
+          if (bValue === undefined) bValue = '';
+          
+          // Handle dates
+          if (column === 'lastModifiedDate') {
+            aValue = new Date(aValue).getTime();
+            bValue = new Date(bValue).getTime();
+          }
+          
+          // Handle numbers
+          if (column === 'logLength') {
+            aValue = Number(aValue) || 0;
+            bValue = Number(bValue) || 0;
+          }
+          
+          // Sort
+          if (aValue < bValue) {
+            return direction === 'asc' ? -1 : 1;
+          }
+          if (aValue > bValue) {
+            return direction === 'asc' ? 1 : -1;
+          }
+          return 0;
+        });
+        
+        // Update UI
+        renderLogs();
+        
+        // Update sort indicators
+        document.querySelectorAll('th').forEach(th => {
+          th.classList.remove('sorted-asc', 'sorted-desc');
+          if (th.getAttribute('data-sort') === column) {
+            th.classList.add(direction === 'asc' ? 'sorted-asc' : 'sorted-desc');
+          }
+        });
+      }
+      
       // Handle messages from the extension
       window.addEventListener('message', event => {
         const message = event.data;
@@ -1222,7 +1397,9 @@ export function getHtmlForWebview(extensionUri: vscode.Uri, webview: vscode.Webv
         
         switch (message.command) {
           case 'updateLogs':
-            updateLogs(message.logs);
+            logs = message.logs || [];
+            // Sort logs with current sort settings
+            sortLogs(currentSort.column, currentSort.direction);
             break;
           case 'loading':
             if (message.isLoading) {
@@ -1316,7 +1493,7 @@ export function getHtmlForWebview(extensionUri: vscode.Uri, webview: vscode.Webv
         }
       }
       
-      function updateLogs(logs) {
+      function renderLogs() {
         hideError();
         logsTableBody.innerHTML = '';
         
@@ -1414,6 +1591,20 @@ export function getHtmlForWebview(extensionUri: vscode.Uri, webview: vscode.Webv
           });
         });
       }
+      
+      // Add event listeners to table headers for sorting
+      document.querySelectorAll('th[data-sort]').forEach(th => {
+        th.addEventListener('click', () => {
+          const column = th.getAttribute('data-sort');
+          if (!column) return;
+          
+          // Toggle direction if clicking the same column
+          const direction = (currentSort.column === column && currentSort.direction === 'asc') ? 'desc' : 'asc';
+          
+          // Sort logs
+          sortLogs(column, direction);
+        });
+      });
       
       // Initialize by requesting logs
       document.addEventListener('DOMContentLoaded', () => {
