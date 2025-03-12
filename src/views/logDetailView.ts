@@ -329,7 +329,7 @@ export class LogDetailView {
             { id: 'execution', label: 'Execution' },
             { id: 'database', label: 'Database' },
             { id: 'limits', label: 'Limits' },
-            { id: 'user_debug', label: 'USER_DEBUG' },
+            { id: 'user_debug', label: 'Debug' },
             { id: 'raw', label: 'Raw Log' }
         ];
         

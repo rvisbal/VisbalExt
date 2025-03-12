@@ -500,7 +500,7 @@ export function getHtmlTemplate(
         { id: 'execution', label: 'Execution' },
         { id: 'database', label: 'Database' },
         { id: 'limits', label: 'Limits' },
-        { id: 'user_debug', label: 'USER_DEBUG' },
+        { id: 'user_debug', label: 'Debug' },
         { id: 'raw', label: 'Raw Log' }
     ],
     categories: any[] = []
@@ -911,7 +911,7 @@ export function getHtmlTemplate(
             </div>
             
             <div id="user_debug" class="tab-content ${currentTab === 'user_debug' ? 'active' : ''}">
-                <h2>USER_DEBUG Lines</h2>
+                <h2>Debug Lines</h2>
                 <div class="user-debug-info">
                     <p>Showing only USER_DEBUG lines from the log file.</p>
                     <p>Total USER_DEBUG lines: ${parsedData.summary ? parsedData.summary.userDebugCount : 0}</p>
