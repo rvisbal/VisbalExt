@@ -913,10 +913,10 @@ export function getHtmlTemplate(
             <div id="user_debug" class="tab-content ${currentTab === 'user_debug' ? 'active' : ''}">
                 <h2>Debug Lines</h2>
                 <div class="user-debug-info">
-                    <p>Showing only USER_DEBUG lines from the log file.</p>
-                    <p>Total USER_DEBUG lines: ${parsedData.summary ? parsedData.summary.userDebugCount : 0}</p>
+                    <p>Showing debug-related lines from the log file, including USER_DEBUG, FATAL_ERROR, DML_BEGIN, and SOQL_EXECUTE_BEGIN.</p>
+                    <p>Total debug lines: ${parsedData.summary ? parsedData.summary.userDebugCount : 0}</p>
                 </div>
-                <pre class="raw-log">${parsedData.userDebugLog ? parsedData.userDebugLog.replace(/</g, '&lt;').replace(/>/g, '&gt;') : 'No USER_DEBUG lines found in the log.'}</pre>
+                <pre class="raw-log">${parsedData.userDebugLog ? parsedData.userDebugLog.replace(/</g, '&lt;').replace(/>/g, '&gt;') : 'No debug lines found in the log.'}</pre>
             </div>
             
             <div id="raw" class="tab-content ${currentTab === 'raw' ? 'active' : ''}">

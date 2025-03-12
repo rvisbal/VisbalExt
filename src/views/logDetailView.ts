@@ -194,9 +194,15 @@ export class LogDetailView {
             const heapLines = lines.filter(line => line.includes('HEAP_'));
             const limitLines = lines.filter(line => line.includes('LIMIT_'));
             
-            // Extract USER_DEBUG lines
-            const userDebugLines = lines.filter(line => line.includes('USER_DEBUG'));
-            console.log(`[LogDetailView] _parseLogFile -- Found ${userDebugLines.length} USER_DEBUG lines`);
+            // Extract USER_DEBUG lines and additional debug-related lines
+            const userDebugLines = lines.filter(line => 
+                line.includes('USER_DEBUG') || 
+                line.includes('FATAL_ERROR') || 
+                line.includes('DML_BEGIN') || 
+                line.includes('SOQL_EXECUTE_BEGIN')
+            );
+            
+            console.log(`[LogDetailView] _parseLogFile -- Found ${userDebugLines.length} debug-related lines`);
             
             // Create a parsed data object
             const parsedData = {
