@@ -142,7 +142,8 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
                 this._view.webview.postMessage({ 
                     command: 'downloadStatus', 
                     logId: logId, 
-                    status: 'downloaded'
+                    status: 'downloaded',
+                    filePath: localFilePath
                 });
                 
                 return;
@@ -721,6 +722,14 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
             console.log('[VisbalLogView] _fetchLogsSoql -- Updating download status for logs');
             logs.forEach(log => {
                 log.downloaded = this._downloadedLogs.has(log.id);
+                
+                // Check if we have a local file for this log
+                const localFilePath = this._downloadedLogPaths.get(log.id);
+                if (localFilePath && fs.existsSync(localFilePath)) {
+                    log.localFilePath = localFilePath;
+                    console.log(`[VisbalLogView] _fetchLogsSoql -- Log ${log.id} has local file: ${localFilePath}`);
+                }
+                
                 if (log.downloaded) {
                     console.log(`[VisbalLogView] _fetchLogsSoql -- Log ${log.id} is marked as downloaded`);
                 }

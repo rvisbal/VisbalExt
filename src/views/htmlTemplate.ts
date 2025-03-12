@@ -371,10 +371,50 @@ export function getLogListTemplate(): string {
                                 case 'downloaded':
                                     button.disabled = false;
                                     button.textContent = 'Downloaded';
+                                    
                                     // Update the log in the state
                                     const log = logs.find(l => l.id === message.logId);
                                     if (log) {
                                         log.downloaded = true;
+                                        
+                                        // If we have a file path, add it to the log and show the Open button
+                                        if (message.filePath) {
+                                            log.localFilePath = message.filePath;
+                                            
+                                            // Check if we already have an Open button
+                                            let openButton = document.querySelector('.open-button[data-log-id="' + message.logId + '"]');
+                                            
+                                            // If not, create one
+                                            if (!openButton) {
+                                                openButton = document.createElement('button');
+                                                openButton.className = 'button open-button';
+                                                openButton.setAttribute('data-log-id', message.logId);
+                                                openButton.style.marginLeft = '5px';
+                                                openButton.textContent = 'Open';
+                                                
+                                                // Add event listener to the new button
+                                                openButton.addEventListener('click', () => {
+                                                    const logId = openButton.getAttribute('data-log-id');
+                                                    debug('Open button clicked for log: ' + logId);
+                                                    
+                                                    vscode.postMessage({ 
+                                                        command: 'openLog', 
+                                                        logId: logId 
+                                                    });
+                                                    
+                                                    // Update button to show loading state
+                                                    openButton.disabled = true;
+                                                    openButton.textContent = 'Opening...';
+                                                });
+                                                
+                                                // Add the button after the download button
+                                                button.parentNode.appendChild(openButton);
+                                            } else {
+                                                // Reset the button if it exists
+                                                openButton.disabled = false;
+                                                openButton.textContent = 'Open';
+                                            }
+                                        }
                                     }
                                     break;
                                 case 'error':
@@ -383,6 +423,14 @@ export function getLogListTemplate(): string {
                                     button.title = message.error || 'Download failed';
                                     break;
                             }
+                            
+                            // Reset any open button that might be in "Opening..." state
+                            const openButton = document.querySelector('.open-button[data-log-id="' + message.logId + '"]');
+                            if (openButton && openButton.textContent === 'Opening...') {
+                                openButton.disabled = false;
+                                openButton.textContent = 'Open';
+                            }
+                            
                             break;
                     }
                 });
