@@ -100,6 +100,35 @@ export function getLogListTemplate(): string {
                 0% { transform: rotate(0deg); }
                 100% { transform: rotate(360deg); }
             }
+            .status-message {
+                position: fixed;
+                bottom: 0;
+                left: 0;
+                right: 0;
+                padding: 8px 16px;
+                color: white;
+                font-weight: 500;
+                z-index: 1000;
+                text-align: center;
+            }
+
+            .status-error {
+                background-color: #e51400; /* Red for errors */
+            }
+
+            .status-success {
+                background-color: #107c10; /* Green for success */
+            }
+
+            .status-info {
+                background-color: #cccccc; /* Light grey for info */
+                color: #333333; /* Darker text for better contrast on light background */
+            }
+
+            .status-warning {
+                background-color: #f9ce1d; /* Yellow for warnings */
+                color: #333333; /* Darker text for better contrast on light background */
+            }
         </style>
     </head>
     <body>
@@ -118,7 +147,7 @@ export function getLogListTemplate(): string {
             </div>
             
             <div id="errorContainer" class="error-container hidden">
-                <div id="errorMessage" class="error-message"></div>
+                <div id="errorMessage" class="error-message status-message status-error" style="display: none;"></div>
             </div>
             
             <div id="logsContainer">
@@ -475,6 +504,14 @@ export function getLogListTemplate(): string {
                                 logId: logId,
                                 details: logDetails || {}
                             });
+                            break;
+                        case 'warning':
+                            showError('Warning: ' + message.message);
+                            setTimeout(() => hideError(), 5000);
+                            break;
+                        case 'info':
+                            showError('Info: ' + message.message);
+                            setTimeout(() => hideError(), 4000);
                             break;
                     }
                 });
@@ -1335,6 +1372,82 @@ export function getHtmlForWebview(extensionUri: vscode.Uri, webview: vscode.Webv
         align-items: center;
         z-index: 100;
       }
+      
+      /* Debug Configuration Bar Styles */
+      .debug-config-bar {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        padding: 6px 10px;
+        background-color: var(--vscode-editor-inactiveSelectionBackground);
+        border-bottom: 1px solid var(--vscode-panel-border);
+        gap: 8px;
+      }
+      
+      .debug-config-options {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+        flex: 1;
+      }
+      
+      .debug-option {
+        display: flex;
+        align-items: center;
+        gap: 3px;
+      }
+      
+      .debug-option label {
+        font-size: 10px;
+        color: var(--vscode-descriptionForeground);
+        white-space: nowrap;
+      }
+      
+      .debug-select {
+        font-size: 10px;
+        padding: 1px 3px;
+        background-color: var(--vscode-dropdown-background);
+        color: var(--vscode-dropdown-foreground);
+        border: 1px solid var(--vscode-dropdown-border);
+        border-radius: 2px;
+        max-width: 70px;
+      }
+      
+      .debug-actions {
+        display: flex;
+        align-items: center;
+      }
+      
+      #apply-debug-config-button {
+        white-space: nowrap;
+        font-size: 14px;
+        padding: 6px 10px;
+        background-color: #4d4d4d; /* Nice contrast grey */
+        color: white;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: background-color 0.2s;
+      }
+      
+      #apply-debug-config-button:hover {
+        background-color: #666666; /* Slightly lighter on hover */
+      }
+      
+      #apply-debug-config-button:active {
+        background-color: #333333; /* Darker when clicked */
+      }
+      
+      /* Responsive adjustments */
+      @media (max-width: 1200px) {
+        .debug-config-options {
+          flex-wrap: wrap;
+        }
+      }
+      
       .modal-content {
         background-color: var(--vscode-editor-background);
         padding: 20px;
@@ -1356,10 +1469,189 @@ export function getHtmlForWebview(extensionUri: vscode.Uri, webview: vscode.Webv
         justify-content: flex-end;
         gap: 10px;
       }
+      // Add a new CSS rule for the refresh button
+      #refresh-button {
+        white-space: nowrap;
+        font-size: 14px;
+        padding: 6px 10px;
+        background-color: #4d4d4d; /* Nice contrast grey */
+        color: white;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: background-color 0.2s;
+      }
+
+      #refresh-button:hover {
+        background-color: #666666; /* Slightly lighter on hover */
+      }
+
+      #refresh-button:active {
+        background-color: #333333; /* Darker when clicked */
+      }
+      // Add a new CSS rule for the SOQL button
+      #soql-button {
+        white-space: nowrap;
+        font-size: 14px;
+        padding: 6px 10px;
+        background-color: #4d4d4d; /* Nice contrast grey */
+        color: white;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: background-color 0.2s;
+      }
+
+      #soql-button:hover {
+        background-color: #666666; /* Slightly lighter on hover */
+      }
+
+      #soql-button:active {
+        background-color: #333333; /* Darker when clicked */
+      }
     </style>
   </head>
   <body>
     <div class="container">
+      <!-- Debug Log Configuration Bar - Moved above the filter section -->
+      <div class="debug-config-bar">
+        <div class="debug-config-options">
+          <div class="debug-option">
+            <label>Preset</label>
+            <select id="debug-preset" class="debug-select">
+              <option value="default">Default (Standard)</option>
+              <option value="detailed">Detailed</option>
+              <option value="developer">Developer</option>
+              <option value="custom">Custom</option>
+              <option value="debugonly">DebugOnly</option>
+            </select>
+          </div>
+          <div class="debug-option">
+            <label>Apex Code</label>
+            <select id="debug-apex-code" class="debug-select">
+              <option value="NONE">NONE</option>
+              <option value="ERROR">ERROR</option>
+              <option value="WARN">WARN</option>
+              <option value="INFO">INFO</option>
+              <option value="DEBUG" selected>DEBUG</option>
+              <option value="FINE">FINE</option>
+              <option value="FINER">FINER</option>
+              <option value="FINEST">FINEST</option>
+            </select>
+          </div>
+          <div class="debug-option">
+            <label>Apex Profiling</label>
+            <select id="debug-apex-profiling" class="debug-select">
+              <option value="NONE">NONE</option>
+              <option value="INFO" selected>INFO</option>
+              <option value="FINE">FINE</option>
+              <option value="FINEST">FINEST</option>
+            </select>
+          </div>
+          <div class="debug-option">
+            <label>Callout</label>
+            <select id="debug-callout" class="debug-select">
+              <option value="NONE">NONE</option>
+              <option value="ERROR">ERROR</option>
+              <option value="INFO" selected>INFO</option>
+              <option value="FINER">FINER</option>
+              <option value="FINEST">FINEST</option>
+            </select>
+          </div>
+          <div class="debug-option">
+            <label>Data Access</label>
+            <select id="debug-data-access" class="debug-select">
+              <option value="NONE">NONE</option>
+              <option value="WARN">WARN</option>
+              <option value="INFO" selected>INFO</option>
+              <option value="FINE">FINE</option>
+              <option value="FINEST">FINEST</option>
+            </select>
+          </div>
+          <div class="debug-option">
+            <label>Database</label>
+            <select id="debug-database" class="debug-select">
+              <option value="NONE">NONE</option>
+              <option value="WARN">WARN</option>
+              <option value="INFO" selected>INFO</option>
+              <option value="FINE">FINE</option>
+              <option value="FINEST">FINEST</option>
+            </select>
+          </div>
+          <div class="debug-option">
+            <label>NBA</label>
+            <select id="debug-nba" class="debug-select">
+              <option value="NONE">NONE</option>
+              <option value="ERROR">ERROR</option>
+              <option value="INFO" selected>INFO</option>
+              <option value="FINE">FINE</option>
+            </select>
+          </div>
+          <div class="debug-option">
+            <label>System</label>
+            <select id="debug-system" class="debug-select">
+              <option value="NONE">NONE</option>
+              <option value="INFO">INFO</option>
+              <option value="DEBUG" selected>DEBUG</option>
+              <option value="FINE">FINE</option>
+              <option value="FINEST">FINEST</option>
+            </select>
+          </div>
+          <div class="debug-option">
+            <label>Validation</label>
+            <select id="debug-validation" class="debug-select">
+              <option value="NONE">NONE</option>
+              <option value="INFO" selected>INFO</option>
+              <option value="FINEST">FINEST</option>
+            </select>
+          </div>
+          <div class="debug-option">
+            <label>Visualforce</label>
+            <select id="debug-visualforce" class="debug-select">
+              <option value="NONE">NONE</option>
+              <option value="INFO" selected>INFO</option>
+              <option value="FINE">FINE</option>
+              <option value="FINER">FINER</option>
+              <option value="FINEST">FINEST</option>
+            </select>
+          </div>
+          <div class="debug-option">
+            <label>Wave</label>
+            <select id="debug-wave" class="debug-select">
+              <option value="NONE">NONE</option>
+              <option value="ERROR">ERROR</option>
+              <option value="INFO" selected>INFO</option>
+              <option value="FINE">FINE</option>
+              <option value="FINER">FINER</option>
+              <option value="FINEST">FINEST</option>
+            </select>
+          </div>
+          <div class="debug-option">
+            <label>Workflow</label>
+            <select id="debug-workflow" class="debug-select">
+              <option value="NONE">NONE</option>
+              <option value="ERROR">ERROR</option>
+              <option value="WARN">WARN</option>
+              <option value="INFO" selected>INFO</option>
+              <option value="FINE">FINE</option>
+              <option value="FINER">FINER</option>
+              <option value="FINEST">FINEST</option>
+            </select>
+          </div>
+        </div>
+        <div class="debug-actions">
+          <button id="apply-debug-config-button" title="Apply Debug Configuration and Turn On Debug">
+            <span>💾</span>
+          </button>
+        </div>
+      </div>
+      
       <div class="top-bar">
         <div class="filter-section">
           <button class="icon-button">🔍</button>
@@ -1368,16 +1660,13 @@ export function getHtmlForWebview(extensionUri: vscode.Uri, webview: vscode.Webv
         </div>
         <div class="actions-section">
           <div class="button-group">
-            <button class="text-button" id="refresh-button" title="Refresh Logs">
+            <button id="refresh-button" title="Refresh Logs">
               <span>🔄</span> Refresh
             </button>
-            <button class="text-button" id="soql-button" title="Refresh with SOQL">
+            <button id="soql-button" title="Refresh with SOQL">
               <span>🔍</span> SOQL
             </button>
           </div>
-          <button class="text-button" id="debug-button" title="Turn On Apex Debug Log for Replay Debugger">
-            <span>🐞</span> Turn On Debug
-          </button>
           <button class="text-button warning-button" id="clear-local-button" title="Clear Downloaded Log Files">
             <span>🗑️</span> Clear Local
           </button>
@@ -1391,7 +1680,7 @@ export function getHtmlForWebview(extensionUri: vscode.Uri, webview: vscode.Webv
       </div>
       
       <div id="error-container" class="error-container hidden">
-        <div id="error-message"></div>
+        <div id="error-message" class="status-message status-error" style="display: none;"></div>
       </div>
       
       <div id="loading-indicator" class="loading-container hidden">
@@ -1444,7 +1733,6 @@ export function getHtmlForWebview(extensionUri: vscode.Uri, webview: vscode.Webv
       // Elements
       const refreshButton = document.getElementById('refresh-button');
       const soqlButton = document.getElementById('soql-button');
-      const debugButton = document.getElementById('debug-button');
       const clearLocalButton = document.getElementById('clear-local-button');
       const deleteServerButton = document.getElementById('delete-server-button');
       const filterInput = document.getElementById('filter-input');
@@ -1459,6 +1747,248 @@ export function getHtmlForWebview(extensionUri: vscode.Uri, webview: vscode.Webv
       const modalMessage = document.getElementById('modal-message');
       const modalCancel = document.getElementById('modal-cancel');
       const modalConfirm = document.getElementById('modal-confirm');
+      const debugPreset = document.getElementById('debug-preset');
+      const applyDebugConfigButton = document.getElementById('apply-debug-config-button');
+      
+      // Debug configuration elements
+      const debugSelects = {
+        apexCode: document.getElementById('debug-apex-code'),
+        apexProfiling: document.getElementById('debug-apex-profiling'),
+        callout: document.getElementById('debug-callout'),
+        dataAccess: document.getElementById('debug-data-access'),
+        database: document.getElementById('debug-database'),
+        nba: document.getElementById('debug-nba'),
+        system: document.getElementById('debug-system'),
+        validation: document.getElementById('debug-validation'),
+        visualforce: document.getElementById('debug-visualforce'),
+        wave: document.getElementById('debug-wave'),
+        workflow: document.getElementById('debug-workflow')
+      };
+      
+      // Debug presets
+      const debugPresets = {
+        default: {
+          apexCode: 'DEBUG',
+          apexProfiling: 'INFO',
+          callout: 'INFO',
+          dataAccess: 'INFO',
+          database: 'INFO',
+          nba: 'INFO',
+          system: 'DEBUG',
+          validation: 'INFO',
+          visualforce: 'INFO',
+          wave: 'INFO',
+          workflow: 'INFO'
+        },
+        detailed: {
+          apexCode: 'FINE',
+          apexProfiling: 'FINE',
+          callout: 'FINER',
+          dataAccess: 'FINE',
+          database: 'FINE',
+          nba: 'FINE',
+          system: 'FINE',
+          validation: 'INFO',
+          visualforce: 'FINE',
+          wave: 'FINE',
+          workflow: 'FINE'
+        },
+        developer: {
+          apexCode: 'FINEST',
+          apexProfiling: 'FINEST',
+          callout: 'FINEST',
+          dataAccess: 'FINEST',
+          database: 'FINEST',
+          nba: 'FINE',
+          system: 'FINEST',
+          validation: 'FINEST',
+          visualforce: 'FINEST',
+          wave: 'FINEST',
+          workflow: 'FINEST'
+        },
+        debugonly: {
+          apexCode: 'DEBUG',
+          apexProfiling: 'INFO',
+          callout: 'INFO',
+          dataAccess: 'FINEST',
+          database: 'INFO',
+          nba: 'ERROR',
+          system: 'INFO',
+          validation: 'INFO',
+          visualforce: 'INFO',
+          wave: 'ERROR',
+          workflow: 'ERROR'
+        }
+      };
+      
+      // Apply preset
+      function applyPreset(preset) {
+        if (preset === 'custom') {
+          return; // Don't change anything for custom
+        }
+        
+        const presetValues = debugPresets[preset];
+        if (!presetValues) {
+          return;
+        }
+        
+        // Apply preset values to selects
+        Object.keys(presetValues).forEach(key => {
+          const select = debugSelects[key];
+          if (select) {
+            select.value = presetValues[key];
+          }
+        });
+      }
+      
+      // Get current debug configuration
+      function getDebugConfig() {
+        const config = {};
+        Object.keys(debugSelects).forEach(key => {
+          config[key] = debugSelects[key].value;
+        });
+        return config;
+      }
+      
+      // Initialize preset dropdown
+      debugPreset.addEventListener('change', () => {
+        applyPreset(debugPreset.value);
+      });
+      
+      // Apply debug configuration and turn on debug
+      applyDebugConfigButton.addEventListener('click', () => {
+        const config = getDebugConfig();
+        console.log('Applying debug configuration and turning on debug:', config);
+        
+        vscode.postMessage({
+          command: 'applyDebugConfig',
+          config: config,
+          turnOnDebug: true
+        });
+        
+        showLoading('Applying debug configuration and enabling debug log...');
+      });
+      
+      // Handle messages from the extension
+      window.addEventListener('message', event => {
+        const message = event.data;
+        console.log('Received message:', message);
+        
+        switch (message.command) {
+          case 'updateLogs':
+            logs = message.logs || [];
+            // Sort logs with current sort settings
+            sortLogs(currentSort.column, currentSort.direction);
+            break;
+          case 'loading':
+            if (message.isLoading) {
+              showLoading(message.message || 'Loading logs...');
+            } else {
+              hideLoading();
+            }
+            break;
+          case 'error':
+            showError(message.error);
+            hideLoading();
+            break;
+          case 'downloading':
+            handleDownloadStatus(message.logId, message.isDownloading);
+            break;
+          case 'downloadStatus':
+            handleDownloadStatus(message.logId, message.status === 'downloading', message.status, message.filePath, message.error);
+            break;
+          case 'debugStatus':
+            if (message.success) {
+              showError('Success: Debug log enabled successfully!');
+              setTimeout(() => hideError(), 3000);
+            } else {
+              showError('Error: Failed to enable debug log: ' + message.error);
+            }
+            hideLoading();
+            break;
+          case 'clearLocalStatus':
+            if (message.success) {
+              showError('Success: Local log files cleared successfully!');
+              setTimeout(() => hideError(), 3000);
+            } else {
+              showError('Error: Failed to clear local log files: ' + message.error);
+            }
+            hideLoading();
+            break;
+          case 'deleteServerStatus':
+            if (message.success) {
+              showError('Success: Server logs deleted successfully!');
+              setTimeout(() => hideError(), 3000);
+              // Refresh logs after deletion
+              vscode.postMessage({ command: 'fetchLogs' });
+            } else {
+              showError('Error: Failed to delete server logs: ' + message.error);
+            }
+            hideLoading();
+            break;
+          case 'deleteSelectedStatus':
+            if (message.success) {
+              showError('Success: Selected logs deleted successfully!');
+              setTimeout(() => hideError(), 3000);
+              // Refresh logs after deletion
+              vscode.postMessage({ command: 'fetchLogs' });
+            } else {
+              showError('Error: Failed to delete selected logs: ' + message.error);
+            }
+            hideLoading();
+            break;
+          case 'applyConfigStatus':
+            if (message.success) {
+              showError('Success: Debug configuration applied successfully!');
+              setTimeout(() => hideError(), 3000);
+            } else {
+              showError('Error: Failed to apply debug configuration: ' + message.error);
+            }
+            hideLoading();
+            break;
+          case 'currentDebugConfig':
+            console.log('Received current debug config:', message.config);
+            // Update the debug configuration UI with the received config
+            if (message.config) {
+              Object.keys(message.config).forEach(key => {
+                if (debugSelects[key] && message.config[key]) {
+                  debugSelects[key].value = message.config[key];
+                }
+              });
+              
+              // Try to determine if this matches a preset
+              let matchedPreset = 'custom';
+              for (const [presetName, presetConfig] of Object.entries(debugPresets)) {
+                let isMatch = true;
+                for (const key of Object.keys(presetConfig)) {
+                  if (message.config[key] !== presetConfig[key]) {
+                    isMatch = false;
+                    break;
+                  }
+                }
+                if (isMatch) {
+                  matchedPreset = presetName;
+                  break;
+                }
+              }
+              debugPreset.value = matchedPreset;
+            }
+            break;
+          case 'warning':
+            showError('Warning: ' + message.message);
+            setTimeout(() => hideError(), 5000);
+            break;
+          case 'info':
+            showError('Info: ' + message.message);
+            setTimeout(() => hideError(), 4000);
+            break;
+        }
+      });
+      
+      // Request current debug configuration on load
+      document.addEventListener('DOMContentLoaded', () => {
+        vscode.postMessage({ command: 'getCurrentDebugConfig' });
+      });
       
       // Sorting state
       let currentSort = {
@@ -1494,7 +2024,6 @@ export function getHtmlForWebview(extensionUri: vscode.Uri, webview: vscode.Webv
         loadingIndicator.classList.remove('hidden');
         refreshButton.disabled = true;
         soqlButton.disabled = true;
-        debugButton.disabled = true;
         clearLocalButton.disabled = true;
         deleteServerButton.disabled = true;
       }
@@ -1504,20 +2033,42 @@ export function getHtmlForWebview(extensionUri: vscode.Uri, webview: vscode.Webv
         loadingIndicator.classList.add('hidden');
         refreshButton.disabled = false;
         soqlButton.disabled = false;
-        debugButton.disabled = false;
         clearLocalButton.disabled = false;
         deleteServerButton.disabled = false;
       }
       
       // Show error message
       function showError(message) {
-        errorMessage.textContent = message;
-        errorContainer.classList.remove('hidden');
+        const errorElement = document.getElementById('error-message');
+        if (errorElement) {
+            errorElement.textContent = message;
+            errorElement.style.display = 'block';
+            
+            // Remove any existing status classes
+            errorElement.classList.remove('status-error', 'status-success', 'status-info', 'status-warning');
+            
+            // Add appropriate class based on message content
+            if (message.toLowerCase().includes('success')) {
+                errorElement.classList.add('status-success');
+            } else if (message.toLowerCase().includes('warning')) {
+                errorElement.classList.add('status-warning');
+            } else if (message.toLowerCase().includes('info')) {
+                errorElement.classList.add('status-info');
+            } else {
+                errorElement.classList.add('status-error');
+            }
+        }
       }
       
       // Hide error message
       function hideError() {
-        errorContainer.classList.add('hidden');
+        const errorElement = document.getElementById('error-message');
+        if (errorElement) {
+          errorElement.style.display = 'none';
+        }
+        if (errorContainer) {
+          errorContainer.classList.add('hidden');
+        }
       }
       
       // Show confirmation modal
@@ -1622,50 +2173,92 @@ export function getHtmlForWebview(extensionUri: vscode.Uri, webview: vscode.Webv
             break;
           case 'debugStatus':
             if (message.success) {
-              showError('Debug log enabled successfully!');
+              showError('Success: Debug log enabled successfully!');
               setTimeout(() => hideError(), 3000);
             } else {
-              showError('Failed to enable debug log: ' + message.error);
+              showError('Error: Failed to enable debug log: ' + message.error);
             }
             hideLoading();
             break;
           case 'clearLocalStatus':
             if (message.success) {
-              showError('Local log files cleared successfully!');
+              showError('Success: Local log files cleared successfully!');
               setTimeout(() => hideError(), 3000);
             } else {
-              showError('Failed to clear local log files: ' + message.error);
+              showError('Error: Failed to clear local log files: ' + message.error);
             }
             hideLoading();
             break;
           case 'deleteServerStatus':
             if (message.success) {
-              showError('Server logs deleted successfully!');
+              showError('Success: Server logs deleted successfully!');
               setTimeout(() => hideError(), 3000);
               // Refresh logs after deletion
               vscode.postMessage({ command: 'fetchLogs' });
             } else {
-              showError('Failed to delete server logs: ' + message.error);
+              showError('Error: Failed to delete server logs: ' + message.error);
             }
             hideLoading();
             break;
           case 'deleteSelectedStatus':
             if (message.success) {
-              showError('Selected logs deleted successfully!');
+              showError('Success: Selected logs deleted successfully!');
               setTimeout(() => hideError(), 3000);
-              // Clear selection
-              selectedLogIds.clear();
-              updateDeleteSelectedButton();
               // Refresh logs after deletion
               vscode.postMessage({ command: 'fetchLogs' });
             } else {
-              showError('Failed to delete selected logs: ' + message.error);
+              showError('Error: Failed to delete selected logs: ' + message.error);
             }
             hideLoading();
             break;
+          case 'applyConfigStatus':
+            if (message.success) {
+              showError('Success: Debug configuration applied successfully!');
+              setTimeout(() => hideError(), 3000);
+            } else {
+              showError('Error: Failed to apply debug configuration: ' + message.error);
+            }
+            hideLoading();
+            break;
+          case 'currentDebugConfig':
+            console.log('Received current debug config:', message.config);
+            // Update the debug configuration UI with the received config
+            if (message.config) {
+              Object.keys(message.config).forEach(key => {
+                if (debugSelects[key] && message.config[key]) {
+                  debugSelects[key].value = message.config[key];
+                }
+              });
+              
+              // Try to determine if this matches a preset
+              let matchedPreset = 'custom';
+              for (const [presetName, presetConfig] of Object.entries(debugPresets)) {
+                let isMatch = true;
+                for (const key of Object.keys(presetConfig)) {
+                  if (message.config[key] !== presetConfig[key]) {
+                    isMatch = false;
+                    break;
+                  }
+                }
+                if (isMatch) {
+                  matchedPreset = presetName;
+                  break;
+                }
+              }
+              debugPreset.value = matchedPreset;
+            }
+            break;
+          case 'warning':
+            showError('Warning: ' + message.message);
+            setTimeout(() => hideError(), 5000);
+            break;
+          case 'info':
+            showError('Info: ' + message.message);
+            setTimeout(() => hideError(), 4000);
+            break;
         }
       });
-
+      
       // Filter functionality
       filterInput.addEventListener('input', function() {
         const filterValue = this.value.toLowerCase();
@@ -1728,16 +2321,6 @@ export function getHtmlForWebview(extensionUri: vscode.Uri, webview: vscode.Webv
           command: 'fetchLogsSoql'
         });
         showLoading('Refreshing logs via SOQL...');
-      });
-      
-      // Debug button
-      debugButton.addEventListener('click', () => {
-        console.log('Debug button clicked');
-        hideError();
-        vscode.postMessage({
-          command: 'turnOnDebugLog'
-        });
-        showLoading('Enabling Apex Debug Log...');
       });
       
       // Clear Local button

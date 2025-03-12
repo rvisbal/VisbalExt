@@ -123,6 +123,14 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
                     console.log(`[VisbalLogView] resolveWebviewView -- Deleting selected logs: ${message.logIds.length} logs`);
                     await this._deleteSelectedLogs(message.logIds);
                     break;
+                case 'applyDebugConfig':
+                    console.log(`[VisbalLogView] resolveWebviewView -- Applying debug configuration:`, message.config);
+                    await this._applyDebugConfig(message.config, message.turnOnDebug);
+                    break;
+                case 'getCurrentDebugConfig':
+                    console.log(`[VisbalLogView] resolveWebviewView -- Getting current debug configuration`);
+                    await this._getCurrentDebugConfig();
+                    break;
             }
         });
 
@@ -1854,6 +1862,544 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
         } finally {
             this._isLoading = false;
             this._view?.webview.postMessage({ command: 'loading', isLoading: false });
+        }
+    }
+
+    /**
+     * Applies debug configuration and optionally turns on debug log
+     * @param config Debug configuration
+     * @param turnOnDebug Whether to turn on debug log
+     */
+    private async _applyDebugConfig(config: any, turnOnDebug: boolean): Promise<void> {
+        try {
+            console.log('[VisbalLogView] Applying debug configuration:', config);
+            
+            // Set loading state
+            this._isLoading = true;
+            this._view?.webview.postMessage({
+                command: 'loading',
+                isLoading: true,
+                message: turnOnDebug ? 'Applying debug configuration and turning on debug...' : 'Applying debug configuration...'
+            });
+            
+            // Determine preset name for the debug level name
+            let presetName = 'Custom';
+            // Check if config matches any of our presets
+            const presets: Record<string, Record<string, string>> = {
+                default: {
+                    apexCode: 'DEBUG',
+                    apexProfiling: 'INFO',
+                    callout: 'INFO',
+                    dataAccess: 'INFO',
+                    database: 'INFO',
+                    nba: 'INFO',
+                    system: 'DEBUG',
+                    validation: 'INFO',
+                    visualforce: 'INFO',
+                    wave: 'INFO',
+                    workflow: 'INFO'
+                },
+                detailed: {
+                    apexCode: 'FINE',
+                    apexProfiling: 'FINE',
+                    callout: 'FINER',
+                    dataAccess: 'FINE',
+                    database: 'FINE',
+                    nba: 'FINE',
+                    system: 'FINE',
+                    validation: 'INFO',
+                    visualforce: 'FINE',
+                    wave: 'FINE',
+                    workflow: 'FINE'
+                },
+                developer: {
+                    apexCode: 'FINEST',
+                    apexProfiling: 'FINEST',
+                    callout: 'FINEST',
+                    dataAccess: 'FINEST',
+                    database: 'FINEST',
+                    nba: 'FINEST',
+                    system: 'FINEST',
+                    validation: 'FINEST',
+                    visualforce: 'FINEST',
+                    wave: 'FINEST',
+                    workflow: 'FINEST'
+                },
+                debugonly: {
+                    apexCode: 'DEBUG',
+                    apexProfiling: 'NONE',
+                    callout: 'NONE',
+                    dataAccess: 'NONE',
+                    database: 'NONE',
+                    nba: 'NONE',
+                    system: 'DEBUG',
+                    validation: 'NONE',
+                    visualforce: 'NONE',
+                    wave: 'NONE',
+                    workflow: 'NONE'
+                }
+            };
+            
+            for (const [name, presetConfig] of Object.entries(presets)) {
+                let isMatch = true;
+                for (const key of Object.keys(presetConfig)) {
+                    if (config[key] !== presetConfig[key]) {
+                        isMatch = false;
+                        break;
+                    }
+                }
+                if (isMatch) {
+                    presetName = name.charAt(0).toUpperCase() + name.slice(1);
+                    break;
+                }
+            }
+            
+            // Generate a unique debug level name with timestamp
+            const timestamp = new Date().getTime();
+            const debugLevelName = `VisbalExt_${presetName}_${timestamp}`;
+            
+            if (turnOnDebug) {
+                // Get the current user ID
+                let userId = '';
+                try {
+                    // Try with new CLI format first
+                    try {
+                        console.log('[VisbalLogView] Getting user ID with new CLI format');
+                        const userIdResult = await this._executeCommand('sf org display user --json');
+                        console.log(`[VisbalLogView] User ID result: ${userIdResult}`);
+                        const userIdJson = JSON.parse(userIdResult);
+                        userId = userIdJson.result.id;
+                        console.log(`[VisbalLogView] Current user ID: ${userId}`);
+                    } catch (error) {
+                        console.error('[VisbalLogView] Error getting user ID with new CLI format:', error);
+                        
+                        // Try with old CLI format
+                        console.log('[VisbalLogView] Trying with old CLI format');
+                        const userIdResult = await this._executeCommand('sfdx force:user:display --json');
+                        console.log(`[VisbalLogView] User ID result (old format): ${userIdResult}`);
+                        const userIdJson = JSON.parse(userIdResult);
+                        userId = userIdJson.result.id;
+                        console.log(`[VisbalLogView] Current user ID (old format): ${userId}`);
+                    }
+                } catch (error) {
+                    console.error('[VisbalLogView] Error getting user ID:', error);
+                    throw new Error('Failed to get current user ID. Make sure you are authenticated with a Salesforce org.');
+                }
+
+                if (!userId) {
+                    throw new Error('Could not determine current user ID');
+                }
+
+                // Check if there's an existing trace flag
+                let existingTraceFlag = null;
+                let existingDebugLevelId = null;
+                
+                try {
+                    console.log('[VisbalLogView] Checking for existing trace flags');
+                    const query = `SELECT Id, LogType, StartDate, ExpirationDate, DebugLevelId FROM TraceFlag WHERE LogType='DEVELOPER_LOG' AND TracedEntityId='${userId}'`;
+                    
+                    // Try with new CLI format first
+                    try {
+                        const traceFlagResult = await this._executeCommand(`sf data query --query "${query}" --use-tooling-api --json`);
+                        console.log(`[VisbalLogView] Trace flag query result: ${traceFlagResult}`);
+                        const traceFlagJson = JSON.parse(traceFlagResult);
+                        
+                        if (traceFlagJson.result && traceFlagJson.result.records && traceFlagJson.result.records.length > 0) {
+                            existingTraceFlag = traceFlagJson.result.records[0];
+                            existingDebugLevelId = existingTraceFlag.DebugLevelId;
+                            console.log(`[VisbalLogView] Found existing trace flag: ${existingTraceFlag.Id}, debug level: ${existingDebugLevelId}`);
+                        }
+                    } catch (error) {
+                        console.error('[VisbalLogView] Error checking trace flags with new CLI format:', error);
+                        
+                        // Try with old CLI format
+                        try {
+                            const traceFlagResult = await this._executeCommand(`sfdx force:data:soql:query --query "${query}" --usetoolingapi --json`);
+                            console.log(`[VisbalLogView] Trace flag query result (old format): ${traceFlagResult}`);
+                            const traceFlagJson = JSON.parse(traceFlagResult);
+                            
+                            if (traceFlagJson.result && traceFlagJson.result.records && traceFlagJson.result.records.length > 0) {
+                                existingTraceFlag = traceFlagJson.result.records[0];
+                                existingDebugLevelId = existingTraceFlag.DebugLevelId;
+                                console.log(`[VisbalLogView] Found existing trace flag (old format): ${existingTraceFlag.Id}, debug level: ${existingDebugLevelId}`);
+                            }
+                        } catch (oldError) {
+                            console.error('[VisbalLogView] Error checking trace flags with old CLI format:', oldError);
+                        }
+                    }
+                } catch (error) {
+                    console.error('[VisbalLogView] Error checking existing trace flag:', error);
+                }
+
+                // Create debug level values
+                const debugLevelValues: Record<string, string> = {
+                    ApexCode: config.apexCode || 'DEBUG',
+                    ApexProfiling: config.apexProfiling || 'INFO',
+                    Callout: config.callout || 'INFO',
+                    Database: config.database || 'INFO',
+                    System: config.system || 'DEBUG',
+                    Validation: config.validation || 'INFO',
+                    Visualforce: config.visualforce || 'INFO',
+                    Workflow: config.workflow || 'INFO'
+                };
+
+                // Add NBA and Wave if they exist in the config
+                if (config.nba) {
+                    debugLevelValues['NBA'] = config.nba;
+                }
+                if (config.wave) {
+                    debugLevelValues['Wave'] = config.wave;
+                }
+
+                // Create or update debug level
+                let debugLevelId = existingDebugLevelId;
+                
+                if (!debugLevelId) {
+                    console.log('[VisbalLogView] Creating new debug level');
+                    
+                    // Construct debug level fields
+                    const debugLevelFields = Object.entries(debugLevelValues)
+                        .map(([key, value]) => `${key}=${value}`)
+                        .join(' ');
+                    
+                    try {
+                        // Try with new CLI format first
+                        try {
+                            const createDebugLevelCommand = `sf data create record --sobject DebugLevel --values "DeveloperName=${debugLevelName} MasterLabel=${debugLevelName} ${debugLevelFields}" --use-tooling-api --json`;
+                            console.log(`[VisbalLogView] Creating debug level with command: ${createDebugLevelCommand}`);
+                            
+                            const createDebugLevelResult = await this._executeCommand(createDebugLevelCommand);
+                            console.log(`[VisbalLogView] Create debug level result: ${createDebugLevelResult}`);
+                            
+                            const createDebugLevelJson = JSON.parse(createDebugLevelResult);
+                            debugLevelId = createDebugLevelJson.result.id;
+                            console.log(`[VisbalLogView] Created debug level with ID: ${debugLevelId}`);
+                        } catch (error) {
+                            console.error('[VisbalLogView] Error creating debug level with new CLI format:', error);
+                            
+                            // Try with old CLI format
+                            try {
+                                const createDebugLevelCommand = `sfdx force:data:record:create --sobjecttype DebugLevel --values "DeveloperName=${debugLevelName} MasterLabel=${debugLevelName} ${debugLevelFields}" --usetoolingapi --json`;
+                                console.log(`[VisbalLogView] Creating debug level with command (old format): ${createDebugLevelCommand}`);
+                                
+                                const createDebugLevelResult = await this._executeCommand(createDebugLevelCommand);
+                                console.log(`[VisbalLogView] Create debug level result (old format): ${createDebugLevelResult}`);
+                                
+                                const createDebugLevelJson = JSON.parse(createDebugLevelResult);
+                                debugLevelId = createDebugLevelJson.result.id;
+                                console.log(`[VisbalLogView] Created debug level with ID (old format): ${debugLevelId}`);
+                            } catch (oldError) {
+                                console.error('[VisbalLogView] Error creating debug level with old CLI format:', oldError);
+                                throw new Error('Failed to create debug level');
+                            }
+                        }
+                    } catch (error) {
+                        console.error('[VisbalLogView] Error creating debug level:', error);
+                        throw new Error('Failed to create debug level');
+                    }
+                }
+
+                // Delete existing trace flag if it exists
+                if (existingTraceFlag) {
+                    console.log(`[VisbalLogView] Deleting existing trace flag: ${existingTraceFlag.Id}`);
+                    
+                    try {
+                        // Try with new CLI format first
+                        try {
+                            const deleteTraceFlagCommand = `sf data delete record --sobject TraceFlag --record-id ${existingTraceFlag.Id} --use-tooling-api --json`;
+                            console.log(`[VisbalLogView] Deleting trace flag with command: ${deleteTraceFlagCommand}`);
+                            
+                            const deleteTraceFlagResult = await this._executeCommand(deleteTraceFlagCommand);
+                            console.log(`[VisbalLogView] Delete trace flag result: ${deleteTraceFlagResult}`);
+                        } catch (error) {
+                            console.error('[VisbalLogView] Error deleting trace flag with new CLI format:', error);
+                            
+                            // Try with old CLI format
+                            try {
+                                const deleteTraceFlagCommand = `sfdx force:data:record:delete --sobjecttype TraceFlag --sobjectid ${existingTraceFlag.Id} --usetoolingapi --json`;
+                                console.log(`[VisbalLogView] Deleting trace flag with command (old format): ${deleteTraceFlagCommand}`);
+                                
+                                const deleteTraceFlagResult = await this._executeCommand(deleteTraceFlagCommand);
+                                console.log(`[VisbalLogView] Delete trace flag result (old format): ${deleteTraceFlagResult}`);
+                            } catch (oldError) {
+                                console.error('[VisbalLogView] Error deleting trace flag with old CLI format:', oldError);
+                            }
+                        }
+                    } catch (error) {
+                        console.error('[VisbalLogView] Error deleting trace flag:', error);
+                    }
+                }
+
+                // Create trace flag
+                console.log('[VisbalLogView] Creating trace flag');
+                
+                // Set expiration date to 24 hours from now
+                const now = new Date();
+                const expirationDate = new Date(now.getTime() + 24 * 60 * 60 * 1000);
+                const formattedStartDate = now.toISOString();
+                const formattedExpirationDate = expirationDate.toISOString();
+                
+                try {
+                    // Try with new CLI format first
+                    try {
+                        const createTraceFlagCommand = `sf data create record --sobject TraceFlag --values "DebugLevelId=${debugLevelId} LogType=DEVELOPER_LOG TracedEntityId=${userId} StartDate=${formattedStartDate} ExpirationDate=${formattedExpirationDate}" --use-tooling-api --json`;
+                        console.log(`[VisbalLogView] Creating trace flag with command: ${createTraceFlagCommand}`);
+                        
+                        const createTraceFlagResult = await this._executeCommand(createTraceFlagCommand);
+                        console.log(`[VisbalLogView] Create trace flag result: ${createTraceFlagResult}`);
+                        
+                        const createTraceFlagJson = JSON.parse(createTraceFlagResult);
+                        console.log(`[VisbalLogView] Created trace flag with ID: ${createTraceFlagJson.result.id}`);
+                    } catch (error) {
+                        console.error('[VisbalLogView] Error creating trace flag with new CLI format:', error);
+                        
+                        // Try with old CLI format
+                        try {
+                            const createTraceFlagCommand = `sfdx force:data:record:create --sobjecttype TraceFlag --values "DebugLevelId=${debugLevelId} LogType=DEVELOPER_LOG TracedEntityId=${userId} StartDate=${formattedStartDate} ExpirationDate=${formattedExpirationDate}" --usetoolingapi --json`;
+                            console.log(`[VisbalLogView] Creating trace flag with command (old format): ${createTraceFlagCommand}`);
+                            
+                            const createTraceFlagResult = await this._executeCommand(createTraceFlagCommand);
+                            console.log(`[VisbalLogView] Create trace flag result (old format): ${createTraceFlagResult}`);
+                            
+                            const createTraceFlagJson = JSON.parse(createTraceFlagResult);
+                            console.log(`[VisbalLogView] Created trace flag with ID (old format): ${createTraceFlagJson.result.id}`);
+                        } catch (oldError) {
+                            console.error('[VisbalLogView] Error creating trace flag with old CLI format:', oldError);
+                            throw new Error('Failed to create trace flag');
+                        }
+                    }
+                } catch (error) {
+                    console.error('[VisbalLogView] Error creating trace flag:', error);
+                    throw new Error('Failed to create trace flag');
+                }
+                
+                // Send success message
+                this._view?.webview.postMessage({
+                    command: 'debugStatus',
+                    success: true
+                });
+            } else {
+                // Just send success message for applying config without turning on debug
+                this._view?.webview.postMessage({
+                    command: 'applyConfigStatus',
+                    success: true
+                });
+            }
+        } catch (error: unknown) {
+            console.error('[VisbalLogView] Error in _applyDebugConfig:', error);
+            
+            // Send error message
+            this._view?.webview.postMessage({
+                command: turnOnDebug ? 'debugStatus' : 'applyConfigStatus',
+                success: false,
+                error: error instanceof Error ? error.message : 'Unknown error'
+            });
+        } finally {
+            // Reset loading state
+            this._isLoading = false;
+            this._view?.webview.postMessage({
+                command: 'loading',
+                isLoading: false
+            });
+        }
+    }
+
+    /**
+     * Gets the current debug configuration
+     */
+    private async _getCurrentDebugConfig(): Promise<void> {
+        try {
+            console.log('[VisbalLogView] Getting current debug configuration');
+            
+            // Get the current user ID
+            let userId = '';
+            try {
+                // Try with new CLI format first
+                try {
+                    console.log('[VisbalLogView] Getting user ID with new CLI format');
+                    const userIdResult = await this._executeCommand('sf org display user --json');
+                    console.log(`[VisbalLogView] User ID result: ${userIdResult}`);
+                    const userIdJson = JSON.parse(userIdResult);
+                    userId = userIdJson.result.id;
+                    console.log(`[VisbalLogView] Current user ID: ${userId}`);
+                } catch (error) {
+                    console.error('[VisbalLogView] Error getting user ID with new CLI format:', error);
+                    
+                    // Try with old CLI format
+                    console.log('[VisbalLogView] Trying with old CLI format');
+                    const userIdResult = await this._executeCommand('sfdx force:user:display --json');
+                    console.log(`[VisbalLogView] User ID result (old format): ${userIdResult}`);
+                    const userIdJson = JSON.parse(userIdResult);
+                    userId = userIdJson.result.id;
+                    console.log(`[VisbalLogView] Current user ID (old format): ${userId}`);
+                }
+            } catch (error) {
+                console.error('[VisbalLogView] Error getting user ID:', error);
+                throw new Error('Failed to get current user ID. Make sure you are authenticated with a Salesforce org.');
+            }
+
+            if (!userId) {
+                throw new Error('Could not determine current user ID');
+            }
+
+            // Check if there's an existing trace flag
+            let existingTraceFlag = null;
+            let existingDebugLevelId = null;
+            
+            try {
+                console.log('[VisbalLogView] Checking for existing trace flags');
+                const query = `SELECT Id, LogType, StartDate, ExpirationDate, DebugLevelId FROM TraceFlag WHERE LogType='DEVELOPER_LOG' AND TracedEntityId='${userId}'`;
+                
+                // Try with new CLI format first
+                try {
+                    const traceFlagResult = await this._executeCommand(`sf data query --query "${query}" --use-tooling-api --json`);
+                    console.log(`[VisbalLogView] Trace flag query result: ${traceFlagResult}`);
+                    const traceFlagJson = JSON.parse(traceFlagResult);
+                    
+                    if (traceFlagJson.result && traceFlagJson.result.records && traceFlagJson.result.records.length > 0) {
+                        existingTraceFlag = traceFlagJson.result.records[0];
+                        existingDebugLevelId = existingTraceFlag.DebugLevelId;
+                        console.log(`[VisbalLogView] Found existing trace flag: ${existingTraceFlag.Id}, debug level: ${existingDebugLevelId}`);
+                    }
+                } catch (error) {
+                    console.error('[VisbalLogView] Error checking trace flags with new CLI format:', error);
+                    
+                    // Try with old CLI format
+                    try {
+                        const traceFlagResult = await this._executeCommand(`sfdx force:data:soql:query --query "${query}" --usetoolingapi --json`);
+                        console.log(`[VisbalLogView] Trace flag query result (old format): ${traceFlagResult}`);
+                        const traceFlagJson = JSON.parse(traceFlagResult);
+                        
+                        if (traceFlagJson.result && traceFlagJson.result.records && traceFlagJson.result.records.length > 0) {
+                            existingTraceFlag = traceFlagJson.result.records[0];
+                            existingDebugLevelId = existingTraceFlag.DebugLevelId;
+                            console.log(`[VisbalLogView] Found existing trace flag (old format): ${existingTraceFlag.Id}, debug level: ${existingDebugLevelId}`);
+                        }
+                    } catch (oldError) {
+                        console.error('[VisbalLogView] Error checking trace flags with old CLI format:', oldError);
+                    }
+                }
+            } catch (error) {
+                console.error('[VisbalLogView] Error checking existing trace flag:', error);
+            }
+
+            // If we have a debug level ID, get its details
+            if (existingDebugLevelId) {
+                try {
+                    console.log(`[VisbalLogView] Getting debug level details for: ${existingDebugLevelId}`);
+                    const query = `SELECT Id, DeveloperName, MasterLabel, ApexCode, ApexProfiling, Callout, Database, System, Validation, Visualforce, Workflow, Wave, NBA FROM DebugLevel WHERE Id='${existingDebugLevelId}'`;
+                    
+                    // Try with new CLI format first
+                    try {
+                        const debugLevelResult = await this._executeCommand(`sf data query --query "${query}" --use-tooling-api --json`);
+                        console.log(`[VisbalLogView] Debug level query result: ${debugLevelResult}`);
+                        const debugLevelJson = JSON.parse(debugLevelResult);
+                        
+                        if (debugLevelJson.result && debugLevelJson.result.records && debugLevelJson.result.records.length > 0) {
+                            const debugLevel = debugLevelJson.result.records[0];
+                            console.log(`[VisbalLogView] Found debug level: ${debugLevel.DeveloperName}`);
+                            
+                            // Send the debug level configuration to the webview
+                            this._view?.webview.postMessage({
+                                command: 'currentDebugConfig',
+                                config: {
+                                    apexCode: debugLevel.ApexCode,
+                                    apexProfiling: debugLevel.ApexProfiling,
+                                    callout: debugLevel.Callout,
+                                    database: debugLevel.Database,
+                                    system: debugLevel.System,
+                                    validation: debugLevel.Validation,
+                                    visualforce: debugLevel.Visualforce,
+                                    workflow: debugLevel.Workflow,
+                                    wave: debugLevel.Wave,
+                                    nba: debugLevel.NBA
+                                }
+                            });
+                            return;
+                        }
+                    } catch (error) {
+                        console.error('[VisbalLogView] Error getting debug level details with new CLI format:', error);
+                        
+                        // Try with old CLI format
+                        try {
+                            const debugLevelResult = await this._executeCommand(`sfdx force:data:soql:query --query "${query}" --usetoolingapi --json`);
+                            console.log(`[VisbalLogView] Debug level query result (old format): ${debugLevelResult}`);
+                            const debugLevelJson = JSON.parse(debugLevelResult);
+                            
+                            if (debugLevelJson.result && debugLevelJson.result.records && debugLevelJson.result.records.length > 0) {
+                                const debugLevel = debugLevelJson.result.records[0];
+                                console.log(`[VisbalLogView] Found debug level (old format): ${debugLevel.DeveloperName}`);
+                                
+                                // Send the debug level configuration to the webview
+                                this._view?.webview.postMessage({
+                                    command: 'currentDebugConfig',
+                                    config: {
+                                        apexCode: debugLevel.ApexCode,
+                                        apexProfiling: debugLevel.ApexProfiling,
+                                        callout: debugLevel.Callout,
+                                        database: debugLevel.Database,
+                                        system: debugLevel.System,
+                                        validation: debugLevel.Validation,
+                                        visualforce: debugLevel.Visualforce,
+                                        workflow: debugLevel.Workflow,
+                                        wave: debugLevel.Wave,
+                                        nba: debugLevel.NBA
+                                    }
+                                });
+                                return;
+                            }
+                        } catch (oldError) {
+                            console.error('[VisbalLogView] Error getting debug level details with old CLI format:', oldError);
+                        }
+                    }
+                } catch (error) {
+                    console.error('[VisbalLogView] Error getting debug level details:', error);
+                }
+            }
+
+            // If we get here, we couldn't find a debug level or there was an error
+            // Send the default configuration
+            console.log('[VisbalLogView] Using default debug configuration');
+            this._view?.webview.postMessage({
+                command: 'info',
+                message: 'Info: Using default debug configuration.'
+            });
+            this._view?.webview.postMessage({
+                command: 'currentDebugConfig',
+                config: {
+                    apexCode: 'DEBUG',
+                    apexProfiling: 'INFO',
+                    callout: 'INFO',
+                    dataAccess: 'INFO',
+                    database: 'INFO',
+                    nba: 'INFO',
+                    system: 'DEBUG',
+                    validation: 'INFO',
+                    visualforce: 'INFO',
+                    wave: 'INFO',
+                    workflow: 'INFO'
+                }
+            });
+        } catch (error) {
+            console.error('[VisbalLogView] Error in _getCurrentDebugConfig:', error);
+            
+            // Send default configuration in case of error
+            this._view?.webview.postMessage({
+                command: 'currentDebugConfig',
+                config: {
+                    apexCode: 'DEBUG',
+                    apexProfiling: 'INFO',
+                    callout: 'INFO',
+                    dataAccess: 'INFO',
+                    database: 'INFO',
+                    nba: 'INFO',
+                    system: 'DEBUG',
+                    validation: 'INFO',
+                    visualforce: 'INFO',
+                    wave: 'INFO',
+                    workflow: 'INFO'
+                }
+            });
         }
     }
 }

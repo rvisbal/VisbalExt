@@ -53,4 +53,26 @@ export interface ParsedLogData {
     categories: LogCategory[];
     timeline: LogTimelineEvent[];
     error?: string;
+}
+
+/**
+ * Debug log level options
+ */
+export type DebugLogLevel = 'NONE' | 'ERROR' | 'WARN' | 'INFO' | 'DEBUG' | 'FINE' | 'FINER' | 'FINEST';
+
+/**
+ * Debug configuration for Salesforce logs
+ */
+export interface DebugConfig {
+    apexCode: DebugLogLevel;
+    apexProfiling: DebugLogLevel;
+    callout: DebugLogLevel;
+    dataAccess: DebugLogLevel;
+    database: DebugLogLevel;
+    nba: DebugLogLevel;
+    system: DebugLogLevel;
+    validation: DebugLogLevel;
+    visualforce: DebugLogLevel;
+    wave: DebugLogLevel;
+    workflow: DebugLogLevel;
 } 
