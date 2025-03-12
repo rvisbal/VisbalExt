@@ -42,11 +42,23 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
     private _isLoading: boolean = false;
     private _downloadedLogPaths: Map<string, string> = new Map<string, string>();
     private _logs: any[] = [];
+    private _lastFetchTime: number = 0;
+    private _cacheExpiryMs: number = 5 * 60 * 1000; // 5 minutes cache expiry
 
     constructor(private readonly _context: vscode.ExtensionContext) {
         this._extensionUri = _context.extensionUri;
         console.log('[VisbalLogView] constructor -- Initializing VisbalLogView');
         this._checkDownloadedLogs();
+        
+        // Load cached logs if available
+        const cachedLogs = this._context.globalState.get<any[]>('visbalCachedLogs', []);
+        const lastFetchTime = this._context.globalState.get<number>('visbalLastFetchTime', 0);
+        
+        if (cachedLogs && cachedLogs.length > 0) {
+            console.log(`[VisbalLogView] constructor -- Loaded ${cachedLogs.length} logs from cache`);
+            this._logs = cachedLogs;
+            this._lastFetchTime = lastFetchTime;
+        }
     }
 
     /**
@@ -77,7 +89,7 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
             switch (message.command) {
                 case 'fetchLogs':
                     console.log('[VisbalLogView] resolveWebviewView -- Fetching logs from command');
-                    await this._fetchLogs();
+                    await this._fetchLogs(true); // Force refresh
                     break;
                 case 'fetchLogsSoql':
                     console.log('[VisbalLogView] resolveWebviewView -- Fetching logs via SOQL from command');
@@ -114,19 +126,41 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
             }
         });
 
-        // Wait for the webview to be ready before fetching logs
+        // Wait for the webview to be ready before sending logs
         setTimeout(() => {
             if (webviewView.visible) {
-                console.log('[VisbalLogView] resolveWebviewView -- View is visible, fetching logs after delay');
-                this._fetchLogs();
+                console.log('[VisbalLogView] resolveWebviewView -- View is visible, checking for cached logs');
+                
+                // If we have cached logs that aren't too old, send them to the webview
+                const now = Date.now();
+                const cacheAge = now - this._lastFetchTime;
+                
+                if (this._logs.length > 0 && cacheAge < this._cacheExpiryMs) {
+                    console.log(`[VisbalLogView] resolveWebviewView -- Using cached logs (${this._logs.length} logs, ${Math.round(cacheAge / 1000)}s old)`);
+                    this._sendLogsToWebview(this._logs);
+                } else {
+                    console.log('[VisbalLogView] resolveWebviewView -- No recent cached logs, fetching new logs');
+                    this._fetchLogs();
+                }
             }
         }, 1000); // Add a small delay to ensure the webview is fully loaded
 
         // Fetch logs when the view becomes visible
         webviewView.onDidChangeVisibility(() => {
             if (webviewView.visible) {
-                console.log('[VisbalLogView] resolveWebviewView -- View became visible, fetching logs');
-                this._fetchLogs();
+                console.log('[VisbalLogView] resolveWebviewView -- View became visible, checking for cached logs');
+                
+                // If we have cached logs that aren't too old, send them to the webview
+                const now = Date.now();
+                const cacheAge = now - this._lastFetchTime;
+                
+                if (this._logs.length > 0 && cacheAge < this._cacheExpiryMs) {
+                    console.log(`[VisbalLogView] resolveWebviewView -- Using cached logs (${this._logs.length} logs, ${Math.round(cacheAge / 1000)}s old)`);
+                    this._sendLogsToWebview(this._logs);
+                } else {
+                    console.log('[VisbalLogView] resolveWebviewView -- No recent cached logs, fetching new logs');
+                    this._fetchLogs();
+                }
             }
         });
     }
@@ -477,9 +511,20 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
 
     /**
      * Fetches logs and updates the view
+     * @param forceRefresh Whether to force a refresh even if we have recent cached logs
      */
-    private async _fetchLogs(): Promise<void> {
+    private async _fetchLogs(forceRefresh: boolean = false): Promise<void> {
         try {
+            // Check if we have recent cached logs and aren't forcing a refresh
+            const now = Date.now();
+            const cacheAge = now - this._lastFetchTime;
+            
+            if (!forceRefresh && this._logs.length > 0 && cacheAge < this._cacheExpiryMs) {
+                console.log(`[VisbalLogView] _fetchLogs -- Using cached logs (${this._logs.length} logs, ${Math.round(cacheAge / 1000)}s old)`);
+                this._sendLogsToWebview(this._logs);
+                return;
+            }
+            
             this._isLoading = true;
             this._view?.webview.postMessage({ command: 'loading', isLoading: true });
 
@@ -514,6 +559,13 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
                     
                     // Store the transformed logs
                     this._logs = transformedLogs;
+                    
+                    // Update the last fetch time
+                    this._lastFetchTime = now;
+                    
+                    // Save to global state
+                    this._context.globalState.update('visbalCachedLogs', this._logs);
+                    this._context.globalState.update('visbalLastFetchTime', this._lastFetchTime);
                     
                     // Validate logs
                     const validatedLogs = transformedLogs.filter((log: any) => {
@@ -566,6 +618,13 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
                         
                         // Store the transformed logs
                         this._logs = transformedLogs;
+                        
+                        // Update the last fetch time
+                        this._lastFetchTime = now;
+                        
+                        // Save to global state
+                        this._context.globalState.update('visbalCachedLogs', this._logs);
+                        this._context.globalState.update('visbalLastFetchTime', this._lastFetchTime);
                         
                         // Validate logs
                         const validatedLogs = transformedLogs.filter((log: any) => {
@@ -997,6 +1056,16 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
             console.log('[VisbalLogView] _fetchLogsSoql -- Calling _fetchSalesforceLogsSoql');
             const logs = await this._fetchSalesforceLogsSoql();
             console.log(`[VisbalLogView] _fetchLogsSoql -- Received ${logs.length} logs from Salesforce via SOQL`);
+            
+            // Store the logs
+            this._logs = logs;
+            
+            // Update the last fetch time
+            this._lastFetchTime = Date.now();
+            
+            // Save to global state
+            this._context.globalState.update('visbalCachedLogs', this._logs);
+            this._context.globalState.update('visbalLastFetchTime', this._lastFetchTime);
             
             // Update download status
             console.log('[VisbalLogView] _fetchLogsSoql -- Updating download status for logs');
@@ -1634,6 +1703,12 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
 
             console.log(`[VisbalLogView] Successfully deleted ${deletedCount} logs from server`);
 
+            // Clear the cached logs
+            this._logs = [];
+            this._lastFetchTime = 0;
+            this._context.globalState.update('visbalCachedLogs', []);
+            this._context.globalState.update('visbalLastFetchTime', 0);
+
             // Notify the webview
             this._view?.webview.postMessage({ 
                 command: 'deleteServerStatus', 
@@ -1645,7 +1720,7 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
             vscode.window.showInformationMessage(`Successfully deleted ${deletedCount} logs from server`);
 
             // Refresh the logs list
-            await this._fetchLogs();
+            await this._fetchLogs(true);
 
         } catch (error: any) {
             console.error('[VisbalLogView] Error in _deleteServerLogs:', error);
@@ -1746,6 +1821,12 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
 
             console.log(`[VisbalLogView] Successfully deleted ${deletedCount} selected logs from server`);
 
+            // Remove the deleted logs from the cached logs
+            this._logs = this._logs.filter((log: any) => !logIds.includes(log.id));
+            
+            // Update the cache
+            this._context.globalState.update('visbalCachedLogs', this._logs);
+
             // Notify the webview
             this._view?.webview.postMessage({ 
                 command: 'deleteSelectedStatus', 
@@ -1757,7 +1838,7 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
             vscode.window.showInformationMessage(`Successfully deleted ${deletedCount} selected logs from server`);
 
             // Refresh the logs list
-            await this._fetchLogs();
+            await this._fetchLogs(true);
 
         } catch (error: any) {
             console.error('[VisbalLogView] Error in _deleteSelectedLogs:', error);
