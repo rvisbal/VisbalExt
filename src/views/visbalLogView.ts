@@ -95,6 +95,18 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
                     console.log(`[VisbalLogView] resolveWebviewView -- Toggling downloaded status for log: ${message.logId} to ${message.downloaded}`);
                     this._toggleDownloaded(message.logId, message.downloaded);
                     break;
+                case 'turnOnDebugLog':
+                    console.log('[VisbalLogView] resolveWebviewView -- Turning on debug log');
+                    await this._turnOnDebugLog();
+                    break;
+                case 'clearLocalLogs':
+                    console.log('[VisbalLogView] resolveWebviewView -- Clearing local log files');
+                    await this._clearLocalLogs();
+                    break;
+                case 'deleteServerLogs':
+                    console.log('[VisbalLogView] resolveWebviewView -- Deleting server logs');
+                    await this._deleteServerLogs();
+                    break;
             }
         });
 
@@ -1234,5 +1246,387 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
                 resolve(stdout);
             });
         });
+    }
+
+    /**
+     * Turns on Apex Debug Log for Replay Debugger
+     */
+    private async _turnOnDebugLog(): Promise<void> {
+        try {
+            this._isLoading = true;
+            this._view?.webview.postMessage({ command: 'loading', isLoading: true, message: 'Enabling Apex Debug Log...' });
+
+            console.log('[VisbalLogView] Turning on Apex Debug Log for Replay Debugger');
+
+            // Get the current user ID
+            let userId = '';
+            try {
+                // Try with new CLI format first
+                try {
+                    console.log('[VisbalLogView] Getting user ID with new CLI format');
+                    const userIdResult = await this._executeCommand('sf org display user --json');
+                    console.log(`[VisbalLogView] User ID result: ${userIdResult}`);
+                    const userIdJson = JSON.parse(userIdResult);
+                    userId = userIdJson.result.id;
+                    console.log(`[VisbalLogView] Current user ID: ${userId}`);
+                } catch (error) {
+                    console.error('[VisbalLogView] Error getting user ID with new CLI format:', error);
+                    
+                    // Try with old CLI format
+                    console.log('[VisbalLogView] Trying with old CLI format');
+                    const userIdResult = await this._executeCommand('sfdx force:user:display --json');
+                    console.log(`[VisbalLogView] User ID result (old format): ${userIdResult}`);
+                    const userIdJson = JSON.parse(userIdResult);
+                    userId = userIdJson.result.id;
+                    console.log(`[VisbalLogView] Current user ID (old format): ${userId}`);
+                }
+            } catch (error) {
+                console.error('[VisbalLogView] Error getting user ID:', error);
+                throw new Error('Failed to get current user ID. Make sure you are authenticated with a Salesforce org.');
+            }
+
+            if (!userId) {
+                throw new Error('Could not determine current user ID');
+            }
+
+            // Check if there's an existing trace flag
+            let existingTraceFlag = null;
+            let existingDebugLevelId = null;
+            
+            try {
+                console.log('[VisbalLogView] Checking for existing trace flags');
+                const query = `SELECT Id, LogType, StartDate, ExpirationDate, DebugLevelId FROM TraceFlag WHERE LogType='DEVELOPER_LOG' AND TracedEntityId='${userId}'`;
+                
+                // Try with new CLI format first
+                try {
+                    const traceFlagResult = await this._executeCommand(`sf data query --query "${query}" --use-tooling-api --json`);
+                    console.log(`[VisbalLogView] Trace flag query result: ${traceFlagResult}`);
+                    const traceFlagJson = JSON.parse(traceFlagResult);
+                    
+                    if (traceFlagJson.result && traceFlagJson.result.records && traceFlagJson.result.records.length > 0) {
+                        existingTraceFlag = traceFlagJson.result.records[0];
+                        existingDebugLevelId = existingTraceFlag.DebugLevelId;
+                        console.log(`[VisbalLogView] Found existing trace flag: ${existingTraceFlag.Id}, debug level: ${existingDebugLevelId}`);
+                    }
+                } catch (error) {
+                    console.error('[VisbalLogView] Error checking trace flags with new CLI format:', error);
+                    
+                    // Try with old CLI format
+                    try {
+                        const traceFlagResult = await this._executeCommand(`sfdx force:data:soql:query --query "${query}" --usetoolingapi --json`);
+                        console.log(`[VisbalLogView] Trace flag query result (old format): ${traceFlagResult}`);
+                        const traceFlagJson = JSON.parse(traceFlagResult);
+                        
+                        if (traceFlagJson.result && traceFlagJson.result.records && traceFlagJson.result.records.length > 0) {
+                            existingTraceFlag = traceFlagJson.result.records[0];
+                            existingDebugLevelId = existingTraceFlag.DebugLevelId;
+                            console.log(`[VisbalLogView] Found existing trace flag (old format): ${existingTraceFlag.Id}, debug level: ${existingDebugLevelId}`);
+                        }
+                    } catch (oldError) {
+                        console.error('[VisbalLogView] Error checking trace flags with old CLI format:', oldError);
+                        // Continue anyway, we'll create a new trace flag
+                    }
+                }
+            } catch (error) {
+                console.error('[VisbalLogView] Error checking existing trace flag:', error);
+                // Continue anyway, we'll create a new trace flag
+            }
+
+            // Use existing debug level if available, otherwise create a new one
+            let debugLevelId = existingDebugLevelId;
+            
+            if (!debugLevelId) {
+                // Create a debug level
+                const debugLevelName = `ReplayDebugger${Date.now()}`;
+                
+                try {
+                    console.log(`[VisbalLogView] Creating debug level with name: ${debugLevelName}`);
+                    
+                    // Try with new CLI format first
+                    try {
+                        const debugLevelCmd = `sf data create record --sobject DebugLevel --values "DeveloperName=${debugLevelName} MasterLabel=${debugLevelName} ApexCode=FINEST ApexProfiling=FINEST Callout=FINEST Database=FINEST System=FINEST Validation=FINEST Visualforce=FINEST Workflow=FINEST" --use-tooling-api --json`;
+                        console.log(`[VisbalLogView] Creating debug level with command: ${debugLevelCmd}`);
+                        const debugLevelResult = await this._executeCommand(debugLevelCmd);
+                        console.log(`[VisbalLogView] Debug level creation result: ${debugLevelResult}`);
+                        const debugLevelJson = JSON.parse(debugLevelResult);
+                        debugLevelId = debugLevelJson.result.id;
+                        console.log(`[VisbalLogView] Created debug level with ID: ${debugLevelId}`);
+                    } catch (error: any) {
+                        console.error('[VisbalLogView] Error creating debug level with new CLI format:', error);
+                        
+                        // Try with old CLI format
+                        const debugLevelCmd = `sfdx force:data:record:create --sobjecttype DebugLevel --values "DeveloperName=${debugLevelName} MasterLabel=${debugLevelName} ApexCode=FINEST ApexProfiling=FINEST Callout=FINEST Database=FINEST System=FINEST Validation=FINEST Visualforce=FINEST Workflow=FINEST" --usetoolingapi --json`;
+                        console.log(`[VisbalLogView] Creating debug level with command (old format): ${debugLevelCmd}`);
+                        const debugLevelResult = await this._executeCommand(debugLevelCmd);
+                        console.log(`[VisbalLogView] Debug level creation result (old format): ${debugLevelResult}`);
+                        const debugLevelJson = JSON.parse(debugLevelResult);
+                        debugLevelId = debugLevelJson.result.id;
+                        console.log(`[VisbalLogView] Created debug level with ID (old format): ${debugLevelId}`);
+                    }
+                } catch (error: any) {
+                    console.error('[VisbalLogView] Error creating debug level:', error);
+                    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+                    throw new Error(`Failed to create debug level: ${errorMessage}`);
+                }
+            }
+
+            if (!debugLevelId) {
+                throw new Error('Failed to create or find debug level');
+            }
+
+            // Delete existing trace flag if it exists
+            if (existingTraceFlag) {
+                try {
+                    console.log(`[VisbalLogView] Deleting existing trace flag: ${existingTraceFlag.Id}`);
+                    
+                    // Try with new CLI format first
+                    try {
+                        await this._executeCommand(`sf data delete record --sobject TraceFlag --record-id ${existingTraceFlag.Id} --use-tooling-api --json`);
+                        console.log('[VisbalLogView] Successfully deleted existing trace flag');
+                    } catch (error) {
+                        console.error('[VisbalLogView] Error deleting trace flag with new CLI format:', error);
+                        
+                        // Try with old CLI format
+                        await this._executeCommand(`sfdx force:data:record:delete --sobjecttype TraceFlag --sobjectid ${existingTraceFlag.Id} --usetoolingapi --json`);
+                        console.log('[VisbalLogView] Successfully deleted existing trace flag (old format)');
+                    }
+                } catch (error) {
+                    console.error('[VisbalLogView] Error deleting existing trace flag:', error);
+                    // Continue anyway, we'll try to create a new trace flag
+                }
+            }
+
+            // Create a trace flag
+            // Set expiration to 24 hours from now
+            const now = new Date();
+            const expirationDate = new Date();
+            expirationDate.setHours(expirationDate.getHours() + 24);
+            
+            // Format dates for Salesforce API
+            const formattedStartDate = now.toISOString();
+            const formattedExpirationDate = expirationDate.toISOString();
+
+            try {
+                console.log(`[VisbalLogView] Creating trace flag for user: ${userId}, debug level: ${debugLevelId}`);
+                console.log(`[VisbalLogView] Start date: ${formattedStartDate}, expiration date: ${formattedExpirationDate}`);
+                
+                // Try with new CLI format first
+                try {
+                    const traceFlagCmd = `sf data create record --sobject TraceFlag --values "TracedEntityId=${userId} LogType=DEVELOPER_LOG DebugLevelId=${debugLevelId} StartDate=${formattedStartDate} ExpirationDate=${formattedExpirationDate}" --use-tooling-api --json`;
+                    console.log(`[VisbalLogView] Creating trace flag with command: ${traceFlagCmd}`);
+                    const traceFlagResult = await this._executeCommand(traceFlagCmd);
+                    console.log(`[VisbalLogView] Trace flag creation result: ${traceFlagResult}`);
+                    const traceFlagJson = JSON.parse(traceFlagResult);
+                    console.log(`[VisbalLogView] Created trace flag with ID: ${traceFlagJson.result.id}`);
+                } catch (error: any) {
+                    console.error('[VisbalLogView] Error creating trace flag with new CLI format:', error);
+                    
+                    // Try with old CLI format
+                    const traceFlagCmd = `sfdx force:data:record:create --sobjecttype TraceFlag --values "TracedEntityId=${userId} LogType=DEVELOPER_LOG DebugLevelId=${debugLevelId} StartDate=${formattedStartDate} ExpirationDate=${formattedExpirationDate}" --usetoolingapi --json`;
+                    console.log(`[VisbalLogView] Creating trace flag with command (old format): ${traceFlagCmd}`);
+                    const traceFlagResult = await this._executeCommand(traceFlagCmd);
+                    console.log(`[VisbalLogView] Trace flag creation result (old format): ${traceFlagResult}`);
+                    const traceFlagJson = JSON.parse(traceFlagResult);
+                    console.log(`[VisbalLogView] Created trace flag with ID (old format): ${traceFlagJson.result.id}`);
+                }
+                
+                console.log('[VisbalLogView] Successfully created trace flag');
+            } catch (error: any) {
+                console.error('[VisbalLogView] Error creating trace flag:', error);
+                const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+                throw new Error(`Failed to create trace flag: ${errorMessage}`);
+            }
+
+            // Notify the webview
+            this._view?.webview.postMessage({ 
+                command: 'debugStatus', 
+                success: true,
+                message: 'Debug log enabled successfully for 24 hours'
+            });
+
+            // Show a notification
+            vscode.window.showInformationMessage('Apex Debug Log enabled successfully for 24 hours');
+
+        } catch (error: any) {
+            console.error('[VisbalLogView] Error in _turnOnDebugLog:', error);
+            
+            // Notify the webview
+            this._view?.webview.postMessage({ 
+                command: 'debugStatus', 
+                success: false,
+                error: error.message || 'Unknown error'
+            });
+            
+            vscode.window.showErrorMessage(`Failed to enable Apex Debug Log: ${error.message}`);
+        } finally {
+            this._isLoading = false;
+            this._view?.webview.postMessage({ command: 'loading', isLoading: false });
+        }
+    }
+
+    /**
+     * Clears all downloaded log files from the local directory
+     */
+    private async _clearLocalLogs(): Promise<void> {
+        try {
+            this._isLoading = true;
+            this._view?.webview.postMessage({ command: 'loading', isLoading: true, message: 'Clearing local log files...' });
+
+            console.log('[VisbalLogView] Clearing local log files');
+
+            // Get the logs directory - prioritize workspace folder if available
+            let logsDir: string;
+            if (vscode.workspace.workspaceFolders && vscode.workspace.workspaceFolders.length > 0) {
+                // Use workspace folder if available
+                const workspaceFolder = vscode.workspace.workspaceFolders[0].uri.fsPath;
+                logsDir = path.join(workspaceFolder, '.sfdx', 'tools', 'debug', 'logs');
+                console.log(`[VisbalLogView] Using workspace logs directory: ${logsDir}`);
+            } else {
+                // Fall back to home directory
+                const sfdxDir = path.join(os.homedir(), '.sfdx');
+                logsDir = path.join(sfdxDir, 'tools', 'debug', 'logs');
+                console.log(`[VisbalLogView] Using home logs directory: ${logsDir}`);
+            }
+            
+            if (!fs.existsSync(logsDir)) {
+                console.log(`[VisbalLogView] Logs directory does not exist: ${logsDir}`);
+                throw new Error(`Logs directory not found: ${logsDir}`);
+            }
+
+            // Read all files in the logs directory
+            const files = await fs.promises.readdir(logsDir);
+            console.log(`[VisbalLogView] Found ${files.length} files in logs directory`);
+
+            // Delete each file
+            let deletedCount = 0;
+            for (const file of files) {
+                try {
+                    const filePath = path.join(logsDir, file);
+                    const stats = await fs.promises.stat(filePath);
+                    
+                    // Only delete files, not directories
+                    if (stats.isFile()) {
+                        await fs.promises.unlink(filePath);
+                        deletedCount++;
+                        console.log(`[VisbalLogView] Deleted file: ${filePath}`);
+                    } else {
+                        console.log(`[VisbalLogView] Skipping directory: ${filePath}`);
+                    }
+                } catch (error) {
+                    console.error(`[VisbalLogView] Error deleting file ${file}:`, error);
+                    // Continue with other files
+                }
+            }
+
+            // Clear the downloaded logs tracking
+            this._downloadedLogs.clear();
+            this._downloadedLogPaths.clear();
+            this._saveDownloadedLogs();
+
+            // Update the UI
+            this._updateWebviewContent();
+
+            console.log(`[VisbalLogView] Successfully deleted ${deletedCount} log files`);
+
+            // Notify the webview
+            this._view?.webview.postMessage({ 
+                command: 'clearLocalStatus', 
+                success: true,
+                message: `Successfully cleared ${deletedCount} log files`
+            });
+
+            // Show a notification
+            vscode.window.showInformationMessage(`Successfully cleared ${deletedCount} log files`);
+
+        } catch (error: any) {
+            console.error('[VisbalLogView] Error in _clearLocalLogs:', error);
+            
+            // Notify the webview
+            this._view?.webview.postMessage({ 
+                command: 'clearLocalStatus', 
+                success: false,
+                error: error.message || 'Unknown error'
+            });
+            
+            vscode.window.showErrorMessage(`Failed to clear local log files: ${error.message}`);
+        } finally {
+            this._isLoading = false;
+            this._view?.webview.postMessage({ command: 'loading', isLoading: false });
+        }
+    }
+
+    /**
+     * Deletes all logs from the Salesforce server
+     */
+    private async _deleteServerLogs(): Promise<void> {
+        try {
+            this._isLoading = true;
+            this._view?.webview.postMessage({ command: 'loading', isLoading: true, message: 'Deleting server logs...' });
+
+            console.log('[VisbalLogView] Deleting logs from server');
+
+            // Get all log IDs
+            const logIds = this._logs.map((log: any) => log.id).filter(Boolean);
+            
+            if (logIds.length === 0) {
+                console.log('[VisbalLogView] No logs to delete');
+                throw new Error('No logs to delete');
+            }
+
+            console.log(`[VisbalLogView] Found ${logIds.length} logs to delete`);
+
+            // Delete logs in batches to avoid command line length limitations
+            const batchSize = 10;
+            let deletedCount = 0;
+            
+            for (let i = 0; i < logIds.length; i += batchSize) {
+                const batch = logIds.slice(i, i + batchSize);
+                try {
+                    // Create a comma-separated list of IDs
+                    const idList = batch.join(',');
+                    
+                    // Delete the logs
+                    const deleteCmd = `sf data:delete:record --sobject ApexLog --record-ids ${idList} --json`;
+                    console.log(`[VisbalLogView] Deleting batch of logs: ${deleteCmd}`);
+                    await this._executeCommand(deleteCmd);
+                    
+                    deletedCount += batch.length;
+                    console.log(`[VisbalLogView] Deleted batch of ${batch.length} logs, total: ${deletedCount}`);
+                } catch (error) {
+                    console.error(`[VisbalLogView] Error deleting batch of logs:`, error);
+                    // Continue with other batches
+                }
+            }
+
+            console.log(`[VisbalLogView] Successfully deleted ${deletedCount} logs from server`);
+
+            // Notify the webview
+            this._view?.webview.postMessage({ 
+                command: 'deleteServerStatus', 
+                success: true,
+                message: `Successfully deleted ${deletedCount} logs from server`
+            });
+
+            // Show a notification
+            vscode.window.showInformationMessage(`Successfully deleted ${deletedCount} logs from server`);
+
+            // Refresh the logs list
+            await this._fetchLogs();
+
+        } catch (error: any) {
+            console.error('[VisbalLogView] Error in _deleteServerLogs:', error);
+            
+            // Notify the webview
+            this._view?.webview.postMessage({ 
+                command: 'deleteServerStatus', 
+                success: false,
+                error: error.message || 'Unknown error'
+            });
+            
+            vscode.window.showErrorMessage(`Failed to delete server logs: ${error.message}`);
+        } finally {
+            this._isLoading = false;
+            this._view?.webview.postMessage({ command: 'loading', isLoading: false });
+        }
     }
 }

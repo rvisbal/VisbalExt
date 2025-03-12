@@ -60,18 +60,6 @@ export function getLogListTemplate(): string {
                 background-color: var(--vscode-editor-background);
                 position: sticky;
                 top: 0;
-                cursor: pointer;
-            }
-            .logs-table th:hover {
-                background-color: var(--vscode-list-hoverBackground);
-            }
-            .logs-table th.sorted-asc::after {
-                content: " ▲";
-                font-size: 0.8em;
-            }
-            .logs-table th.sorted-desc::after {
-                content: " ▼";
-                font-size: 0.8em;
             }
             .no-logs-message {
                 padding: 20px;
@@ -111,11 +99,6 @@ export function getLogListTemplate(): string {
                 0% { transform: rotate(0deg); }
                 100% { transform: rotate(360deg); }
             }
-            .actions-cell {
-                display: flex;
-                justify-content: flex-end;
-                align-items: center;
-            }
         </style>
     </head>
     <body>
@@ -144,13 +127,13 @@ export function getLogListTemplate(): string {
                 <table id="logsTable" class="logs-table hidden">
                     <thead>
                         <tr>
-                            <th data-sort="id">ID</th>
-                            <th data-sort="logUser.name">User</th>
-                            <th data-sort="application">Application</th>
-                            <th data-sort="operation">Operation</th>
-                            <th data-sort="status">Status</th>
-                            <th data-sort="logLength">Size</th>
-                            <th data-sort="lastModifiedDate">Date</th>
+                            <th>ID</th>
+                            <th>User</th>
+                            <th>Application</th>
+                            <th>Operation</th>
+                            <th>Status</th>
+                            <th>Size</th>
+                            <th>Date</th>
                             <th>Actions</th>
                         </tr>
                     </thead>
@@ -175,12 +158,6 @@ export function getLogListTemplate(): string {
                 const loadingIndicator = document.getElementById('loadingIndicator');
                 const errorContainer = document.getElementById('errorContainer');
                 const errorMessage = document.getElementById('errorMessage');
-                
-                // Sorting state
-                let currentSort = {
-                    column: 'lastModifiedDate',
-                    direction: 'desc'
-                };
                 
                 // Debug function
                 function debug(message) {
@@ -231,64 +208,6 @@ export function getLogListTemplate(): string {
                     refreshSoqlButton.disabled = false;
                 }
                 
-                // Sort logs
-                function sortLogs(column, direction) {
-                    debug('Sorting logs by ' + column + ' ' + direction);
-                    
-                    // Update current sort
-                    currentSort = {
-                        column: column,
-                        direction: direction
-                    };
-                    
-                    // Sort logs
-                    logs.sort((a, b) => {
-                        // Handle nested properties (e.g., logUser.name)
-                        let aValue = column.includes('.') ? 
-                            column.split('.').reduce((obj, key) => obj && obj[key], a) : 
-                            a[column];
-                        let bValue = column.includes('.') ? 
-                            column.split('.').reduce((obj, key) => obj && obj[key], b) : 
-                            b[column];
-                        
-                        // Handle undefined values
-                        if (aValue === undefined) aValue = '';
-                        if (bValue === undefined) bValue = '';
-                        
-                        // Handle dates
-                        if (column === 'lastModifiedDate') {
-                            aValue = new Date(aValue).getTime();
-                            bValue = new Date(bValue).getTime();
-                        }
-                        
-                        // Handle numbers
-                        if (column === 'logLength') {
-                            aValue = Number(aValue) || 0;
-                            bValue = Number(bValue) || 0;
-                        }
-                        
-                        // Sort
-                        if (aValue < bValue) {
-                            return direction === 'asc' ? -1 : 1;
-                        }
-                        if (aValue > bValue) {
-                            return direction === 'asc' ? 1 : -1;
-                        }
-                        return 0;
-                    });
-                    
-                    // Update UI
-                    renderLogs();
-                    
-                    // Update sort indicators
-                    document.querySelectorAll('th').forEach(th => {
-                        th.classList.remove('sorted-asc', 'sorted-desc');
-                        if (th.getAttribute('data-sort') === column) {
-                            th.classList.add(direction === 'asc' ? 'sorted-asc' : 'sorted-desc');
-                        }
-                    });
-                }
-                
                 // Render logs
                 function renderLogs() {
                     debug('Rendering ' + logs.length + ' logs');
@@ -335,7 +254,7 @@ export function getLogListTemplate(): string {
                             '<td>' + (log.status || 'Unknown') + '</td>' +
                             '<td>' + formattedSize + '</td>' +
                             '<td>' + formattedDate + '</td>' +
-                            '<td class="actions-cell">' +
+                            '<td>' +
                                 '<button class="button download-button" data-log-id="' + log.id + '">' +
                                     (log.downloaded ? 'Downloaded' : 'Download') +
                                 '</button>' +
@@ -388,20 +307,6 @@ export function getLogListTemplate(): string {
                     debug('DOM content loaded, requesting logs');
                     vscode.postMessage({ command: 'fetchLogs' });
                     showLoading();
-                    
-                    // Add event listeners to table headers for sorting
-                    document.querySelectorAll('th[data-sort]').forEach(th => {
-                        th.addEventListener('click', () => {
-                            const column = th.getAttribute('data-sort');
-                            if (!column) return;
-                            
-                            // Toggle direction if clicking the same column
-                            const direction = (currentSort.column === column && currentSort.direction === 'asc') ? 'desc' : 'asc';
-                            
-                            // Sort logs
-                            sortLogs(column, direction);
-                        });
-                    });
                 });
                 
                 // Event listeners
@@ -435,8 +340,8 @@ export function getLogListTemplate(): string {
                             // Update logs
                             logs = message.logs;
                             
-                            // Sort logs with current sort settings
-                            sortLogs(currentSort.column, currentSort.direction);
+                            // Render logs
+                            renderLogs();
                             
                             // Hide loading state
                             hideLoading();
@@ -478,7 +383,7 @@ export function getLogListTemplate(): string {
                                             log.localFilePath = message.filePath;
                                             
                                             // Check if we already have an Open button
-                                            const openButton = document.querySelector('.open-button[data-log-id="' + message.logId + '"]');
+                                            const openButton = document.querySelector('.open-icon[data-id="' + message.logId + '"]');
                                             
                                             // If not, create one
                                             if (!openButton) {
@@ -521,7 +426,7 @@ export function getLogListTemplate(): string {
                             }
                             
                             // Reset any open button that might be in "Opening..." state
-                            const resetButton = document.querySelector('.open-button[data-log-id="' + message.logId + '"]');
+                            const resetButton = document.querySelector('.open-icon[data-id="' + message.logId + '"]');
                             if (resetButton && resetButton.textContent === 'Opening...') {
                                 resetButton.disabled = false;
                                 resetButton.textContent = 'Open';
@@ -723,6 +628,67 @@ export function getHtmlTemplate(
             .filter-tag.active {
                 background-color: var(--vscode-button-background);
                 color: var(--vscode-button-foreground);
+            }
+            .filter-section {
+                display: flex;
+                align-items: center;
+                gap: 8px;
+            }
+            .filter-input {
+                width: 200px;
+                padding: 4px 8px;
+                border-radius: 4px;
+                border: 1px solid var(--vscode-input-border);
+                background-color: var(--vscode-input-background);
+                color: var(--vscode-input-foreground);
+            }
+            .icon-button {
+                background: none;
+                border: none;
+                cursor: pointer;
+                padding: 4px;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                color: var(--vscode-button-foreground);
+                background-color: var(--vscode-button-background);
+                border-radius: 4px;
+                width: 28px;
+                height: 28px;
+            }
+            .icon-button:hover {
+                background-color: var(--vscode-button-hoverBackground);
+            }
+            .icon-button:disabled {
+                opacity: 0.5;
+                cursor: not-allowed;
+            }
+            .clear-filter-button {
+                background: none;
+                border: none;
+                cursor: pointer;
+                padding: 4px;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                color: var(--vscode-descriptionForeground);
+                opacity: 0.7;
+                border-radius: 4px;
+                width: 28px;
+                height: 28px;
+            }
+            .clear-filter-button:hover {
+                opacity: 1;
+                background-color: var(--vscode-list-hoverBackground);
+            }
+            .clear-filter-button:disabled {
+                opacity: 0.3;
+                cursor: not-allowed;
+            }
+            .actions-section {
+                display: flex;
+                align-items: center;
+                gap: 8px;
             }
         </style>
     </head>
@@ -1124,10 +1090,70 @@ export function getHtmlForWebview(extensionUri: vscode.Uri, webview: vscode.Webv
         opacity: 0.5;
         cursor: not-allowed;
       }
-      .icon-placeholder {
+      .clear-filter-button {
+        background: none;
+        border: none;
+        cursor: pointer;
+        padding: 4px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: var(--vscode-descriptionForeground);
+        opacity: 0.7;
+        border-radius: 4px;
         width: 28px;
         height: 28px;
-        margin-left: 8px;
+      }
+      .clear-filter-button:hover {
+        opacity: 1;
+        background-color: var(--vscode-list-hoverBackground);
+      }
+      .clear-filter-button:disabled {
+        opacity: 0.3;
+        cursor: not-allowed;
+      }
+      .actions-section {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+      .button-group {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+      }
+      .text-button {
+        background-color: var(--vscode-button-background);
+        color: var(--vscode-button-foreground);
+        border: none;
+        padding: 4px 8px;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 12px;
+        display: flex;
+        align-items: center;
+        gap: 4px;
+      }
+      .text-button:hover {
+        background-color: var(--vscode-button-hoverBackground);
+      }
+      .text-button:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+      }
+      .danger-button {
+        background-color: var(--vscode-errorForeground, #f48771);
+      }
+      .danger-button:hover {
+        background-color: var(--vscode-errorForeground, #f48771);
+        opacity: 0.8;
+      }
+      .warning-button {
+        background-color: var(--vscode-editorWarning-foreground, #cca700);
+      }
+      .warning-button:hover {
+        background-color: var(--vscode-editorWarning-foreground, #cca700);
+        opacity: 0.8;
       }
       .logs-container {
         flex: 1;
@@ -1224,6 +1250,39 @@ export function getHtmlForWebview(extensionUri: vscode.Uri, webview: vscode.Webv
         margin: 10px;
         border-radius: 3px;
       }
+      .modal {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background-color: rgba(0, 0, 0, 0.5);
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        z-index: 100;
+      }
+      .modal-content {
+        background-color: var(--vscode-editor-background);
+        padding: 20px;
+        border-radius: 4px;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+        max-width: 500px;
+        width: 100%;
+      }
+      .modal-title {
+        font-size: 18px;
+        margin-bottom: 10px;
+        color: var(--vscode-errorForeground, #f48771);
+      }
+      .modal-message {
+        margin-bottom: 20px;
+      }
+      .modal-buttons {
+        display: flex;
+        justify-content: flex-end;
+        gap: 10px;
+      }
     </style>
   </head>
   <body>
@@ -1232,13 +1291,26 @@ export function getHtmlForWebview(extensionUri: vscode.Uri, webview: vscode.Webv
         <div class="filter-section">
           <button class="icon-button">🔍</button>
           <input type="text" class="filter-input" placeholder="Filter logs..." id="filter-input">
-          <button class="icon-button" id="clear-filter-button">❌</button>
+          <button class="clear-filter-button" id="clear-filter-button">✕</button>
         </div>
         <div class="actions-section">
-          <button class="icon-button" id="refresh-button" title="Refresh Logs">🔄</button>
-          <button class="icon-button" id="soql-button" title="Refresh with SOQL">🔍</button>
-          <span class="icon-placeholder"></span>
-          <span class="icon-placeholder"></span>
+          <div class="button-group">
+            <button class="text-button" id="refresh-button" title="Refresh Logs">
+              <span>🔄</span> Refresh
+            </button>
+            <button class="text-button" id="soql-button" title="Refresh with SOQL">
+              <span>🔍</span> SOQL
+            </button>
+          </div>
+          <button class="text-button" id="debug-button" title="Turn On Apex Debug Log for Replay Debugger">
+            <span>🐞</span> Turn On Debug
+          </button>
+          <button class="text-button warning-button" id="clear-local-button" title="Clear Downloaded Log Files">
+            <span>🗑️</span> Clear Local
+          </button>
+          <button class="text-button danger-button" id="delete-server-button" title="Delete Logs from Server">
+            <span>🗑️</span> Delete Server Logs
+          </button>
         </div>
       </div>
       
@@ -1248,7 +1320,18 @@ export function getHtmlForWebview(extensionUri: vscode.Uri, webview: vscode.Webv
       
       <div id="loading-indicator" class="loading-container hidden">
         <div class="loading-spinner"></div>
-        <div>Loading logs...</div>
+        <div id="loading-text">Loading logs...</div>
+      </div>
+      
+      <div id="confirm-modal" class="modal hidden">
+        <div class="modal-content">
+          <div class="modal-title" id="modal-title">Confirmation</div>
+          <div class="modal-message" id="modal-message">Are you sure you want to proceed?</div>
+          <div class="modal-buttons">
+            <button class="text-button" id="modal-cancel">Cancel</button>
+            <button class="text-button danger-button" id="modal-confirm">Confirm</button>
+          </div>
+        </div>
       </div>
       
       <div class="logs-container">
@@ -1282,12 +1365,21 @@ export function getHtmlForWebview(extensionUri: vscode.Uri, webview: vscode.Webv
       // Elements
       const refreshButton = document.getElementById('refresh-button');
       const soqlButton = document.getElementById('soql-button');
+      const debugButton = document.getElementById('debug-button');
+      const clearLocalButton = document.getElementById('clear-local-button');
+      const deleteServerButton = document.getElementById('delete-server-button');
       const filterInput = document.getElementById('filter-input');
       const clearFilterButton = document.getElementById('clear-filter-button');
       const logsTableBody = document.getElementById('logs-table-body');
       const loadingIndicator = document.getElementById('loading-indicator');
+      const loadingText = document.getElementById('loading-text');
       const errorContainer = document.getElementById('error-container');
       const errorMessage = document.getElementById('error-message');
+      const confirmModal = document.getElementById('confirm-modal');
+      const modalTitle = document.getElementById('modal-title');
+      const modalMessage = document.getElementById('modal-message');
+      const modalCancel = document.getElementById('modal-cancel');
+      const modalConfirm = document.getElementById('modal-confirm');
       
       // Sorting state
       let currentSort = {
@@ -1297,6 +1389,7 @@ export function getHtmlForWebview(extensionUri: vscode.Uri, webview: vscode.Webv
       
       // State
       let logs = [];
+      let pendingAction = null;
       
       // Format file size
       function formatFileSize(bytes) {
@@ -1308,10 +1401,14 @@ export function getHtmlForWebview(extensionUri: vscode.Uri, webview: vscode.Webv
       }
       
       // Show loading state
-      function showLoading() {
+      function showLoading(message = 'Loading logs...') {
+        loadingText.textContent = message;
         loadingIndicator.classList.remove('hidden');
         refreshButton.disabled = true;
         soqlButton.disabled = true;
+        debugButton.disabled = true;
+        clearLocalButton.disabled = true;
+        deleteServerButton.disabled = true;
       }
       
       // Hide loading state
@@ -1319,6 +1416,9 @@ export function getHtmlForWebview(extensionUri: vscode.Uri, webview: vscode.Webv
         loadingIndicator.classList.add('hidden');
         refreshButton.disabled = false;
         soqlButton.disabled = false;
+        debugButton.disabled = false;
+        clearLocalButton.disabled = false;
+        deleteServerButton.disabled = false;
       }
       
       // Show error message
@@ -1330,6 +1430,20 @@ export function getHtmlForWebview(extensionUri: vscode.Uri, webview: vscode.Webv
       // Hide error message
       function hideError() {
         errorContainer.classList.add('hidden');
+      }
+      
+      // Show confirmation modal
+      function showConfirmModal(title, message, confirmAction) {
+        modalTitle.textContent = title;
+        modalMessage.textContent = message;
+        pendingAction = confirmAction;
+        confirmModal.classList.remove('hidden');
+      }
+      
+      // Hide confirmation modal
+      function hideConfirmModal() {
+        confirmModal.classList.add('hidden');
+        pendingAction = null;
       }
       
       // Sort logs
@@ -1403,7 +1517,7 @@ export function getHtmlForWebview(extensionUri: vscode.Uri, webview: vscode.Webv
             break;
           case 'loading':
             if (message.isLoading) {
-              showLoading();
+              showLoading(message.message || 'Loading logs...');
             } else {
               hideLoading();
             }
@@ -1417,6 +1531,35 @@ export function getHtmlForWebview(extensionUri: vscode.Uri, webview: vscode.Webv
             break;
           case 'downloadStatus':
             handleDownloadStatus(message.logId, message.status === 'downloading', message.status, message.filePath, message.error);
+            break;
+          case 'debugStatus':
+            if (message.success) {
+              showError('Debug log enabled successfully!');
+              setTimeout(() => hideError(), 3000);
+            } else {
+              showError('Failed to enable debug log: ' + message.error);
+            }
+            hideLoading();
+            break;
+          case 'clearLocalStatus':
+            if (message.success) {
+              showError('Local log files cleared successfully!');
+              setTimeout(() => hideError(), 3000);
+            } else {
+              showError('Failed to clear local log files: ' + message.error);
+            }
+            hideLoading();
+            break;
+          case 'deleteServerStatus':
+            if (message.success) {
+              showError('Server logs deleted successfully!');
+              setTimeout(() => hideError(), 3000);
+              // Refresh logs after deletion
+              vscode.postMessage({ command: 'fetchLogs' });
+            } else {
+              showError('Failed to delete server logs: ' + message.error);
+            }
+            hideLoading();
             break;
         }
       });
@@ -1450,7 +1593,7 @@ export function getHtmlForWebview(extensionUri: vscode.Uri, webview: vscode.Webv
         vscode.postMessage({
           command: 'fetchLogs'
         });
-        showLoading();
+        showLoading('Refreshing logs...');
       });
       
       // SOQL button
@@ -1460,7 +1603,62 @@ export function getHtmlForWebview(extensionUri: vscode.Uri, webview: vscode.Webv
         vscode.postMessage({
           command: 'fetchLogsSoql'
         });
-        showLoading();
+        showLoading('Refreshing logs via SOQL...');
+      });
+      
+      // Debug button
+      debugButton.addEventListener('click', () => {
+        console.log('Debug button clicked');
+        hideError();
+        vscode.postMessage({
+          command: 'turnOnDebugLog'
+        });
+        showLoading('Enabling Apex Debug Log...');
+      });
+      
+      // Clear Local button
+      clearLocalButton.addEventListener('click', () => {
+        console.log('Clear Local button clicked');
+        showConfirmModal(
+          'Clear Local Log Files',
+          'Are you sure you want to delete all downloaded log files from your local directory? This action cannot be undone.',
+          () => {
+            hideError();
+            vscode.postMessage({
+              command: 'clearLocalLogs'
+            });
+            showLoading('Clearing local log files...');
+          }
+        );
+      });
+      
+      // Delete Server button
+      deleteServerButton.addEventListener('click', () => {
+        console.log('Delete Server button clicked');
+        showConfirmModal(
+          'Delete Server Logs',
+          'Are you sure you want to delete all logs from the Salesforce server? This action cannot be undone.',
+          () => {
+            hideError();
+            vscode.postMessage({
+              command: 'deleteServerLogs'
+            });
+            showLoading('Deleting server logs...');
+          }
+        );
+      });
+      
+      // Modal cancel button
+      modalCancel.addEventListener('click', () => {
+        hideConfirmModal();
+      });
+      
+      // Modal confirm button
+      modalConfirm.addEventListener('click', () => {
+        if (pendingAction) {
+          pendingAction();
+        }
+        hideConfirmModal();
       });
       
       // Handle download status updates
