@@ -1585,13 +1585,43 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
                     // Create a comma-separated list of IDs
                     const idList = batch.join(',');
                     
-                    // Delete the logs
-                    const deleteCmd = `sf data:delete:record --sobject ApexLog --record-ids ${idList} --json`;
-                    console.log(`[VisbalLogView] Deleting batch of logs: ${deleteCmd}`);
-                    await this._executeCommand(deleteCmd);
-                    
-                    deletedCount += batch.length;
-                    console.log(`[VisbalLogView] Deleted batch of ${batch.length} logs, total: ${deletedCount}`);
+                    // Try with new CLI format first
+                    try {
+                        const deleteCmd = `sf data delete record --sobject ApexLog --record-ids ${idList} --json`;
+                        console.log(`[VisbalLogView] Deleting batch of logs with new CLI format: ${deleteCmd}`);
+                        await this._executeCommand(deleteCmd);
+                        
+                        deletedCount += batch.length;
+                        console.log(`[VisbalLogView] Deleted batch of ${batch.length} logs with new CLI format, total: ${deletedCount}`);
+                    } catch (error) {
+                        console.error(`[VisbalLogView] Error deleting batch of logs with new CLI format:`, error);
+                        
+                        // Try with old CLI format
+                        try {
+                            // For old CLI format, we need to delete one by one
+                            console.log('[VisbalLogView] Trying to delete logs with old CLI format');
+                            let batchDeletedCount = 0;
+                            
+                            for (const logId of batch) {
+                                try {
+                                    const oldDeleteCmd = `sfdx force:data:record:delete --sobjecttype ApexLog --sobjectid ${logId} --json`;
+                                    console.log(`[VisbalLogView] Deleting log with old CLI format: ${oldDeleteCmd}`);
+                                    await this._executeCommand(oldDeleteCmd);
+                                    batchDeletedCount++;
+                                    console.log(`[VisbalLogView] Deleted log ${logId} with old CLI format`);
+                                } catch (singleError) {
+                                    console.error(`[VisbalLogView] Error deleting log ${logId} with old CLI format:`, singleError);
+                                    // Continue with other logs in the batch
+                                }
+                            }
+                            
+                            deletedCount += batchDeletedCount;
+                            console.log(`[VisbalLogView] Deleted ${batchDeletedCount} logs with old CLI format, total: ${deletedCount}`);
+                        } catch (oldFormatError) {
+                            console.error(`[VisbalLogView] Error deleting batch of logs with old CLI format:`, oldFormatError);
+                            // Continue with other batches
+                        }
+                    }
                 } catch (error) {
                     console.error(`[VisbalLogView] Error deleting batch of logs:`, error);
                     // Continue with other batches
