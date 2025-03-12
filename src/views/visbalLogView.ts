@@ -89,6 +89,9 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
                     console.log(`[VisbalLogView] resolveWebviewView -- Opening log: ${message.logId}`);
                     await this._openLog(message.logId);
                     break;
+                case 'logDetails':
+                    console.log(`[VisbalLogView] resolveWebviewView -- Received log details for: ${message.logId}`);
+                    break;
             }
         });
 
@@ -160,7 +163,9 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
             console.log(`[VisbalLogView] _openLog -- Received log content, length: ${logContent.length} characters`);
 
             // Create a temporary file
-            const tempFile = path.join(os.tmpdir(), `sf_log_${logId}.log`);
+            const cleanLogId = logId.replace(/[^a-zA-Z0-9]/g, '');
+            const timestamp = new Date().toISOString().replace(/:/g, '-');
+            const tempFile = path.join(os.tmpdir(), `sf_${cleanLogId}_${timestamp}.log`);
             console.log(`[VisbalLogView] _openLog -- Creating temporary file: ${tempFile}`);
             fs.writeFileSync(tempFile, logContent);
 
@@ -241,7 +246,55 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
             
             // Create a filename with timestamp
             const timestamp = new Date().toISOString().replace(/:/g, '-');
-            const filename = `log_${logId}_${timestamp}.log`;
+            
+            // Format: id_operation_status_size_date.log
+            // Clean up values to remove invalid characters and replace spaces with underscores
+            const cleanLogId = logId.replace(/[^a-zA-Z0-9]/g, '');
+            
+            // Fetch log details if we have them
+            let operation = 'unknown';
+            let status = 'unknown';
+            let logSize = '0';
+            
+            // Try to find the log in the current logs list to get its details
+            if (this._view) {
+                try {
+                    // Send a message to get the current log details
+                    const messageHandler = (message: any) => {
+                        if (message.command === 'logDetails' && message.logId === logId) {
+                            if (this._view?.webview) {
+                                this._view.webview.onDidReceiveMessage(messageHandler);
+                            }
+                            return message.details;
+                        }
+                        return null;
+                    };
+                    
+                    // Get the log details from the webview
+                    if (this._view.webview) {
+                        this._view.webview.onDidReceiveMessage(messageHandler);
+                        this._view.webview.postMessage({ command: 'getLogDetails', logId });
+                    }
+                    
+                    // Wait a moment for the response
+                    await new Promise(resolve => setTimeout(resolve, 500));
+                    
+                    // Try to get the log details from our existing logs
+                    const logs = await this._fetchSalesforceLogs();
+                    const logDetails = logs.find(log => log.id === logId);
+                    
+                    if (logDetails) {
+                        operation = (logDetails.operation || 'unknown').toLowerCase().replace(/[^a-zA-Z0-9]/g, '_');
+                        status = (logDetails.status || 'unknown').toLowerCase().replace(/[^a-zA-Z0-9]/g, '_');
+                        logSize = String(logDetails.logLength || 0);
+                        console.log(`[VisbalLogView] _downloadLog -- Found log details: operation=${operation}, status=${status}, size=${logSize}`);
+                    }
+                } catch (error) {
+                    console.log('[VisbalLogView] _downloadLog -- Error getting log details:', error);
+                }
+            }
+            
+            const filename = `${cleanLogId}_${operation}_${status}_${logSize}_${timestamp}.log`;
             targetFile = path.join(targetDir, filename);
             
             // Try direct file output for large logs
@@ -634,7 +687,10 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
             
             // Create a temporary file path for direct output
             const timestamp = new Date().toISOString().replace(/:/g, '-');
-            const tempFilePath = path.join(targetDir, `temp_log_${logId}_${timestamp}.log`);
+            
+            // Format: id_operation_status_size_date.log with temp_ prefix
+            const cleanLogId = logId.replace(/[^a-zA-Z0-9]/g, '');
+            const tempFilePath = path.join(targetDir, `temp_${cleanLogId}_${timestamp}.log`);
             
             // Try direct file output first (most reliable for large logs)
             try {

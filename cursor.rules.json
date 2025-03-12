@@ -1,0 +1,10 @@
+{
+  "rules": [
+    {
+      "name": "development",
+      "description": "Development standards for the Visbal Salesforce Debug Logs extension",
+      "glob": "**/*.{ts,js}",
+      "content": "When generating code for the Visbal extension, follow these standards:\n\n1. **Comprehensive Logging**:\n   - Include detailed console.log statements with '[VisbalLogView]' prefix for server-side logs\n   - Include detailed console.log statements with '[VisbalLogView:WebView]' prefix for client-side logs\n   - Log the start and end of each function execution\n   - Log important state changes and decision points\n\n2. **Error Handling**:\n   - Implement try-catch blocks for all async operations\n   - Provide user-friendly error messages with helpful suggestions\n   - Include fallback mechanisms for CLI commands (try new format, then old format)\n   - Log detailed error information to help with debugging\n\n3. **CLI Command Execution**:\n   - Support both new CLI format (`sf`) and legacy format (`sfdx`)\n   - Use increased buffer size (100MB) for large log operations\n   - Implement direct file output for very large logs\n   - Include helpful error messages for CLI-related issues\n\n4. **File Naming**:\n   - Use descriptive filenames in the format: `id_operation_status_size_timestamp.log`\n   - Clean invalid characters from filename components\n   - Replace spaces with underscores\n\n5. **UI Feedback**:\n   - Show loading indicators during async operations\n   - Provide clear status updates for download/open operations\n   - Reset UI state appropriately after operations complete\n   - Include helpful error messages in the UI\n\n6. **Code Organization**:\n   - Use TypeScript interfaces for data structures\n   - Implement clear separation between UI and business logic\n   - Use descriptive variable and function names\n   - Include JSDoc comments for public methods"
+    }
+  ]
+} 

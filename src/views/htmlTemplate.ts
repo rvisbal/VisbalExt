@@ -324,7 +324,7 @@ export function getLogListTemplate(): string {
                 // Handle messages from the extension
                 window.addEventListener('message', event => {
                     const message = event.data;
-                    debug('Received message: ' + message.command);
+                    console.log('[VisbalLogView:WebView] Received message:', message.command, message);
                     
                     switch (message.command) {
                         case 'updateLogs':
@@ -431,6 +431,20 @@ export function getLogListTemplate(): string {
                                 openButton.textContent = 'Open';
                             }
                             
+                            break;
+                            
+                        case 'getLogDetails':
+                            console.log('[VisbalLogView:WebView] Getting log details for:', message.logId);
+                            const logId = message.logId;
+                            const logDetails = logs.find(log => log.id === logId);
+                            console.log('[VisbalLogView:WebView] Found log details:', logDetails);
+                            
+                            // Send the details back to the extension
+                            vscode.postMessage({
+                                command: 'logDetails',
+                                logId: logId,
+                                details: logDetails || {}
+                            });
                             break;
                     }
                 });
