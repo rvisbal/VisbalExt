@@ -1208,6 +1208,12 @@ export function getHtmlForWebview(extensionUri: vscode.Uri, webview: vscode.Webv
         padding: 8px;
         border-bottom: 1px solid var(--vscode-panel-border);
       }
+      .logs-table tbody tr {
+        background-color: var(--vscode-list-inactiveSelectionBackground, rgba(128, 128, 128, 0.1));
+      }
+      .logs-table tbody tr:nth-child(even) {
+        background-color: var(--vscode-list-inactiveSelectionBackground, rgba(128, 128, 128, 0.2));
+      }
       .logs-table tr:hover {
         background-color: var(--vscode-list-hoverBackground);
       }
