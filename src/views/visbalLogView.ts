@@ -9,6 +9,9 @@ import { promisify } from 'util';
 
 const execAsync = promisify(exec);
 
+// Maximum buffer size for CLI commands (100MB)
+const MAX_BUFFER_SIZE = 100 * 1024 * 1024;
+
 /**
  * Interface for Salesforce Debug Log
  */
@@ -215,11 +218,6 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
                 status: 'downloading' 
             });
 
-            // Fetch the log content using CLI
-            console.log(`[VisbalLogView] _downloadLog -- Fetching content for log: ${logId}`);
-            const logContent = await this._fetchLogContent(logId);
-            console.log(`[VisbalLogView] _downloadLog -- Received log content, length: ${logContent.length} characters`);
-
             // Create a file in the .sfdx/tools/debug/logs directory
             let targetDir: string;
             let targetFile: string;
@@ -245,6 +243,100 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
             const timestamp = new Date().toISOString().replace(/:/g, '-');
             const filename = `log_${logId}_${timestamp}.log`;
             targetFile = path.join(targetDir, filename);
+            
+            // Try direct file output for large logs
+            try {
+                console.log(`[VisbalLogView] _downloadLog -- Trying direct file output to: ${targetFile}`);
+                
+                // Try with new CLI format first
+                try {
+                    const command = `sf apex get log -i ${logId} > "${targetFile}"`;
+                    console.log(`[VisbalLogView] _downloadLog -- Executing direct output command: ${command}`);
+                    await execAsync(command);
+                    
+                    // Check if the file was created and has content
+                    if (fs.existsSync(targetFile) && fs.statSync(targetFile).size > 0) {
+                        console.log(`[VisbalLogView] _downloadLog -- Successfully wrote log directly to file: ${targetFile}`);
+                        
+                        // Mark as downloaded and store the file path
+                        this._downloadedLogs.add(logId);
+                        this._downloadedLogPaths.set(logId, targetFile);
+                        this._saveDownloadedLogs();
+                        console.log(`[VisbalLogView] _downloadLog -- Added log ${logId} to downloaded logs with path: ${targetFile}`);
+                        
+                        // Open the file in the editor
+                        const fileUri = vscode.Uri.file(targetFile);
+                        console.log(`[VisbalLogView] _downloadLog -- Opening file in editor: ${fileUri.fsPath}`);
+                        const document = await vscode.workspace.openTextDocument(fileUri);
+                        await vscode.window.showTextDocument(document);
+                        
+                        // Show success message
+                        vscode.window.showInformationMessage(`Log downloaded and opened: ${targetFile}`);
+                        console.log('[VisbalLogView] _downloadLog -- Showed success message to user');
+                        
+                        // Update download status in the view
+                        console.log('[VisbalLogView] _downloadLog -- Sending downloaded status to webview');
+                        this._view.webview.postMessage({ 
+                            command: 'downloadStatus', 
+                            logId: logId, 
+                            status: 'downloaded',
+                            filePath: targetFile
+                        });
+                        
+                        return;
+                    }
+                } catch (directOutputError) {
+                    console.log('[VisbalLogView] _downloadLog -- Direct output with new CLI format failed, trying old format', directOutputError);
+                    
+                    // Try with old CLI format
+                    try {
+                        const command = `sfdx force:apex:log:get --logid ${logId} > "${targetFile}"`;
+                        console.log(`[VisbalLogView] _downloadLog -- Executing direct output command with old format: ${command}`);
+                        await execAsync(command);
+                        
+                        // Check if the file was created and has content
+                        if (fs.existsSync(targetFile) && fs.statSync(targetFile).size > 0) {
+                            console.log(`[VisbalLogView] _downloadLog -- Successfully wrote log directly to file with old format: ${targetFile}`);
+                            
+                            // Mark as downloaded and store the file path
+                            this._downloadedLogs.add(logId);
+                            this._downloadedLogPaths.set(logId, targetFile);
+                            this._saveDownloadedLogs();
+                            console.log(`[VisbalLogView] _downloadLog -- Added log ${logId} to downloaded logs with path: ${targetFile}`);
+                            
+                            // Open the file in the editor
+                            const fileUri = vscode.Uri.file(targetFile);
+                            console.log(`[VisbalLogView] _downloadLog -- Opening file in editor: ${fileUri.fsPath}`);
+                            const document = await vscode.workspace.openTextDocument(fileUri);
+                            await vscode.window.showTextDocument(document);
+                            
+                            // Show success message
+                            vscode.window.showInformationMessage(`Log downloaded and opened: ${targetFile}`);
+                            console.log('[VisbalLogView] _downloadLog -- Showed success message to user');
+                            
+                            // Update download status in the view
+                            console.log('[VisbalLogView] _downloadLog -- Sending downloaded status to webview');
+                            this._view.webview.postMessage({ 
+                                command: 'downloadStatus', 
+                                logId: logId, 
+                                status: 'downloaded',
+                                filePath: targetFile
+                            });
+                            
+                            return;
+                        }
+                    } catch (oldDirectOutputError) {
+                        console.log('[VisbalLogView] _downloadLog -- Direct output with old CLI format failed', oldDirectOutputError);
+                    }
+                }
+            } catch (error) {
+                console.log('[VisbalLogView] _downloadLog -- Direct file output approach failed, falling back to standard methods', error);
+            }
+            
+            // If direct file output failed, try the standard method
+            console.log(`[VisbalLogView] _downloadLog -- Fetching content for log: ${logId}`);
+            const logContent = await this._fetchLogContent(logId);
+            console.log(`[VisbalLogView] _downloadLog -- Received log content, length: ${logContent.length} characters`);
             
             // Write the log content to the file
             console.log(`[VisbalLogView] _downloadLog -- Writing log to file: ${targetFile}`);
@@ -279,7 +371,12 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
             console.error(`[VisbalLogView] _downloadLog -- Error downloading log ${logId}:`, error);
             
             // Show error message
-            vscode.window.showErrorMessage(`Failed to download log: ${error.message}`);
+            let errorMessage = `Failed to download log: ${error.message}`;
+            if (error.message.includes('maxBuffer length exceeded') || error.message.includes('ERR_CHILD_PROCESS_STDIO_MAXBUFFER')) {
+                errorMessage = `The log is too large to download through the extension. Please use the Salesforce CLI directly with the command: sf apex get log -i ${logId} > log_file.log`;
+            }
+            
+            vscode.window.showErrorMessage(errorMessage);
             
             // Update download status in the view
             console.log('[VisbalLogView] _downloadLog -- Sending error status to webview');
@@ -287,7 +384,7 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
                 command: 'downloadStatus', 
                 logId: logId, 
                 status: 'error',
-                error: error.message
+                error: errorMessage
             });
         }
     }
@@ -517,13 +614,92 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
     private async _fetchLogContent(logId: string): Promise<string> {
         console.log(`[VisbalLogView] _fetchLogContent -- Starting to fetch content for log: ${logId}`);
         try {
+            // First, check if we can directly output to a file to avoid buffer issues
+            let targetDir: string;
+            
+            // Check if we have a workspace folder
+            if (vscode.workspace.workspaceFolders && vscode.workspace.workspaceFolders.length > 0) {
+                // Use the .sfdx/tools/debug/logs directory in the workspace
+                targetDir = path.join(vscode.workspace.workspaceFolders[0].uri.fsPath, '.sfdx', 'tools', 'debug', 'logs');
+            } else {
+                // Use the user's home directory
+                targetDir = path.join(os.homedir(), '.sfdx', 'tools', 'debug', 'logs');
+            }
+            
+            // Create the directory if it doesn't exist
+            if (!fs.existsSync(targetDir)) {
+                console.log(`[VisbalLogView] _fetchLogContent -- Creating directory: ${targetDir}`);
+                fs.mkdirSync(targetDir, { recursive: true });
+            }
+            
+            // Create a temporary file path for direct output
+            const timestamp = new Date().toISOString().replace(/:/g, '-');
+            const tempFilePath = path.join(targetDir, `temp_log_${logId}_${timestamp}.log`);
+            
+            // Try direct file output first (most reliable for large logs)
+            try {
+                console.log(`[VisbalLogView] _fetchLogContent -- Trying direct file output to: ${tempFilePath}`);
+                
+                // Try with new CLI format first
+                try {
+                    const command = `sf apex get log -i ${logId} > "${tempFilePath}"`;
+                    console.log(`[VisbalLogView] _fetchLogContent -- Executing direct output command: ${command}`);
+                    await execAsync(command);
+                    
+                    // Check if the file was created and has content
+                    if (fs.existsSync(tempFilePath) && fs.statSync(tempFilePath).size > 0) {
+                        console.log(`[VisbalLogView] _fetchLogContent -- Successfully wrote log to file: ${tempFilePath}`);
+                        const logContent = fs.readFileSync(tempFilePath, 'utf8');
+                        
+                        // Clean up the temporary file
+                        try {
+                            fs.unlinkSync(tempFilePath);
+                        } catch (cleanupError) {
+                            console.log(`[VisbalLogView] _fetchLogContent -- Warning: Could not delete temp file: ${tempFilePath}`);
+                        }
+                        
+                        return logContent;
+                    }
+                } catch (directOutputError) {
+                    console.log('[VisbalLogView] _fetchLogContent -- Direct output with new CLI format failed, trying old format', directOutputError);
+                    
+                    // Try with old CLI format
+                    try {
+                        const command = `sfdx force:apex:log:get --logid ${logId} > "${tempFilePath}"`;
+                        console.log(`[VisbalLogView] _fetchLogContent -- Executing direct output command with old format: ${command}`);
+                        await execAsync(command);
+                        
+                        // Check if the file was created and has content
+                        if (fs.existsSync(tempFilePath) && fs.statSync(tempFilePath).size > 0) {
+                            console.log(`[VisbalLogView] _fetchLogContent -- Successfully wrote log to file with old format: ${tempFilePath}`);
+                            const logContent = fs.readFileSync(tempFilePath, 'utf8');
+                            
+                            // Clean up the temporary file
+                            try {
+                                fs.unlinkSync(tempFilePath);
+                            } catch (cleanupError) {
+                                console.log(`[VisbalLogView] _fetchLogContent -- Warning: Could not delete temp file: ${tempFilePath}`);
+                            }
+                            
+                            return logContent;
+                        }
+                    } catch (oldDirectOutputError) {
+                        console.log('[VisbalLogView] _fetchLogContent -- Direct output with old CLI format failed', oldDirectOutputError);
+                    }
+                }
+            } catch (error) {
+                console.log('[VisbalLogView] _fetchLogContent -- Direct file output approach failed, falling back to standard methods', error);
+            }
+            
+            // If direct file output failed, try the standard methods with increased buffer size
+            
             // Try to fetch the log using the new command format first
             let log;
             console.log('[VisbalLogView] _fetchLogContent -- Trying to fetch log content with new CLI format');
             try {
                 const command = `sf apex get log -i ${logId} --json`;
                 console.log(`[VisbalLogView] _fetchLogContent -- Executing: ${command}`);
-                const { stdout: logData } = await execAsync(command);
+                const { stdout: logData } = await execAsync(command, { maxBuffer: MAX_BUFFER_SIZE });
                 console.log('[VisbalLogView] _fetchLogContent -- Successfully fetched log content with new CLI format');
                 log = JSON.parse(logData);
                 
@@ -580,7 +756,7 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
                 try {
                     const command = `sfdx force:apex:log:get --logid ${logId} --json`;
                     console.log(`[VisbalLogView] _fetchLogContent -- Executing: ${command}`);
-                    const { stdout: logData } = await execAsync(command);
+                    const { stdout: logData } = await execAsync(command, { maxBuffer: MAX_BUFFER_SIZE });
                     console.log('[VisbalLogView] _fetchLogContent -- Successfully fetched log content with old CLI format');
                     log = JSON.parse(logData);
                     
@@ -600,7 +776,7 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
                     // Try one more approach - direct CLI output without JSON
                     try {
                         console.log('[VisbalLogView] _fetchLogContent -- Trying direct CLI output without JSON');
-                        const { stdout: directOutput } = await execAsync(`sf apex get log -i ${logId}`);
+                        const { stdout: directOutput } = await execAsync(`sf apex get log -i ${logId}`, { maxBuffer: MAX_BUFFER_SIZE });
                         console.log('[VisbalLogView] _fetchLogContent -- Successfully fetched log content with direct CLI output');
                         if (directOutput && directOutput.trim().length > 0) {
                             return directOutput;
@@ -610,7 +786,7 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
                     } catch (directError) {
                         try {
                             console.log('[VisbalLogView] _fetchLogContent -- Trying direct CLI output with old format');
-                            const { stdout: oldDirectOutput } = await execAsync(`sfdx force:apex:log:get --logid ${logId}`);
+                            const { stdout: oldDirectOutput } = await execAsync(`sfdx force:apex:log:get --logid ${logId}`, { maxBuffer: MAX_BUFFER_SIZE });
                             console.log('[VisbalLogView] _fetchLogContent -- Successfully fetched log content with direct CLI output (old format)');
                             if (oldDirectOutput && oldDirectOutput.trim().length > 0) {
                                 return oldDirectOutput;
@@ -619,7 +795,7 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
                             }
                         } catch (oldDirectError) {
                             console.error('[VisbalLogView] _fetchLogContent -- All attempts to fetch log content failed');
-                            throw new Error('Failed to fetch log content. Please ensure your Salesforce CLI is properly configured.');
+                            throw new Error('Failed to fetch log content. The log may be too large to download. Please try using the Salesforce CLI directly.');
                         }
                     }
                 }
