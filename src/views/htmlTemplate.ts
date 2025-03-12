@@ -500,6 +500,7 @@ export function getHtmlTemplate(
         { id: 'execution', label: 'Execution' },
         { id: 'database', label: 'Database' },
         { id: 'limits', label: 'Limits' },
+        { id: 'user_debug', label: 'USER_DEBUG' },
         { id: 'raw', label: 'Raw Log' }
     ],
     categories: any[] = []
@@ -907,6 +908,15 @@ export function getHtmlTemplate(
                         `}
                     </tbody>
                 </table>
+            </div>
+            
+            <div id="user_debug" class="tab-content ${currentTab === 'user_debug' ? 'active' : ''}">
+                <h2>USER_DEBUG Lines</h2>
+                <div class="user-debug-info">
+                    <p>Showing only USER_DEBUG lines from the log file.</p>
+                    <p>Total USER_DEBUG lines: ${parsedData.summary ? parsedData.summary.userDebugCount : 0}</p>
+                </div>
+                <pre class="raw-log">${parsedData.userDebugLog ? parsedData.userDebugLog.replace(/</g, '&lt;').replace(/>/g, '&gt;') : 'No USER_DEBUG lines found in the log.'}</pre>
             </div>
             
             <div id="raw" class="tab-content ${currentTab === 'raw' ? 'active' : ''}">

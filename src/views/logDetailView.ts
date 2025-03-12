@@ -194,23 +194,30 @@ export class LogDetailView {
             const heapLines = lines.filter(line => line.includes('HEAP_'));
             const limitLines = lines.filter(line => line.includes('LIMIT_'));
             
+            // Extract USER_DEBUG lines
+            const userDebugLines = lines.filter(line => line.includes('USER_DEBUG'));
+            console.log(`[LogDetailView] _parseLogFile -- Found ${userDebugLines.length} USER_DEBUG lines`);
+            
             // Create a parsed data object
             const parsedData = {
                 rawLog: logContent,
+                userDebugLog: userDebugLines.join('\n'),
                 summary: {
                     totalLines: lines.length,
                     executionCount: executionLines.length,
                     soqlCount: soqlLines.length,
                     dmlCount: dmlLines.length,
                     heapCount: heapLines.length,
-                    limitCount: limitLines.length
+                    limitCount: limitLines.length,
+                    userDebugCount: userDebugLines.length
                 },
                 categories: [
                     { name: 'EXECUTION', count: executionLines.length },
                     { name: 'SOQL', count: soqlLines.length },
                     { name: 'DML', count: dmlLines.length },
                     { name: 'HEAP', count: heapLines.length },
-                    { name: 'LIMIT', count: limitLines.length }
+                    { name: 'LIMIT', count: limitLines.length },
+                    { name: 'USER_DEBUG', count: userDebugLines.length }
                 ],
                 timeline: this._extractTimeline(lines)
             };
@@ -315,12 +322,24 @@ export class LogDetailView {
         // Update the title
         this._panel.title = `Log: ${fileName}`;
         
+        // Define tabs including the new USER_DEBUG tab
+        const tabs = [
+            { id: 'overview', label: 'Overview' },
+            { id: 'timeline', label: 'Timeline' },
+            { id: 'execution', label: 'Execution' },
+            { id: 'database', label: 'Database' },
+            { id: 'limits', label: 'Limits' },
+            { id: 'user_debug', label: 'USER_DEBUG' },
+            { id: 'raw', label: 'Raw Log' }
+        ];
+        
         // Update the webview content
         webview.html = getHtmlTemplate(
             this._parsedData,
             fileName,
             fileSize,
-            this._currentTab
+            this._currentTab,
+            tabs
         );
         
         console.log('[LogDetailView] _update -- Webview content updated');
