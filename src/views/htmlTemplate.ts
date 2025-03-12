@@ -1342,6 +1342,9 @@ export function getHtmlForWebview(extensionUri: vscode.Uri, webview: vscode.Webv
           <button class="text-button warning-button" id="clear-local-button" title="Clear Downloaded Log Files">
             <span>🗑️</span> Clear Local
           </button>
+          <button class="text-button danger-button" id="delete-selected-button" title="Delete Selected Logs" disabled>
+            <span>🗑️</span> Delete Selected
+          </button>
           <button class="text-button danger-button" id="delete-server-button" title="Delete Logs from Server">
             <span>🗑️</span> Delete Server Logs
           </button>
@@ -1372,6 +1375,9 @@ export function getHtmlForWebview(extensionUri: vscode.Uri, webview: vscode.Webv
         <table class="logs-table">
           <thead>
             <tr>
+              <th class="checkbox-cell">
+                <input type="checkbox" id="select-all-checkbox" title="Select All Visible Logs">
+              </th>
               <th data-sort="id">ID</th>
               <th class="checkbox-cell">Downloaded</th>
               <th data-sort="logUser.name">User</th>
@@ -1386,7 +1392,7 @@ export function getHtmlForWebview(extensionUri: vscode.Uri, webview: vscode.Webv
           <tbody id="logs-table-body">
             <!-- Logs will be inserted here -->
             <tr>
-              <td colspan="9">No logs found. Click Refresh to fetch logs.</td>
+              <td colspan="10">No logs found. Click Refresh to fetch logs.</td>
             </tr>
           </tbody>
         </table>
@@ -1424,6 +1430,15 @@ export function getHtmlForWebview(extensionUri: vscode.Uri, webview: vscode.Webv
       // State
       let logs = [];
       let pendingAction = null;
+      
+      // Selection state
+      let selectedLogIds = new Set();
+
+      // Update delete selected button state
+      function updateDeleteSelectedButton() {
+        const deleteSelectedButton = document.getElementById('delete-selected-button');
+        deleteSelectedButton.disabled = selectedLogIds.size === 0;
+      }
       
       // Format file size
       function formatBytes(bytes) {
@@ -1595,6 +1610,20 @@ export function getHtmlForWebview(extensionUri: vscode.Uri, webview: vscode.Webv
             }
             hideLoading();
             break;
+          case 'deleteSelectedStatus':
+            if (message.success) {
+              showError('Selected logs deleted successfully!');
+              setTimeout(() => hideError(), 3000);
+              // Clear selection
+              selectedLogIds.clear();
+              updateDeleteSelectedButton();
+              // Refresh logs after deletion
+              vscode.postMessage({ command: 'fetchLogs' });
+            } else {
+              showError('Failed to delete selected logs: ' + message.error);
+            }
+            hideLoading();
+            break;
         }
       });
 
@@ -1605,13 +1634,16 @@ export function getHtmlForWebview(extensionUri: vscode.Uri, webview: vscode.Webv
         
         rows.forEach(row => {
           // Skip the "No logs found" row
-          if (row.cells.length === 1 && row.cells[0].colSpan === 9) {
+          if (row.cells.length === 1 && row.cells[0].colSpan > 1) {
             return;
           }
           
           const text = row.textContent.toLowerCase();
           row.style.display = text.includes(filterValue) ? '' : 'none';
         });
+        
+        // Update select all checkbox state based on visible rows
+        updateSelectAllCheckboxState();
       });
       
       // Clear filter
@@ -1619,6 +1651,25 @@ export function getHtmlForWebview(extensionUri: vscode.Uri, webview: vscode.Webv
         filterInput.value = '';
         filterInput.dispatchEvent(new Event('input'));
       });
+      
+      // Update select all checkbox state
+      function updateSelectAllCheckboxState() {
+        const selectAllCheckbox = document.getElementById('select-all-checkbox');
+        const visibleRows = Array.from(document.querySelectorAll('#logs-table-body tr'))
+          .filter(row => row.style.display !== 'none' && row.cells.length > 1);
+        
+        const checkboxes = visibleRows.map(row => 
+          row.querySelector('.select-log-checkbox')
+        ).filter(Boolean);
+        
+        if (checkboxes.length === 0) {
+          selectAllCheckbox.checked = false;
+          selectAllCheckbox.disabled = true;
+        } else {
+          selectAllCheckbox.disabled = false;
+          selectAllCheckbox.checked = checkboxes.every(checkbox => checkbox.checked);
+        }
+      }
       
       // Refresh button
       refreshButton.addEventListener('click', () => {
@@ -1729,12 +1780,20 @@ export function getHtmlForWebview(extensionUri: vscode.Uri, webview: vscode.Webv
         hideError();
         logsTableBody.innerHTML = '';
         
+        // Reset selection state
+        selectedLogIds.clear();
+        updateDeleteSelectedButton();
+        
         if (!logs || logs.length === 0) {
           const row = document.createElement('tr');
-          row.innerHTML = '<td colspan="9">No logs found. Click Refresh to fetch logs.</td>';
+          row.innerHTML = '<td colspan="10">No logs found. Click Refresh to fetch logs.</td>';
           logsTableBody.appendChild(row);
+          document.getElementById('select-all-checkbox').disabled = true;
           return;
         }
+        
+        document.getElementById('select-all-checkbox').disabled = false;
+        document.getElementById('select-all-checkbox').checked = false;
         
         logs.forEach(log => {
           if (!log || !log.id) {
@@ -1778,20 +1837,24 @@ export function getHtmlForWebview(extensionUri: vscode.Uri, webview: vscode.Webv
           const formattedSize = formatBytes(log.logLength || 0);
           
           const row = document.createElement('tr');
-          row.innerHTML = \`
-            <td>\${log.id}</td>
-            <td class="checkbox-cell"><input type="checkbox" class="downloaded-checkbox" \${log.downloaded ? 'checked' : ''} data-id="\${log.id}"></td>
-            <td>\${log.logUser?.name || 'Unknown'}</td>
-            <td>\${log.application || 'Unknown'}</td>
-            <td>\${log.operation || 'Unknown'}</td>
-            <td>\${formattedDate}</td>
-            <td>\${log.status || 'Unknown'}</td>
-            <td>\${formattedSize}</td>
-            <td class="action-cell">
-              <button class="icon-button download-icon" data-id="\${log.id}" title="Download"></button>
-              <button class="icon-button open-icon" data-id="\${log.id}" title="Open" \${!log.downloaded ? 'disabled' : ''}></button>
-            </td>
-          \`;
+          
+          // Use string concatenation instead of template literals
+          row.innerHTML = 
+            '<td class="checkbox-cell">' +
+            '  <input type="checkbox" class="select-log-checkbox" data-id="' + log.id + '">' +
+            '</td>' +
+            '<td>' + log.id + '</td>' +
+            '<td class="checkbox-cell"><input type="checkbox" class="downloaded-checkbox" ' + (log.downloaded ? 'checked' : '') + ' data-id="' + log.id + '"></td>' +
+            '<td>' + (log.logUser?.name || 'Unknown') + '</td>' +
+            '<td>' + (log.application || 'Unknown') + '</td>' +
+            '<td>' + (log.operation || 'Unknown') + '</td>' +
+            '<td>' + formattedDate + '</td>' +
+            '<td>' + (log.status || 'Unknown') + '</td>' +
+            '<td>' + formattedSize + '</td>' +
+            '<td class="action-cell">' +
+            '  <button class="icon-button download-icon" data-id="' + log.id + '" title="Download"></button>' +
+            '  <button class="icon-button open-icon" data-id="' + log.id + '" title="Open" ' + (!log.downloaded ? 'disabled' : '') + '></button>' +
+            '</td>';
           
           logsTableBody.appendChild(row);
         });
@@ -1845,6 +1908,30 @@ export function getHtmlForWebview(extensionUri: vscode.Uri, webview: vscode.Webv
             }
           });
         });
+        
+        // Add event listeners to select checkboxes
+        document.querySelectorAll('.select-log-checkbox').forEach(checkbox => {
+          checkbox.addEventListener('change', () => {
+            const logId = checkbox.getAttribute('data-id');
+            console.log('Select checkbox changed for log:', logId, 'to', checkbox.checked);
+            
+            // Update selected log IDs
+            if (checkbox.checked) {
+              selectedLogIds.add(logId);
+            } else {
+              selectedLogIds.delete(logId);
+              
+              // Uncheck select all if any checkbox is unchecked
+              document.getElementById('select-all-checkbox').checked = false;
+            }
+            
+            // Update delete selected button
+            updateDeleteSelectedButton();
+          });
+        });
+        
+        // Update select all checkbox state
+        updateSelectAllCheckboxState();
       }
       
       // Add event listeners to table headers for sorting
@@ -1859,6 +1946,59 @@ export function getHtmlForWebview(extensionUri: vscode.Uri, webview: vscode.Webv
           // Sort logs
           sortLogs(column, direction);
         });
+      });
+      
+      // Select all checkbox
+      const selectAllCheckbox = document.getElementById('select-all-checkbox');
+      selectAllCheckbox.addEventListener('change', () => {
+        console.log('Select all checkbox changed to', selectAllCheckbox.checked);
+        
+        // Get all visible checkboxes
+        const visibleRows = Array.from(document.querySelectorAll('#logs-table-body tr'))
+          .filter(row => row.style.display !== 'none' && row.cells.length > 1);
+        
+        const checkboxes = visibleRows.map(row => 
+          row.querySelector('.select-log-checkbox')
+        ).filter(Boolean);
+        
+        // Update all visible checkboxes
+        checkboxes.forEach(checkbox => {
+          checkbox.checked = selectAllCheckbox.checked;
+          
+          // Update selected log IDs
+          const logId = checkbox.getAttribute('data-id');
+          if (selectAllCheckbox.checked) {
+            selectedLogIds.add(logId);
+          } else {
+            selectedLogIds.delete(logId);
+          }
+        });
+        
+        // Update delete selected button
+        updateDeleteSelectedButton();
+      });
+      
+      // Delete selected button
+      const deleteSelectedButton = document.getElementById('delete-selected-button');
+      deleteSelectedButton.addEventListener('click', () => {
+        console.log('Delete selected button clicked');
+        
+        if (selectedLogIds.size === 0) {
+          return;
+        }
+        
+        showConfirmModal(
+          'Delete Selected Logs',
+          'Are you sure you want to delete ' + selectedLogIds.size + ' selected logs from the Salesforce server? This action cannot be undone.',
+          () => {
+            hideError();
+            vscode.postMessage({
+              command: 'deleteSelectedLogs',
+              logIds: Array.from(selectedLogIds)
+            });
+            showLoading('Deleting selected logs...');
+          }
+        );
       });
       
       // Initialize by requesting logs

@@ -107,6 +107,10 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
                     console.log('[VisbalLogView] resolveWebviewView -- Deleting server logs');
                     await this._deleteServerLogs();
                     break;
+                case 'deleteSelectedLogs':
+                    console.log(`[VisbalLogView] resolveWebviewView -- Deleting selected logs: ${message.logIds.length} logs`);
+                    await this._deleteSelectedLogs(message.logIds);
+                    break;
             }
         });
 
@@ -1654,6 +1658,118 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
             });
             
             vscode.window.showErrorMessage(`Failed to delete server logs: ${error.message}`);
+        } finally {
+            this._isLoading = false;
+            this._view?.webview.postMessage({ command: 'loading', isLoading: false });
+        }
+    }
+
+    /**
+     * Deletes selected logs from the Salesforce server
+     * @param logIds Array of log IDs to delete
+     */
+    private async _deleteSelectedLogs(logIds: string[]): Promise<void> {
+        try {
+            this._isLoading = true;
+            this._view?.webview.postMessage({ 
+                command: 'loading', 
+                isLoading: true, 
+                message: `Deleting ${logIds.length} selected logs...` 
+            });
+
+            console.log(`[VisbalLogView] _deleteSelectedLogs -- Starting to delete ${logIds.length} selected logs`);
+
+            if (!logIds || logIds.length === 0) {
+                console.log('[VisbalLogView] _deleteSelectedLogs -- No logs to delete');
+                this._view?.webview.postMessage({ 
+                    command: 'deleteSelectedStatus', 
+                    success: false,
+                    error: 'No logs selected for deletion'
+                });
+                return;
+            }
+
+            console.log(`[VisbalLogView] Selected log IDs: ${logIds.join(', ')}`);
+
+            // Delete logs in batches to avoid command line length limitations
+            const batchSize = 10;
+            let deletedCount = 0;
+            
+            for (let i = 0; i < logIds.length; i += batchSize) {
+                const batch = logIds.slice(i, i + batchSize);
+                try {
+                    // Create a comma-separated list of IDs
+                    const idList = batch.join(',');
+                    
+                    // Try with new CLI format first
+                    try {
+                        const deleteCmd = `sf data delete record --sobject ApexLog --record-ids ${idList} --json`;
+                        console.log(`[VisbalLogView] Deleting batch of logs with new CLI format: ${deleteCmd}`);
+                        await this._executeCommand(deleteCmd);
+                        
+                        deletedCount += batch.length;
+                        console.log(`[VisbalLogView] Deleted batch of ${batch.length} logs with new CLI format, total: ${deletedCount}`);
+                    } catch (error) {
+                        console.error(`[VisbalLogView] Error deleting batch of logs with new CLI format:`, error);
+                        
+                        // Try with old CLI format
+                        try {
+                            // For old CLI format, we need to delete one by one
+                            console.log('[VisbalLogView] Trying to delete logs with old CLI format');
+                            let batchDeletedCount = 0;
+                            
+                            for (const logId of batch) {
+                                try {
+                                    const oldDeleteCmd = `sfdx force:data:record:delete --sobjecttype ApexLog --sobjectid ${logId} --json`;
+                                    console.log(`[VisbalLogView] Deleting log with old CLI format: ${oldDeleteCmd}`);
+                                    await this._executeCommand(oldDeleteCmd);
+                                    batchDeletedCount++;
+                                    console.log(`[VisbalLogView] Deleted log ${logId} with old CLI format`);
+                                } catch (singleError) {
+                                    console.error(`[VisbalLogView] Error deleting log ${logId} with old CLI format:`, singleError);
+                                    // Continue with other logs in the batch
+                                }
+                            }
+                            
+                            deletedCount += batchDeletedCount;
+                            console.log(`[VisbalLogView] Deleted ${batchDeletedCount} logs with old CLI format, total: ${deletedCount}`);
+                        } catch (oldFormatError) {
+                            console.error(`[VisbalLogView] Error deleting batch of logs with old CLI format:`, oldFormatError);
+                            // Continue with other batches
+                        }
+                    }
+                } catch (error) {
+                    console.error(`[VisbalLogView] Error deleting batch of logs:`, error);
+                    // Continue with other batches
+                }
+            }
+
+            console.log(`[VisbalLogView] Successfully deleted ${deletedCount} selected logs from server`);
+
+            // Notify the webview
+            this._view?.webview.postMessage({ 
+                command: 'deleteSelectedStatus', 
+                success: true,
+                message: `Successfully deleted ${deletedCount} selected logs from server`
+            });
+
+            // Show a notification
+            vscode.window.showInformationMessage(`Successfully deleted ${deletedCount} selected logs from server`);
+
+            // Refresh the logs list
+            await this._fetchLogs();
+
+        } catch (error: any) {
+            console.error('[VisbalLogView] Error in _deleteSelectedLogs:', error);
+            
+            // Notify the webview
+            this._view?.webview.postMessage({ 
+                command: 'deleteSelectedStatus', 
+                success: false,
+                error: error.message || 'Unknown error'
+            });
+            
+            vscode.window.showErrorMessage(`Failed to delete selected logs: ${error.message}`);
         } finally {
             this._isLoading = false;
             this._view?.webview.postMessage({ command: 'loading', isLoading: false });
