@@ -257,7 +257,7 @@ export function getLogListTemplate(): string {
                                 '<button class="button download-button" data-log-id="' + log.id + '">' +
                                     (log.downloaded ? 'Downloaded' : 'Download') +
                                 '</button>' +
-                                '<button class="button open-button" data-log-id="' + log.id + '" style="margin-left: 5px;">Open</button>' +
+                                (log.localFilePath ? '<button class="button open-button" data-log-id="' + log.id + '" style="margin-left: 5px;">Open</button>' : '') +
                             '</td>';
                         
                         logsTableBody.appendChild(row);

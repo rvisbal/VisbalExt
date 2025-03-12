@@ -24,6 +24,7 @@ interface SalesforceLog {
     logLength: number;
     lastModifiedDate: string;
     downloaded: boolean;
+    localFilePath?: string;
 }
 
 /**
@@ -35,6 +36,7 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
     private _extensionUri: vscode.Uri;
     private _downloadedLogs: Set<string> = new Set<string>();
     private _isLoading: boolean = false;
+    private _downloadedLogPaths: Map<string, string> = new Map<string, string>();
 
     constructor(private readonly _context: vscode.ExtensionContext) {
         this._extensionUri = _context.extensionUri;
@@ -124,6 +126,30 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
                 status: 'downloading' 
             });
 
+            // Check if we have a local copy of the log
+            const localFilePath = this._downloadedLogPaths.get(logId);
+            if (localFilePath && fs.existsSync(localFilePath)) {
+                console.log(`[VisbalLogView] _openLog -- Found local file: ${localFilePath}`);
+                
+                // Open the file in the editor
+                const fileUri = vscode.Uri.file(localFilePath);
+                console.log(`[VisbalLogView] _openLog -- Opening local file in editor: ${fileUri.fsPath}`);
+                const document = await vscode.workspace.openTextDocument(fileUri);
+                await vscode.window.showTextDocument(document);
+                
+                // Update status in the view
+                console.log('[VisbalLogView] _openLog -- Sending success status to webview');
+                this._view.webview.postMessage({ 
+                    command: 'downloadStatus', 
+                    logId: logId, 
+                    status: 'downloaded'
+                });
+                
+                return;
+            }
+            
+            console.log(`[VisbalLogView] _openLog -- No local file found for log: ${logId}, fetching from org`);
+
             // Fetch the log content
             console.log(`[VisbalLogView] _openLog -- Fetching content for log: ${logId}`);
             const logContent = await this._fetchLogContent(logId);
@@ -193,19 +219,19 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
             const logContent = await this._fetchLogContent(logId);
             console.log(`[VisbalLogView] _downloadLog -- Received log content, length: ${logContent.length} characters`);
 
-            // Create a file in the user's workspace or a temporary directory
+            // Create a file in the .sfdx/tools/debug/logs directory
             let targetDir: string;
             let targetFile: string;
             
             // Check if we have a workspace folder
             if (vscode.workspace.workspaceFolders && vscode.workspace.workspaceFolders.length > 0) {
-                // Use the first workspace folder
-                targetDir = path.join(vscode.workspace.workspaceFolders[0].uri.fsPath, 'logs');
-                console.log(`[VisbalLogView] _downloadLog -- Using workspace folder: ${targetDir}`);
+                // Use the .sfdx/tools/debug/logs directory in the workspace
+                targetDir = path.join(vscode.workspace.workspaceFolders[0].uri.fsPath, '.sfdx', 'tools', 'debug', 'logs');
+                console.log(`[VisbalLogView] _downloadLog -- Using .sfdx directory: ${targetDir}`);
             } else {
                 // Use the user's home directory
-                targetDir = path.join(os.homedir(), 'visbal_logs');
-                console.log(`[VisbalLogView] _downloadLog -- Using home directory: ${targetDir}`);
+                targetDir = path.join(os.homedir(), '.sfdx', 'tools', 'debug', 'logs');
+                console.log(`[VisbalLogView] _downloadLog -- Using home .sfdx directory: ${targetDir}`);
             }
             
             // Create the directory if it doesn't exist
@@ -224,10 +250,11 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
             fs.writeFileSync(targetFile, logContent);
             console.log('[VisbalLogView] _downloadLog -- Log file written successfully');
 
-            // Mark as downloaded
+            // Mark as downloaded and store the file path
             this._downloadedLogs.add(logId);
+            this._downloadedLogPaths.set(logId, targetFile);
             this._saveDownloadedLogs();
-            console.log(`[VisbalLogView] _downloadLog -- Added log ${logId} to downloaded logs`);
+            console.log(`[VisbalLogView] _downloadLog -- Added log ${logId} to downloaded logs with path: ${targetFile}`);
 
             // Open the file in the editor
             const fileUri = vscode.Uri.file(targetFile);
@@ -288,10 +315,18 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
             const logs = await this._fetchSalesforceLogs();
             console.log(`[VisbalLogView] _fetchLogs -- Received ${logs.length} logs from Salesforce`);
             
-            // Update download status
+            // Update download status and check for local files
             console.log('[VisbalLogView] _fetchLogs -- Updating download status for logs');
             logs.forEach(log => {
                 log.downloaded = this._downloadedLogs.has(log.id);
+                
+                // Check if we have a local file for this log
+                const localFilePath = this._downloadedLogPaths.get(log.id);
+                if (localFilePath && fs.existsSync(localFilePath)) {
+                    log.localFilePath = localFilePath;
+                    console.log(`[VisbalLogView] _fetchLogs -- Log ${log.id} has local file: ${localFilePath}`);
+                }
+                
                 if (log.downloaded) {
                     console.log(`[VisbalLogView] _fetchLogs -- Log ${log.id} is marked as downloaded`);
                 }
@@ -605,7 +640,26 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
         console.log('[VisbalLogView] _checkDownloadedLogs -- Checking for previously downloaded logs');
         const downloadedLogs = this._context.globalState.get<string[]>('visbalDownloadedLogs', []);
         this._downloadedLogs = new Set<string>(downloadedLogs);
+        
+        // Load the paths of downloaded logs
+        const downloadedLogPaths = this._context.globalState.get<Record<string, string>>('visbalDownloadedLogPaths', {});
+        this._downloadedLogPaths = new Map<string, string>(Object.entries(downloadedLogPaths));
+        
         console.log(`[VisbalLogView] _checkDownloadedLogs -- Found ${this._downloadedLogs.size} previously downloaded logs`);
+        console.log(`[VisbalLogView] _checkDownloadedLogs -- Found ${this._downloadedLogPaths.size} log file paths`);
+        
+        // Verify that the files still exist
+        for (const [logId, filePath] of this._downloadedLogPaths.entries()) {
+            if (!fs.existsSync(filePath)) {
+                console.log(`[VisbalLogView] _checkDownloadedLogs -- File not found for log ${logId}: ${filePath}`);
+                this._downloadedLogPaths.delete(logId);
+            } else {
+                console.log(`[VisbalLogView] _checkDownloadedLogs -- Found file for log ${logId}: ${filePath}`);
+            }
+        }
+        
+        // Save the updated paths
+        this._saveDownloadedLogs();
     }
 
     /**
@@ -614,6 +668,11 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
     private _saveDownloadedLogs(): void {
         console.log(`[VisbalLogView] _saveDownloadedLogs -- Saving ${this._downloadedLogs.size} downloaded logs to extension storage`);
         this._context.globalState.update('visbalDownloadedLogs', Array.from(this._downloadedLogs));
+        
+        // Save the paths of downloaded logs
+        const downloadedLogPaths = Object.fromEntries(this._downloadedLogPaths.entries());
+        this._context.globalState.update('visbalDownloadedLogPaths', downloadedLogPaths);
+        console.log(`[VisbalLogView] _saveDownloadedLogs -- Saved ${this._downloadedLogPaths.size} log file paths`);
     }
 
     /**
