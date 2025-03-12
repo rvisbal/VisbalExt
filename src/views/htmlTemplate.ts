@@ -1,5 +1,6 @@
 import { styles } from './styles';
 import * as vscode from 'vscode';
+import { formatLogContentForHtml } from '../utils/logParsingUtils';
 
 /**
  * Returns the HTML template for the log list view
@@ -719,6 +720,34 @@ export function getHtmlTemplate(
                 align-items: center;
                 gap: 8px;
             }
+            
+            /* Debug tab specific styles */
+            .user-debug-info {
+                margin-bottom: 15px;
+                padding: 10px;
+                background-color: var(--vscode-editor-inactiveSelectionBackground);
+                border-radius: 4px;
+            }
+            
+            .user-debug-info p {
+                margin: 5px 0;
+                font-size: 13px;
+            }
+            
+            .user-debug-content {
+                border-left: 3px solid #4a9cd6;
+            }
+            
+            /* Raw log styles */
+            .raw-log {
+                white-space: pre-wrap;
+                font-family: monospace;
+                padding: 10px;
+                background-color: var(--vscode-editor-background);
+                border: 1px solid var(--vscode-panel-border);
+                overflow: auto;
+                max-height: 500px;
+            }
         </style>
     </head>
     <body>
@@ -916,12 +945,12 @@ export function getHtmlTemplate(
                     <p>Showing debug-related lines from the log file, including USER_DEBUG, FATAL_ERROR, DML_BEGIN, and SOQL_EXECUTE_BEGIN.</p>
                     <p>Total debug lines: ${parsedData.summary ? parsedData.summary.userDebugCount : 0}</p>
                 </div>
-                <pre class="raw-log">${parsedData.userDebugLog ? parsedData.userDebugLog.replace(/</g, '&lt;').replace(/>/g, '&gt;') : 'No debug lines found in the log.'}</pre>
+                <pre class="user-debug-content raw-log">${formatLogContentForHtml(parsedData.userDebugLog) || 'No debug lines found in the log.'}</pre>
             </div>
             
             <div id="raw" class="tab-content ${currentTab === 'raw' ? 'active' : ''}">
                 <h2>Raw Log</h2>
-                <pre class="raw-log">${parsedData.rawLog ? parsedData.rawLog.replace(/</g, '&lt;').replace(/>/g, '&gt;') : 'Raw log content not available.'}</pre>
+                <pre class="raw-log">${formatLogContentForHtml(parsedData.rawLog) || 'Raw log content not available.'}</pre>
             </div>
         </div>
         

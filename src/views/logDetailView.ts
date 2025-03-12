@@ -2,6 +2,8 @@ import * as vscode from 'vscode';
 import * as fs from 'fs';
 import * as path from 'path';
 import { getHtmlTemplate } from './htmlTemplate';
+import { extractDebugLines, extractCategoryLines, formatLogContentForHtml } from '../utils/logParsingUtils';
+import { LogTab, LogCategory, LogSummary, LogTimelineEvent, ParsedLogData } from '../models/logInterfaces';
 
 /**
  * LogDetailView class for displaying detailed log information in a webview panel
@@ -172,13 +174,13 @@ export class LogDetailView {
     /**
      * Parses the log file content
      */
-    private _parseLogFile(): any {
+    private _parseLogFile(): ParsedLogData {
         console.log(`[LogDetailView] _parseLogFile -- Parsing log file: ${this._logFilePath}`);
         
         try {
             if (!fs.existsSync(this._logFilePath)) {
                 console.error(`[LogDetailView] _parseLogFile -- Log file not found: ${this._logFilePath}`);
-                return { error: 'Log file not found' };
+                return { error: 'Log file not found' } as ParsedLogData;
             }
 
             const logContent = fs.readFileSync(this._logFilePath, 'utf8');
@@ -187,44 +189,30 @@ export class LogDetailView {
             // Basic parsing for now - in a real implementation, this would be more sophisticated
             const lines = logContent.split('\n');
             
-            // Extract some basic information
-            const executionLines = lines.filter(line => line.includes('EXECUTION_'));
-            const soqlLines = lines.filter(line => line.includes('SOQL_'));
-            const dmlLines = lines.filter(line => line.includes('DML_'));
-            const heapLines = lines.filter(line => line.includes('HEAP_'));
-            const limitLines = lines.filter(line => line.includes('LIMIT_'));
+            // Extract lines by category using utility functions
+            const executionLines = extractCategoryLines(lines, 'EXECUTION_');
+            const soqlLines = extractCategoryLines(lines, 'SOQL_');
+            const dmlLines = extractCategoryLines(lines, 'DML_');
+            const heapLines = extractCategoryLines(lines, 'HEAP_');
+            const limitLines = extractCategoryLines(lines, 'LIMIT_');
             
-            // Extract USER_DEBUG lines and additional debug-related lines
-            const userDebugLines = lines.filter(line => 
-                line.includes('USER_DEBUG') || 
-                line.includes('FATAL_ERROR') || 
-                line.includes('DML_BEGIN') || 
-                line.includes('SOQL_EXECUTE_BEGIN')
-            );
-            
+            // Extract debug-related lines using utility function
+            const userDebugLines = extractDebugLines(lines);
             console.log(`[LogDetailView] _parseLogFile -- Found ${userDebugLines.length} debug-related lines`);
             
             // Create a parsed data object
-            const parsedData = {
+            const parsedData: ParsedLogData = {
                 rawLog: logContent,
                 userDebugLog: userDebugLines.join('\n'),
-                summary: {
-                    totalLines: lines.length,
+                summary: this._createSummary(lines, {
                     executionCount: executionLines.length,
                     soqlCount: soqlLines.length,
                     dmlCount: dmlLines.length,
                     heapCount: heapLines.length,
                     limitCount: limitLines.length,
                     userDebugCount: userDebugLines.length
-                },
-                categories: [
-                    { name: 'EXECUTION', count: executionLines.length },
-                    { name: 'SOQL', count: soqlLines.length },
-                    { name: 'DML', count: dmlLines.length },
-                    { name: 'HEAP', count: heapLines.length },
-                    { name: 'LIMIT', count: limitLines.length },
-                    { name: 'USER_DEBUG', count: userDebugLines.length }
-                ],
+                }),
+                categories: this._createCategories(executionLines, soqlLines, dmlLines, heapLines, limitLines, userDebugLines),
                 timeline: this._extractTimeline(lines)
             };
             
@@ -233,18 +221,82 @@ export class LogDetailView {
             return parsedData;
         } catch (error: any) {
             console.error('[LogDetailView] _parseLogFile -- Error parsing log file:', error);
-            return { error: `Error parsing log file: ${error.message}` };
+            return { 
+                error: `Error parsing log file: ${error.message}`,
+                rawLog: '',
+                userDebugLog: '',
+                summary: this._createEmptySummary(),
+                categories: [],
+                timeline: []
+            };
         }
+    }
+
+    /**
+     * Creates a summary object from parsed log data
+     * @param lines All log lines
+     * @param counts Category line counts
+     * @returns Summary object
+     */
+    private _createSummary(lines: string[], counts: Partial<LogSummary>): LogSummary {
+        return {
+            totalLines: lines.length,
+            ...counts
+        } as LogSummary;
+    }
+
+    /**
+     * Creates an empty summary object
+     * @returns Empty summary object
+     */
+    private _createEmptySummary(): LogSummary {
+        return {
+            totalLines: 0,
+            executionCount: 0,
+            soqlCount: 0,
+            dmlCount: 0,
+            heapCount: 0,
+            limitCount: 0,
+            userDebugCount: 0
+        };
+    }
+
+    /**
+     * Creates categories array from parsed log data
+     * @param executionLines Execution lines
+     * @param soqlLines SOQL lines
+     * @param dmlLines DML lines
+     * @param heapLines Heap lines
+     * @param limitLines Limit lines
+     * @param userDebugLines User debug lines
+     * @returns Categories array
+     */
+    private _createCategories(
+        executionLines: string[], 
+        soqlLines: string[], 
+        dmlLines: string[], 
+        heapLines: string[], 
+        limitLines: string[],
+        userDebugLines: string[]
+    ): LogCategory[] {
+        return [
+            { name: 'EXECUTION', count: executionLines.length },
+            { name: 'SOQL', count: soqlLines.length },
+            { name: 'DML', count: dmlLines.length },
+            { name: 'HEAP', count: heapLines.length },
+            { name: 'LIMIT', count: limitLines.length },
+            { name: 'USER_DEBUG', count: userDebugLines.length }
+        ];
     }
 
     /**
      * Extracts timeline information from log lines
      * @param lines The log lines
      */
-    private _extractTimeline(lines: string[]): any[] {
+    private _extractTimeline(lines: string[]): LogTimelineEvent[] {
         console.log('[LogDetailView] _extractTimeline -- Extracting timeline from log lines');
         
-        const timeline: any[] = [];
+        const timeline: LogTimelineEvent[] = [];
         let currentTime = 0;
         
         lines.forEach((line, index) => {
@@ -329,7 +381,7 @@ export class LogDetailView {
         this._panel.title = `Log: ${fileName}`;
         
         // Define tabs including the new USER_DEBUG tab
-        const tabs = [
+        const tabs: LogTab[] = [
             { id: 'overview', label: 'Overview' },
             { id: 'timeline', label: 'Timeline' },
             { id: 'execution', label: 'Execution' },
