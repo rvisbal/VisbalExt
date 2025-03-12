@@ -179,7 +179,7 @@ export function getLogListTemplate(): string {
                 }
                 
                 // Format file size
-                function formatFileSize(bytes) {
+                function formatBytes(bytes) {
                     if (bytes === 0) return '0 Bytes';
                     const k = 1024;
                     const sizes = ['Bytes', 'KB', 'MB', 'GB'];
@@ -238,12 +238,40 @@ export function getLogListTemplate(): string {
                         
                         const row = document.createElement('tr');
                         
-                        // Format date
-                        const date = new Date(log.lastModifiedDate || new Date());
-                        const formattedDate = date.toLocaleString();
+                        // Format date if available
+                        let formattedDate = 'Unknown';
+                        if (log.lastModifiedDate) {
+                            const date = new Date(log.lastModifiedDate);
+                            // Format as YYYY/MM/DD, HH:MM:SS
+                            const year = date.getFullYear();
+                            const month = String(date.getMonth() + 1).padStart(2, '0');
+                            const day = String(date.getDate()).padStart(2, '0');
+                            const hours = String(date.getHours()).padStart(2, '0');
+                            const minutes = String(date.getMinutes()).padStart(2, '0');
+                            const seconds = String(date.getSeconds()).padStart(2, '0');
+                            formattedDate = year + '/' + month + '/' + day + ', ' + hours + ':' + minutes + ':' + seconds;
+                        } else if (log.startTime) {
+                            // Try to parse and format startTime if it's a valid date
+                            try {
+                                const date = new Date(log.startTime);
+                                if (!isNaN(date.getTime())) {
+                                    const year = date.getFullYear();
+                                    const month = String(date.getMonth() + 1).padStart(2, '0');
+                                    const day = String(date.getDate()).padStart(2, '0');
+                                    const hours = String(date.getHours()).padStart(2, '0');
+                                    const minutes = String(date.getMinutes()).padStart(2, '0');
+                                    const seconds = String(date.getSeconds()).padStart(2, '0');
+                                    formattedDate = year + '/' + month + '/' + day + ', ' + hours + ':' + minutes + ':' + seconds;
+                                } else {
+                                    formattedDate = log.startTime;
+                                }
+                            } catch (e) {
+                                formattedDate = log.startTime;
+                            }
+                        }
                         
                         // Format size
-                        const formattedSize = formatFileSize(log.logLength || 0);
+                        const formattedSize = formatBytes(log.logLength || 0);
                         
                         // Create row
                         row.innerHTML = 
@@ -1392,7 +1420,7 @@ export function getHtmlForWebview(extensionUri: vscode.Uri, webview: vscode.Webv
       let pendingAction = null;
       
       // Format file size
-      function formatFileSize(bytes) {
+      function formatBytes(bytes) {
         if (bytes === 0) return '0 Bytes';
         const k = 1024;
         const sizes = ['Bytes', 'KB', 'MB', 'GB'];
@@ -1712,13 +1740,36 @@ export function getHtmlForWebview(extensionUri: vscode.Uri, webview: vscode.Webv
           let formattedDate = 'Unknown';
           if (log.lastModifiedDate) {
             const date = new Date(log.lastModifiedDate);
-            formattedDate = date.toLocaleString();
+            // Format as YYYY/MM/DD, HH:MM:SS
+            const year = date.getFullYear();
+            const month = String(date.getMonth() + 1).padStart(2, '0');
+            const day = String(date.getDate()).padStart(2, '0');
+            const hours = String(date.getHours()).padStart(2, '0');
+            const minutes = String(date.getMinutes()).padStart(2, '0');
+            const seconds = String(date.getSeconds()).padStart(2, '0');
+            formattedDate = year + '/' + month + '/' + day + ', ' + hours + ':' + minutes + ':' + seconds;
           } else if (log.startTime) {
-            formattedDate = log.startTime;
+            // Try to parse and format startTime if it's a valid date
+            try {
+              const date = new Date(log.startTime);
+              if (!isNaN(date.getTime())) {
+                const year = date.getFullYear();
+                const month = String(date.getMonth() + 1).padStart(2, '0');
+                const day = String(date.getDate()).padStart(2, '0');
+                const hours = String(date.getHours()).padStart(2, '0');
+                const minutes = String(date.getMinutes()).padStart(2, '0');
+                const seconds = String(date.getSeconds()).padStart(2, '0');
+                formattedDate = year + '/' + month + '/' + day + ', ' + hours + ':' + minutes + ':' + seconds;
+              } else {
+                formattedDate = log.startTime;
+              }
+            } catch (e) {
+              formattedDate = log.startTime;
+            }
           }
           
           // Format size
-          const formattedSize = formatFileSize(log.logLength || 0);
+          const formattedSize = formatBytes(log.logLength || 0);
           
           const row = document.createElement('tr');
           row.innerHTML = \`
