@@ -32,6 +32,21 @@ Visbal is a VS Code extension that provides a streamlined interface for viewing,
    - New format: `sf org login web`
    - Legacy format: `sfdx force:auth:web:login --setdefaultusername`
 
+### Installing from VSIX file
+
+If you have the VSIX file, you can install it directly using one of these methods:
+
+1. **Using the VS Code/Cursor UI**:
+   - Go to Extensions view (Ctrl+Shift+X)
+   - Click "..." (More Actions) at the top of the Extensions view
+   - Select "Install from VSIX..."
+   - Navigate to and select the VSIX file
+
+2. **Using the command line**:
+   ```
+   code --install-extension visbal-ext-0.0.1.vsix
+   ```
+
 ## Usage
 
 ### Viewing Logs
