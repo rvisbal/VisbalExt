@@ -4,6 +4,7 @@ import * as path from 'path';
 import { getHtmlTemplate } from './htmlTemplate';
 import { extractDebugLines, extractCategoryLines, formatLogContentForHtml } from '../utils/logParsingUtils';
 import { LogTab, LogCategory, LogSummary, LogTimelineEvent, ParsedLogData } from '../models/logInterfaces';
+import { ExecutionTabHandler } from './executionTabHandler';
 
 /**
  * LogDetailView class for displaying detailed log information in a webview panel
@@ -17,6 +18,7 @@ export class LogDetailView {
     private _logId: string;
     private _currentTab: string = 'overview';
     private _parsedData: any = {};
+    private _executionTabHandler: ExecutionTabHandler;
 
     /**
      * Creates or shows the log detail view
@@ -70,6 +72,7 @@ export class LogDetailView {
         this._extensionUri = extensionUri;
         this._logFilePath = logFilePath;
         this._logId = logId;
+        this._executionTabHandler = new ExecutionTabHandler(panel.webview);
 
         // Set the webview's initial html content
         this._update();
@@ -100,6 +103,13 @@ export class LogDetailView {
                         console.log(`[LogDetailView] onDidReceiveMessage -- Changing tab to: ${message.tab}`);
                         this._currentTab = message.tab;
                         this._update();
+                        
+                        // If changing to execution tab, update execution tab content
+                        if (message.tab === 'execution') {
+                            setTimeout(() => {
+                                this._executionTabHandler.updateExecutionTab();
+                            }, 100); // Small delay to ensure the webview is ready
+                        }
                         break;
                     case 'backToList':
                         console.log('[LogDetailView] onDidReceiveMessage -- Going back to log list');
@@ -200,6 +210,9 @@ export class LogDetailView {
             const userDebugLines = extractDebugLines(lines);
             console.log(`[LogDetailView] _parseLogFile -- Found ${userDebugLines.length} debug-related lines`);
             
+            // Extract execution path data using ExecutionTabHandler
+            const executionPath = ExecutionTabHandler.extractExecutionPath(executionLines);
+            
             // Create a parsed data object
             const parsedData: ParsedLogData = {
                 rawLog: logContent,
@@ -215,6 +228,10 @@ export class LogDetailView {
                 categories: this._createCategories(executionLines, soqlLines, dmlLines, heapLines, limitLines, userDebugLines),
                 timeline: this._extractTimeline(lines)
             };
+            
+            // Store execution path data separately and update the execution tab handler
+            (parsedData as any).executionPath = executionPath;
+            this._executionTabHandler.setExecutionData(executionPath);
             
             console.log('[LogDetailView] _parseLogFile -- Parsed log data:', parsedData.summary);
             
@@ -391,14 +408,23 @@ export class LogDetailView {
             { id: 'raw', label: 'Raw Log' }
         ];
         
-        // Update the webview content
+        // Update the webview content with execution tab HTML and JavaScript
         webview.html = getHtmlTemplate(
             this._parsedData,
             fileName,
             fileSize,
             this._currentTab,
-            tabs
+            tabs,
+            ExecutionTabHandler.getPlaceholderHtml(),
+            ExecutionTabHandler.getJavaScript()
         );
+        
+        // If the current tab is execution, update execution tab content
+        if (this._currentTab === 'execution') {
+            setTimeout(() => {
+                this._executionTabHandler.updateExecutionTab();
+            }, 100); // Small delay to ensure the webview is ready
+        }
         
         console.log('[LogDetailView] _update -- Webview content updated');
     }
