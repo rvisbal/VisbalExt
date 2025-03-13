@@ -1360,6 +1360,14 @@ export function getHtmlForWebview(extensionUri: vscode.Uri, webview: vscode.Webv
         margin: 10px;
         border-radius: 3px;
       }
+      .success-container {
+        background-color: var(--vscode-editorInfo-background, rgba(0, 122, 204, 0.1));
+        border: 1px solid var(--vscode-editorInfo-border, #007acc);
+        color: var(--vscode-editorInfo-foreground, #007acc);
+        padding: 10px;
+        margin: 10px;
+        border-radius: 3px;
+      }
       .modal {
         position: fixed;
         top: 0;
@@ -1683,6 +1691,10 @@ export function getHtmlForWebview(extensionUri: vscode.Uri, webview: vscode.Webv
         <div id="error-message" class="status-message status-error" style="display: none;"></div>
       </div>
       
+      <div id="success-container" class="success-container hidden">
+        <div id="success-message" class="status-message status-success" style="display: none;"></div>
+      </div>
+      
       <div id="loading-indicator" class="loading-container hidden">
         <div class="loading-spinner"></div>
         <div id="loading-text">Loading logs...</div>
@@ -1742,6 +1754,8 @@ export function getHtmlForWebview(extensionUri: vscode.Uri, webview: vscode.Webv
       const loadingText = document.getElementById('loading-text');
       const errorContainer = document.getElementById('error-container');
       const errorMessage = document.getElementById('error-message');
+      const successContainer = document.getElementById('success-container');
+      const successMessage = document.getElementById('success-message');
       const confirmModal = document.getElementById('confirm-modal');
       const modalTitle = document.getElementById('modal-title');
       const modalMessage = document.getElementById('modal-message');
@@ -1852,7 +1866,15 @@ export function getHtmlForWebview(extensionUri: vscode.Uri, webview: vscode.Webv
       
       // Initialize preset dropdown
       debugPreset.addEventListener('change', () => {
-        applyPreset(debugPreset.value);
+        const selectedPreset = debugPreset.value;
+        console.log('Preset changed to:', selectedPreset);
+        
+        // Apply the preset values to the dropdowns
+        applyPreset(selectedPreset);
+        
+        // Show a confirmation message
+        showSuccess('Debug preset "' + selectedPreset + '" applied to configuration. Click Apply to save changes.');
+        setTimeout(() => hideSuccess(), 5000);
       });
       
       // Apply debug configuration and turn on debug
@@ -1899,8 +1921,8 @@ export function getHtmlForWebview(extensionUri: vscode.Uri, webview: vscode.Webv
             break;
           case 'debugStatus':
             if (message.success) {
-              showError('Success: Debug log enabled successfully!');
-              setTimeout(() => hideError(), 3000);
+              showSuccess('Debug log enabled successfully!');
+              setTimeout(() => hideSuccess(), 5000);
             } else {
               showError('Error: Failed to enable debug log: ' + message.error);
             }
@@ -1908,8 +1930,8 @@ export function getHtmlForWebview(extensionUri: vscode.Uri, webview: vscode.Webv
             break;
           case 'clearLocalStatus':
             if (message.success) {
-              showError('Success: Local log files cleared successfully!');
-              setTimeout(() => hideError(), 3000);
+              showSuccess('Local log files cleared successfully!');
+              setTimeout(() => hideSuccess(), 5000);
             } else {
               showError('Error: Failed to clear local log files: ' + message.error);
             }
@@ -1917,8 +1939,8 @@ export function getHtmlForWebview(extensionUri: vscode.Uri, webview: vscode.Webv
             break;
           case 'deleteServerStatus':
             if (message.success) {
-              showError('Success: Server logs deleted successfully!');
-              setTimeout(() => hideError(), 3000);
+              showSuccess('Server logs deleted successfully!');
+              setTimeout(() => hideSuccess(), 5000);
               // Refresh logs after deletion
               vscode.postMessage({ command: 'fetchLogs' });
             } else {
@@ -1928,8 +1950,8 @@ export function getHtmlForWebview(extensionUri: vscode.Uri, webview: vscode.Webv
             break;
           case 'deleteSelectedStatus':
             if (message.success) {
-              showError('Success: Selected logs deleted successfully!');
-              setTimeout(() => hideError(), 3000);
+              showSuccess('Selected logs deleted successfully!');
+              setTimeout(() => hideSuccess(), 5000);
               // Refresh logs after deletion
               vscode.postMessage({ command: 'fetchLogs' });
             } else {
@@ -1939,8 +1961,8 @@ export function getHtmlForWebview(extensionUri: vscode.Uri, webview: vscode.Webv
             break;
           case 'applyConfigStatus':
             if (message.success) {
-              showError('Success: Debug configuration applied successfully!');
-              setTimeout(() => hideError(), 3000);
+              showSuccess('Debug configuration applied successfully!');
+              setTimeout(() => hideSuccess(), 5000);
             } else {
               showError('Error: Failed to apply debug configuration: ' + message.error);
             }
@@ -1979,8 +2001,8 @@ export function getHtmlForWebview(extensionUri: vscode.Uri, webview: vscode.Webv
             setTimeout(() => hideError(), 5000);
             break;
           case 'info':
-            showError('Info: ' + message.message);
-            setTimeout(() => hideError(), 4000);
+            showSuccess(message.message);
+            setTimeout(() => hideSuccess(), 5000);
             break;
         }
       });
@@ -2039,36 +2061,28 @@ export function getHtmlForWebview(extensionUri: vscode.Uri, webview: vscode.Webv
       
       // Show error message
       function showError(message) {
-        const errorElement = document.getElementById('error-message');
-        if (errorElement) {
-            errorElement.textContent = message;
-            errorElement.style.display = 'block';
-            
-            // Remove any existing status classes
-            errorElement.classList.remove('status-error', 'status-success', 'status-info', 'status-warning');
-            
-            // Add appropriate class based on message content
-            if (message.toLowerCase().includes('success')) {
-                errorElement.classList.add('status-success');
-            } else if (message.toLowerCase().includes('warning')) {
-                errorElement.classList.add('status-warning');
-            } else if (message.toLowerCase().includes('info')) {
-                errorElement.classList.add('status-info');
-            } else {
-                errorElement.classList.add('status-error');
-            }
-        }
+        errorMessage.textContent = message;
+        errorMessage.style.display = 'block';
+        errorContainer.classList.remove('hidden');
       }
       
       // Hide error message
       function hideError() {
-        const errorElement = document.getElementById('error-message');
-        if (errorElement) {
-          errorElement.style.display = 'none';
-        }
-        if (errorContainer) {
-          errorContainer.classList.add('hidden');
-        }
+        errorMessage.style.display = 'none';
+        errorContainer.classList.add('hidden');
+      }
+      
+      // Show success message
+      function showSuccess(message) {
+        successMessage.textContent = message;
+        successMessage.style.display = 'block';
+        successContainer.classList.remove('hidden');
+      }
+      
+      // Hide success message
+      function hideSuccess() {
+        successMessage.style.display = 'none';
+        successContainer.classList.add('hidden');
       }
       
       // Show confirmation modal
@@ -2173,8 +2187,8 @@ export function getHtmlForWebview(extensionUri: vscode.Uri, webview: vscode.Webv
             break;
           case 'debugStatus':
             if (message.success) {
-              showError('Success: Debug log enabled successfully!');
-              setTimeout(() => hideError(), 3000);
+              showSuccess('Debug log enabled successfully!');
+              setTimeout(() => hideSuccess(), 5000);
             } else {
               showError('Error: Failed to enable debug log: ' + message.error);
             }
@@ -2182,8 +2196,8 @@ export function getHtmlForWebview(extensionUri: vscode.Uri, webview: vscode.Webv
             break;
           case 'clearLocalStatus':
             if (message.success) {
-              showError('Success: Local log files cleared successfully!');
-              setTimeout(() => hideError(), 3000);
+              showSuccess('Local log files cleared successfully!');
+              setTimeout(() => hideSuccess(), 5000);
             } else {
               showError('Error: Failed to clear local log files: ' + message.error);
             }
@@ -2191,8 +2205,8 @@ export function getHtmlForWebview(extensionUri: vscode.Uri, webview: vscode.Webv
             break;
           case 'deleteServerStatus':
             if (message.success) {
-              showError('Success: Server logs deleted successfully!');
-              setTimeout(() => hideError(), 3000);
+              showSuccess('Server logs deleted successfully!');
+              setTimeout(() => hideSuccess(), 5000);
               // Refresh logs after deletion
               vscode.postMessage({ command: 'fetchLogs' });
             } else {
@@ -2202,8 +2216,8 @@ export function getHtmlForWebview(extensionUri: vscode.Uri, webview: vscode.Webv
             break;
           case 'deleteSelectedStatus':
             if (message.success) {
-              showError('Success: Selected logs deleted successfully!');
-              setTimeout(() => hideError(), 3000);
+              showSuccess('Selected logs deleted successfully!');
+              setTimeout(() => hideSuccess(), 5000);
               // Refresh logs after deletion
               vscode.postMessage({ command: 'fetchLogs' });
             } else {
@@ -2213,8 +2227,8 @@ export function getHtmlForWebview(extensionUri: vscode.Uri, webview: vscode.Webv
             break;
           case 'applyConfigStatus':
             if (message.success) {
-              showError('Success: Debug configuration applied successfully!');
-              setTimeout(() => hideError(), 3000);
+              showSuccess('Debug configuration applied successfully!');
+              setTimeout(() => hideSuccess(), 5000);
             } else {
               showError('Error: Failed to apply debug configuration: ' + message.error);
             }
@@ -2253,8 +2267,8 @@ export function getHtmlForWebview(extensionUri: vscode.Uri, webview: vscode.Webv
             setTimeout(() => hideError(), 5000);
             break;
           case 'info':
-            showError('Info: ' + message.message);
-            setTimeout(() => hideError(), 4000);
+            showSuccess(message.message);
+            setTimeout(() => hideSuccess(), 5000);
             break;
         }
       });
