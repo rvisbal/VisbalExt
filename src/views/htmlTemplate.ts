@@ -363,14 +363,14 @@ export function getLogListTemplate(): string {
                 // Initialize
                 document.addEventListener('DOMContentLoaded', () => {
                     debug('DOM content loaded, requesting logs');
-                    vscode.postMessage({ command: 'fetchLogs' });
+                    vscode.postMessage({ command: 'fetchLogsSFDX' });
                     showLoading();
                 });
                 
                 // Event listeners
                 refreshButton.addEventListener('click', () => {
                     debug('Refresh button clicked');
-                    vscode.postMessage({ command: 'fetchLogs' });
+                    vscode.postMessage({ command: 'fetchLogsSFDX' });
                     showLoading();
                 });
                 
@@ -1966,7 +1966,7 @@ export function getHtmlForWebview(extensionUri: vscode.Uri, webview: vscode.Webv
               showSuccess('Server logs deleted successfully!');
               setTimeout(() => hideSuccess(), 5000);
               // Refresh logs after deletion
-              vscode.postMessage({ command: 'fetchLogs' });
+              vscode.postMessage({ command: 'fetchLogsSFDX' });
             } else {
               showError('Error: Failed to delete server logs: ' + message.error);
             }
@@ -1977,7 +1977,7 @@ export function getHtmlForWebview(extensionUri: vscode.Uri, webview: vscode.Webv
               showSuccess('Selected logs deleted successfully!');
               setTimeout(() => hideSuccess(), 5000);
               // Refresh logs after deletion
-              vscode.postMessage({ command: 'fetchLogs' });
+              vscode.postMessage({ command: 'fetchLogsSFDX' });
             } else {
               showError('Error: Failed to delete selected logs: ' + message.error);
             }
@@ -2232,7 +2232,7 @@ export function getHtmlForWebview(extensionUri: vscode.Uri, webview: vscode.Webv
               showSuccess('Server logs deleted successfully!');
               setTimeout(() => hideSuccess(), 5000);
               // Refresh logs after deletion
-              vscode.postMessage({ command: 'fetchLogs' });
+              vscode.postMessage({ command: 'fetchLogsSFDX' });
             } else {
               showError('Error: Failed to delete server logs: ' + message.error);
             }
@@ -2243,7 +2243,7 @@ export function getHtmlForWebview(extensionUri: vscode.Uri, webview: vscode.Webv
               showSuccess('Selected logs deleted successfully!');
               setTimeout(() => hideSuccess(), 5000);
               // Refresh logs after deletion
-              vscode.postMessage({ command: 'fetchLogs' });
+              vscode.postMessage({ command: 'fetchLogsSFDX' });
             } else {
               showError('Error: Failed to delete selected logs: ' + message.error);
             }
@@ -2346,7 +2346,7 @@ export function getHtmlForWebview(extensionUri: vscode.Uri, webview: vscode.Webv
         console.log('Refresh button clicked');
         hideError();
         vscode.postMessage({
-          command: 'fetchLogs'
+          command: 'fetchLogsSFDX'
         });
         showLoading('Refreshing logs...');
       });
@@ -2663,7 +2663,7 @@ export function getHtmlForWebview(extensionUri: vscode.Uri, webview: vscode.Webv
       // Initialize by requesting logs
       document.addEventListener('DOMContentLoaded', () => {
         console.log('DOM content loaded, requesting logs');
-        vscode.postMessage({ command: 'fetchLogs' });
+        vscode.postMessage({ command: 'fetchLogsSFDX' });
         showLoading();
       });
     </script>

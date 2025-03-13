@@ -87,14 +87,22 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
         webviewView.webview.onDidReceiveMessage(async (message) => {
             console.log(`[VisbalLogView] resolveWebviewView -- Received message from webview: ${message.command}`, message);
             switch (message.command) {
-                case 'fetchLogs':
+                case 'fetchLogsSFDX':
                     console.log('[VisbalLogView] resolveWebviewView -- Fetching logs from command');
-                    await this._fetchLogs(true); // Force refresh
+                    await this._fetchLogsSFDX(true); // Force refresh
                     break;
                 case 'fetchLogsSoql':
                     console.log('[VisbalLogView] resolveWebviewView -- Fetching logs via SOQL from command');
                     await this._fetchLogsSoql();
                     break;
+				 case 'fetchLogsToolingApi':
+                    console.log('[VisbalLogView] resolveWebviewView -- Fetching logs via Tooling API from command');
+                    this._fetchLogsToolingApi().then(() => {
+                        this._sendLogsToWebview(this._logs);
+                    }).catch(error => {
+                        console.error('[VisbalLogView] resolveWebviewView -- Error fetching logs via Tooling API:', error);
+                    });
+                    break;	
                 case 'downloadLog':
                     console.log(`[VisbalLogView] resolveWebviewView -- Downloading log: ${message.logId}`);
                     await this._downloadLog(message.logId);
@@ -119,6 +127,10 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
                     console.log('[VisbalLogView] resolveWebviewView -- Deleting server logs');
                     await this._deleteServerLogs();
                     break;
+				 case 'deleteServerLogsFast':
+                    console.log('[VisbalLogView] resolveWebviewView -- Fast-deleting server logs');
+                    await this._deleteServerLogsFast();
+                    break;
                 case 'deleteSelectedLogs':
                     console.log(`[VisbalLogView] resolveWebviewView -- Deleting selected logs: ${message.logIds.length} logs`);
                     await this._deleteSelectedLogs(message.logIds);
@@ -130,6 +142,10 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
                 case 'getCurrentDebugConfig':
                     console.log(`[VisbalLogView] resolveWebviewView -- Getting current debug configuration`);
                     await this._getCurrentDebugConfig();
+                    break;
+				  case 'deleteSelectedLogsFast':
+                    console.log(`[VisbalLogView] resolveWebviewView -- Fast-deleting selected logs: ${message.logIds.length} logs`);
+                    await this._deleteSelectedLogsFast(message.logIds);
                     break;
             }
         });
@@ -148,7 +164,7 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
                     this._sendLogsToWebview(this._logs);
                 } else {
                     console.log('[VisbalLogView] resolveWebviewView -- No recent cached logs, fetching new logs');
-                    this._fetchLogs();
+                    this._fetchLogsSFDX();
                 }
             }
         }, 1000); // Add a small delay to ensure the webview is fully loaded
@@ -167,7 +183,7 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
                     this._sendLogsToWebview(this._logs);
                 } else {
                     console.log('[VisbalLogView] resolveWebviewView -- No recent cached logs, fetching new logs');
-                    this._fetchLogs();
+                    this._fetchLogsSFDX();
                 }
             }
         });
@@ -521,14 +537,14 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
      * Fetches logs and updates the view
      * @param forceRefresh Whether to force a refresh even if we have recent cached logs
      */
-    private async _fetchLogs(forceRefresh: boolean = false): Promise<void> {
+    private async _fetchLogsSFDX(forceRefresh: boolean = false): Promise<void> {
         try {
             // Check if we have recent cached logs and aren't forcing a refresh
             const now = Date.now();
             const cacheAge = now - this._lastFetchTime;
             
             if (!forceRefresh && this._logs.length > 0 && cacheAge < this._cacheExpiryMs) {
-                console.log(`[VisbalLogView] _fetchLogs -- Using cached logs (${this._logs.length} logs, ${Math.round(cacheAge / 1000)}s old)`);
+                console.log(`[VisbalLogView] _fetchLogsSFDX -- Using cached logs (${this._logs.length} logs, ${Math.round(cacheAge / 1000)}s old)`);
                 this._sendLogsToWebview(this._logs);
                 return;
             }
@@ -657,7 +673,7 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
                 }
             }
         } catch (error) {
-            console.error('[VisbalLogView] Error in _fetchLogs:', error);
+            console.error('[VisbalLogView] Error in _fetchLogsSFDX:', error);
             vscode.window.showErrorMessage(`Failed to fetch logs: ${error}`);
             
             if (this._view && this._view.webview) {
@@ -1038,7 +1054,7 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
      */
     public refresh(): void {
         console.log('[VisbalLogView] refresh -- Method called');
-        this._fetchLogs();
+        this._fetchLogsSFDX();
     }
 
     /**
@@ -1728,7 +1744,7 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
             vscode.window.showInformationMessage(`Successfully deleted ${deletedCount} logs from server`);
 
             // Refresh the logs list
-            await this._fetchLogs(true);
+            await this._fetchLogsSFDX(true);
 
         } catch (error: any) {
             console.error('[VisbalLogView] Error in _deleteServerLogs:', error);
@@ -1846,7 +1862,7 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
             vscode.window.showInformationMessage(`Successfully deleted ${deletedCount} selected logs from server`);
 
             // Refresh the logs list
-            await this._fetchLogs(true);
+            await this._fetchLogsSFDX(true);
 
         } catch (error: any) {
             console.error('[VisbalLogView] Error in _deleteSelectedLogs:', error);
@@ -2439,6 +2455,336 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
                     workflow: 'INFO'
                 }
             });
+            
+            
+            
+        /**
+     * Deletes all logs from the Salesforce server using Tooling API (faster method)
+     */
+    private async _deleteServerLogsFast(): Promise<void> {
+        const processId = 'delete-server-logs';
+        this._addBackgroundProcess(processId, 'Deleting logs');
+        
+        try {
+            this._isLoading = true;
+            this._view?.webview.postMessage({ command: 'loading', isLoading: true, message: 'Deleting server logs (fast mode)...' });
+
+            console.log('[VisbalLogView] Fast-deleting logs from server using Tooling API');
+
+            // First, get all log IDs using SOQL query
+            try {
+                // Try with new CLI format first
+                const queryCmd = `sf data query --query "SELECT Id FROM ApexLog" --use-tooling-api --json`;
+                console.log(`[VisbalLogView] Querying logs with command: ${queryCmd}`);
+                
+                const queryResult = await this._executeCommand(queryCmd);
+                const jsonResult = JSON.parse(queryResult);
+                
+                if (jsonResult.result && jsonResult.result.records) {
+                    const logIds = jsonResult.result.records.map((record: any) => record.Id);
+                    
+                    if (logIds.length === 0) {
+                        console.log('[VisbalLogView] No logs found to delete');
+                        throw new Error('No logs found to delete');
+                    }
+
+                    console.log(`[VisbalLogView] Found ${logIds.length} logs to delete`);
+
+                    // Delete logs in batches to avoid command line length limitations
+                    const BATCH_SIZE = 10; // Process 10 logs at a time
+                    let successCount = 0;
+                    let failureCount = 0;
+
+                    // Process logs in batches
+                    for (let i = 0; i < logIds.length; i += BATCH_SIZE) {
+                        const batchIds = logIds.slice(i, i + BATCH_SIZE);
+                        const idList = batchIds.join(',');
+                        
+                        try {
+                            // Delete logs using Tooling API
+                            const deleteCmd = `sf data delete record --sobject ApexLog --record-ids ${idList} --use-tooling-api --json`;
+                            console.log(`[VisbalLogView] Deleting batch ${i/BATCH_SIZE + 1} of logs with command: ${deleteCmd}`);
+                            
+                            await this._executeCommand(deleteCmd);
+                            successCount += batchIds.length;
+                        } catch (batchError: any) {
+                            console.error(`[VisbalLogView] Error deleting batch of logs with new CLI format:`, batchError);
+                            
+                            // Try with old CLI format as fallback
+                            try {
+                                const oldDeleteCmd = `sfdx force:data:record:delete --sobjecttype ApexLog --sobjectids ${idList} --usetoolingapi --json`;
+                                console.log(`[VisbalLogView] Trying old CLI format for batch ${i/BATCH_SIZE + 1}`);
+                                await this._executeCommand(oldDeleteCmd);
+                                successCount += batchIds.length;
+                            } catch (oldBatchError: any) {
+                                console.error(`[VisbalLogView] Error deleting batch of logs with old CLI format:`, oldBatchError);
+                                failureCount += batchIds.length;
+                            }
+                        }
+                        
+                        // Update progress message
+                        this._view?.webview.postMessage({ 
+                            command: 'loading', 
+                            isLoading: true,
+                            message: `Deleted ${successCount} of ${logIds.length} logs...`
+                        });
+                    }
+
+                    console.log(`[VisbalLogView] Successfully deleted ${successCount} logs, failed to delete ${failureCount} logs`);
+
+                    // Clear the cached logs
+                    this._logs = [];
+                    this._lastFetchTime = 0;
+                    this._context.globalState.update('visbalCachedLogs', []);
+                    this._context.globalState.update('visbalLastFetchTime', 0);
+
+                    // Notify the webview
+                    this._view?.webview.postMessage({ 
+                        command: 'deleteServerStatus', 
+                        success: true,
+                        message: failureCount > 0 ? 
+                            `Deleted ${successCount} logs, failed to delete ${failureCount} logs` : 
+                            `Successfully deleted ${successCount} logs from server`
+                    });
+
+                    // Show a notification
+                    if (failureCount > 0) {
+                        vscode.window.showWarningMessage(`Deleted ${successCount} logs, failed to delete ${failureCount} logs`);
+                    } else {
+                        vscode.window.showInformationMessage(`Successfully deleted ${successCount} logs from server`);
+                    }
+
+                    // Refresh the logs list
+                    await this._fetchLogs(true);
+                }
+            } catch (error: any) {
+                console.error('[VisbalLogView] Error in fast delete operation:', error);
+                throw error;
+            }
+        } catch (error: any) {
+            console.error('[VisbalLogView] Error in _deleteServerLogsFast:', error);
+            
+            // Notify the webview
+            this._view?.webview.postMessage({ 
+                command: 'deleteServerStatus', 
+                success: false,
+                error: error.message
+            });
+            
+            // Show a notification
+            vscode.window.showErrorMessage(`Error deleting logs from server: ${error.message}`);
+        } finally {
+            this._isLoading = false;
+            this._view?.webview.postMessage({ command: 'loading', isLoading: false });
+            this._removeBackgroundProcess(processId);
+        }
+    }
+
+    /**
+     * Fast-deletes selected logs using the Tooling API
+     */
+    private async _deleteSelectedLogsFast(logIds: string[]): Promise<void> {
+        console.log('[VisbalLogView] _deleteSelectedLogsFast -- Starting fast deletion of selected logs');
+        
+        const processId = 'delete-selected-logs';
+        this._addBackgroundProcess(processId, 'Deleting selected');
+        
+        try {
+            // Get selected log IDs
+            const selectedLogIds = this._selectedLogs.map(log => log.id);
+            if (selectedLogIds.length === 0) {
+                console.log('[VisbalLogView] _deleteSelectedLogsFast -- No logs selected');
+                return;
+            }
+
+            // Set loading state
+            this._webview?.postMessage({ 
+                command: 'setLoading', 
+                loading: true,
+                message: `Deleting ${selectedLogIds.length} selected logs...`
+            });
+            this._updateStatusBar(`Deleting ${selectedLogIds.length} logs...`);
+
+            // Delete logs in batches to avoid command line length limitations
+            const BATCH_SIZE = 10; // Process 10 logs at a time
+            let successCount = 0;
+            let failureCount = 0;
+
+            // Process logs in batches
+            for (let i = 0; i < selectedLogIds.length; i += BATCH_SIZE) {
+                const batchIds = selectedLogIds.slice(i, i + BATCH_SIZE);
+                const idList = batchIds.join(',');
+                
+                try {
+                    // Delete logs using Tooling API
+                    const deleteCommand = `sf data delete record --sobject ApexLog --record-ids ${idList} --use-tooling-api --json`;
+                    
+                    console.log(`[VisbalLogView] _deleteSelectedLogsFast -- Executing delete command for batch ${i/BATCH_SIZE + 1}`);
+                    const result = await this._executeCommand(deleteCommand);
+                    const deleteResult = JSON.parse(result) as CommandResult;
+                    
+                    if (!deleteResult.success) {
+                        console.error(`[VisbalLogView] Error deleting batch of logs:`, deleteResult.error);
+                        failureCount += batchIds.length;
+                    } else {
+                        successCount += batchIds.length;
+                    }
+                } catch (batchError: any) {
+                    console.error(`[VisbalLogView] Error deleting batch of logs with new CLI format:`, batchError);
+                    
+                    // Try with old CLI format as fallback
+                    try {
+                        const oldDeleteCommand = `sfdx force:data:record:delete --sobjecttype ApexLog --sobjectids ${idList} --usetoolingapi --json`;
+                        console.log(`[VisbalLogView] _deleteSelectedLogsFast -- Trying old CLI format for batch ${i/BATCH_SIZE + 1}`);
+                        const oldResult = await this._executeCommand(oldDeleteCommand);
+                        const oldDeleteResult = JSON.parse(oldResult) as CommandResult;
+                        
+                        if (!oldDeleteResult.success) {
+                            console.error(`[VisbalLogView] Error deleting batch of logs with old CLI format:`, oldDeleteResult.error);
+                            failureCount += batchIds.length;
+                        } else {
+                            successCount += batchIds.length;
+                        }
+                    } catch (oldBatchError: any) {
+                        console.error(`[VisbalLogView] Error deleting batch of logs with old CLI format:`, oldBatchError);
+                        failureCount += batchIds.length;
+                    }
+                }
+                
+                // Update progress message
+                this._webview?.postMessage({ 
+                    command: 'setLoading', 
+                    loading: true,
+                    message: `Deleted ${successCount} of ${selectedLogIds.length} logs...`
+                });
+                this._updateStatusBar(`Deleted ${successCount} of ${selectedLogIds.length} logs...`);
+            }
+
+            // Update cached logs
+            this._cachedLogs = this._cachedLogs.filter(log => !selectedLogIds.includes(log.id));
+            
+            // Clear selection
+            this._selectedLogs = [];
+            
+            // Notify webview
+            this._webview?.postMessage({ 
+                command: 'setLoading', 
+                loading: false,
+                message: `Successfully deleted ${successCount} logs, failed to delete ${failureCount} logs`
+            });
+            
+            // Show success notification
+            if (failureCount > 0) {
+                vscode.window.showWarningMessage(`Deleted ${successCount} logs, failed to delete ${failureCount} logs`);
+                this._updateStatusBar(`Deleted ${successCount} logs, failed: ${failureCount}`);
+            } else {
+                vscode.window.showInformationMessage(`Successfully deleted ${successCount} logs`);
+                this._updateStatusBar(`Deleted ${successCount} logs`);
+            }
+            
+            // Refresh the logs list
+            await this._fetchLogs();
+            
+        } catch (error: any) {
+            console.error('[VisbalLogView] _deleteSelectedLogsFast -- Error:', error);
+            
+            // Notify webview
+            this._webview?.postMessage({ 
+                command: 'setLoading', 
+                loading: false,
+                message: `Error deleting logs: ${error.message}`
+            });
+            
+            // Show error notification
+            vscode.window.showErrorMessage(`Error deleting logs: ${error.message}`);
+            this._updateStatusBar(`Error: ${error.message}`);
+        } finally {
+            this._removeBackgroundProcess(processId);
+        }
+    }
+    
+    
+    /**
+     * Fetches logs from Salesforce using Tooling API directly
+     * @returns Array of Salesforce logs
+     */
+    private async _fetchSalesforceLogsToolingApi(): Promise<SalesforceLog[]> {
+        console.log('[VisbalLogView] _fetchSalesforceLogsToolingApi -- Starting to fetch logs via Tooling API');
+        
+        try {
+            // Execute the query using the Tooling API
+            const queryCmd = `sf data query -q "SELECT Id, LogUser.Name, Application, Operation, Request, Status, LogLength, LastModifiedDate FROM ApexLog ORDER BY LastModifiedDate DESC LIMIT 200" --use-tooling-api --json`;
+            console.log(`[VisbalLogView] _fetchSalesforceLogsToolingApi -- Executing query: ${queryCmd}`);
+            
+            const result = await this._executeCommand(queryCmd);
+            const jsonResult = JSON.parse(result);
+            
+            if (!jsonResult.result || !jsonResult.result.records) {
+                console.error('[VisbalLogView] _fetchSalesforceLogsToolingApi -- Invalid query result:', jsonResult);
+                throw new Error('Invalid query result from Tooling API');
+            }
+            
+            const records = jsonResult.result.records;
+            console.log(`[VisbalLogView] _fetchSalesforceLogsToolingApi -- Found ${records.length} logs`);
+            
+            // Map the records to our SalesforceLog interface
+            const logs: SalesforceLog[] = records.map((record: any) => ({
+                id: record.Id,
+                logUser: {
+                    name: record.LogUser?.Name || 'Unknown User'
+                },
+                application: record.Application || 'Unknown',
+                operation: record.Operation || 'Unknown',
+                request: record.Request || '',
+                status: record.Status || 'Unknown',
+                logLength: record.LogLength || 0,
+                lastModifiedDate: record.LastModifiedDate || '',
+                downloaded: false
+            }));
+            
+            console.log(`[VisbalLogView] _fetchSalesforceLogsToolingApi -- Successfully mapped ${logs.length} logs`);
+            return logs;
+        } catch (error: any) {
+            console.error('[VisbalLogView] _fetchSalesforceLogsToolingApi -- Error:', error);
+            
+            // Try with old CLI format as fallback
+            try {
+                console.log('[VisbalLogView] _fetchSalesforceLogsToolingApi -- Trying with old CLI format');
+                const oldQueryCmd = `sfdx force:data:soql:query -q "SELECT Id, LogUser.Name, Application, Operation, Request, Status, LogLength, LastModifiedDate FROM ApexLog ORDER BY LastModifiedDate DESC LIMIT 200" -t --json`;
+                
+                const oldResult = await this._executeCommand(oldQueryCmd);
+                const oldJsonResult = JSON.parse(oldResult);
+                
+                if (!oldJsonResult.result || !oldJsonResult.result.records) {
+                    console.error('[VisbalLogView] _fetchSalesforceLogsToolingApi -- Invalid query result with old CLI format:', oldJsonResult);
+                    throw new Error('Invalid query result from Tooling API with old CLI format');
+                }
+                
+                const oldRecords = oldJsonResult.result.records;
+                console.log(`[VisbalLogView] _fetchSalesforceLogsToolingApi -- Found ${oldRecords.length} logs with old CLI format`);
+                
+                // Map the records to our SalesforceLog interface
+                const logs: SalesforceLog[] = oldRecords.map((record: any) => ({
+                    id: record.Id,
+                    logUser: {
+                        name: record.LogUser?.Name || 'Unknown User'
+                    },
+                    application: record.Application || 'Unknown',
+                    operation: record.Operation || 'Unknown',
+                    request: record.Request || '',
+                    status: record.Status || 'Unknown',
+                    logLength: record.LogLength || 0,
+                    lastModifiedDate: record.LastModifiedDate || '',
+                    downloaded: false
+                }));
+                
+                console.log(`[VisbalLogView] _fetchSalesforceLogsToolingApi -- Successfully mapped ${logs.length} logs with old CLI format`);
+                return logs;
+            } catch (oldError: any) {
+                console.error('[VisbalLogView] _fetchSalesforceLogsToolingApi -- Error with old CLI format:', oldError);
+                throw error; // Throw the original error
+            }
+        }
         }
     }
 }
