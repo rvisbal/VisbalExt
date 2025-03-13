@@ -718,17 +718,37 @@ export function getHtmlTemplate(
                 align-items: center;
                 justify-content: center;
                 color: var(--vscode-button-foreground);
-                background-color: var(--vscode-button-background);
+                background-color: #4d4d4d; /* Grey background for all icon buttons */
                 border-radius: 4px;
                 width: 28px;
                 height: 28px;
+                margin: 0 2px;
+                transition: background-color 0.2s;
             }
             .icon-button:hover {
-                background-color: var(--vscode-button-hoverBackground);
+                background-color: #666666; /* Slightly lighter on hover */
+            }
+            .icon-button:active {
+                background-color: #333333; /* Darker when clicked */
             }
             .icon-button:disabled {
                 opacity: 0.5;
                 cursor: not-allowed;
+                background-color: #4d4d4d;
+            }
+            .download-icon {
+                color: white;
+            }
+            .open-icon {
+                color: white;
+            }
+            .view-icon {
+                color: white;
+            }
+            .action-cell {
+                display: flex;
+                gap: 4px;
+                justify-content: center;
             }
             .clear-filter-button {
                 background: none;
@@ -1182,17 +1202,37 @@ export function getHtmlForWebview(extensionUri: vscode.Uri, webview: vscode.Webv
         align-items: center;
         justify-content: center;
         color: var(--vscode-button-foreground);
-        background-color: var(--vscode-button-background);
+        background-color: #4d4d4d; /* Grey background for all icon buttons */
         border-radius: 4px;
         width: 28px;
         height: 28px;
+        margin: 0 2px;
+        transition: background-color 0.2s;
       }
       .icon-button:hover {
-        background-color: var(--vscode-button-hoverBackground);
+        background-color: #666666; /* Slightly lighter on hover */
+      }
+      .icon-button:active {
+        background-color: #333333; /* Darker when clicked */
       }
       .icon-button:disabled {
         opacity: 0.5;
         cursor: not-allowed;
+        background-color: #4d4d4d;
+      }
+      .download-icon {
+        color: white;
+      }
+      .open-icon {
+        color: white;
+      }
+      .view-icon {
+        color: white;
+      }
+      .action-cell {
+        display: flex;
+        gap: 4px;
+        justify-content: center;
       }
       .clear-filter-button {
         background: none;
@@ -1292,11 +1332,6 @@ export function getHtmlForWebview(extensionUri: vscode.Uri, webview: vscode.Webv
       }
       .logs-table tr:hover {
         background-color: var(--vscode-list-hoverBackground);
-      }
-      .action-cell {
-        display: flex;
-        gap: 8px;
-        justify-content: flex-end;
       }
       .checkbox-cell {
         text-align: center;
