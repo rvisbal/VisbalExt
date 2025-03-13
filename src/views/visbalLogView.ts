@@ -2048,11 +2048,51 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
             if (config.wave) {
                 debugLevelValues['Wave'] = config.wave;
             }
+            if (config.dataAccess) {
+                debugLevelValues['DataAccess'] = config.dataAccess;
+            }
 
             // Create or update debug level
             let debugLevelId = existingDebugLevelId;
             
-            if (!debugLevelId) {
+            if (existingDebugLevelId) {
+                // Update existing debug level
+                console.log('[VisbalLogView] Updating existing debug level');
+                
+                // Construct debug level fields
+                const debugLevelFields = Object.entries(debugLevelValues)
+                    .map(([key, value]) => `${key}=${value}`)
+                    .join(' ');
+                
+                try {
+                    // Try with new CLI format first
+                    try {
+                        const updateDebugLevelCommand = `sf data update record --sobject DebugLevel --record-id ${existingDebugLevelId} --values "${debugLevelFields}" --use-tooling-api --json`;
+                        console.log(`[VisbalLogView] Updating debug level with command: ${updateDebugLevelCommand}`);
+                        
+                        const updateDebugLevelResult = await this._executeCommand(updateDebugLevelCommand);
+                        console.log(`[VisbalLogView] Update debug level result: ${updateDebugLevelResult}`);
+                    } catch (error) {
+                        console.error('[VisbalLogView] Error updating debug level with new CLI format:', error);
+                        
+                        // Try with old CLI format
+                        try {
+                            const updateDebugLevelCommand = `sfdx force:data:record:update --sobjecttype DebugLevel --sobjectid ${existingDebugLevelId} --values "${debugLevelFields}" --usetoolingapi --json`;
+                            console.log(`[VisbalLogView] Updating debug level with command (old format): ${updateDebugLevelCommand}`);
+                            
+                            const updateDebugLevelResult = await this._executeCommand(updateDebugLevelCommand);
+                            console.log(`[VisbalLogView] Update debug level result (old format): ${updateDebugLevelResult}`);
+                        } catch (oldError) {
+                            console.error('[VisbalLogView] Error updating debug level with old CLI format:', oldError);
+                            throw new Error('Failed to update debug level');
+                        }
+                    }
+                } catch (error) {
+                    console.error('[VisbalLogView] Error updating debug level:', error);
+                    throw new Error('Failed to update debug level');
+                }
+            } else {
+                // Create new debug level
                 console.log('[VisbalLogView] Creating new debug level');
                 
                 // Construct debug level fields
