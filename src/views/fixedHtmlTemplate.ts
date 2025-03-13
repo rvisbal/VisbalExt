@@ -1,0 +1,574 @@
+import * as vscode from 'vscode';
+import { formatLogContentForHtml } from '../utils/logParsingUtils';
+
+/**
+ * Returns a nonce string for security purposes
+ */
+export function getNonce(): string {
+  let text = '';
+  const possible = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+  for (let i = 0; i < 32; i++) {
+    text += possible.charAt(Math.floor(Math.random() * possible.length));
+  }
+  return text;
+}
+
+/**
+ * Returns the HTML for the webview
+ */
+export function getFixedHtmlForWebview(extensionUri: vscode.Uri, webview: vscode.Webview): string {
+  // Use a nonce to only allow a specific script to be run.
+  const nonce = getNonce();
+
+  return `<!DOCTYPE html>
+  <html lang="en">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Salesforce Debug Logs</title>
+    <style>
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+        margin: 0;
+        padding: 0;
+        color: var(--vscode-foreground);
+        background-color: var(--vscode-editor-background);
+      }
+      .container {
+        padding: 15px;
+      }
+      .header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 20px;
+      }
+      h1 {
+        margin: 0;
+        font-size: 1.5em;
+      }
+      .button {
+        background-color: var(--vscode-button-background);
+        color: var(--vscode-button-foreground);
+        border: none;
+        padding: 6px 12px;
+        cursor: pointer;
+        margin-right: 8px;
+      }
+      .button:hover {
+        background-color: var(--vscode-button-hoverBackground);
+      }
+      .button:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+      }
+      .logs-table {
+        width: 100%;
+        border-collapse: collapse;
+      }
+      .logs-table th, .logs-table td {
+        text-align: left;
+        padding: 8px;
+        border-bottom: 1px solid var(--vscode-panel-border);
+      }
+      .logs-table th {
+        background-color: var(--vscode-editor-background);
+        position: sticky;
+        top: 0;
+      }
+      .no-logs-message {
+        padding: 20px;
+        text-align: center;
+        color: var(--vscode-disabledForeground);
+      }
+      .hidden {
+        display: none !important;
+      }
+      .error-container {
+        background-color: var(--vscode-inputValidation-errorBackground);
+        border: 1px solid var(--vscode-inputValidation-errorBorder);
+        color: var(--vscode-inputValidation-errorForeground);
+        padding: 10px;
+        margin-bottom: 15px;
+        border-radius: 3px;
+      }
+      .error-message {
+        margin-left: 10px;
+      }
+      .loading-container {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 20px;
+      }
+      .loading-spinner {
+        border: 4px solid rgba(0, 0, 0, 0.1);
+        border-radius: 50%;
+        border-top: 4px solid var(--vscode-progressBar-background);
+        width: 20px;
+        height: 20px;
+        animation: spin 1s linear infinite;
+        margin-right: 10px;
+      }
+      @keyframes spin {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
+      }
+      .status-message {
+        position: fixed;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        padding: 8px 16px;
+        color: white;
+        font-weight: 500;
+        z-index: 1000;
+        text-align: center;
+      }
+      .status-error {
+        background-color: #e51400; /* Red for errors */
+      }
+      .status-success {
+        background-color: #107c10; /* Green for success */
+      }
+      .status-info {
+        background-color: #cccccc; /* Light grey for info */
+        color: #333333; /* Darker text for better contrast on light background */
+      }
+      .status-warning {
+        background-color: #f9ce1d; /* Yellow for warnings */
+        color: #333333; /* Darker text for better contrast on light background */
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <div class="header">
+        <h1>Salesforce Debug Logs</h1>
+        <div class="actions">
+          <button id="refreshButton" class="button">Refresh</button>
+          <button id="refreshSoqlButton" class="button">Refresh (SOQL)</button>
+          <button id="refreshToolingButton" class="button">Refresh (Fast)</button>
+          <button id="deleteServerButton" class="button">Delete All Logs</button>
+          <button id="deleteServerFastButton" class="button">Delete All (Fast)</button>
+        </div>
+      </div>
+      
+      <div id="loadingIndicator" class="loading-container hidden">
+        <div class="loading-spinner"></div>
+        <div class="loading-text">Loading logs...</div>
+      </div>
+      
+      <div id="errorContainer" class="error-container hidden">
+        <div id="errorMessage" class="error-message status-message status-error" style="display: none;"></div>
+      </div>
+      
+      <div id="logsContainer">
+        <div id="noLogsMessage" class="no-logs-message">
+          No logs found. Click Refresh to fetch logs.
+        </div>
+        <table id="logsTable" class="logs-table hidden">
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>User</th>
+              <th>Application</th>
+              <th>Operation</th>
+              <th>Status</th>
+              <th>Size</th>
+              <th>Date</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody id="logsTableBody">
+            <!-- Logs will be inserted here -->
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <script>
+      (function() {
+        // Debug flag - set to true to show debug messages in the UI
+        const DEBUG = true;
+        
+        // Elements
+        const refreshButton = document.getElementById('refreshButton');
+        const refreshSoqlButton = document.getElementById('refreshSoqlButton');
+        const refreshToolingButton = document.getElementById('refreshToolingButton');
+        const deleteServerButton = document.getElementById('deleteServerButton');
+        const deleteServerFastButton = document.getElementById('deleteServerFastButton');
+        const logsTable = document.getElementById('logsTable');
+        const logsTableBody = document.getElementById('logsTableBody');
+        const noLogsMessage = document.getElementById('noLogsMessage');
+        const loadingIndicator = document.getElementById('loadingIndicator');
+        const errorContainer = document.getElementById('errorContainer');
+        const errorMessage = document.getElementById('errorMessage');
+        
+        // Debug function
+        function debug(message) {
+          console.log(message);
+          if (DEBUG) {
+            showMessage(message);
+          }
+        }
+        
+        // Show message in UI
+        function showMessage(message) {
+          errorMessage.textContent = message;
+          errorMessage.style.display = 'block';
+          errorContainer.classList.remove('hidden');
+        }
+        
+        // Hide message
+        function hideMessage() {
+          errorContainer.classList.add('hidden');
+          errorMessage.style.display = 'none';
+        }
+        
+        // Format file size
+        function formatBytes(bytes) {
+          if (bytes === 0) return '0 Bytes';
+          const k = 1024;
+          const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+          const i = Math.floor(Math.log(bytes) / Math.log(k));
+          return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+        }
+        
+        // VSCode API
+        const vscode = acquireVsCodeApi();
+        debug('Webview initialized, acquired VSCode API');
+        
+        // State
+        let logs = [];
+        
+        // Show loading state
+        function showLoading(message = 'Loading logs...') {
+          loadingIndicator.classList.remove('hidden');
+          // Update the loading text
+          document.querySelector('.loading-text').textContent = message;
+          refreshButton.disabled = true;
+          refreshSoqlButton.disabled = true;
+          refreshToolingButton.disabled = true;
+          deleteServerButton.disabled = true;
+          deleteServerFastButton.disabled = true;
+        }
+        
+        // Hide loading state
+        function hideLoading() {
+          loadingIndicator.classList.add('hidden');
+          refreshButton.disabled = false;
+          refreshSoqlButton.disabled = false;
+          refreshToolingButton.disabled = false;
+          deleteServerButton.disabled = false;
+          deleteServerFastButton.disabled = false;
+        }
+        
+        // Render logs
+        function renderLogs() {
+          debug('Rendering ' + logs.length + ' logs');
+          
+          // Clear the table
+          logsTableBody.innerHTML = '';
+          
+          // Check if we have logs
+          if (!logs || logs.length === 0) {
+            debug('No logs to display');
+            logsTable.classList.add('hidden');
+            noLogsMessage.classList.remove('hidden');
+            return;
+          }
+          
+          // Show the table and hide the no logs message
+          logsTable.classList.remove('hidden');
+          noLogsMessage.classList.add('hidden');
+          
+          // Add logs to the table
+          let rowsAdded = 0;
+          
+          logs.forEach((log, index) => {
+            if (!log || !log.id) {
+              console.error('Invalid log entry at index ' + index, log);
+              return;
+            }
+            
+            const row = document.createElement('tr');
+            
+            // Format date if available
+            let formattedDate = 'Unknown';
+            if (log.lastModifiedDate) {
+              const date = new Date(log.lastModifiedDate);
+              // Format as YYYY/MM/DD, HH:MM:SS
+              const year = date.getFullYear();
+              const month = String(date.getMonth() + 1).padStart(2, '0');
+              const day = String(date.getDate()).padStart(2, '0');
+              const hours = String(date.getHours()).padStart(2, '0');
+              const minutes = String(date.getMinutes()).padStart(2, '0');
+              const seconds = String(date.getSeconds()).padStart(2, '0');
+              formattedDate = year + '/' + month + '/' + day + ', ' + hours + ':' + minutes + ':' + seconds;
+            } else if (log.startTime) {
+              // Try to parse and format startTime if it's a valid date
+              try {
+                const date = new Date(log.startTime);
+                if (!isNaN(date.getTime())) {
+                  const year = date.getFullYear();
+                  const month = String(date.getMonth() + 1).padStart(2, '0');
+                  const day = String(date.getDate()).padStart(2, '0');
+                  const hours = String(date.getHours()).padStart(2, '0');
+                  const minutes = String(date.getMinutes()).padStart(2, '0');
+                  const seconds = String(date.getSeconds()).padStart(2, '0');
+                  formattedDate = year + '/' + month + '/' + day + ', ' + hours + ':' + minutes + ':' + seconds;
+                } else {
+                  formattedDate = log.startTime;
+                }
+              } catch (e) {
+                formattedDate = log.startTime;
+              }
+            }
+            
+            // Format size
+            const formattedSize = formatBytes(log.logLength || 0);
+            
+            // Create row
+            row.innerHTML = 
+              '<td><span title="' + log.id + '">' + log.id.substring(0, 15) + '...</span></td>' +
+              '<td>' + (log.logUser?.name || 'Unknown') + '</td>' +
+              '<td>' + (log.application || 'Unknown') + '</td>' +
+              '<td>' + (log.operation || 'Unknown') + '</td>' +
+              '<td>' + (log.status || 'Unknown') + '</td>' +
+              '<td>' + formattedSize + '</td>' +
+              '<td>' + formattedDate + '</td>' +
+              '<td>' +
+                '<button class="button download-button" data-log-id="' + log.id + '">' +
+                  (log.downloaded ? 'Downloaded' : 'Download') +
+                '</button>' +
+                (log.localFilePath ? '<button class="button open-button" data-log-id="' + log.id + '" style="margin-left: 5px;">Open</button>' : '') +
+              '</td>';
+            
+            logsTableBody.appendChild(row);
+            rowsAdded++;
+          });
+          
+          debug('Added ' + rowsAdded + ' rows to table');
+          
+          // Add event listeners to download buttons
+          document.querySelectorAll('.download-button').forEach(button => {
+            button.addEventListener('click', () => {
+              const logId = button.getAttribute('data-log-id');
+              debug('Download button clicked for log: ' + logId);
+              
+              vscode.postMessage({ 
+                command: 'downloadLog', 
+                logId: logId 
+              });
+              
+              // Update button to show downloading state
+              button.disabled = true;
+              button.textContent = 'Downloading...';
+            });
+          });
+
+          // Add event listeners to open buttons
+          document.querySelectorAll('.open-button').forEach(button => {
+            button.addEventListener('click', () => {
+              const logId = button.getAttribute('data-log-id');
+              debug('Open button clicked for log: ' + logId);
+              
+              vscode.postMessage({ 
+                command: 'openLog', 
+                logId: logId 
+              });
+              
+              // Update button to show loading state
+              button.disabled = true;
+              button.textContent = 'Opening...';
+            });
+          });
+        }
+        
+        // Initialize
+        document.addEventListener('DOMContentLoaded', () => {
+          debug('DOM content loaded, requesting logs');
+          vscode.postMessage({ command: 'fetchLogs' });
+          showLoading();
+        });
+        
+        // Event listeners
+        refreshButton.addEventListener('click', () => {
+          debug('Refresh button clicked');
+          vscode.postMessage({ command: 'fetchLogs' });
+          showLoading();
+        });
+        
+        refreshSoqlButton.addEventListener('click', () => {
+          debug('SOQL Refresh button clicked');
+          vscode.postMessage({ command: 'fetchLogsSoql' });
+          showLoading();
+        });
+        
+        refreshToolingButton.addEventListener('click', () => {
+          debug('Fast Refresh button clicked');
+          vscode.postMessage({ command: 'fetchLogsToolingApi' });
+          showLoading();
+        });
+        
+        deleteServerButton.addEventListener('click', () => {
+          debug('Delete All Logs button clicked');
+          if (confirm('Are you sure you want to delete all logs from the server? This action cannot be undone.')) {
+            vscode.postMessage({ command: 'deleteServerLogs' });
+            showLoading('Deleting logs...');
+          }
+        });
+        
+        deleteServerFastButton.addEventListener('click', () => {
+          debug('Delete All (Fast) button clicked');
+          if (confirm('Are you sure you want to delete all logs from the server? This action cannot be undone.')) {
+            vscode.postMessage({ command: 'deleteServerLogsFast' });
+            showLoading('Deleting logs (fast method)...');
+          }
+        });
+        
+        // Handle messages from the extension
+        window.addEventListener('message', event => {
+          const message = event.data;
+          console.log('[VisbalLogView:WebView] Received message:', message.command, message);
+          
+          switch (message.command) {
+            case 'updateLogs':
+              if (!message.logs || !Array.isArray(message.logs)) {
+                showMessage('Invalid logs data received');
+                hideLoading();
+                return;
+              }
+              
+              debug('Received ' + message.logs.length + ' logs');
+              
+              // Update logs
+              logs = message.logs;
+              
+              // Render logs
+              renderLogs();
+              
+              // Hide loading state
+              hideLoading();
+              break;
+              
+            case 'loading':
+            case 'setLoading': // Add support for the 'setLoading' command
+              if (message.loading) {
+                showLoading(message.message || 'Loading logs...');
+              } else {
+                hideLoading();
+              }
+              break;
+              
+            case 'error':
+              showMessage(message.error);
+              hideLoading();
+              break;
+              
+            case 'downloadStatus':
+              const button = document.querySelector('.download-button[data-log-id="' + message.logId + '"]');
+              if (!button) return;
+              
+              switch (message.status) {
+                case 'downloading':
+                  button.disabled = true;
+                  button.textContent = 'Downloading...';
+                  break;
+                case 'downloaded':
+                  button.disabled = false;
+                  button.textContent = 'Downloaded';
+                  
+                  // Update the log in the state
+                  const log = logs.find(l => l.id === message.logId);
+                  if (log) {
+                    log.downloaded = true;
+                    
+                    // If we have a file path, add it to the log and show the Open button
+                    if (message.filePath) {
+                      log.localFilePath = message.filePath;
+                      
+                      // Check if we already have an Open button
+                      const openButton = document.querySelector('.open-icon[data-id="' + message.logId + '"]');
+                      
+                      // If not, create one
+                      if (!openButton) {
+                        const newButton = document.createElement('button');
+                        newButton.className = 'button open-button';
+                        newButton.setAttribute('data-log-id', message.logId);
+                        newButton.style.marginLeft = '5px';
+                        newButton.textContent = 'Open';
+                        
+                        // Add event listener to the new button
+                        newButton.addEventListener('click', () => {
+                          const logId = newButton.getAttribute('data-log-id');
+                          debug('Open button clicked for log: ' + logId);
+                          
+                          vscode.postMessage({ 
+                            command: 'openLog', 
+                            logId: logId 
+                          });
+                          
+                          // Update button to show loading state
+                          newButton.disabled = true;
+                          newButton.textContent = 'Opening...';
+                        });
+                        
+                        // Add the button after the download button
+                        button.parentNode.appendChild(newButton);
+                      } else {
+                        // Reset the button if it exists
+                        openButton.disabled = false;
+                        openButton.textContent = 'Open';
+                      }
+                    }
+                  }
+                  break;
+                case 'error':
+                  button.disabled = false;
+                  button.textContent = 'Failed';
+                  button.title = message.error || 'Download failed';
+                  break;
+              }
+              
+              // Reset any open button that might be in "Opening..." state
+              const resetButton = document.querySelector('.open-icon[data-id="' + message.logId + '"]');
+              if (resetButton && resetButton.textContent === 'Opening...') {
+                resetButton.disabled = false;
+                resetButton.textContent = 'Open';
+              }
+              
+              break;
+              
+            case 'getLogDetails':
+              console.log('[VisbalLogView:WebView] Getting log details for:', message.logId);
+              const logId = message.logId;
+              const logDetails = logs.find(log => log.id === logId);
+              console.log('[VisbalLogView:WebView] Found log details:', logDetails);
+              
+              // Send the details back to the extension
+              vscode.postMessage({
+                command: 'logDetails',
+                logId: logId,
+                details: logDetails || {}
+              });
+              break;
+            case 'warning':
+              showMessage('Warning: ' + message.message);
+              setTimeout(() => hideMessage(), 5000);
+              break;
+            case 'info':
+              showMessage('Info: ' + message.message);
+              setTimeout(() => hideMessage(), 4000);
+              break;
+          }
+        });
+        
+        // Initial debug message
+        debug('Webview script loaded and ready');
+      })();
+    </script>
+  </body>
+  </html>`;
+} 
