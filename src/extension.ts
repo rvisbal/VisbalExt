@@ -1,7 +1,6 @@
 import * as vscode from 'vscode';
 import { FindModel } from './findModel';
 import { SearchLibrary } from './searchLibrary';
-import { LogSummaryView } from './views/logSummaryView';
 import { VisbalLogView } from './views/visbalLogView';
 import { LogDetailView } from './views/logDetailView';
 
