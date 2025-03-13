@@ -26,7 +26,7 @@ export interface LogEvent {
 export interface Tab {
   id: string;
   label: string;
-  icon: string;
+  icon?: string;
 }
 
 /**
@@ -58,4 +58,6 @@ export interface ParsedLogData {
     soqlCount: number;
     rowsCount: number;
   };
+  rawLog?: string;
+  userDebugLog?: string;
 } 

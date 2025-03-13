@@ -26,8 +26,20 @@ export function activate(context: vscode.ExtensionContext) {
 
   // Register the Show Log Summary command
   let showLogSummaryCommand = vscode.commands.registerCommand('visbal-ext.showLogSummary', () => {
-    // Show the log summary
-    LogSummaryView.show(context);
+    // Get the active editor
+    const editor = vscode.window.activeTextEditor;
+    if (!editor) {
+      vscode.window.showInformationMessage('No active editor found');
+      return;
+    }
+
+    // Get the log file path
+    const logFilePath = editor.document.uri.fsPath;
+    // Use a generated ID based on the file path
+    const logId = `summary_${Date.now()}`;
+
+    // Show the log detail view instead of the summary view
+    LogDetailView.createOrShow(context.extensionUri, logFilePath, logId);
   });
 
   // Register the Visbal Log view provider

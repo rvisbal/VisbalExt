@@ -17,11 +17,13 @@ export class LogSummaryView {
   
   // Define available tabs
   private static tabs: Tab[] = [
-    { id: 'overview', label: 'Overview', icon: '$(home)' },
-    { id: 'timeline', label: 'Timeline', icon: '$(timeline)' },
-    { id: 'callTree', label: 'Call Tree', icon: '$(list-tree)' },
-    { id: 'analysis', label: 'Analysis', icon: '$(graph)' },
-    { id: 'database', label: 'Database', icon: '$(database)' }
+    { id: 'overview', label: 'Overview' },
+    { id: 'timeline', label: 'Timeline' },
+    { id: 'callTree', label: 'Call Tree' },
+    { id: 'analysis', label: 'Analysis' },
+    { id: 'database', label: 'Database' },
+    { id: 'user_debug', label: 'Debug' },
+    { id: 'raw', label: 'Raw Log' }
   ];
 
   // Define available categories with their display names and colors
@@ -89,6 +91,14 @@ export class LogSummaryView {
             this.currentTab = message.tab;
             this.updatePanel(editor.document.getText(), logFileName, fileSize);
             return;
+          case 'search':
+            // Handle search in log content
+            this.searchInLog(editor.document.getText(), message.term);
+            return;
+          case 'viewRawLog':
+            // Open the raw log in a new editor
+            this.openRawLog(editor.document.getText());
+            return;
         }
       },
       undefined,
@@ -126,6 +136,10 @@ export class LogSummaryView {
       statistics: parsedData.statistics
     });
     
+    // Add raw log and debug log data to parsedData
+    parsedData.rawLog = logContent;
+    parsedData.userDebugLog = this.extractDebugLines(logContent);
+    
     // Generate the HTML content
     this.panel.webview.html = this.getWebviewContent(parsedData, logFileName, fileSize);
     
@@ -147,6 +161,22 @@ export class LogSummaryView {
         console.error('RV:Error sending message:', error);
       }
     }, 100);
+  }
+
+  /**
+   * Extracts debug lines from the log content
+   * @param logContent The log content
+   * @returns The debug lines as a string
+   */
+  private static extractDebugLines(logContent: string): string {
+    const lines = logContent.split('\n');
+    const debugLines = lines.filter(line => 
+      line.includes('USER_DEBUG') || 
+      line.includes('FATAL_ERROR') || 
+      line.includes('DML_BEGIN') || 
+      line.includes('SOQL_EXECUTE_BEGIN')
+    );
+    return debugLines.join('\n');
   }
 
   /**
@@ -263,5 +293,44 @@ export class LogSummaryView {
       this.tabs,
       this.categories
     );
+  }
+
+  /**
+   * Searches for a term in the log content
+   * @param logContent The log content
+   * @param searchTerm The search term
+   */
+  private static searchInLog(logContent: string, searchTerm: string): void {
+    if (!searchTerm || !logContent) {
+      return;
+    }
+
+    const lines = logContent.split('\n');
+    const matchingLines = lines.filter(line => 
+      line.toLowerCase().includes(searchTerm.toLowerCase())
+    );
+
+    if (matchingLines.length === 0) {
+      vscode.window.showInformationMessage(`No matches found for "${searchTerm}"`);
+      return;
+    }
+
+    // Send search results back to webview
+    this.panel?.webview.postMessage({
+      command: 'searchResults',
+      results: matchingLines,
+      count: matchingLines.length
+    });
+  }
+
+  /**
+   * Opens the raw log in a new editor
+   * @param logContent The log content
+   */
+  private static openRawLog(logContent: string): void {
+    vscode.workspace.openTextDocument({ content: logContent, language: 'log' })
+      .then(doc => {
+        vscode.window.showTextDocument(doc, vscode.ViewColumn.Beside);
+      });
   }
 } 
