@@ -2515,7 +2515,7 @@ export function getHtmlForWebview(extensionUri: vscode.Uri, webview: vscode.Webv
             '  <input type="checkbox" class="select-log-checkbox" data-id="' + log.id + '">' +
             '</td>' +
             '<td>' + log.id + '</td>' +
-            '<td class="checkbox-cell"><input type="checkbox" class="downloaded-checkbox" ' + (log.downloaded ? 'checked' : '') + ' data-id="' + log.id + '"></td>' +
+            '<td class="checkbox-cell">' + (log.downloaded ? '✓' : '') + '</td>' +
             '<td>' + (log.logUser?.name || 'Unknown') + '</td>' +
             '<td>' + (log.application || 'Unknown') + '</td>' +
             '<td>' + (log.operation || 'Unknown') + '</td>' +
@@ -2561,24 +2561,23 @@ export function getHtmlForWebview(extensionUri: vscode.Uri, webview: vscode.Webv
           });
         });
         
-        document.querySelectorAll('.downloaded-checkbox').forEach(checkbox => {
-          checkbox.addEventListener('change', () => {
-            const logId = checkbox.getAttribute('data-id');
-            console.log('Checkbox changed for log:', logId, 'to', checkbox.checked);
+        // Add event listeners for view buttons
+        document.querySelectorAll('.view-icon').forEach(button => {
+          button.addEventListener('click', () => {
+            const logId = button.getAttribute('data-id');
+            console.log('View button clicked for log:', logId);
             
             vscode.postMessage({
-              command: 'toggleDownloaded',
-              logId: logId,
-              downloaded: checkbox.checked
+              command: 'viewLog',
+              logId: logId
             });
             
-            // Update open button state
-            const openButton = document.querySelector('.open-icon[data-id="' + logId + '"]');
-            if (openButton) {
-              openButton.disabled = !checkbox.checked;
-            }
+            button.disabled = true;
+            button.title = 'Viewing...';
           });
         });
+        
+        // Remove the event listeners for downloaded checkboxes since they're now just text indicators
         
         // Add event listeners to select checkboxes
         document.querySelectorAll('.select-log-checkbox').forEach(checkbox => {
