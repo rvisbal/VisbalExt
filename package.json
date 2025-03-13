@@ -22,7 +22,8 @@
     "onCommand:visbal-ext.showFindModel",
     "onCommand:visbal-ext.showLogSummary",
     "onView:visbalLogView",
-    "onLanguage:log"
+    "onLanguage:log",
+    "onCustomEditor:visbal.logEditor"
   ],
   "contributes": {
     "commands": [
@@ -63,6 +64,18 @@
         }
       ]
     },
+    "customEditors": [
+      {
+        "viewType": "visbal.logEditor",
+        "displayName": "Visbal Log Editor",
+        "selector": [
+          {
+            "filenamePattern": "*.log"
+          }
+        ],
+        "priority": "default"
+      }
+    ],
     "menus": {
       "editor/context": [
         {

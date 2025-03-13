@@ -15,6 +15,7 @@ Visbal is a VS Code extension that provides a streamlined interface for viewing,
 - **SOQL Query Support**: Fetch logs using SOQL queries for more advanced filtering
 - **Informative Filenames**: Log files are saved with descriptive names that include ID, operation, status, size, and timestamp
 - **Tabbed Log Analysis**: Analyze logs with a tabbed interface showing overview, timeline, execution path, database operations, and governor limits
+- **Optimized Raw Log Viewing**: View large logs with virtual scrolling and chunked loading for improved performance
 
 ## Requirements
 
@@ -72,10 +73,21 @@ If you have the VSIX file, you can install it directly using one of these method
    - **Execution**: Apex code execution path
    - **Database**: SOQL queries and DML operations
    - **Limits**: Governor limits usage visualization
-   - **Raw Log**: Complete raw log content
+   - **Debug**: User debug statements and messages
+   - **Raw Log**: Complete raw log content with virtual scrolling for improved performance
 
 3. Use the search functionality to find specific content within the log
 4. Apply filters to focus on specific event types (Errors, Warnings, Debug, Info)
+
+### Using the Raw Log Tab
+
+The Raw Log tab has been optimized to handle large log files efficiently:
+
+1. **Virtual Scrolling**: Only visible log lines are rendered, improving performance for large logs
+2. **Chunked Loading**: Log content is loaded in chunks as you scroll, reducing memory usage
+3. **Advanced Search**: Search within the log with options for case sensitivity, whole word matching, and regex
+4. **Line Numbers**: Each line is displayed with its line number for easy reference
+5. **Navigation**: Navigate between search results with Previous/Next buttons
 
 ### Using SOQL Queries
 
@@ -102,6 +114,13 @@ If you have the VSIX file, you can install it directly using one of these method
   - `sf apex get log -i <LOG_ID> > log_file.log`
   - `sfdx force:apex:log:get --logid <LOG_ID> > log_file.log`
 
+#### "Raw log tab is slow or unresponsive"
+- The raw log tab uses virtual scrolling and chunked loading to improve performance
+- If you're still experiencing issues with very large logs:
+  - Try using the search functionality to find specific content instead of scrolling
+  - Consider using the other tabs (Overview, Timeline, etc.) which provide filtered views of the log
+  - For extremely large logs, consider opening the log file directly in VS Code's text editor
+
 ### Viewing Logs
 
 - Server-side logs can be viewed in the VS Code Developer Tools (Help > Toggle Developer Tools)
@@ -115,6 +134,12 @@ This extension contributes the following settings:
 * `visbal.autoRefresh`: Automatically refresh logs when the view becomes visible (default: true)
 
 ## Release Notes
+
+### 0.0.2
+
+- Added optimized raw log tab with virtual scrolling and chunked loading
+- Improved search functionality in raw log tab
+- Enhanced performance for large log files
 
 ### 0.0.1
 

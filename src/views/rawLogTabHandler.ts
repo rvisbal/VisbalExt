@@ -56,6 +56,29 @@ export class RawLogTabHandler {
     public static getPlaceholderHtml(): string {
         return `
             <div id="raw-log-tab-placeholder">
+                <div class="filter-bar">
+                    <div class="filter-bar-header">
+                        <button id="toggle-filter-bar" class="toggle-button">
+                            <span class="toggle-icon">▼</span> Filters
+                        </button>
+                    </div>
+                    <div class="filter-bar-content">
+                        <div class="filter-options">
+                            <label><input type="checkbox" id="filter-user-debug" value="USER_DEBUG"> USER_DEBUG</label>
+                            <label><input type="checkbox" id="filter-soql" value="SOQL_EXECUTE"> SOQL</label>
+                            <label><input type="checkbox" id="filter-dml" value="DML"> DML</label>
+                            <label><input type="checkbox" id="filter-code-unit" value="CODE_UNIT"> CODE_UNIT</label>
+                            <label><input type="checkbox" id="filter-system" value="SYSTEM"> SYSTEM</label>
+                            <label><input type="checkbox" id="filter-exception" value="EXCEPTION"> EXCEPTION</label>
+                            <label><input type="checkbox" id="filter-error" value="ERROR"> ERROR</label>
+                        </div>
+                        <div class="filter-actions">
+                            <button id="apply-filters">Apply Filters</button>
+                            <button id="clear-filters">Clear Filters</button>
+                        </div>
+                    </div>
+                </div>
+                
                 <div class="search-controls">
                     <div class="search-row">
                         <input type="text" id="raw-log-search" placeholder="Search in log..." />
@@ -86,6 +109,80 @@ export class RawLogTabHandler {
                 </div>
             </div>
             <style>
+                .filter-bar {
+                    margin-bottom: 15px;
+                    background-color: var(--vscode-editor-background);
+                    border: 1px solid var(--vscode-panel-border);
+                    border-radius: 4px;
+                }
+                
+                .filter-bar-header {
+                    padding: 8px 12px;
+                    cursor: pointer;
+                    user-select: none;
+                }
+                
+                .toggle-button {
+                    background: none;
+                    border: none;
+                    color: var(--vscode-foreground);
+                    font-size: 14px;
+                    font-weight: 500;
+                    padding: 0;
+                    cursor: pointer;
+                    display: flex;
+                    align-items: center;
+                    width: 100%;
+                    text-align: left;
+                }
+                
+                .toggle-icon {
+                    margin-right: 8px;
+                    transition: transform 0.2s;
+                }
+                
+                .toggle-icon.collapsed {
+                    transform: rotate(-90deg);
+                }
+                
+                .filter-bar-content {
+                    padding: 10px 15px;
+                    border-top: 1px solid var(--vscode-panel-border);
+                }
+                
+                .filter-options {
+                    display: flex;
+                    flex-wrap: wrap;
+                    gap: 15px;
+                    margin-bottom: 10px;
+                }
+                
+                .filter-options label {
+                    display: flex;
+                    align-items: center;
+                    gap: 5px;
+                    cursor: pointer;
+                }
+                
+                .filter-actions {
+                    display: flex;
+                    gap: 10px;
+                    margin-top: 10px;
+                }
+                
+                .filter-actions button {
+                    padding: 4px 10px;
+                    background-color: var(--vscode-button-background);
+                    color: var(--vscode-button-foreground);
+                    border: none;
+                    border-radius: 2px;
+                    cursor: pointer;
+                }
+                
+                .filter-actions button:hover {
+                    background-color: var(--vscode-button-hoverBackground);
+                }
+                
                 .search-controls {
                     margin-bottom: 15px;
                     padding: 10px;
@@ -115,7 +212,7 @@ export class RawLogTabHandler {
                 }
                 
                 .raw-log-container {
-                    height: calc(100vh - 200px);
+                    height: calc(100vh - 280px);
                     overflow: hidden;
                     border: 1px solid var(--vscode-panel-border);
                     background-color: var(--vscode-editor-background);
@@ -189,6 +286,10 @@ export class RawLogTabHandler {
                     background-color: var(--vscode-list-hoverBackground);
                 }
                 
+                .log-line.filtered {
+                    display: none;
+                }
+                
                 .loading-indicator {
                     text-align: center;
                     padding: 10px;
@@ -213,6 +314,7 @@ export class RawLogTabHandler {
             let viewportHeight = 0;
             let isScrolling = false;
             let scrollTimeout = null;
+            let activeFilters = [];
             
             // Function to update raw log tab content
             function updateRawLogTab(data) {
@@ -262,6 +364,9 @@ export class RawLogTabHandler {
                 
                 // Set up scroll event
                 viewport.addEventListener('scroll', handleScroll);
+                
+                // Setup filter functionality
+                setupFilterFunctionality();
                 
                 // Setup search functionality
                 setupSearchFunctionality();
@@ -333,6 +438,13 @@ export class RawLogTabHandler {
                         const chunk = loadedChunks[chunkIndex];
                         
                         if (chunk && lineIndexInChunk < chunk.length) {
+                            const lineText = chunk[lineIndexInChunk];
+                            
+                            // Skip filtered lines
+                            if (shouldFilterLine(lineText)) {
+                                continue;
+                            }
+                            
                             const lineElement = document.createElement('div');
                             lineElement.className = 'log-line';
                             lineElement.setAttribute('data-line', i.toString());
@@ -343,7 +455,7 @@ export class RawLogTabHandler {
                             
                             const lineContent = document.createElement('span');
                             lineContent.className = 'line-content';
-                            lineContent.textContent = chunk[lineIndexInChunk];
+                            lineContent.textContent = lineText;
                             
                             lineElement.appendChild(lineNumber);
                             lineElement.appendChild(lineContent);
@@ -372,6 +484,24 @@ export class RawLogTabHandler {
                 isScrolling = false;
             }
             
+            // Function to check if a line should be filtered out
+            function shouldFilterLine(lineText) {
+                // If no active filters, show all lines
+                if (activeFilters.length === 0) {
+                    return false;
+                }
+                
+                // Check if the line contains any of the active filters
+                for (const filter of activeFilters) {
+                    if (lineText.includes(filter)) {
+                        return false; // Don't filter out this line
+                    }
+                }
+                
+                // If we have active filters but none match, filter out this line
+                return true;
+            }
+            
             // Function to request a chunk of log lines
             function requestChunk(chunkIndex) {
                 console.log('[VisbalLogView:WebView] Requesting chunk:', chunkIndex);
@@ -393,6 +523,53 @@ export class RawLogTabHandler {
                 
                 // Render visible lines
                 renderVisibleLines();
+            }
+            
+            // Setup filter functionality
+            function setupFilterFunctionality() {
+                const filterBar = document.querySelector('.filter-bar');
+                const filterBarHeader = document.querySelector('.filter-bar-header');
+                const filterBarContent = document.querySelector('.filter-bar-content');
+                const toggleIcon = document.querySelector('.toggle-icon');
+                const applyFiltersButton = document.getElementById('apply-filters');
+                const clearFiltersButton = document.getElementById('clear-filters');
+                const filterCheckboxes = document.querySelectorAll('.filter-options input[type="checkbox"]');
+                
+                // Toggle filter bar visibility
+                filterBarHeader.addEventListener('click', () => {
+                    filterBarContent.style.display = filterBarContent.style.display === 'none' ? 'block' : 'none';
+                    toggleIcon.classList.toggle('collapsed');
+                });
+                
+                // Apply filters
+                applyFiltersButton.addEventListener('click', () => {
+                    activeFilters = [];
+                    
+                    // Collect checked filters
+                    filterCheckboxes.forEach(checkbox => {
+                        if (checkbox.checked) {
+                            activeFilters.push(checkbox.value);
+                        }
+                    });
+                    
+                    console.log('[VisbalLogView:WebView] Applied filters:', activeFilters);
+                    
+                    // Re-render with filters applied
+                    renderVisibleLines();
+                });
+                
+                // Clear filters
+                clearFiltersButton.addEventListener('click', () => {
+                    filterCheckboxes.forEach(checkbox => {
+                        checkbox.checked = false;
+                    });
+                    
+                    activeFilters = [];
+                    console.log('[VisbalLogView:WebView] Cleared filters');
+                    
+                    // Re-render with no filters
+                    renderVisibleLines();
+                });
             }
             
             // Setup search functionality
@@ -606,6 +783,16 @@ export class RawLogTabHandler {
                     case 'searchResults':
                         window.receiveSearchResults(message.results);
                         break;
+                }
+            });
+            
+            // Initialize filter bar
+            document.addEventListener('DOMContentLoaded', () => {
+                const filterBarContent = document.querySelector('.filter-bar-content');
+                if (filterBarContent) {
+                    // Start with filter bar collapsed
+                    filterBarContent.style.display = 'none';
+                    document.querySelector('.toggle-icon').classList.add('collapsed');
                 }
             });
         `;

@@ -1042,6 +1042,58 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
     }
 
     /**
+     * Refreshes the logs in the view with a force refresh
+     */
+    public refreshLogs(): void {
+        console.log('[VisbalLogView] refreshLogs -- Method called');
+        this._fetchLogs(true);
+    }
+
+    /**
+     * Downloads a log by ID
+     * @param logId The ID of the log to download
+     */
+    public downloadLog(logId: string): void {
+        console.log(`[VisbalLogView] downloadLog -- Method called for log: ${logId}`);
+        this._downloadLog(logId);
+    }
+
+    /**
+     * Opens a log by ID
+     * @param logId The ID of the log to open
+     */
+    public openLog(logId: string): void {
+        console.log(`[VisbalLogView] openLog -- Method called for log: ${logId}`);
+        this._openLog(logId);
+    }
+
+    /**
+     * Views a log by ID
+     * @param logId The ID of the log to view
+     */
+    public viewLog(logId: string): void {
+        console.log(`[VisbalLogView] viewLog -- Method called for log: ${logId}`);
+        this._openLog(logId);
+    }
+
+    /**
+     * Deletes a log by ID
+     * @param logId The ID of the log to delete
+     */
+    public deleteLog(logId: string): void {
+        console.log(`[VisbalLogView] deleteLog -- Method called for log: ${logId}`);
+        vscode.window.showInformationMessage(`Deleting log: ${logId}`);
+    }
+
+    /**
+     * Deletes all logs
+     */
+    public deleteAllLogs(): void {
+        console.log('[VisbalLogView] deleteAllLogs -- Method called');
+        vscode.window.showInformationMessage('Deleting all logs');
+    }
+
+    /**
      * Fetches logs using SOQL query and updates the view
      */
     private async _fetchLogsSoql(): Promise<void> {
@@ -1061,8 +1113,8 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
 
         try {
             // Fetch logs from Salesforce using SOQL
-            console.log('[VisbalLogView] _fetchLogsSoql -- Calling _fetchSalesforceLogsSoql');
-            const logs = await this._fetchSalesforceLogsSoql();
+            console.log('[VisbalLogView] _fetchLogsSoql -- Calling _fetchSalesforceLogs');
+            const logs = await this._fetchSalesforceLogs();
             console.log(`[VisbalLogView] _fetchLogsSoql -- Received ${logs.length} logs from Salesforce via SOQL`);
             
             // Store the logs
@@ -1077,7 +1129,7 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
             
             // Update download status
             console.log('[VisbalLogView] _fetchLogsSoql -- Updating download status for logs');
-            logs.forEach(log => {
+            logs.forEach((log: SalesforceLog) => {
                 log.downloaded = this._downloadedLogs.has(log.id);
                 
                 // Check if we have a local file for this log
@@ -1152,111 +1204,6 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
             // Hide loading state
             console.log('[VisbalLogView] _fetchLogsSoql -- Sending loading:false to webview');
             this._view?.webview.postMessage({ command: 'loading', loading: false });
-        }
-    }
-
-    /**
-     * Fetches logs from Salesforce using SOQL query via SFDX CLI
-     * @returns Array of Salesforce logs
-     */
-    private async _fetchSalesforceLogsSoql(): Promise<SalesforceLog[]> {
-        console.log('[VisbalLogView] _fetchSalesforceLogsSoql -- Starting to fetch Salesforce logs via SOQL');
-        try {
-            // Check if SFDX CLI is installed
-            try {
-                console.log('[VisbalLogView] _fetchSalesforceLogsSoql -- Checking if SFDX CLI is installed');
-                const { stdout: versionOutput } = await execAsync('sfdx --version');
-                console.log(`[VisbalLogView] _fetchSalesforceLogsSoql -- SFDX CLI version: ${versionOutput.trim()}`);
-            } catch (error) {
-                console.error('[VisbalLogView] _fetchSalesforceLogsSoql -- SFDX CLI not installed:', error);
-                throw new Error('SFDX CLI is not installed. Please install it to use this feature.');
-            }
-            
-            // Try to get the default org using the new command format first
-            let orgData;
-            console.log('[VisbalLogView] _fetchSalesforceLogsSoql -- Trying to get default org with new CLI format');
-            try {
-                const { stdout: orgInfo } = await execAsync('sf org display --json');
-                console.log('[VisbalLogView] _fetchSalesforceLogsSoql -- Successfully got org info with new CLI format');
-                orgData = JSON.parse(orgInfo);
-                console.log('[VisbalLogView] _fetchSalesforceLogsSoql -- Parsed org data:', orgData.result?.username);
-            } catch (error) {
-                console.log('[VisbalLogView] _fetchSalesforceLogsSoql -- Failed with new CLI format, trying old format', error);
-                // If the new command fails, try the old format
-                try {
-                    const { stdout: orgInfo } = await execAsync('sfdx force:org:display --json');
-                    console.log('[VisbalLogView] _fetchSalesforceLogsSoql -- Successfully got org info with old CLI format');
-                    orgData = JSON.parse(orgInfo);
-                    console.log('[VisbalLogView] _fetchSalesforceLogsSoql -- Parsed org data:', orgData.result?.username);
-                } catch (innerError) {
-                    console.error('[VisbalLogView] _fetchSalesforceLogsSoql -- Failed to get org info with both formats:', innerError);
-                    throw new Error('Failed to get default org information. Please ensure you have a default org set.');
-                }
-            }
-            
-            if (!orgData.result || !orgData.result.username) {
-                console.error('[VisbalLogView] _fetchSalesforceLogsSoql -- No username found in org data');
-                throw new Error('No default Salesforce org found. Please set a default org using Salesforce CLI.');
-            }
-            
-            console.log(`[VisbalLogView] _fetchSalesforceLogsSoql -- Connected to org: ${orgData.result.username}`);
-            
-            // SOQL query to fetch debug logs
-            const soqlQuery = "SELECT Id, LogUser.Name, Application, Operation, Request, Status, LogLength, LastModifiedDate FROM ApexLog ORDER BY LastModifiedDate DESC LIMIT 200";
-            console.log(`[VisbalLogView] _fetchSalesforceLogsSoql -- SOQL query: ${soqlQuery}`);
-            
-            // Try to execute SOQL query using the new command format first
-            let queryResult;
-            console.log('[VisbalLogView] _fetchSalesforceLogsSoql -- Trying to execute SOQL query with new CLI format');
-            try {
-                const command = `sf data query -q "${soqlQuery}" --json`;
-                console.log(`[VisbalLogView] _fetchSalesforceLogsSoql -- Executing: ${command}`);
-                const { stdout: queryData } = await execAsync(command);
-                console.log('[VisbalLogView] _fetchSalesforceLogsSoql -- Successfully executed SOQL query with new CLI format');
-                queryResult = JSON.parse(queryData);
-            } catch (error) {
-                console.log('[VisbalLogView] _fetchSalesforceLogsSoql -- Failed with new CLI format, trying old format', error);
-                // If the new command fails, try the old format
-                try {
-                    const command = `sfdx force:data:soql:query -q "${soqlQuery}" --json`;
-                    console.log(`[VisbalLogView] _fetchSalesforceLogsSoql -- Executing: ${command}`);
-                    const { stdout: queryData } = await execAsync(command);
-                    console.log('[VisbalLogView] _fetchSalesforceLogsSoql -- Successfully executed SOQL query with old CLI format');
-                    queryResult = JSON.parse(queryData);
-                } catch (innerError) {
-                    console.error('[VisbalLogView] _fetchSalesforceLogsSoql -- Failed to execute SOQL query with both formats:', innerError);
-                    throw new Error('Failed to execute SOQL query. Please ensure your Salesforce CLI is properly configured.');
-                }
-            }
-            
-            if (!queryResult.result || !queryResult.result.records || !Array.isArray(queryResult.result.records)) {
-                console.log('[VisbalLogView] _fetchSalesforceLogsSoql -- No logs found in query result:', queryResult);
-                return [];
-            }
-            
-            console.log(`[VisbalLogView] _fetchSalesforceLogsSoql -- Found ${queryResult.result.records.length} debug logs via SOQL`);
-            
-            // Format the logs
-            console.log('[VisbalLogView] _fetchSalesforceLogsSoql -- Formatting logs from SOQL query');
-            const formattedLogs = queryResult.result.records.map((log: any) => ({
-                id: log.Id,
-                logUser: {
-                    name: log.LogUser?.Name || 'Unknown User'
-                },
-                application: log.Application || 'Unknown',
-                operation: log.Operation || 'Unknown',
-                request: log.Request || '',
-                status: log.Status || 'Unknown',
-                logLength: log.LogLength || 0,
-                lastModifiedDate: log.LastModifiedDate || '',
-                downloaded: false // Will be updated later
-            }));
-            
-            console.log(`[VisbalLogView] _fetchSalesforceLogsSoql -- Returning ${formattedLogs.length} formatted logs from SOQL query`);
-            return formattedLogs;
-        } catch (error: any) {
-            console.error('[VisbalLogView] _fetchSalesforceLogsSoql -- Error in _fetchSalesforceLogsSoql:', error);
-            throw error;
         }
     }
 
