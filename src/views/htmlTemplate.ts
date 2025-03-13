@@ -542,7 +542,8 @@ export function getHtmlTemplate(
         { id: 'raw', label: 'Raw Log' }
     ],
     executionTabHtml: string = '',
-    executionTabJs: string = '',
+    customJavaScript: string = '',
+    rawLogTabHtml: string = '',
     categories: any[] = []
 ): string {
     console.log('[VisbalLogView:WebView] Generating HTML template for log detail view');
@@ -988,7 +989,7 @@ export function getHtmlTemplate(
             
             <div id="raw" class="tab-content ${currentTab === 'raw' ? 'active' : ''}">
                 <h2>Raw Log</h2>
-                <pre class="raw-log">${formatLogContentForHtml(parsedData.rawLog) || 'Raw log content not available.'}</pre>
+                ${rawLogTabHtml}
             </div>
         </div>
         
@@ -999,7 +1000,7 @@ export function getHtmlTemplate(
                 // VSCode API
                 const vscode = acquireVsCodeApi();
                 
-                ${executionTabJs}
+                ${customJavaScript}
                 
                 // Tab switching
                 document.querySelectorAll('.tab').forEach(tab => {
