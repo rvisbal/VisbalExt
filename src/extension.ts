@@ -11,7 +11,7 @@ export function activate(context: vscode.ExtensionContext) {
   // Register the Hello World command
   let helloWorldCommand = vscode.commands.registerCommand('visbal-ext.helloWorld', () => {
     // Display a message box to the user
-    vscode.window.showInformationMessage('Hello World from Visbal Extension 2!');
+    vscode.window.showInformationMessage('Hello World from Visbal Extension!');
   });
 
   // Register the Show Find Model command
@@ -52,7 +52,7 @@ export function activate(context: vscode.ExtensionContext) {
 
   // Register the Refresh Visbal Log command
   let refreshVisbalLogCommand = vscode.commands.registerCommand('visbal-ext.refreshVisbalLog', () => {
-    visbalLogViewProvider.refresh();
+    visbalLogViewProvider.refreshLogs();
   });
 
   // Register command to open log detail view
