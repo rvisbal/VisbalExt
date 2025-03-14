@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import { exec } from 'child_process';
 import { promisify } from 'util';
+import * as os from 'os';
 
 const execAsync = promisify(exec);
 
@@ -27,32 +28,58 @@ export class MetadataService {
         try {
             console.log(`[MetadataService] Executing CLI command: ${command}`);
             
-            // Get the default org username
+            // Get the default org username - don't use bash on Windows
             try {
-                const { stdout: orgInfo } = await execAsync('bash -c "sf config get target-org --json"');
-                const targetOrg = JSON.parse(orgInfo).result[0].value;
+                const sfCommand = 'sf config get target-org --json';
+                console.log(`[MetadataService] Checking target org with: ${sfCommand}`);
                 
-                if (!targetOrg) {
+                const { stdout: orgInfo } = await execAsync(sfCommand);
+                
+                if (orgInfo && orgInfo.trim()) {
+                    try {
+                        const parsedInfo = JSON.parse(orgInfo);
+                        const targetOrg = parsedInfo.result && parsedInfo.result[0] ? parsedInfo.result[0].value : null;
+                        
+                        if (targetOrg) {
+                            console.log(`[MetadataService] Using target org: ${targetOrg}`);
+                            
+                            // Add the target org to the command if it doesn't already have one
+                            if (!command.includes('-o') && !command.includes('--target-org')) {
+                                command = `${command.replace(' --json', '')} --target-org ${targetOrg} --json`;
+                            }
+                        } else {
+                            throw new Error('No default org set. Please use "sf org set default" to set a default org.');
+                        }
+                    } catch (parseError) {
+                        console.error('[MetadataService] Failed to parse org info:', parseError);
+                        throw new Error('Failed to parse org info. Please ensure Salesforce CLI is properly installed.');
+                    }
+                } else {
                     throw new Error('No default org set. Please use "sf org set default" to set a default org.');
-                }
-                
-                console.log(`[MetadataService] Using target org: ${targetOrg}`);
-                
-                // Add the target org to the command if it doesn't already have one
-                if (!command.includes('-o') && !command.includes('--target-org')) {
-                    command = `${command.replace(' --json', '')} --target-org ${targetOrg} --json`;
                 }
             } catch (orgError: any) {
                 console.warn('[MetadataService] Failed to get target org:', orgError);
+                
+                // Check if Salesforce CLI is installed
+                try {
+                    await execAsync('sf --version');
+                } catch (cliError) {
+                    throw new Error('Salesforce CLI (sf) is not installed or not in PATH. Please install it from https://developer.salesforce.com/tools/sfdxcli');
+                }
+                
                 throw new Error('No default org set. Please use "sf org set default" to set a default org.');
             }
             
-            // Execute the command using bash
-            const { stdout, stderr } = await execAsync(`bash -c "${command}"`);
+            // Execute the command directly without bash -c wrapper
+            console.log(`[MetadataService] Executing final command: ${command}`);
+            const { stdout, stderr } = await execAsync(command);
             
             if (stderr) {
                 console.warn(`[MetadataService] Command produced stderr: ${stderr}`);
-                throw new Error(stderr);
+                // Only throw if it seems like a real error, as some commands output warnings to stderr
+                if (stderr.includes('Error:') || stderr.includes('error:')) {
+                    throw new Error(stderr);
+                }
             }
             
             console.log(`[MetadataService] Command executed successfully`);
@@ -64,18 +91,31 @@ export class MetadataService {
     }
 
     /**
-     * Lists all Apex classes using the Metadata API
+     * Lists all Apex classes using SOQL query
      */
     public async listApexClasses(): Promise<ApexClass[]> {
         try {
             console.log('[MetadataService] Listing Apex classes...');
-            const output = await this.executeCliCommand('sf apex list class --json');
-            const result = JSON.parse(output).result;
-            console.log(`[MetadataService] Found ${result.length} classes`);
-            return result.map((cls: any) => ({
-                id: cls.id || cls.fullName,
-                name: cls.fullName || cls.name,
-                fullName: cls.fullName || cls.name,
+            // Use SOQL query to get Apex classes
+            const soqlQuery = "SELECT Id, Name FROM ApexClass ORDER BY Name";
+            const command = `sf data query --query "${soqlQuery}" --json`;
+            
+            console.log(`[MetadataService] Executing SOQL query: ${soqlQuery}`);
+            const output = await this.executeCliCommand(command);
+            const parsedOutput = JSON.parse(output);
+            
+            if (!parsedOutput.result || !parsedOutput.result.records) {
+                console.log('[MetadataService] No classes found or unexpected response format');
+                return [];
+            }
+            
+            const records = parsedOutput.result.records;
+            console.log(`[MetadataService] Found ${records.length} classes`);
+            
+            return records.map((cls: any) => ({
+                id: cls.Id,
+                name: cls.Name,
+                fullName: cls.Name,
                 status: 'Active'
             }));
         } catch (error: any) {
@@ -85,15 +125,26 @@ export class MetadataService {
     }
 
     /**
-     * Gets the body of an Apex class
+     * Gets the body of an Apex class using SOQL query
      */
     public async getApexClassBody(className: string): Promise<string> {
         try {
             console.log(`[MetadataService] Getting body for class: ${className}`);
-            const output = await this.executeCliCommand(`sf apex get class --class-name ${className} --json`);
-            const result = JSON.parse(output).result;
+            // Use SOQL query to get the class body
+            const soqlQuery = `SELECT Id, Name, Body FROM ApexClass WHERE Name = '${className}' LIMIT 1`;
+            const command = `sf data query --query "${soqlQuery}" --json`;
+            
+            console.log(`[MetadataService] Executing SOQL query: ${soqlQuery}`);
+            const output = await this.executeCliCommand(command);
+            const parsedOutput = JSON.parse(output);
+            
+            if (!parsedOutput.result || !parsedOutput.result.records || parsedOutput.result.records.length === 0) {
+                throw new Error(`Class ${className} not found`);
+            }
+            
+            const classRecord = parsedOutput.result.records[0];
             console.log('[MetadataService] Successfully retrieved class body');
-            return result.Body;
+            return classRecord.Body;
         } catch (error: any) {
             console.error(`[MetadataService] Failed to get class body for ${className}:`, error);
             throw new Error(`Failed to get class body for ${className}: ${error.message}`);
@@ -192,8 +243,8 @@ export class MetadataService {
         try {
             console.log(`[MetadataService] Running tests for class: ${testClass}${testMethod ? `, method: ${testMethod}` : ''}`);
             const command = testMethod
-                ? `sf apex test run --tests ${testClass}.${testMethod} --json`
-                : `sf apex test run --class-names ${testClass} --json`;
+                ? `sf apex run test --tests ${testClass}.${testMethod} --json`
+                : `sf apex run test --class-names ${testClass} --json`;
             const output = await this.executeCliCommand(command);
             const result = JSON.parse(output).result;
             console.log('[MetadataService] Test run completed successfully');
@@ -210,7 +261,7 @@ export class MetadataService {
     public async getApexLog(logId: string): Promise<any> {
         try {
             console.log(`[MetadataService] Getting Apex log with ID: ${logId}`);
-            const output = await this.executeCliCommand(`sf apex log get --log-id ${logId} --json`);
+            const output = await this.executeCliCommand(`sf apex get log --log-id ${logId} --json`);
             const result = JSON.parse(output).result;
             console.log('[MetadataService] Successfully retrieved Apex log');
             return result;
@@ -226,7 +277,7 @@ export class MetadataService {
     public async listApexLogs(): Promise<any[]> {
         try {
             console.log('[MetadataService] Listing Apex logs...');
-            const output = await this.executeCliCommand('sf apex log list --json');
+            const output = await this.executeCliCommand('sf apex list log --json');
             const result = JSON.parse(output).result;
             console.log(`[MetadataService] Found ${result.length} logs`);
             return result;

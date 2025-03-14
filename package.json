@@ -67,7 +67,7 @@
       "activitybar": [
         {
           "id": "testExplorerContainer",
-          "title": "Salesforce Test Explorer",
+          "title": "Visbal Test",
           "icon": "$(beaker)"
         }
       ]
