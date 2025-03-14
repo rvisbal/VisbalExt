@@ -384,6 +384,15 @@ export function getLogListTemplate(): string {
                     showLoading();
                 });
                 
+                // Add event listener for Delete via REST API button
+                deleteViaSoqlButton.addEventListener('click', () => {
+                    debug('Delete via REST API button clicked');
+                    if (confirm('Are you sure you want to delete all logs using the Salesforce REST API? This action cannot be undone.')) {
+                        vscode.postMessage({ command: 'deleteViaSoql' });
+                        showLoading();
+                    }
+                });
+                
                 // Handle messages from the extension
                 window.addEventListener('message', event => {
                     const message = event.data;
@@ -1712,6 +1721,9 @@ export function getHtmlForWebview(extensionUri: vscode.Uri, webview: vscode.Webv
           <button class="text-button danger-button" id="delete-server-button" title="Delete Logs from Server">
             <span>🗑️</span> Delete Server Logs
           </button>
+          <button class="text-button danger-button" id="delete-rest-api-button" title="Delete Logs using REST API">
+            <span>🗑️</span> Delete via REST API
+          </button>
         </div>
       </div>
       
@@ -1775,6 +1787,7 @@ export function getHtmlForWebview(extensionUri: vscode.Uri, webview: vscode.Webv
       const soqlButton = document.getElementById('soql-button');
       const clearLocalButton = document.getElementById('clear-local-button');
       const deleteServerButton = document.getElementById('delete-server-button');
+      const deleteRestApiButton = document.getElementById('delete-rest-api-button');
       const filterInput = document.getElementById('filter-input');
       const clearFilterButton = document.getElementById('clear-filter-button');
       const logsTableBody = document.getElementById('logs-table-body');
@@ -2078,6 +2091,7 @@ export function getHtmlForWebview(extensionUri: vscode.Uri, webview: vscode.Webv
         soqlButton.disabled = true;
         clearLocalButton.disabled = true;
         deleteServerButton.disabled = true;
+        deleteRestApiButton.disabled = true;
       }
       
       // Hide loading state
@@ -2087,6 +2101,7 @@ export function getHtmlForWebview(extensionUri: vscode.Uri, webview: vscode.Webv
         soqlButton.disabled = false;
         clearLocalButton.disabled = false;
         deleteServerButton.disabled = false;
+        deleteRestApiButton.disabled = false;
       }
       
       // Show error message
@@ -2397,6 +2412,22 @@ export function getHtmlForWebview(extensionUri: vscode.Uri, webview: vscode.Webv
               command: 'deleteServerLogs'
             });
             showLoading('Deleting server logs...');
+          }
+        );
+      });
+      
+      // Delete REST API button
+      deleteRestApiButton.addEventListener('click', () => {
+        console.log('Delete REST API button clicked');
+        showConfirmModal(
+          'Delete Logs using REST API',
+          'Are you sure you want to delete all logs using the Salesforce REST API? This action cannot be undone.',
+          () => {
+            hideError();
+            vscode.postMessage({
+              command: 'deleteViaSoql'
+            });
+            showLoading('Deleting logs using REST API...');
           }
         );
       });

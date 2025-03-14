@@ -137,6 +137,10 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
                     console.log('[VisbalLogView] resolveWebviewView -- Deleting server logs via SOQL');
                     await this._deleteServerLogsViaSoql();
                     break;
+                case 'deleteViaSoql':
+                    console.log('[VisbalLogView] resolveWebviewView -- Deleting logs via SOQL API');
+                    await this._deleteViaSoqlApi();
+                    break;
                 case 'executeScript':
                     try {
                         console.log('Executing script from extension');
@@ -2070,6 +2074,86 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
         } catch (error: any) {
             console.error('[VisbalLogView] _deleteServerLogsViaSoql -- Error deleting logs via SOQL:', error);
             vscode.window.showErrorMessage(`Error deleting logs via SOQL: ${error.message || error}`);
+        } finally {
+            this._isLoading = false;
+            this._view?.webview.postMessage({ command: 'loading', isLoading: false });
+        }
+    }
+
+    /**
+     * Delete all logs using the SalesforceApiService
+     */
+    private async _deleteViaSoqlApi(): Promise<void> {
+        console.log('[VisbalLogView] _deleteViaSoqlApi -- Starting to delete logs via SOQL API');
+        
+        if (this._isLoading) {
+            console.log('[VisbalLogView] _deleteViaSoqlApi -- Already loading, ignoring request');
+            return;
+        }
+        
+        this._isLoading = true;
+        this._view?.webview.postMessage({ command: 'loading', isLoading: true });
+        
+        try {
+            // Import the SalesforceApiService
+            const { SalesforceApiService } = require('../services/salesforceApiService');
+            const salesforceApi = new SalesforceApiService();
+            
+            // Initialize the API service
+            const initialized = await salesforceApi.initialize();
+            if (!initialized) {
+                throw new Error('Failed to initialize Salesforce API service');
+            }
+            
+            // Query for all log IDs
+            console.log('[VisbalLogView] _deleteViaSoqlApi -- Querying for log IDs');
+            const query = "SELECT Id FROM ApexLog";
+            const queryResult = await salesforceApi.query(query, true); // Use Tooling API
+            
+            if (!queryResult.records || !Array.isArray(queryResult.records) || queryResult.records.length === 0) {
+                console.log('[VisbalLogView] _deleteViaSoqlApi -- No logs found to delete');
+                vscode.window.showInformationMessage('No logs found to delete via SOQL API');
+                return;
+            }
+            
+            const logIds = queryResult.records.map((record: any) => record.Id);
+            console.log(`[VisbalLogView] _deleteViaSoqlApi -- Found ${logIds.length} logs to delete`);
+            
+            // Confirm deletion
+            const confirmMessage = `Are you sure you want to delete ${logIds.length} logs? This action cannot be undone.`;
+            const confirmed = await vscode.window.showWarningMessage(confirmMessage, { modal: true }, 'Yes', 'No') === 'Yes';
+            
+            if (!confirmed) {
+                console.log('[VisbalLogView] _deleteViaSoqlApi -- User cancelled deletion');
+                vscode.window.showInformationMessage('Log deletion cancelled');
+                return;
+            }
+            
+            // Delete each log using the API
+            console.log(`[VisbalLogView] _deleteViaSoqlApi -- Deleting ${logIds.length} logs`);
+            let successCount = 0;
+            let errorCount = 0;
+            
+            for (const logId of logIds) {
+                try {
+                    await salesforceApi.deleteRecord('ApexLog', logId, true); // Use Tooling API
+                    successCount++;
+                } catch (error) {
+                    console.error(`[VisbalLogView] _deleteViaSoqlApi -- Error deleting log ${logId}:`, error);
+                    errorCount++;
+                }
+            }
+            
+            // Show success message
+            const message = `Successfully deleted ${successCount} logs via SOQL API${errorCount > 0 ? `, ${errorCount} errors` : ''}`;
+            console.log(`[VisbalLogView] _deleteViaSoqlApi -- ${message}`);
+            vscode.window.showInformationMessage(message);
+            
+            // Refresh logs after deletion
+            await this._fetchLogs(true);
+        } catch (error: any) {
+            console.error('[VisbalLogView] _deleteViaSoqlApi -- Error deleting logs via SOQL API:', error);
+            vscode.window.showErrorMessage(`Error deleting logs via SOQL API: ${error.message || error}`);
         } finally {
             this._isLoading = false;
             this._view?.webview.postMessage({ command: 'loading', isLoading: false });
