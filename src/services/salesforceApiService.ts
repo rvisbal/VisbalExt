@@ -2,6 +2,7 @@ import * as vscode from 'vscode';
 import axios, { AxiosInstance, AxiosRequestConfig } from 'axios';
 import { exec } from 'child_process';
 import { promisify } from 'util';
+import { statusBarService } from './statusBarService';
 
 const execAsync = promisify(exec);
 
@@ -20,12 +21,14 @@ export class SalesforceApiService {
     public async initialize(): Promise<boolean> {
         try {
             console.log('[SalesforceApiService] initialize -- Initializing Salesforce API service');
+            statusBarService.showProgress('Initializing Salesforce API...');
             
             // Get authentication details from Salesforce CLI
             const authDetails = await this._getAuthDetailsFromCli();
             
             if (!authDetails) {
                 console.error('[SalesforceApiService] initialize -- Failed to get auth details from CLI');
+                statusBarService.showError('Failed to get auth details from CLI');
                 return false;
             }
             
@@ -42,9 +45,11 @@ export class SalesforceApiService {
             });
             
             console.log('[SalesforceApiService] initialize -- Successfully initialized Salesforce API service');
+            statusBarService.showSuccess('Salesforce API initialized');
             return true;
         } catch (error: any) {
             console.error('[SalesforceApiService] initialize -- Error:', error);
+            statusBarService.showError(`Failed to initialize Salesforce API: ${error.message}`);
             vscode.window.showErrorMessage(`Failed to initialize Salesforce API: ${error.message}`);
             return false;
         }
@@ -58,11 +63,10 @@ export class SalesforceApiService {
     public async query(soql: string, useToolingApi: boolean = false): Promise<any> {
         try {
             if (!this._instance) {
-                const initialized = await this.initialize();
-                if (!initialized) {
-                    throw new Error('Failed to initialize Salesforce API service');
-                }
+                throw new Error('Salesforce API service not initialized');
             }
+            
+            statusBarService.showProgress('Executing SOQL query...');
             
             // Encode the SOQL query for URL
             const encodedQuery = encodeURIComponent(soql);
@@ -78,10 +82,12 @@ export class SalesforceApiService {
             const response = await this._instance!.get(endpoint);
             
             console.log(`[SalesforceApiService] query -- Query returned ${response.data.records?.length || 0} records`);
+            statusBarService.showSuccess('SOQL query completed');
             return response.data;
         } catch (error: any) {
             console.error('[SalesforceApiService] query -- Error:', error);
-            throw new Error(`Failed to execute SOQL query: ${error.message}`);
+            statusBarService.showError(`Query error: ${error.message}`);
+            throw error;
         }
     }
 
@@ -236,45 +242,36 @@ export class SalesforceApiService {
     public async executeApexRest(endpoint: string, method: string = 'GET', data?: any): Promise<any> {
         try {
             if (!this._instance) {
-                const initialized = await this.initialize();
-                if (!initialized) {
-                    throw new Error('Failed to initialize Salesforce API service');
-                }
+                throw new Error('Salesforce API service not initialized');
             }
             
-            // Build the full endpoint URL
-            const fullEndpoint = `/apexrest/${endpoint.startsWith('/') ? endpoint.substring(1) : endpoint}`;
+            statusBarService.showProgress(`Executing Apex REST: ${method} ${endpoint}...`);
             
-            console.log(`[SalesforceApiService] executeApexRest -- Executing Apex REST: ${method} ${fullEndpoint}`);
+            // Ensure the endpoint starts with a slash
+            const formattedEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
             
-            // Execute the request based on the method
-            let response;
+            // Create the full URL for the Apex REST endpoint
+            const url = `${this._instanceUrl}/services/apexrest${formattedEndpoint}`;
             
-            switch (method.toUpperCase()) {
-                case 'GET':
-                    response = await this._instance!.get(fullEndpoint);
-                    break;
-                case 'POST':
-                    response = await this._instance!.post(fullEndpoint, data);
-                    break;
-                case 'PUT':
-                    response = await this._instance!.put(fullEndpoint, data);
-                    break;
-                case 'PATCH':
-                    response = await this._instance!.patch(fullEndpoint, data);
-                    break;
-                case 'DELETE':
-                    response = await this._instance!.delete(fullEndpoint);
-                    break;
-                default:
-                    throw new Error(`Unsupported HTTP method: ${method}`);
-            }
+            // Create the request configuration
+            const config: AxiosRequestConfig = {
+                method: method,
+                url: url,
+                headers: {
+                    'Authorization': `Bearer ${this._accessToken}`,
+                    'Content-Type': 'application/json'
+                },
+                data: data
+            };
             
-            console.log(`[SalesforceApiService] executeApexRest -- Successfully executed Apex REST: ${method} ${fullEndpoint}`);
+            // Execute the request
+            const response = await axios(config);
+            
+            statusBarService.showSuccess('Apex REST execution completed');
             return response.data;
         } catch (error: any) {
-            console.error('[SalesforceApiService] executeApexRest -- Error:', error);
-            throw new Error(`Failed to execute Apex REST: ${error.message}`);
+            statusBarService.showError(`Apex REST error: ${error.message}`);
+            throw error;
         }
     }
 

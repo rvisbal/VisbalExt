@@ -4,10 +4,17 @@ import { SearchLibrary } from './searchLibrary';
 import { VisbalLogView } from './views/visbalLogView';
 import { LogDetailView } from './views/logDetailView';
 import { salesforceApi } from './services/salesforceApiService';
+import { statusBarService } from './services/statusBarService';
 
 // This method is called when your extension is activated
 export function activate(context: vscode.ExtensionContext) {
   console.log('RV:Congratulations, your extension "visbal-ext" is now active!');
+  
+  // Initialize status bar
+  statusBarService.showMessage('Visbal Extension activated', 'rocket');
+  
+  // Add status bar service to subscriptions for proper disposal
+  context.subscriptions.push({ dispose: () => statusBarService.dispose() });
 
   // Register the Hello World command
   let helloWorldCommand = vscode.commands.registerCommand('visbal-ext.helloWorld', () => {
@@ -76,12 +83,13 @@ export function activate(context: vscode.ExtensionContext) {
   context.subscriptions.push(
     vscode.commands.registerCommand('visbal.fetchLogsViaRestApi', async () => {
       try {
-        vscode.window.showInformationMessage('Fetching logs via Salesforce REST API...');
+        statusBarService.showProgress('Fetching logs via Salesforce REST API...');
         
         // Initialize the Salesforce API service
         const initialized = await salesforceApi.initialize();
         
         if (!initialized) {
+          statusBarService.showError('Failed to initialize Salesforce API service');
           vscode.window.showErrorMessage('Failed to initialize Salesforce API service');
           return;
         }
@@ -91,15 +99,18 @@ export function activate(context: vscode.ExtensionContext) {
         const result = await salesforceApi.query(query, true); // Using Tooling API
         
         if (!result || !result.records || !Array.isArray(result.records)) {
+          statusBarService.showError('No logs found or invalid response from Salesforce API');
           vscode.window.showErrorMessage('No logs found or invalid response from Salesforce API');
           return;
         }
         
+        statusBarService.showSuccess(`Successfully fetched ${result.records.length} logs`);
         vscode.window.showInformationMessage(`Successfully fetched ${result.records.length} logs via REST API`);
         
         // You can process the logs here or pass them to the log view
         // For demonstration, we'll just show the count
       } catch (error: any) {
+        statusBarService.showError(`Error fetching logs: ${error.message}`);
         vscode.window.showErrorMessage(`Error fetching logs via REST API: ${error.message}`);
       }
     })
@@ -140,18 +151,21 @@ export function activate(context: vscode.ExtensionContext) {
             try {
               data = JSON.parse(jsonInput);
             } catch (e) {
+              statusBarService.showError('Invalid JSON format');
               vscode.window.showErrorMessage('Invalid JSON format');
               return;
             }
           }
         }
         
+        statusBarService.showProgress(`Executing Apex REST: ${method} ${endpoint}...`);
         vscode.window.showInformationMessage(`Executing Apex REST: ${method} ${endpoint}...`);
         
         // Initialize the Salesforce API service
         const initialized = await salesforceApi.initialize();
         
         if (!initialized) {
+          statusBarService.showError('Failed to initialize Salesforce API service');
           vscode.window.showErrorMessage('Failed to initialize Salesforce API service');
           return;
         }
@@ -167,8 +181,10 @@ export function activate(context: vscode.ExtensionContext) {
         
         await vscode.window.showTextDocument(document);
         
+        statusBarService.showSuccess('Successfully executed Apex REST endpoint');
         vscode.window.showInformationMessage('Successfully executed Apex REST endpoint');
       } catch (error: any) {
+        statusBarService.showError(`Error executing Apex REST: ${error.message}`);
         vscode.window.showErrorMessage(`Error executing Apex REST: ${error.message}`);
       }
     })

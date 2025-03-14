@@ -362,9 +362,13 @@ export function getLogListTemplate(): string {
                 
                 // Initialize
                 document.addEventListener('DOMContentLoaded', () => {
-                    debug('DOM content loaded, requesting logs');
-                    vscode.postMessage({ command: 'fetchLogs' });
-                    showLoading();
+                    debug('DOM content loaded - manual refresh required');
+                    // Removed automatic log fetching to prevent unnecessary API calls
+                    // vscode.postMessage({ command: 'fetchLogs' });
+                    // showLoading();
+                    
+                    // Show message to user that they need to click refresh
+                    noLogsMessage.textContent = 'Click Refresh to fetch logs. No automatic fetching to prevent API errors.';
                 });
                 
                 // Event listeners
@@ -406,8 +410,8 @@ export function getLogListTemplate(): string {
                             break;
                             
                         case 'loading':
-                            if (message.loading) {
-                                showLoading();
+                            if (message.isLoading) {
+                                showLoading(message.message || 'Loading logs...');
                             } else {
                                 hideLoading();
                             }
@@ -1925,6 +1929,8 @@ export function getHtmlForWebview(extensionUri: vscode.Uri, webview: vscode.Webv
             logs = message.logs || [];
             // Sort logs with current sort settings
             sortLogs(currentSort.column, currentSort.direction);
+            // Hide loading state after logs are updated and rendered
+            hideLoading();
             break;
           case 'loading':
             if (message.isLoading) {
@@ -2031,10 +2037,10 @@ export function getHtmlForWebview(extensionUri: vscode.Uri, webview: vscode.Webv
         }
       });
       
-      // Request current debug configuration on load
-      document.addEventListener('DOMContentLoaded', () => {
-        vscode.postMessage({ command: 'getCurrentDebugConfig' });
-      });
+      // Request current debug configuration on load - REMOVED to prevent unnecessary API calls
+      // document.addEventListener('DOMContentLoaded', () => {
+      //   vscode.postMessage({ command: 'getCurrentDebugConfig' });
+      // });
       
       // Sorting state
       let currentSort = {
@@ -2191,6 +2197,8 @@ export function getHtmlForWebview(extensionUri: vscode.Uri, webview: vscode.Webv
             logs = message.logs || [];
             // Sort logs with current sort settings
             sortLogs(currentSort.column, currentSort.direction);
+            // Hide loading state after logs are updated and rendered
+            hideLoading();
             break;
           case 'loading':
             if (message.isLoading) {
@@ -2662,9 +2670,16 @@ export function getHtmlForWebview(extensionUri: vscode.Uri, webview: vscode.Webv
       
       // Initialize by requesting logs
       document.addEventListener('DOMContentLoaded', () => {
-        console.log('DOM content loaded, requesting logs');
-        vscode.postMessage({ command: 'fetchLogs' });
-        showLoading();
+        console.log('DOM content loaded - manual refresh required');
+        // Removed automatic log fetching to prevent unnecessary API calls
+        // vscode.postMessage({ command: 'fetchLogs' });
+        // showLoading();
+        
+        // Update the message to inform users they need to click refresh
+        const noLogsRow = document.querySelector('#logs-table-body tr');
+        if (noLogsRow && noLogsRow.cells.length === 1) {
+          noLogsRow.cells[0].textContent = 'No logs loaded. Click Refresh to fetch logs. No automatic fetching to prevent API errors.';
+        }
       });
     </script>
   </body>

@@ -7,6 +7,7 @@ import * as os from 'os';
 import { exec } from 'child_process';
 import { promisify } from 'util';
 import { LogDetailView } from './logDetailView';
+import { statusBarService } from '../services/statusBarService';
 
 const execAsync = promisify(exec);
 
@@ -192,38 +193,33 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
                     `
                 });
                 
-                // If we have cached logs that aren't too old, send them to the webview
-                const now = Date.now();
-                const cacheAge = now - this._lastFetchTime;
-                
-                if (this._logs.length > 0 && cacheAge < this._cacheExpiryMs) {
-                    console.log(`[VisbalLogView] resolveWebviewView -- Using cached logs (${this._logs.length} logs, ${Math.round(cacheAge / 1000)}s old)`);
+                // If we have cached logs, send them to the webview
+                if (this._logs.length > 0) {
+                    console.log(`[VisbalLogView] resolveWebviewView -- Using cached logs (${this._logs.length} logs)`);
                     this._sendLogsToWebview(this._logs);
-                } else {
-                    console.log('[VisbalLogView] resolveWebviewView -- No recent cached logs, fetching new logs');
-                    this._fetchLogs();
                 }
+                // Do not fetch logs automatically - let the user click Refresh
             }
         }, 500); // Add a small delay to ensure the webview is fully loaded
 
-        // Fetch logs when the view becomes visible
-        webviewView.onDidChangeVisibility(() => {
-            if (webviewView.visible) {
-                console.log('[VisbalLogView] resolveWebviewView -- View became visible, checking for cached logs');
-                
-                // If we have cached logs that aren't too old, send them to the webview
-                const now = Date.now();
-                const cacheAge = now - this._lastFetchTime;
-                
-                if (this._logs.length > 0 && cacheAge < this._cacheExpiryMs) {
-                    console.log(`[VisbalLogView] resolveWebviewView -- Using cached logs (${this._logs.length} logs, ${Math.round(cacheAge / 1000)}s old)`);
-                    this._sendLogsToWebview(this._logs);
-                } else {
-                    console.log('[VisbalLogView] resolveWebviewView -- No recent cached logs, fetching new logs');
-                    this._fetchLogs();
-                }
-            }
-        });
+        // Do not fetch logs when the view becomes visible - remove this event handler
+        // webviewView.onDidChangeVisibility(() => {
+        //     if (webviewView.visible) {
+        //         console.log('[VisbalLogView] resolveWebviewView -- View became visible, checking for cached logs');
+        //         
+        //         // If we have cached logs that aren't too old, send them to the webview
+        //         const now = Date.now();
+        //         const cacheAge = now - this._lastFetchTime;
+        //         
+        //         if (this._logs.length > 0) {
+        //             console.log(`[VisbalLogView] resolveWebviewView -- Using cached logs (${this._logs.length} logs, ${Math.round(cacheAge / 1000)}s old)`);
+        //             this._sendLogsToWebview(this._logs);
+        //         } else {
+        //             console.log('[VisbalLogView] resolveWebviewView -- No cached logs available, fetching new logs');
+        //             this._fetchLogs();
+        //         }
+        //     }
+        // });
     }
 
     /**
@@ -320,6 +316,9 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
      */
     private async _downloadLog(logId: string): Promise<void> {
         try {
+            console.log(`[VisbalLogView] _downloadLog -- Downloading log: ${logId}`);
+            statusBarService.showProgress(`Downloading log: ${logId}...`);
+
             this._isLoading = true;
             this._view?.webview.postMessage({ command: 'downloading', logId, isDownloading: true });
 
@@ -541,29 +540,16 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
             // Update the UI
             this._updateWebviewContent();
             
-            vscode.window.showInformationMessage(`Log downloaded to ${targetFilePath}`);
+            statusBarService.showSuccess('Log downloaded successfully');
             
             // Open the log file
             const document = await vscode.workspace.openTextDocument(targetFilePath);
             await vscode.window.showTextDocument(document);
             
         } catch (error: any) {
-            console.error('[VisbalLogView] Error in _downloadLog:', error);
-            
-            // Check for specific error types
-            let errorMessage = `Failed to download log: ${error}`;
-            
-            // Check for buffer overflow or stack size exceeded errors
-            if (error.message && (
-                error.message.includes('Maximum call stack size exceeded') || 
-                error.message.includes('maxBuffer exceeded') ||
-                error.message.includes('buffer overflow')
-            )) {
-                errorMessage = 'The log file is too large to download through the extension. Please use the Salesforce CLI directly with the command:\n\n' +
-                    `sf apex get log -i ${logId} > "your-filename.log"`;
-            }
-            
-            vscode.window.showErrorMessage(errorMessage);
+            console.error(`[VisbalLogView] _downloadLog -- Error downloading log ${logId}:`, error);
+            statusBarService.showError(`Error downloading log: ${error.message}`);
+            vscode.window.showErrorMessage(`Failed to download log: ${error.message}`);
         } finally {
             this._isLoading = false;
             this._view?.webview.postMessage({ command: 'downloading', logId, isDownloading: false });
@@ -576,17 +562,20 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
      */
     private async _fetchLogs(forceRefresh: boolean = false): Promise<void> {
         try {
-            // Check if we have recent cached logs and aren't forcing a refresh
-            const now = Date.now();
-            const cacheAge = now - this._lastFetchTime;
-            
-            if (!forceRefresh && this._logs.length > 0 && cacheAge < this._cacheExpiryMs) {
-                console.log(`[VisbalLogView] _fetchLogs -- Using cached logs (${this._logs.length} logs, ${Math.round(cacheAge / 1000)}s old)`);
+            // Check if we need to refresh based on cache expiry
+            if (!forceRefresh && this._logs.length > 0) {
+                console.log('[VisbalLogView] _fetchLogs -- Using cached logs, no refresh needed');
                 this._sendLogsToWebview(this._logs);
                 return;
             }
-            
+
+            // Set loading state
             this._isLoading = true;
+            this._updateWebviewContent();
+            
+            statusBarService.showProgress('Fetching Salesforce logs...');
+            console.log('[VisbalLogView] _fetchLogs -- Fetching logs from Salesforce');
+            
             this._view?.webview.postMessage({ command: 'loading', isLoading: true });
 
             console.log('[VisbalLogView] Fetching logs with new CLI format...');
@@ -622,7 +611,7 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
                     this._logs = transformedLogs;
                     
                     // Update the last fetch time
-                    this._lastFetchTime = now;
+                    this._lastFetchTime = Date.now();
                     
                     // Save to global state
                     this._context.globalState.update('visbalCachedLogs', this._logs);
@@ -641,6 +630,9 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
                     
                     // Send logs to webview with downloaded status
                     this._sendLogsToWebview(validatedLogs);
+                    
+                    // Show success message in status bar
+                    statusBarService.showSuccess(`Fetched ${validatedLogs.length} logs`);
                 } else {
                     console.error('[VisbalLogView] Invalid response format:', jsonResult);
                     throw new Error('Invalid response format');
@@ -681,7 +673,7 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
                         this._logs = transformedLogs;
                         
                         // Update the last fetch time
-                        this._lastFetchTime = now;
+                        this._lastFetchTime = Date.now();
                         
                         // Save to global state
                         this._context.globalState.update('visbalCachedLogs', this._logs);
@@ -700,6 +692,9 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
                         
                         // Send logs to webview with downloaded status
                         this._sendLogsToWebview(validatedLogs);
+                        
+                        // Show success message in status bar
+                        statusBarService.showSuccess(`Fetched ${validatedLogs.length} logs`);
                     } else {
                         console.error('[VisbalLogView] Invalid response format from old CLI:', jsonResult);
                         throw new Error('Invalid response format from old CLI');
@@ -709,9 +704,10 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
                     throw new Error('Failed to fetch logs with both CLI formats');
                 }
             }
-        } catch (error) {
-            console.error('[VisbalLogView] Error in _fetchLogs:', error);
-            vscode.window.showErrorMessage(`Failed to fetch logs: ${error}`);
+        } catch (error: any) {
+            console.error('[VisbalLogView] _fetchLogs -- Error:', error);
+            statusBarService.showError(`Error fetching logs: ${error.message}`);
+            vscode.window.showErrorMessage(`Failed to fetch logs: ${error.message}`);
             
             if (this._view && this._view.webview) {
                 this._view.webview.postMessage({
@@ -720,382 +716,14 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
                 });
             }
         } finally {
+            // Reset loading state
             this._isLoading = false;
-            this._view?.webview.postMessage({ command: 'loading', isLoading: false });
+            this._updateWebviewContent();
         }
     }
 
     /**
-     * Fetches logs from Salesforce using SFDX CLI
-     * @returns Array of Salesforce logs
-     */
-    private async _fetchSalesforceLogs(): Promise<SalesforceLog[]> {
-        console.log('[VisbalLogView] _fetchSalesforceLogs -- Starting to fetch Salesforce logs');
-        try {
-            // Check if SFDX CLI is installed
-            try {
-                console.log('[VisbalLogView] _fetchSalesforceLogs -- Checking if SFDX CLI is installed');
-                const { stdout: versionOutput } = await execAsync('sfdx --version');
-                console.log(`[VisbalLogView] _fetchSalesforceLogs -- SFDX CLI version: ${versionOutput.trim()}`);
-            } catch (error) {
-                console.error('[VisbalLogView] _fetchSalesforceLogs -- SFDX CLI not installed:', error);
-                throw new Error('SFDX CLI is not installed. Please install it to use this feature.');
-            }
-            
-            // Try to get the default org using the new command format first
-            let orgData;
-            console.log('[VisbalLogView] _fetchSalesforceLogs -- Trying to get default org with new CLI format');
-            try {
-                const { stdout: orgInfo } = await execAsync('sf org display --json');
-                console.log('[VisbalLogView] _fetchSalesforceLogs -- Successfully got org info with new CLI format');
-                orgData = JSON.parse(orgInfo);
-                console.log('[VisbalLogView] _fetchSalesforceLogs -- Parsed org data:', orgData.result?.username);
-            } catch (error) {
-                console.log('[VisbalLogView] _fetchSalesforceLogs -- Failed with new CLI format, trying old format', error);
-                // If the new command fails, try the old format
-                try {
-                    const { stdout: orgInfo } = await execAsync('sfdx force:org:display --json');
-                    console.log('[VisbalLogView] _fetchSalesforceLogs -- Successfully got org info with old CLI format');
-                    orgData = JSON.parse(orgInfo);
-                    console.log('[VisbalLogView] _fetchSalesforceLogs -- Parsed org data:', orgData.result?.username);
-                } catch (innerError) {
-                    console.error('[VisbalLogView] _fetchSalesforceLogs -- Failed to get org info with both formats:', innerError);
-                    throw new Error('Failed to get default org information. Please ensure you have a default org set.');
-                }
-            }
-            
-            if (!orgData.result || !orgData.result.username) {
-                console.error('[VisbalLogView] _fetchSalesforceLogs -- No username found in org data');
-                throw new Error('No default Salesforce org found. Please set a default org using Salesforce CLI.');
-            }
-            
-            console.log(`[VisbalLogView] _fetchSalesforceLogs -- Connected to org: ${orgData.result.username}`);
-            
-            // Try to fetch debug logs using the new command format first
-            let logsResponse;
-            console.log('[VisbalLogView] _fetchSalesforceLogs -- Trying to fetch logs with new CLI format');
-            try {
-                const { stdout: logsData } = await execAsync('sf apex list log --json');
-                console.log('[VisbalLogView] _fetchSalesforceLogs -- Successfully fetched logs with new CLI format');
-                logsResponse = JSON.parse(logsData);
-            } catch (error) {
-                console.log('[VisbalLogView] _fetchSalesforceLogs -- Failed with new CLI format, trying old format', error);
-                // If the new command fails, try the old format
-                try {
-                    console.log('[VisbalLogView] _fetchSalesforceLogs -- Executing: sfdx force:apex:log:list --json --limit 200');
-                    const { stdout: logsData } = await execAsync('sfdx force:apex:log:list --json --limit 200');
-                    console.log('[VisbalLogView] _fetchSalesforceLogs -- Successfully fetched logs with old CLI format');
-                    logsResponse = JSON.parse(logsData);
-                } catch (innerError) {
-                    console.error('[VisbalLogView] _fetchSalesforceLogs -- Failed to fetch logs with both formats:', innerError);
-                    throw new Error('Failed to fetch logs. Please ensure your Salesforce CLI is properly configured.');
-                }
-            }
-            
-            if (!logsResponse.result || !Array.isArray(logsResponse.result)) {
-                console.log('[VisbalLogView] _fetchSalesforceLogs -- No logs found in response:', logsResponse);
-                return [];
-            }
-            
-            console.log(`[VisbalLogView] _fetchSalesforceLogs -- Found ${logsResponse.result.length} debug logs`);
-            
-            // Format the logs
-            console.log('[VisbalLogView] _fetchSalesforceLogs -- Formatting logs');
-            const formattedLogs = logsResponse.result.map((log: any) => ({
-                id: log.Id,
-                logUser: {
-                    name: log.LogUser?.Name || 'Unknown User'
-                },
-                application: log.Application || 'Unknown',
-                operation: log.Operation || 'Unknown',
-                request: log.Request || '',
-                status: log.Status || 'Unknown',
-                logLength: log.LogLength || 0,
-                lastModifiedDate: log.LastModifiedDate || '',
-                downloaded: false // Will be updated later
-            }));
-            
-            console.log(`[VisbalLogView] _fetchSalesforceLogs -- Returning ${formattedLogs.length} formatted logs`);
-            return formattedLogs;
-        } catch (error: any) {
-            console.error('[VisbalLogView] _fetchSalesforceLogs -- Error in _fetchSalesforceLogs:', error);
-            throw error;
-        }
-    }
-
-    /**
-     * Fetches the content of a log
-     * @param logId The ID of the log to fetch
-     */
-    private async _fetchLogContent(logId: string): Promise<string> {
-        console.log(`[VisbalLogView] _fetchLogContent -- Starting to fetch content for log: ${logId}`);
-        try {
-            // First, check if we can directly output to a file to avoid buffer issues
-            let targetDir: string;
-            
-            // Check if we have a workspace folder
-            if (vscode.workspace.workspaceFolders && vscode.workspace.workspaceFolders.length > 0) {
-                // Use the .sfdx/tools/debug/logs directory in the workspace
-                targetDir = path.join(vscode.workspace.workspaceFolders[0].uri.fsPath, '.sfdx', 'tools', 'debug', 'logs');
-            } else {
-                // Use the user's home directory
-                targetDir = path.join(os.homedir(), '.sfdx', 'tools', 'debug', 'logs');
-            }
-            
-            // Create the directory if it doesn't exist
-            if (!fs.existsSync(targetDir)) {
-                console.log(`[VisbalLogView] _fetchLogContent -- Creating directory: ${targetDir}`);
-                fs.mkdirSync(targetDir, { recursive: true });
-            }
-            
-            // Create a temporary file path for direct output
-            const timestamp = new Date().toISOString().replace(/:/g, '-');
-            
-            // Sanitize the log ID to avoid any issues with special characters
-            const sanitizedLogId = logId.replace(/[\/\\:*?"<>|]/g, '_');
-            // Format: id_operation_status_size_date.log with temp_ prefix
-            const tempFilePath = path.join(targetDir, `temp_${sanitizedLogId}_${timestamp}.log`);
-            
-            console.log(`[VisbalLogView] _fetchLogContent -- Temp file path: ${tempFilePath}`);
-            console.log(`[VisbalLogView] _fetchLogContent -- Target directory: ${targetDir}`);
-            
-            // Try direct file output first (most reliable for large logs)
-            try {
-                console.log(`[VisbalLogView] _fetchLogContent -- Trying direct file output to: ${tempFilePath}`);
-                
-                // Try with new CLI format first
-                try {
-                    const command = `sf apex get log -i ${logId} > "${tempFilePath}"`;
-                    console.log(`[VisbalLogView] _fetchLogContent -- Executing direct output command: ${command}`);
-                    await execAsync(command);
-                    
-                    // Check if the file was created and has content
-                    if (fs.existsSync(tempFilePath) && fs.statSync(tempFilePath).size > 0) {
-                        console.log(`[VisbalLogView] _fetchLogContent -- Successfully wrote log to file: ${tempFilePath}`);
-                        const logContent = fs.readFileSync(tempFilePath, 'utf8');
-                        
-                        // Clean up the temporary file
-                        try {
-                            fs.unlinkSync(tempFilePath);
-                        } catch (cleanupError) {
-                            console.log(`[VisbalLogView] _fetchLogContent -- Warning: Could not delete temp file: ${tempFilePath}`);
-                        }
-                        
-                        return logContent;
-                    }
-                } catch (directOutputError) {
-                    console.log('[VisbalLogView] _fetchLogContent -- Direct output with new CLI format failed, trying old format', directOutputError);
-                    
-                    // Try with old CLI format
-                    try {
-                        const command = `sfdx force:apex:log:get --logid ${logId} > "${tempFilePath}"`;
-                        console.log(`[VisbalLogView] _fetchLogContent -- Executing direct output command with old format: ${command}`);
-                        await execAsync(command);
-                        
-                        // Check if the file was created and has content
-                        if (fs.existsSync(tempFilePath) && fs.statSync(tempFilePath).size > 0) {
-                            console.log(`[VisbalLogView] _fetchLogContent -- Successfully wrote log to file with old format: ${tempFilePath}`);
-                            const logContent = fs.readFileSync(tempFilePath, 'utf8');
-                            
-                            // Clean up the temporary file
-                            try {
-                                fs.unlinkSync(tempFilePath);
-                            } catch (cleanupError) {
-                                console.log(`[VisbalLogView] _fetchLogContent -- Warning: Could not delete temp file: ${tempFilePath}`);
-                            }
-                            
-                            return logContent;
-                        }
-                    } catch (oldDirectOutputError) {
-                        console.log('[VisbalLogView] _fetchLogContent -- Direct output with old CLI format failed', oldDirectOutputError);
-                    }
-                }
-            } catch (error) {
-                console.log('[VisbalLogView] _fetchLogContent -- Direct file output approach failed, falling back to standard methods', error);
-            }
-            
-            // If direct file output failed, try the standard methods with increased buffer size
-            
-            // Try to fetch the log using the new command format first
-            let log;
-            console.log('[VisbalLogView] _fetchLogContent -- Trying to fetch log content with new CLI format');
-            try {
-                const command = `sf apex get log -i ${logId} --json`;
-                console.log(`[VisbalLogView] _fetchLogContent -- Executing: ${command}`);
-                const { stdout: logData } = await execAsync(command, { maxBuffer: MAX_BUFFER_SIZE });
-                console.log('[VisbalLogView] _fetchLogContent -- Successfully fetched log content with new CLI format');
-                log = JSON.parse(logData);
-                
-                // Debug the response structure
-                console.log(`[VisbalLogView] _fetchLogContent -- Response structure: ${JSON.stringify(Object.keys(log))}`);
-                if (log.result) {
-                    console.log(`[VisbalLogView] _fetchLogContent -- Result structure: ${typeof log.result} ${Array.isArray(log.result) ? 'array' : 'not array'}`);
-                    if (Array.isArray(log.result) && log.result.length > 0) {
-                        console.log(`[VisbalLogView] _fetchLogContent -- First result item keys: ${JSON.stringify(Object.keys(log.result[0]))}`);
-                    }
-                }
-                
-                // Handle different response formats
-                if (log.result) {
-                    if (typeof log.result === 'string') {
-                        // Direct log content as string
-                        console.log('[VisbalLogView] _fetchLogContent -- Found log content as string in result');
-                        return log.result;
-                    } else if (typeof log.result.log === 'string') {
-                        // Log content in result.log
-                        console.log('[VisbalLogView] _fetchLogContent -- Found log content in result.log');
-                        return log.result.log;
-                    } else if (Array.isArray(log.result) && log.result.length > 0) {
-                        // Array result format
-                        const firstResult = log.result[0];
-                        
-                        // Check for common properties that might contain the log
-                        if (firstResult.log) {
-                            console.log('[VisbalLogView] _fetchLogContent -- Found log content in result[0].log');
-                            return firstResult.log;
-                        } else if (firstResult.body) {
-                            console.log('[VisbalLogView] _fetchLogContent -- Found log content in result[0].body');
-                            return firstResult.body;
-                        } else if (firstResult.content) {
-                            console.log('[VisbalLogView] _fetchLogContent -- Found log content in result[0].content');
-                            return firstResult.content;
-                        } else if (firstResult.text) {
-                            console.log('[VisbalLogView] _fetchLogContent -- Found log content in result[0].text');
-                            return firstResult.text;
-                        } else {
-                            // If we can't find a specific property, try to stringify the first result
-                            console.log('[VisbalLogView] _fetchLogContent -- No specific log property found, using entire result object');
-                            return JSON.stringify(firstResult, null, 2);
-                        }
-                    }
-                }
-                
-                // If we couldn't find the log content in the expected places, try direct CLI output
-                console.log('[VisbalLogView] _fetchLogContent -- Could not find log content in JSON response, trying direct CLI output');
-                throw new Error('Log content not found in expected format');
-            } catch (error) {
-                console.log('[VisbalLogView] _fetchLogContent -- Failed with new CLI format or parsing, trying old format', error);
-                // If the new command fails, try the old format
-                try {
-                    const command = `sfdx force:apex:log:get --logid ${logId} --json`;
-                    console.log(`[VisbalLogView] _fetchLogContent -- Executing: ${command}`);
-                    const { stdout: logData } = await execAsync(command, { maxBuffer: MAX_BUFFER_SIZE });
-                    console.log('[VisbalLogView] _fetchLogContent -- Successfully fetched log content with old CLI format');
-                    log = JSON.parse(logData);
-                    
-                    // Debug the response structure
-                    console.log(`[VisbalLogView] _fetchLogContent -- Old format response structure: ${JSON.stringify(Object.keys(log))}`);
-                    
-                    if (log.result && log.result.log) {
-                        console.log(`[VisbalLogView] _fetchLogContent -- Found log content in old format result.log`);
-                        return log.result.log;
-                    } else {
-                        console.error('[VisbalLogView] _fetchLogContent -- Log not found in old format response:', log);
-                        throw new Error('Log content not found in old format response');
-                    }
-                } catch (innerError) {
-                    console.error('[VisbalLogView] _fetchLogContent -- Failed to fetch log content with both formats:', innerError);
-                    
-                    // Try one more approach - direct CLI output without JSON
-                    try {
-                        console.log('[VisbalLogView] _fetchLogContent -- Trying direct CLI output without JSON');
-                        const { stdout: directOutput } = await execAsync(`sf apex get log -i ${logId}`, { maxBuffer: MAX_BUFFER_SIZE });
-                        console.log('[VisbalLogView] _fetchLogContent -- Successfully fetched log content with direct CLI output');
-                        if (directOutput && directOutput.trim().length > 0) {
-                            return directOutput;
-                        } else {
-                            throw new Error('Empty log content from direct CLI output');
-                        }
-                    } catch (directError) {
-                        try {
-                            console.log('[VisbalLogView] _fetchLogContent -- Trying direct CLI output with old format');
-                            const { stdout: oldDirectOutput } = await execAsync(`sfdx force:apex:log:get --logid ${logId}`, { maxBuffer: MAX_BUFFER_SIZE });
-                            console.log('[VisbalLogView] _fetchLogContent -- Successfully fetched log content with direct CLI output (old format)');
-                            if (oldDirectOutput && oldDirectOutput.trim().length > 0) {
-                                return oldDirectOutput;
-                            } else {
-                                throw new Error('Empty log content from direct CLI output (old format)');
-                            }
-                        } catch (oldDirectError) {
-                            console.error('[VisbalLogView] _fetchLogContent -- All attempts to fetch log content failed');
-                            throw new Error('Failed to fetch log content. The log may be too large to download. Please try using the Salesforce CLI directly.');
-                        }
-                    }
-                }
-            }
-            
-            // This should not be reached due to the throws above, but just in case
-            console.error('[VisbalLogView] _fetchLogContent -- No log content found in any format');
-            throw new Error('Log content not found in any format');
-        } catch (error: any) {
-            console.error(`[VisbalLogView] _fetchLogContent -- Error fetching log with ID ${logId}:`, error);
-            throw error;
-        }
-    }
-
-    /**
-     * Checks for previously downloaded logs
-     */
-    private _checkDownloadedLogs(): void {
-        console.log('[VisbalLogView] _checkDownloadedLogs -- Checking for previously downloaded logs');
-        const downloadedLogs = this._context.globalState.get<string[]>('visbalDownloadedLogs', []);
-        this._downloadedLogs = new Set<string>(downloadedLogs);
-        
-        // Load the paths of downloaded logs
-        const downloadedLogPaths = this._context.globalState.get<Record<string, string>>('visbalDownloadedLogPaths', {});
-        this._downloadedLogPaths = new Map<string, string>(Object.entries(downloadedLogPaths));
-        
-        console.log(`[VisbalLogView] _checkDownloadedLogs -- Found ${this._downloadedLogs.size} previously downloaded logs`);
-        console.log(`[VisbalLogView] _checkDownloadedLogs -- Found ${this._downloadedLogPaths.size} log file paths`);
-        
-        // Verify that the files still exist
-        for (const [logId, filePath] of this._downloadedLogPaths.entries()) {
-            if (!fs.existsSync(filePath)) {
-                console.log(`[VisbalLogView] _checkDownloadedLogs -- File not found for log ${logId}: ${filePath}`);
-                this._downloadedLogPaths.delete(logId);
-            } else {
-                console.log(`[VisbalLogView] _checkDownloadedLogs -- Found file for log ${logId}: ${filePath}`);
-            }
-        }
-        
-        // Save the updated paths
-        this._saveDownloadedLogs();
-    }
-
-    /**
-     * Saves the list of downloaded logs to extension storage
-     */
-    private _saveDownloadedLogs(): void {
-        console.log(`[VisbalLogView] _saveDownloadedLogs -- Saving ${this._downloadedLogs.size} downloaded logs to extension storage`);
-        this._context.globalState.update('visbalDownloadedLogs', Array.from(this._downloadedLogs));
-        
-        // Save the paths of downloaded logs
-        const downloadedLogPaths = Object.fromEntries(this._downloadedLogPaths.entries());
-        this._context.globalState.update('visbalDownloadedLogPaths', downloadedLogPaths);
-        console.log(`[VisbalLogView] _saveDownloadedLogs -- Saved ${this._downloadedLogPaths.size} log file paths`);
-    }
-
-    /**
-     * Gets the HTML for the webview
-     */
-    private _getWebviewContent(): string {
-        console.log('[VisbalLogView] _getWebviewContent -- Getting HTML content for webview');
-        // Use the new HTML template with the webview parameter
-        const html = getHtmlForWebview(this._extensionUri, this._view!.webview);
-        console.log('[VisbalLogView] _getWebviewContent -- HTML content length:', html.length);
-        return html;
-    }
-
-    /**
-     * Refreshes the logs in the view
-     */
-    public refresh(): void {
-        console.log('[VisbalLogView] refresh -- Method called');
-        this._fetchLogs();
-    }
-
-    /**
-     * Fetches logs using SOQL query and updates the view
+     * Fetches logs from Salesforce using SOQL query and updates the view
      */
     private async _fetchLogsSoql(): Promise<void> {
         console.log('[VisbalLogView] _fetchLogsSoql -- Starting to fetch logs via SOQL');
@@ -1387,6 +1015,9 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
      */
     private async _turnOnDebugLog(): Promise<void> {
         try {
+            console.log('[VisbalLogView] _turnOnDebugLog -- Turning on debug log');
+            statusBarService.showProgress('Turning on debug log...');
+
             this._isLoading = true;
             this._view?.webview.postMessage({ command: 'loading', isLoading: true, message: 'Enabling Apex Debug Log...' });
 
@@ -1581,17 +1212,12 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
             // Show a notification
             vscode.window.showInformationMessage('Apex Debug Log enabled successfully for 24 hours');
 
+            statusBarService.showSuccess('Debug log turned on');
+
         } catch (error: any) {
-            console.error('[VisbalLogView] Error in _turnOnDebugLog:', error);
-            
-            // Notify the webview
-            this._view?.webview.postMessage({ 
-                command: 'debugStatus', 
-                success: false,
-                error: error.message || 'Unknown error'
-            });
-            
-            vscode.window.showErrorMessage(`Failed to enable Apex Debug Log: ${error.message}`);
+            console.error('[VisbalLogView] _turnOnDebugLog -- Error:', error);
+            statusBarService.showError(`Error turning on debug log: ${error.message}`);
+            vscode.window.showErrorMessage(`Failed to turn on debug log: ${error.message}`);
         } finally {
             this._isLoading = false;
             this._view?.webview.postMessage({ command: 'loading', isLoading: false });
@@ -1603,6 +1229,9 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
      */
     private async _clearLocalLogs(): Promise<void> {
         try {
+            console.log('[VisbalLogView] _clearLocalLogs -- Clearing local logs');
+            statusBarService.showProgress('Clearing local logs...');
+
             this._isLoading = true;
             this._view?.webview.postMessage({ command: 'loading', isLoading: true, message: 'Clearing local log files...' });
 
@@ -1672,17 +1301,12 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
             // Show a notification
             vscode.window.showInformationMessage(`Successfully cleared ${deletedCount} log files`);
 
+            statusBarService.showSuccess('Local logs cleared');
+
         } catch (error: any) {
-            console.error('[VisbalLogView] Error in _clearLocalLogs:', error);
-            
-            // Notify the webview
-            this._view?.webview.postMessage({ 
-                command: 'clearLocalStatus', 
-                success: false,
-                error: error.message || 'Unknown error'
-            });
-            
-            vscode.window.showErrorMessage(`Failed to clear local log files: ${error.message}`);
+            console.error('[VisbalLogView] _clearLocalLogs -- Error:', error);
+            statusBarService.showError(`Error clearing local logs: ${error.message}`);
+            vscode.window.showErrorMessage(`Failed to clear local logs: ${error.message}`);
         } finally {
             this._isLoading = false;
             this._view?.webview.postMessage({ command: 'loading', isLoading: false });
@@ -1694,6 +1318,9 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
      */
     private async _deleteServerLogs(): Promise<void> {
         try {
+            console.log('[VisbalLogView] _deleteServerLogs -- Deleting server logs');
+            statusBarService.showProgress('Deleting logs from Salesforce server...');
+
             this._isLoading = true;
             this._view?.webview.postMessage({ command: 'loading', isLoading: true, message: 'Deleting server logs...' });
 
@@ -1783,16 +1410,11 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
             // Refresh the logs list
             await this._fetchLogs(true);
 
+            statusBarService.showSuccess('Logs deleted from server');
+
         } catch (error: any) {
-            console.error('[VisbalLogView] Error in _deleteServerLogs:', error);
-            
-            // Notify the webview
-            this._view?.webview.postMessage({ 
-                command: 'deleteServerStatus', 
-                success: false,
-                error: error.message || 'Unknown error'
-            });
-            
+            console.error('[VisbalLogView] _deleteServerLogs -- Error:', error);
+            statusBarService.showError(`Error deleting logs: ${error.message}`);
             vscode.window.showErrorMessage(`Failed to delete server logs: ${error.message}`);
         } finally {
             this._isLoading = false;
@@ -2303,195 +1925,49 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
         try {
             console.log('[VisbalLogView] Getting current debug configuration');
             
-            // Get the current user ID
-            let userId = '';
-            try {
-                // Try with new CLI format first
-                try {
-                    console.log('[VisbalLogView] Getting user ID with new CLI format');
-                    const userIdResult = await this._executeCommand('sf org display user --json');
-                    console.log(`[VisbalLogView] User ID result: ${userIdResult}`);
-                    const userIdJson = JSON.parse(userIdResult);
-                    userId = userIdJson.result.id;
-                    console.log(`[VisbalLogView] Current user ID: ${userId}`);
-                } catch (error) {
-                    console.error('[VisbalLogView] Error getting user ID with new CLI format:', error);
-                    
-                    // Try with old CLI format
-                    console.log('[VisbalLogView] Trying with old CLI format');
-                    const userIdResult = await this._executeCommand('sfdx force:user:display --json');
-                    console.log(`[VisbalLogView] User ID result (old format): ${userIdResult}`);
-                    const userIdJson = JSON.parse(userIdResult);
-                    userId = userIdJson.result.id;
-                    console.log(`[VisbalLogView] Current user ID (old format): ${userId}`);
-                }
-            } catch (error) {
-                console.error('[VisbalLogView] Error getting user ID:', error);
-                throw new Error('Failed to get current user ID. Make sure you are authenticated with a Salesforce org.');
+            // Send a default configuration to the webview
+            // This avoids making API calls when we don't have a valid connection
+            if (this._view) {
+                this._view.webview.postMessage({
+                    command: 'currentDebugConfig',
+                    config: {
+                        'ApexCode': 'DEBUG',
+                        'ApexProfiling': 'INFO',
+                        'Callout': 'INFO',
+                        'Database': 'INFO',
+                        'System': 'DEBUG',
+                        'Validation': 'INFO',
+                        'Visualforce': 'INFO',
+                        'Workflow': 'INFO',
+                        'NBA': 'INFO',
+                        'Wave': 'INFO'
+                    }
+                });
             }
-
-            if (!userId) {
-                throw new Error('Could not determine current user ID');
-            }
-
-            // Check if there's an existing trace flag
-            let existingTraceFlag = null;
-            let existingDebugLevelId = null;
             
-            try {
-                console.log('[VisbalLogView] Checking for existing trace flags');
-                const query = `SELECT Id, LogType, StartDate, ExpirationDate, DebugLevelId FROM TraceFlag WHERE LogType='DEVELOPER_LOG' AND TracedEntityId='${userId}'`;
-                
-                // Try with new CLI format first
-                try {
-                    const traceFlagResult = await this._executeCommand(`sf data query --query "${query}" --use-tooling-api --json`);
-                    console.log(`[VisbalLogView] Trace flag query result: ${traceFlagResult}`);
-                    const traceFlagJson = JSON.parse(traceFlagResult);
-                    
-                    if (traceFlagJson.result && traceFlagJson.result.records && traceFlagJson.result.records.length > 0) {
-                        existingTraceFlag = traceFlagJson.result.records[0];
-                        existingDebugLevelId = existingTraceFlag.DebugLevelId;
-                        console.log(`[VisbalLogView] Found existing trace flag: ${existingTraceFlag.Id}, debug level: ${existingDebugLevelId}`);
-                    }
-                } catch (error) {
-                    console.error('[VisbalLogView] Error checking trace flags with new CLI format:', error);
-                    
-                    // Try with old CLI format
-                    try {
-                        const traceFlagResult = await this._executeCommand(`sfdx force:data:soql:query --query "${query}" --usetoolingapi --json`);
-                        console.log(`[VisbalLogView] Trace flag query result (old format): ${traceFlagResult}`);
-                        const traceFlagJson = JSON.parse(traceFlagResult);
-                        
-                        if (traceFlagJson.result && traceFlagJson.result.records && traceFlagJson.result.records.length > 0) {
-                            existingTraceFlag = traceFlagJson.result.records[0];
-                            existingDebugLevelId = existingTraceFlag.DebugLevelId;
-                            console.log(`[VisbalLogView] Found existing trace flag (old format): ${existingTraceFlag.Id}, debug level: ${existingDebugLevelId}`);
-                        }
-                    } catch (oldError) {
-                        console.error('[VisbalLogView] Error checking trace flags with old CLI format:', oldError);
-                    }
-                }
-            } catch (error) {
-                console.error('[VisbalLogView] Error checking existing trace flag:', error);
-            }
-
-            // If we have a debug level ID, get its details
-            if (existingDebugLevelId) {
-                try {
-                    console.log(`[VisbalLogView] Getting debug level details for: ${existingDebugLevelId}`);
-                    const query = `SELECT Id, DeveloperName, MasterLabel, ApexCode, ApexProfiling, Callout, Database, System, Validation, Visualforce, Workflow, Wave, NBA FROM DebugLevel WHERE Id='${existingDebugLevelId}'`;
-                    
-                    // Try with new CLI format first
-                    try {
-                        const debugLevelResult = await this._executeCommand(`sf data query --query "${query}" --use-tooling-api --json`);
-                        console.log(`[VisbalLogView] Debug level query result: ${debugLevelResult}`);
-                        const debugLevelJson = JSON.parse(debugLevelResult);
-                        
-                        if (debugLevelJson.result && debugLevelJson.result.records && debugLevelJson.result.records.length > 0) {
-                            const debugLevel = debugLevelJson.result.records[0];
-                            console.log(`[VisbalLogView] Found debug level: ${debugLevel.DeveloperName}`);
-                            
-                            // Send the debug level configuration to the webview
-                            this._view?.webview.postMessage({
-                                command: 'currentDebugConfig',
-                                config: {
-                                    apexCode: debugLevel.ApexCode,
-                                    apexProfiling: debugLevel.ApexProfiling,
-                                    callout: debugLevel.Callout,
-                                    database: debugLevel.Database,
-                                    system: debugLevel.System,
-                                    validation: debugLevel.Validation,
-                                    visualforce: debugLevel.Visualforce,
-                                    workflow: debugLevel.Workflow,
-                                    wave: debugLevel.Wave,
-                                    nba: debugLevel.NBA
-                                }
-                            });
-                            return;
-                        }
-                    } catch (error) {
-                        console.error('[VisbalLogView] Error getting debug level details with new CLI format:', error);
-                        
-                        // Try with old CLI format
-                        try {
-                            const debugLevelResult = await this._executeCommand(`sfdx force:data:soql:query --query "${query}" --usetoolingapi --json`);
-                            console.log(`[VisbalLogView] Debug level query result (old format): ${debugLevelResult}`);
-                            const debugLevelJson = JSON.parse(debugLevelResult);
-                            
-                            if (debugLevelJson.result && debugLevelJson.result.records && debugLevelJson.result.records.length > 0) {
-                                const debugLevel = debugLevelJson.result.records[0];
-                                console.log(`[VisbalLogView] Found debug level (old format): ${debugLevel.DeveloperName}`);
-                                
-                                // Send the debug level configuration to the webview
-                                this._view?.webview.postMessage({
-                                    command: 'currentDebugConfig',
-                                    config: {
-                                        apexCode: debugLevel.ApexCode,
-                                        apexProfiling: debugLevel.ApexProfiling,
-                                        callout: debugLevel.Callout,
-                                        database: debugLevel.Database,
-                                        system: debugLevel.System,
-                                        validation: debugLevel.Validation,
-                                        visualforce: debugLevel.Visualforce,
-                                        workflow: debugLevel.Workflow,
-                                        wave: debugLevel.Wave,
-                                        nba: debugLevel.NBA
-                                    }
-                                });
-                                return;
-                            }
-                        } catch (oldError) {
-                            console.error('[VisbalLogView] Error getting debug level details with old CLI format:', oldError);
-                        }
-                    }
-                } catch (error) {
-                    console.error('[VisbalLogView] Error getting debug level details:', error);
-                }
-            }
-
-            // If we get here, we couldn't find a debug level or there was an error
-            // Send the default configuration
-            console.log('[VisbalLogView] Using default debug configuration');
-            this._view?.webview.postMessage({
-                command: 'info',
-                message: 'Info: Using default debug configuration.'
-            });
-            this._view?.webview.postMessage({
-                command: 'currentDebugConfig',
-                config: {
-                    apexCode: 'DEBUG',
-                    apexProfiling: 'INFO',
-                    callout: 'INFO',
-                    dataAccess: 'INFO',
-                    database: 'INFO',
-                    nba: 'INFO',
-                    system: 'DEBUG',
-                    validation: 'INFO',
-                    visualforce: 'INFO',
-                    wave: 'INFO',
-                    workflow: 'INFO'
-                }
-            });
-        } catch (error) {
+            // Don't try to get the user ID or debug configuration from Salesforce
+            return;
+        } catch (error: any) {
             console.error('[VisbalLogView] Error in _getCurrentDebugConfig:', error);
             
-            // Send default configuration in case of error
-            this._view?.webview.postMessage({
-                command: 'currentDebugConfig',
-                config: {
-                    apexCode: 'DEBUG',
-                    apexProfiling: 'INFO',
-                    callout: 'INFO',
-                    dataAccess: 'INFO',
-                    database: 'INFO',
-                    nba: 'INFO',
-                    system: 'DEBUG',
-                    validation: 'INFO',
-                    visualforce: 'INFO',
-                    wave: 'INFO',
-                    workflow: 'INFO'
-                }
-            });
+            // Send a default configuration to the webview
+            if (this._view) {
+                this._view.webview.postMessage({
+                    command: 'currentDebugConfig',
+                    config: {
+                        'ApexCode': 'DEBUG',
+                        'ApexProfiling': 'INFO',
+                        'Callout': 'INFO',
+                        'Database': 'INFO',
+                        'System': 'DEBUG',
+                        'Validation': 'INFO',
+                        'Visualforce': 'INFO',
+                        'Workflow': 'INFO',
+                        'NBA': 'INFO',
+                        'Wave': 'INFO'
+                    }
+                });
+            }
         }
     }
 
@@ -2553,5 +2029,280 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
             this._isLoading = false;
             this._view?.webview.postMessage({ command: 'loading', isLoading: false });
         }
+    }
+
+    /**
+     * Fetches the content of a log
+     * @param logId The ID of the log to fetch
+     */
+    private async _fetchLogContent(logId: string): Promise<string> {
+        console.log(`[VisbalLogView] _fetchLogContent -- Starting to fetch content for log: ${logId}`);
+        try {
+            // First, check if we can directly output to a file to avoid buffer issues
+            let targetDir: string;
+            
+            // Check if we have a workspace folder
+            if (vscode.workspace.workspaceFolders && vscode.workspace.workspaceFolders.length > 0) {
+                // Use the .sfdx/tools/debug/logs directory in the workspace
+                targetDir = path.join(vscode.workspace.workspaceFolders[0].uri.fsPath, '.sfdx', 'tools', 'debug', 'logs');
+            } else {
+                // Use the user's home directory
+                targetDir = path.join(os.homedir(), '.sfdx', 'tools', 'debug', 'logs');
+            }
+            
+            // Create the directory if it doesn't exist
+            if (!fs.existsSync(targetDir)) {
+                console.log(`[VisbalLogView] _fetchLogContent -- Creating directory: ${targetDir}`);
+                fs.mkdirSync(targetDir, { recursive: true });
+            }
+            
+            // Create a temporary file path for direct output
+            const timestamp = new Date().toISOString().replace(/:/g, '-');
+            
+            // Sanitize the log ID to avoid any issues with special characters
+            const sanitizedLogId = logId.replace(/[\/\\:*?"<>|]/g, '_');
+            // Format: id_operation_status_size_date.log with temp_ prefix
+            const tempFilePath = path.join(targetDir, `temp_${sanitizedLogId}_${timestamp}.log`);
+            
+            console.log(`[VisbalLogView] _fetchLogContent -- Temp file path: ${tempFilePath}`);
+            console.log(`[VisbalLogView] _fetchLogContent -- Target directory: ${targetDir}`);
+            
+            // Try direct file output first (most reliable for large logs)
+            try {
+                console.log(`[VisbalLogView] _fetchLogContent -- Trying direct file output to: ${tempFilePath}`);
+                
+                // Try with new CLI format first
+                try {
+                    const command = `sf apex get log -i ${logId} > "${tempFilePath}"`;
+                    console.log(`[VisbalLogView] _fetchLogContent -- Executing direct output command: ${command}`);
+                    await execAsync(command);
+                    
+                    // Check if the file was created and has content
+                    if (fs.existsSync(tempFilePath) && fs.statSync(tempFilePath).size > 0) {
+                        console.log(`[VisbalLogView] _fetchLogContent -- Successfully wrote log to file: ${tempFilePath}`);
+                        const logContent = fs.readFileSync(tempFilePath, 'utf8');
+                        
+                        // Clean up the temporary file
+                        try {
+                            fs.unlinkSync(tempFilePath);
+                        } catch (cleanupError) {
+                            console.log(`[VisbalLogView] _fetchLogContent -- Warning: Could not delete temp file: ${tempFilePath}`);
+                        }
+                        
+                        return logContent;
+                    }
+                } catch (directOutputError) {
+                    console.log('[VisbalLogView] _fetchLogContent -- Direct output with new CLI format failed, trying old format', directOutputError);
+                    
+                    // Try with old CLI format
+                    try {
+                        const command = `sfdx force:apex:log:get --logid ${logId} > "${tempFilePath}"`;
+                        console.log(`[VisbalLogView] _fetchLogContent -- Executing direct output command with old format: ${command}`);
+                        await execAsync(command);
+                        
+                        // Check if the file was created and has content
+                        if (fs.existsSync(tempFilePath) && fs.statSync(tempFilePath).size > 0) {
+                            console.log(`[VisbalLogView] _fetchLogContent -- Successfully wrote log to file with old format: ${tempFilePath}`);
+                            const logContent = fs.readFileSync(tempFilePath, 'utf8');
+                            
+                            // Clean up the temporary file
+                            try {
+                                fs.unlinkSync(tempFilePath);
+                            } catch (cleanupError) {
+                                console.log(`[VisbalLogView] _fetchLogContent -- Warning: Could not delete temp file: ${tempFilePath}`);
+                            }
+                            
+                            return logContent;
+                        }
+                    } catch (oldDirectOutputError) {
+                        console.log('[VisbalLogView] _fetchLogContent -- Direct output with old CLI format failed', oldDirectOutputError);
+                    }
+                }
+            } catch (error) {
+                console.log('[VisbalLogView] _fetchLogContent -- Direct file output approach failed, falling back to standard methods', error);
+            }
+            
+            // If direct file output failed, try the standard methods with increased buffer size
+            
+            // Try to fetch the log using the new command format first
+            let log;
+            console.log('[VisbalLogView] _fetchLogContent -- Trying to fetch log content with new CLI format');
+            try {
+                const command = `sf apex get log -i ${logId} --json`;
+                console.log(`[VisbalLogView] _fetchLogContent -- Executing: ${command}`);
+                const { stdout: logData } = await execAsync(command, { maxBuffer: MAX_BUFFER_SIZE });
+                console.log('[VisbalLogView] _fetchLogContent -- Successfully fetched log content with new CLI format');
+                log = JSON.parse(logData);
+                
+                // Debug the response structure
+                console.log(`[VisbalLogView] _fetchLogContent -- Response structure: ${JSON.stringify(Object.keys(log))}`);
+                if (log.result) {
+                    console.log(`[VisbalLogView] _fetchLogContent -- Result structure: ${typeof log.result} ${Array.isArray(log.result) ? 'array' : 'not array'}`);
+                    if (Array.isArray(log.result) && log.result.length > 0) {
+                        console.log(`[VisbalLogView] _fetchLogContent -- First result item keys: ${JSON.stringify(Object.keys(log.result[0]))}`);
+                    }
+                }
+                
+                // Handle different response formats
+                if (log.result) {
+                    if (typeof log.result === 'string') {
+                        // Direct log content as string
+                        console.log('[VisbalLogView] _fetchLogContent -- Found log content as string in result');
+                        return log.result;
+                    } else if (typeof log.result.log === 'string') {
+                        // Log content in result.log
+                        console.log('[VisbalLogView] _fetchLogContent -- Found log content in result.log');
+                        return log.result.log;
+                    } else if (Array.isArray(log.result) && log.result.length > 0) {
+                        // Array result format
+                        const firstResult = log.result[0];
+                        
+                        // Check for common properties that might contain the log
+                        if (firstResult.log) {
+                            console.log('[VisbalLogView] _fetchLogContent -- Found log content in result[0].log');
+                            return firstResult.log;
+                        } else if (firstResult.body) {
+                            console.log('[VisbalLogView] _fetchLogContent -- Found log content in result[0].body');
+                            return firstResult.body;
+                        } else if (firstResult.content) {
+                            console.log('[VisbalLogView] _fetchLogContent -- Found log content in result[0].content');
+                            return firstResult.content;
+                        } else if (firstResult.text) {
+                            console.log('[VisbalLogView] _fetchLogContent -- Found log content in result[0].text');
+                            return firstResult.text;
+                        } else {
+                            // If we can't find a specific property, try to stringify the first result
+                            console.log('[VisbalLogView] _fetchLogContent -- No specific log property found, using entire result object');
+                            return JSON.stringify(firstResult, null, 2);
+                        }
+                    }
+                }
+                
+                // If we couldn't find the log content in the expected places, try direct CLI output
+                console.log('[VisbalLogView] _fetchLogContent -- Could not find log content in JSON response, trying direct CLI output');
+                throw new Error('Log content not found in expected format');
+            } catch (error) {
+                console.log('[VisbalLogView] _fetchLogContent -- Failed with new CLI format or parsing, trying old format', error);
+                // If the new command fails, try the old format
+                try {
+                    const command = `sfdx force:apex:log:get --logid ${logId} --json`;
+                    console.log(`[VisbalLogView] _fetchLogContent -- Executing: ${command}`);
+                    const { stdout: logData } = await execAsync(command, { maxBuffer: MAX_BUFFER_SIZE });
+                    console.log('[VisbalLogView] _fetchLogContent -- Successfully fetched log content with old CLI format');
+                    log = JSON.parse(logData);
+                    
+                    // Debug the response structure
+                    console.log(`[VisbalLogView] _fetchLogContent -- Old format response structure: ${JSON.stringify(Object.keys(log))}`);
+                    
+                    if (log.result && log.result.log) {
+                        console.log(`[VisbalLogView] _fetchLogContent -- Found log content in old format result.log`);
+                        return log.result.log;
+                    } else {
+                        console.error('[VisbalLogView] _fetchLogContent -- Log not found in old format response:', log);
+                        throw new Error('Log content not found in old format response');
+                    }
+                } catch (innerError) {
+                    console.error('[VisbalLogView] _fetchLogContent -- Failed to fetch log content with both formats:', innerError);
+                    
+                    // Try one more approach - direct CLI output without JSON
+                    try {
+                        console.log('[VisbalLogView] _fetchLogContent -- Trying direct CLI output without JSON');
+                        const { stdout: directOutput } = await execAsync(`sf apex get log -i ${logId}`, { maxBuffer: MAX_BUFFER_SIZE });
+                        console.log('[VisbalLogView] _fetchLogContent -- Successfully fetched log content with direct CLI output');
+                        if (directOutput && directOutput.trim().length > 0) {
+                            return directOutput;
+                        } else {
+                            throw new Error('Empty log content from direct CLI output');
+                        }
+                    } catch (directError) {
+                        try {
+                            console.log('[VisbalLogView] _fetchLogContent -- Trying direct CLI output with old format');
+                            const { stdout: oldDirectOutput } = await execAsync(`sfdx force:apex:log:get --logid ${logId}`, { maxBuffer: MAX_BUFFER_SIZE });
+                            console.log('[VisbalLogView] _fetchLogContent -- Successfully fetched log content with direct CLI output (old format)');
+                            if (oldDirectOutput && oldDirectOutput.trim().length > 0) {
+                                return oldDirectOutput;
+                            } else {
+                                throw new Error('Empty log content from direct CLI output (old format)');
+                            }
+                        } catch (oldDirectError) {
+                            console.error('[VisbalLogView] _fetchLogContent -- All attempts to fetch log content failed');
+                            throw new Error('Failed to fetch log content. The log may be too large to download. Please try using the Salesforce CLI directly.');
+                        }
+                    }
+                }
+            }
+            
+            // This should not be reached due to the throws above, but just in case
+            console.error('[VisbalLogView] _fetchLogContent -- No log content found in any format');
+            throw new Error('Log content not found in any format');
+        } catch (error: any) {
+            console.error(`[VisbalLogView] _fetchLogContent -- Error fetching log with ID ${logId}:`, error);
+            throw error;
+        }
+    }
+
+    /**
+     * Checks for previously downloaded logs
+     */
+    private _checkDownloadedLogs(): void {
+        console.log('[VisbalLogView] _checkDownloadedLogs -- Checking for previously downloaded logs');
+        const downloadedLogs = this._context.globalState.get<string[]>('visbalDownloadedLogs', []);
+        this._downloadedLogs = new Set<string>(downloadedLogs);
+        
+        // Load the paths of downloaded logs
+        const downloadedLogPaths = this._context.globalState.get<Record<string, string>>('visbalDownloadedLogPaths', {});
+        this._downloadedLogPaths = new Map<string, string>(Object.entries(downloadedLogPaths));
+        
+        console.log(`[VisbalLogView] _checkDownloadedLogs -- Found ${this._downloadedLogs.size} previously downloaded logs`);
+        console.log(`[VisbalLogView] _checkDownloadedLogs -- Found ${this._downloadedLogPaths.size} log file paths`);
+        
+        // Verify that the files still exist
+        for (const [logId, filePath] of this._downloadedLogPaths.entries()) {
+            if (!fs.existsSync(filePath)) {
+                console.log(`[VisbalLogView] _checkDownloadedLogs -- File not found for log ${logId}: ${filePath}`);
+                this._downloadedLogPaths.delete(logId);
+            } else {
+                console.log(`[VisbalLogView] _checkDownloadedLogs -- Found file for log ${logId}: ${filePath}`);
+            }
+        }
+        
+        // Save the updated paths
+        this._saveDownloadedLogs();
+    }
+
+    /**
+     * Saves the list of downloaded logs to extension storage
+     */
+    private _saveDownloadedLogs(): void {
+        console.log(`[VisbalLogView] _saveDownloadedLogs -- Saving ${this._downloadedLogs.size} downloaded logs to extension storage`);
+        this._context.globalState.update('visbalDownloadedLogs', Array.from(this._downloadedLogs));
+        
+        // Save the paths of downloaded logs
+        const downloadedLogPaths = Object.fromEntries(this._downloadedLogPaths.entries());
+        this._context.globalState.update('visbalDownloadedLogPaths', downloadedLogPaths);
+        console.log(`[VisbalLogView] _saveDownloadedLogs -- Saved ${this._downloadedLogPaths.size} log file paths`);
+    }
+
+    /**
+     * Gets the HTML for the webview
+     */
+    private _getWebviewContent(): string {
+        console.log('[VisbalLogView] _getWebviewContent -- Getting HTML content for webview');
+        // Use the new HTML template with the webview parameter
+        const html = getHtmlForWebview(this._extensionUri, this._view!.webview);
+        console.log('[VisbalLogView] _getWebviewContent -- HTML content length:', html.length);
+        return html;
+    }
+
+    /**
+     * Refreshes the logs in the view
+     */
+    public refresh(): void {
+        console.log('[VisbalLogView] refresh -- Refreshing logs');
+        statusBarService.showProgress('Refreshing logs...');
+        this._fetchLogs(true).catch(error => {
+            console.error('[VisbalLogView] refresh -- Error:', error);
+            statusBarService.showError(`Error refreshing logs: ${error.message}`);
+        });
     }
 }
