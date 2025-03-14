@@ -541,6 +541,9 @@ export function getHtmlTemplate(
         { id: 'user_debug', label: 'Debug' },
         { id: 'raw', label: 'Raw Log' }
     ],
+    executionTabHtml: string = '',
+    customJavaScript: string = '',
+    rawLogTabHtml: string = '',
     categories: any[] = []
 ): string {
     console.log('[VisbalLogView:WebView] Generating HTML template for log detail view');
@@ -884,28 +887,7 @@ export function getHtmlTemplate(
             
             <div id="execution" class="tab-content ${currentTab === 'execution' ? 'active' : ''}">
                 <h2>Execution Path</h2>
-                <table>
-                    <thead>
-                        <tr>
-                            <th>Line</th>
-                            <th>Time (ms)</th>
-                            <th>Code</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        ${parsedData.executionPath ? parsedData.executionPath.map((line: any) => `
-                        <tr>
-                            <td>${line.lineNumber}</td>
-                            <td>${line.time}</td>
-                            <td>${line.code}</td>
-                        </tr>
-                        `).join('') : `
-                        <tr>
-                            <td colspan="3">No execution path data available</td>
-                        </tr>
-                        `}
-                    </tbody>
-                </table>
+                ${executionTabHtml}
             </div>
             
             <div id="database" class="tab-content ${currentTab === 'database' ? 'active' : ''}">
@@ -1007,7 +989,7 @@ export function getHtmlTemplate(
             
             <div id="raw" class="tab-content ${currentTab === 'raw' ? 'active' : ''}">
                 <h2>Raw Log</h2>
-                <pre class="raw-log">${formatLogContentForHtml(parsedData.rawLog) || 'Raw log content not available.'}</pre>
+                ${rawLogTabHtml}
             </div>
         </div>
         
@@ -1017,6 +999,8 @@ export function getHtmlTemplate(
                 
                 // VSCode API
                 const vscode = acquireVsCodeApi();
+                
+                ${customJavaScript}
                 
                 // Tab switching
                 document.querySelectorAll('.tab').forEach(tab => {
@@ -1120,6 +1104,11 @@ export function getHtmlTemplate(
                         case 'searchResults':
                             console.log('[VisbalLogView:WebView] Received search results');
                             // Handle search results
+                            break;
+                            
+                        case 'updateExecutionTab':
+                            console.log('[VisbalLogView:WebView] Updating execution tab');
+                            updateExecutionTab(message.executionData);
                             break;
                     }
                 });

@@ -4,6 +4,8 @@ import * as path from 'path';
 import { getHtmlTemplate } from './htmlTemplate';
 import { extractDebugLines, extractCategoryLines, formatLogContentForHtml } from '../utils/logParsingUtils';
 import { LogTab, LogCategory, LogSummary, LogTimelineEvent, ParsedLogData } from '../models/logInterfaces';
+import { ExecutionTabHandler } from './executionTabHandler';
+import { RawLogTabHandler } from './rawLogTabHandler';
 
 /**
  * LogDetailView class for displaying detailed log information in a webview panel
@@ -17,6 +19,8 @@ export class LogDetailView {
     private _logId: string;
     private _currentTab: string = 'overview';
     private _parsedData: any = {};
+    private _executionTabHandler: ExecutionTabHandler;
+    private _rawLogTabHandler: RawLogTabHandler;
 
     /**
      * Creates or shows the log detail view
@@ -70,6 +74,8 @@ export class LogDetailView {
         this._extensionUri = extensionUri;
         this._logFilePath = logFilePath;
         this._logId = logId;
+        this._executionTabHandler = new ExecutionTabHandler(panel.webview);
+        this._rawLogTabHandler = new RawLogTabHandler(panel.webview);
 
         // Set the webview's initial html content
         this._update();
@@ -100,6 +106,20 @@ export class LogDetailView {
                         console.log(`[LogDetailView] onDidReceiveMessage -- Changing tab to: ${message.tab}`);
                         this._currentTab = message.tab;
                         this._update();
+                        
+                        // If changing to execution tab, update execution tab content
+                        if (message.tab === 'execution') {
+                            setTimeout(() => {
+                                this._executionTabHandler.updateExecutionTab();
+                            }, 100); // Small delay to ensure the webview is ready
+                        }
+                        
+                        // If changing to raw log tab, update raw log tab content
+                        if (message.tab === 'raw') {
+                            setTimeout(() => {
+                                this._rawLogTabHandler.updateRawLogTab();
+                            }, 100); // Small delay to ensure the webview is ready
+                        }
                         break;
                     case 'backToList':
                         console.log('[LogDetailView] onDidReceiveMessage -- Going back to log list');
@@ -116,6 +136,14 @@ export class LogDetailView {
                     case 'applyFilter':
                         console.log(`[LogDetailView] onDidReceiveMessage -- Applying filter: ${message.filter}`);
                         this._applyFilter(message.filter);
+                        break;
+                    case 'searchRawLog':
+                        console.log(`[LogDetailView] onDidReceiveMessage -- Searching raw log for: ${message.term}`);
+                        this._searchRawLog(message.searchTerm, message.caseSensitive, message.wholeWord, message.useRegex);
+                        break;
+                    case 'getLogChunk':
+                        console.log(`[LogDetailView] onDidReceiveMessage -- Getting log chunk: ${message.chunkIndex}`);
+                        this._getLogChunk(message.chunkIndex, message.chunkSize);
                         break;
                 }
             },
@@ -200,6 +228,9 @@ export class LogDetailView {
             const userDebugLines = extractDebugLines(lines);
             console.log(`[LogDetailView] _parseLogFile -- Found ${userDebugLines.length} debug-related lines`);
             
+            // Extract execution path data using ExecutionTabHandler
+            const executionPath = ExecutionTabHandler.extractExecutionPath(executionLines);
+            
             // Create a parsed data object
             const parsedData: ParsedLogData = {
                 rawLog: logContent,
@@ -215,6 +246,10 @@ export class LogDetailView {
                 categories: this._createCategories(executionLines, soqlLines, dmlLines, heapLines, limitLines, userDebugLines),
                 timeline: this._extractTimeline(lines)
             };
+            
+            // Store execution path data separately and update the execution tab handler
+            (parsedData as any).executionPath = executionPath;
+            this._executionTabHandler.setExecutionData(executionPath);
             
             console.log('[LogDetailView] _parseLogFile -- Parsed log data:', parsedData.summary);
             
@@ -391,14 +426,46 @@ export class LogDetailView {
             { id: 'raw', label: 'Raw Log' }
         ];
         
-        // Update the webview content
+        // Get custom content for tabs
+        const executionTabContent = ExecutionTabHandler.getPlaceholderHtml();
+        const rawLogTabContent = RawLogTabHandler.getPlaceholderHtml();
+        
+        // Get JavaScript for custom tabs
+        const executionTabJs = ExecutionTabHandler.getJavaScript();
+        const rawLogTabJs = RawLogTabHandler.getJavaScript();
+        
+        // Combine JavaScript
+        const customJavaScript = executionTabJs + '\n' + rawLogTabJs;
+        
+        // Update the webview content with execution tab HTML and JavaScript
         webview.html = getHtmlTemplate(
             this._parsedData,
             fileName,
             fileSize,
             this._currentTab,
-            tabs
+            tabs,
+            executionTabContent,
+            customJavaScript,
+            rawLogTabContent
         );
+        
+        // If the current tab is execution, update execution tab content
+        if (this._currentTab === 'execution') {
+            setTimeout(() => {
+                this._executionTabHandler.updateExecutionTab();
+            }, 100); // Small delay to ensure the webview is ready
+        }
+        
+        // If the current tab is raw log, update raw log tab content
+        if (this._currentTab === 'raw') {
+            // Set the log lines in the raw log tab handler
+            const logLines = this._parsedData.rawLog ? this._parsedData.rawLog.split('\n') : [];
+            this._rawLogTabHandler.setLogLines(logLines);
+            
+            setTimeout(() => {
+                this._rawLogTabHandler.updateRawLogTab();
+            }, 100); // Small delay to ensure the webview is ready
+        }
         
         console.log('[LogDetailView] _update -- Webview content updated');
     }
@@ -433,6 +500,101 @@ export class LogDetailView {
             if (disposable) {
                 disposable.dispose();
             }
+        }
+    }
+
+    // Add a new method to handle the getLogChunk message
+    private _getLogChunk(chunkIndex: number, chunkSize: number): void {
+        console.log(`[LogDetailView] _getLogChunk -- Getting chunk ${chunkIndex} with size ${chunkSize}`);
+        
+        try {
+            // Calculate start and end indices
+            const startIndex = chunkIndex * chunkSize;
+            const endIndex = startIndex + chunkSize;
+            
+            // Get the chunk from the raw log tab handler
+            const chunk = this._rawLogTabHandler.getLogChunk(startIndex, endIndex);
+            
+            // Send the chunk back to the webview
+            this._panel.webview.postMessage({
+                command: 'logChunk',
+                chunkIndex: chunkIndex,
+                chunk: chunk
+            });
+        } catch (error: any) {
+            console.error(`[LogDetailView] _getLogChunk -- Error getting chunk ${chunkIndex}:`, error);
+        }
+    }
+
+    // Add a new method to handle the searchRawLog message
+    private _searchRawLog(searchTerm: string, caseSensitive: boolean = false, wholeWord: boolean = false, useRegex: boolean = false): void {
+        console.log(`[LogDetailView] _searchRawLog -- Searching for "${searchTerm}" (caseSensitive: ${caseSensitive}, wholeWord: ${wholeWord}, useRegex: ${useRegex})`);
+        
+        try {
+            // Get all log lines
+            const logContent = this._parsedData.rawLog || '';
+            const logLines = logContent.split('\n');
+            
+            // Create the search pattern
+            let pattern: RegExp;
+            try {
+                if (useRegex) {
+                    pattern = new RegExp(searchTerm, caseSensitive ? 'g' : 'gi');
+                } else {
+                    // Escape special regex characters
+                    const escapedTerm = searchTerm.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
+                    const flags = caseSensitive ? 'g' : 'gi';
+                    
+                    if (wholeWord) {
+                        pattern = new RegExp(`\\b${escapedTerm}\\b`, flags);
+                    } else {
+                        pattern = new RegExp(escapedTerm, flags);
+                    }
+                }
+            } catch (e) {
+                console.error('[LogDetailView] _searchRawLog -- Invalid regex pattern:', e);
+                this._panel.webview.postMessage({
+                    command: 'searchResults',
+                    results: []
+                });
+                return;
+            }
+            
+            // Search for matches
+            const results: any[] = [];
+            
+            logLines.forEach((line: string, lineNumber: number) => {
+                let match;
+                pattern.lastIndex = 0; // Reset regex state
+                
+                while ((match = pattern.exec(line)) !== null) {
+                    results.push({
+                        lineNumber: lineNumber,
+                        startIndex: match.index,
+                        endIndex: match.index + match[0].length,
+                        text: match[0]
+                    });
+                    
+                    // Avoid infinite loops with zero-width matches
+                    if (match.index === pattern.lastIndex) {
+                        pattern.lastIndex++;
+                    }
+                }
+            });
+            
+            console.log(`[LogDetailView] _searchRawLog -- Found ${results.length} matches`);
+            
+            // Send the results back to the webview
+            this._panel.webview.postMessage({
+                command: 'searchResults',
+                results: results
+            });
+        } catch (error: any) {
+            console.error('[LogDetailView] _searchRawLog -- Error searching raw log:', error);
+            this._panel.webview.postMessage({
+                command: 'searchResults',
+                results: []
+            });
         }
     }
 } 
