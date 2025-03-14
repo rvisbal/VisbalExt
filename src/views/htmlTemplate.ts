@@ -1713,16 +1713,16 @@ export function getHtmlForWebview(extensionUri: vscode.Uri, webview: vscode.Webv
             </button>
           </div>
           <button class="text-button warning-button" id="clear-local-button" title="Clear Downloaded Log Files">
-            <span>🗑️</span> Clear Local
+            <span>🗑️</span> Local
           </button>
           <button class="text-button danger-button" id="delete-selected-button" title="Delete Selected Logs" disabled>
-            <span>🗑️</span> Delete Selected
+            <span>🗑️</span> Selected
           </button>
           <button class="text-button danger-button" id="delete-server-button" title="Delete Logs from Server">
-            <span>🗑️</span> Delete Server Logs
+            <span>🗑️</span> Server Logs
           </button>
           <button class="text-button danger-button" id="delete-rest-api-button" title="Delete Logs using REST API">
-            <span>🗑️</span> Delete via REST API
+            <span>🗑️</span> via REST API
           </button>
         </div>
       </div>
