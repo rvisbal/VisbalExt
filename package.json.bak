@@ -43,16 +43,6 @@
         "command": "visbal-ext.refreshVisbalLog",
         "title": "Refresh Visbal Log",
         "icon": "$(refresh)"
-      },
-      {
-        "command": "visbal.fetchLogsViaRestApi",
-        "title": "Fetch Salesforce Logs via REST API",
-        "icon": "$(cloud-download)"
-      },
-      {
-        "command": "visbal.executeApexRest",
-        "title": "Execute Salesforce Apex REST Endpoint",
-        "icon": "$(play)"
       }
     ],
     "viewsContainers": {
@@ -92,21 +82,6 @@
           "command": "visbal-ext.refreshVisbalLog",
           "when": "view == visbalLogView",
           "group": "navigation"
-        },
-        {
-          "command": "visbal.fetchLogsViaRestApi",
-          "when": "view == visbalLogView",
-          "group": "navigation"
-        }
-      ],
-      "commandPalette": [
-        {
-          "command": "visbal.fetchLogsViaRestApi",
-          "group": "Salesforce"
-        },
-        {
-          "command": "visbal.executeApexRest",
-          "group": "Salesforce"
         }
       ]
     }
@@ -116,8 +91,5 @@
     "@types/vscode": "^1.63.0",
     "typescript": "^4.5.5",
     "vsce": "^2.7.0"
-  },
-  "dependencies": {
-    "axios": "^1.8.3"
   }
 }

@@ -3,10 +3,18 @@ import { FindModel } from './findModel';
 import { SearchLibrary } from './searchLibrary';
 import { VisbalLogView } from './views/visbalLogView';
 import { LogDetailView } from './views/logDetailView';
+import { salesforceApi } from './services/salesforceApiService';
+import { statusBarService } from './services/statusBarService';
 
 // This method is called when your extension is activated
 export function activate(context: vscode.ExtensionContext) {
   console.log('RV:Congratulations, your extension "visbal-ext" is now active!');
+  
+  // Initialize status bar
+  statusBarService.showMessage('Visbal Extension activated', 'rocket');
+  
+  // Add status bar service to subscriptions for proper disposal
+  context.subscriptions.push({ dispose: () => statusBarService.dispose() });
 
   // Register the Hello World command
   let helloWorldCommand = vscode.commands.registerCommand('visbal-ext.helloWorld', () => {
@@ -68,6 +76,117 @@ export function activate(context: vscode.ExtensionContext) {
     vscode.commands.registerCommand('visbal.downloadLog', (logId: string) => {
       console.log(`[Extension] downloadLog -- Downloading log: ${logId}`);
       vscode.commands.executeCommand('visbal.refreshLogs');
+    })
+  );
+
+  // Register command to fetch logs using REST API
+  context.subscriptions.push(
+    vscode.commands.registerCommand('visbal.fetchLogsViaRestApi', async () => {
+      try {
+        statusBarService.showProgress('Fetching logs via Salesforce REST API...');
+        
+        // Initialize the Salesforce API service
+        const initialized = await salesforceApi.initialize();
+        
+        if (!initialized) {
+          statusBarService.showError('Failed to initialize Salesforce API service');
+          vscode.window.showErrorMessage('Failed to initialize Salesforce API service');
+          return;
+        }
+        
+        // Execute a SOQL query to fetch logs
+        const query = "SELECT Id, LogUser.Name, Application, Operation, Request, Status, LogLength, LastModifiedDate FROM ApexLog ORDER BY LastModifiedDate DESC LIMIT 200";
+        const result = await salesforceApi.query(query, true); // Using Tooling API
+        
+        if (!result || !result.records || !Array.isArray(result.records)) {
+          statusBarService.showError('No logs found or invalid response from Salesforce API');
+          vscode.window.showErrorMessage('No logs found or invalid response from Salesforce API');
+          return;
+        }
+        
+        statusBarService.showSuccess(`Successfully fetched ${result.records.length} logs`);
+        vscode.window.showInformationMessage(`Successfully fetched ${result.records.length} logs via REST API`);
+        
+        // You can process the logs here or pass them to the log view
+        // For demonstration, we'll just show the count
+      } catch (error: any) {
+        statusBarService.showError(`Error fetching logs: ${error.message}`);
+        vscode.window.showErrorMessage(`Error fetching logs via REST API: ${error.message}`);
+      }
+    })
+  );
+
+  // Register command to execute Apex REST endpoint
+  context.subscriptions.push(
+    vscode.commands.registerCommand('visbal.executeApexRest', async () => {
+      try {
+        // Prompt the user for the Apex REST endpoint
+        const endpoint = await vscode.window.showInputBox({
+          prompt: 'Enter the Apex REST endpoint (e.g., "MyApexClass")',
+          placeHolder: 'MyApexClass'
+        });
+        
+        if (!endpoint) {
+          return; // User cancelled
+        }
+        
+        // Prompt for the HTTP method
+        const method = await vscode.window.showQuickPick(['GET', 'POST', 'PUT', 'PATCH', 'DELETE'], {
+          placeHolder: 'Select HTTP method'
+        });
+        
+        if (!method) {
+          return; // User cancelled
+        }
+        
+        // For methods that require data, prompt for JSON input
+        let data: any = undefined;
+        if (['POST', 'PUT', 'PATCH'].includes(method)) {
+          const jsonInput = await vscode.window.showInputBox({
+            prompt: 'Enter JSON data (optional)',
+            placeHolder: '{"key": "value"}'
+          });
+          
+          if (jsonInput) {
+            try {
+              data = JSON.parse(jsonInput);
+            } catch (e) {
+              statusBarService.showError('Invalid JSON format');
+              vscode.window.showErrorMessage('Invalid JSON format');
+              return;
+            }
+          }
+        }
+        
+        statusBarService.showProgress(`Executing Apex REST: ${method} ${endpoint}...`);
+        vscode.window.showInformationMessage(`Executing Apex REST: ${method} ${endpoint}...`);
+        
+        // Initialize the Salesforce API service
+        const initialized = await salesforceApi.initialize();
+        
+        if (!initialized) {
+          statusBarService.showError('Failed to initialize Salesforce API service');
+          vscode.window.showErrorMessage('Failed to initialize Salesforce API service');
+          return;
+        }
+        
+        // Execute the Apex REST endpoint
+        const result = await salesforceApi.executeApexRest(endpoint, method, data);
+        
+        // Show the result in a new editor
+        const document = await vscode.workspace.openTextDocument({
+          content: JSON.stringify(result, null, 2),
+          language: 'json'
+        });
+        
+        await vscode.window.showTextDocument(document);
+        
+        statusBarService.showSuccess('Successfully executed Apex REST endpoint');
+        vscode.window.showInformationMessage('Successfully executed Apex REST endpoint');
+      } catch (error: any) {
+        statusBarService.showError(`Error executing Apex REST: ${error.message}`);
+        vscode.window.showErrorMessage(`Error executing Apex REST: ${error.message}`);
+      }
     })
   );
 

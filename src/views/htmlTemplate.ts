@@ -362,9 +362,13 @@ export function getLogListTemplate(): string {
                 
                 // Initialize
                 document.addEventListener('DOMContentLoaded', () => {
-                    debug('DOM content loaded, requesting logs');
-                    vscode.postMessage({ command: 'fetchLogs' });
-                    showLoading();
+                    debug('DOM content loaded - manual refresh required');
+                    // Removed automatic log fetching to prevent unnecessary API calls
+                    // vscode.postMessage({ command: 'fetchLogs' });
+                    // showLoading();
+                    
+                    // Show message to user that they need to click refresh
+                    noLogsMessage.textContent = 'Click Refresh to fetch logs. No automatic fetching to prevent API errors.';
                 });
                 
                 // Event listeners
@@ -378,6 +382,15 @@ export function getLogListTemplate(): string {
                     debug('SOQL Refresh button clicked');
                     vscode.postMessage({ command: 'fetchLogsSoql' });
                     showLoading();
+                });
+                
+                // Add event listener for Delete via REST API button
+                deleteViaSoqlButton.addEventListener('click', () => {
+                    debug('Delete via REST API button clicked');
+                    if (confirm('Are you sure you want to delete all logs using the Salesforce REST API? This action cannot be undone.')) {
+                        vscode.postMessage({ command: 'deleteViaSoql' });
+                        showLoading();
+                    }
                 });
                 
                 // Handle messages from the extension
@@ -406,8 +419,8 @@ export function getLogListTemplate(): string {
                             break;
                             
                         case 'loading':
-                            if (message.loading) {
-                                showLoading();
+                            if (message.isLoading) {
+                                showLoading(message.message || 'Loading logs...');
                             } else {
                                 hideLoading();
                             }
@@ -1700,13 +1713,16 @@ export function getHtmlForWebview(extensionUri: vscode.Uri, webview: vscode.Webv
             </button>
           </div>
           <button class="text-button warning-button" id="clear-local-button" title="Clear Downloaded Log Files">
-            <span>🗑️</span> Clear Local
+            <span>🗑️</span> Local
           </button>
           <button class="text-button danger-button" id="delete-selected-button" title="Delete Selected Logs" disabled>
-            <span>🗑️</span> Delete Selected
+            <span>🗑️</span> Selected
           </button>
           <button class="text-button danger-button" id="delete-server-button" title="Delete Logs from Server">
-            <span>🗑️</span> Delete Server Logs
+            <span>🗑️</span> Server Logs
+          </button>
+          <button class="text-button danger-button" id="delete-rest-api-button" title="Delete Logs using REST API">
+            <span>🗑️</span> via REST API
           </button>
         </div>
       </div>
@@ -1771,6 +1787,7 @@ export function getHtmlForWebview(extensionUri: vscode.Uri, webview: vscode.Webv
       const soqlButton = document.getElementById('soql-button');
       const clearLocalButton = document.getElementById('clear-local-button');
       const deleteServerButton = document.getElementById('delete-server-button');
+      const deleteRestApiButton = document.getElementById('delete-rest-api-button');
       const filterInput = document.getElementById('filter-input');
       const clearFilterButton = document.getElementById('clear-filter-button');
       const logsTableBody = document.getElementById('logs-table-body');
@@ -1925,6 +1942,8 @@ export function getHtmlForWebview(extensionUri: vscode.Uri, webview: vscode.Webv
             logs = message.logs || [];
             // Sort logs with current sort settings
             sortLogs(currentSort.column, currentSort.direction);
+            // Hide loading state after logs are updated and rendered
+            hideLoading();
             break;
           case 'loading':
             if (message.isLoading) {
@@ -2031,10 +2050,10 @@ export function getHtmlForWebview(extensionUri: vscode.Uri, webview: vscode.Webv
         }
       });
       
-      // Request current debug configuration on load
-      document.addEventListener('DOMContentLoaded', () => {
-        vscode.postMessage({ command: 'getCurrentDebugConfig' });
-      });
+      // Request current debug configuration on load - REMOVED to prevent unnecessary API calls
+      // document.addEventListener('DOMContentLoaded', () => {
+      //   vscode.postMessage({ command: 'getCurrentDebugConfig' });
+      // });
       
       // Sorting state
       let currentSort = {
@@ -2072,6 +2091,7 @@ export function getHtmlForWebview(extensionUri: vscode.Uri, webview: vscode.Webv
         soqlButton.disabled = true;
         clearLocalButton.disabled = true;
         deleteServerButton.disabled = true;
+        deleteRestApiButton.disabled = true;
       }
       
       // Hide loading state
@@ -2081,6 +2101,7 @@ export function getHtmlForWebview(extensionUri: vscode.Uri, webview: vscode.Webv
         soqlButton.disabled = false;
         clearLocalButton.disabled = false;
         deleteServerButton.disabled = false;
+        deleteRestApiButton.disabled = false;
       }
       
       // Show error message
@@ -2191,6 +2212,8 @@ export function getHtmlForWebview(extensionUri: vscode.Uri, webview: vscode.Webv
             logs = message.logs || [];
             // Sort logs with current sort settings
             sortLogs(currentSort.column, currentSort.direction);
+            // Hide loading state after logs are updated and rendered
+            hideLoading();
             break;
           case 'loading':
             if (message.isLoading) {
@@ -2389,6 +2412,22 @@ export function getHtmlForWebview(extensionUri: vscode.Uri, webview: vscode.Webv
               command: 'deleteServerLogs'
             });
             showLoading('Deleting server logs...');
+          }
+        );
+      });
+      
+      // Delete REST API button
+      deleteRestApiButton.addEventListener('click', () => {
+        console.log('Delete REST API button clicked');
+        showConfirmModal(
+          'Delete Logs using REST API',
+          'Are you sure you want to delete all logs using the Salesforce REST API? This action cannot be undone.',
+          () => {
+            hideError();
+            vscode.postMessage({
+              command: 'deleteViaSoql'
+            });
+            showLoading('Deleting logs using REST API...');
           }
         );
       });
@@ -2662,9 +2701,16 @@ export function getHtmlForWebview(extensionUri: vscode.Uri, webview: vscode.Webv
       
       // Initialize by requesting logs
       document.addEventListener('DOMContentLoaded', () => {
-        console.log('DOM content loaded, requesting logs');
-        vscode.postMessage({ command: 'fetchLogs' });
-        showLoading();
+        console.log('DOM content loaded - manual refresh required');
+        // Removed automatic log fetching to prevent unnecessary API calls
+        // vscode.postMessage({ command: 'fetchLogs' });
+        // showLoading();
+        
+        // Update the message to inform users they need to click refresh
+        const noLogsRow = document.querySelector('#logs-table-body tr');
+        if (noLogsRow && noLogsRow.cells.length === 1) {
+          noLogsRow.cells[0].textContent = 'No logs loaded. Click Refresh to fetch logs. No automatic fetching to prevent API errors.';
+        }
       });
     </script>
   </body>

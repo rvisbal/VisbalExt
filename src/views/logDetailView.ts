@@ -6,6 +6,7 @@ import { extractDebugLines, extractCategoryLines, formatLogContentForHtml } from
 import { LogTab, LogCategory, LogSummary, LogTimelineEvent, ParsedLogData } from '../models/logInterfaces';
 import { ExecutionTabHandler } from './executionTabHandler';
 import { RawLogTabHandler } from './rawLogTabHandler';
+import { statusBarService } from '../services/statusBarService';
 
 /**
  * LogDetailView class for displaying detailed log information in a webview panel
@@ -30,6 +31,7 @@ export class LogDetailView {
      */
     public static createOrShow(extensionUri: vscode.Uri, logFilePath: string, logId: string): LogDetailView {
         console.log(`[LogDetailView] createOrShow -- Creating or showing log detail view for log: ${logId}`);
+        statusBarService.showProgress(`Opening log detail view for: ${path.basename(logFilePath)}`);
         
         const column = vscode.window.activeTextEditor
             ? vscode.window.activeTextEditor.viewColumn
@@ -158,11 +160,14 @@ export class LogDetailView {
      * @param logId The ID of the log
      */
     public updateLogFile(logFilePath: string, logId: string): void {
-        console.log(`[LogDetailView] updateLogFile -- Updating log file to: ${logFilePath}`);
+        console.log(`[LogDetailView] updateLogFile -- Updating log file: ${logFilePath}`);
+        statusBarService.showProgress(`Loading log file: ${path.basename(logFilePath)}`);
         
         this._logFilePath = logFilePath;
         this._logId = logId;
         this._update();
+        
+        statusBarService.showSuccess(`Log file loaded: ${path.basename(logFilePath)}`);
     }
 
     /**
@@ -170,7 +175,8 @@ export class LogDetailView {
      * @param term The search term
      */
     private _searchLog(term: string): void {
-        console.log(`[LogDetailView] _searchLog -- Searching for: ${term}`);
+        console.log(`[LogDetailView] _searchLog -- Searching log for: ${term}`);
+        statusBarService.showProgress(`Searching log for: ${term}`);
         
         // Implement search functionality
         // This would typically involve parsing the log file and finding matches
@@ -183,6 +189,8 @@ export class LogDetailView {
                 { line: 25, content: `Another line with ${term}` }
             ]
         });
+        
+        statusBarService.showSuccess(`Search completed for: ${term}`);
     }
 
     /**
@@ -203,9 +211,10 @@ export class LogDetailView {
      * Parses the log file content
      */
     private _parseLogFile(): ParsedLogData {
-        console.log(`[LogDetailView] _parseLogFile -- Parsing log file: ${this._logFilePath}`);
-        
         try {
+            console.log(`[LogDetailView] _parseLogFile -- Parsing log file: ${this._logFilePath}`);
+            statusBarService.showProgress(`Parsing log file: ${path.basename(this._logFilePath)}`);
+            
             if (!fs.existsSync(this._logFilePath)) {
                 console.error(`[LogDetailView] _parseLogFile -- Log file not found: ${this._logFilePath}`);
                 return { error: 'Log file not found' } as ParsedLogData;
@@ -253,9 +262,12 @@ export class LogDetailView {
             
             console.log('[LogDetailView] _parseLogFile -- Parsed log data:', parsedData.summary);
             
+            statusBarService.showSuccess(`Log file parsed: ${path.basename(this._logFilePath)}`);
             return parsedData;
         } catch (error: any) {
             console.error('[LogDetailView] _parseLogFile -- Error parsing log file:', error);
+            statusBarService.showError(`Error parsing log file: ${error.message}`);
+            vscode.window.showErrorMessage(`Error parsing log file: ${error.message}`);
             return { 
                 error: `Error parsing log file: ${error.message}`,
                 rawLog: '',
@@ -394,80 +406,83 @@ export class LogDetailView {
      * Updates the webview content
      */
     private _update(): void {
-        console.log('[LogDetailView] _update -- Updating webview content');
-        
-        const webview = this._panel.webview;
-        
-        // Parse the log file
-        this._parsedData = this._parseLogFile();
-        
-        // Get file information
-        const fileName = path.basename(this._logFilePath);
-        let fileSize = 'Unknown';
-        
         try {
-            const stats = fs.statSync(this._logFilePath);
-            fileSize = this._formatFileSize(stats.size);
-        } catch (error: any) {
-            console.error('[LogDetailView] _update -- Error getting file stats:', error);
-        }
-        
-        // Update the title
-        this._panel.title = `Log: ${fileName}`;
-        
-        // Define tabs including the new USER_DEBUG tab
-        const tabs: LogTab[] = [
-            { id: 'overview', label: 'Overview' },
-            { id: 'timeline', label: 'Timeline' },
-            { id: 'execution', label: 'Execution' },
-            { id: 'database', label: 'Database' },
-            { id: 'limits', label: 'Limits' },
-            { id: 'user_debug', label: 'Debug' },
-            { id: 'raw', label: 'Raw Log' }
-        ];
-        
-        // Get custom content for tabs
-        const executionTabContent = ExecutionTabHandler.getPlaceholderHtml();
-        const rawLogTabContent = RawLogTabHandler.getPlaceholderHtml();
-        
-        // Get JavaScript for custom tabs
-        const executionTabJs = ExecutionTabHandler.getJavaScript();
-        const rawLogTabJs = RawLogTabHandler.getJavaScript();
-        
-        // Combine JavaScript
-        const customJavaScript = executionTabJs + '\n' + rawLogTabJs;
-        
-        // Update the webview content with execution tab HTML and JavaScript
-        webview.html = getHtmlTemplate(
-            this._parsedData,
-            fileName,
-            fileSize,
-            this._currentTab,
-            tabs,
-            executionTabContent,
-            customJavaScript,
-            rawLogTabContent
-        );
-        
-        // If the current tab is execution, update execution tab content
-        if (this._currentTab === 'execution') {
-            setTimeout(() => {
-                this._executionTabHandler.updateExecutionTab();
-            }, 100); // Small delay to ensure the webview is ready
-        }
-        
-        // If the current tab is raw log, update raw log tab content
-        if (this._currentTab === 'raw') {
-            // Set the log lines in the raw log tab handler
-            const logLines = this._parsedData.rawLog ? this._parsedData.rawLog.split('\n') : [];
-            this._rawLogTabHandler.setLogLines(logLines);
+            console.log('[LogDetailView] _update -- Updating webview content');
+            statusBarService.showProgress('Updating log view...');
             
-            setTimeout(() => {
-                this._rawLogTabHandler.updateRawLogTab();
-            }, 100); // Small delay to ensure the webview is ready
+            const webview = this._panel.webview;
+            
+            // Parse the log file
+            this._parsedData = this._parseLogFile();
+            
+            // Get file information
+            const fileName = path.basename(this._logFilePath);
+            let fileSize = 'Unknown';
+            
+            try {
+                const stats = fs.statSync(this._logFilePath);
+                fileSize = this._formatFileSize(stats.size);
+            } catch (error: any) {
+                console.error('[LogDetailView] _update -- Error getting file stats:', error);
+            }
+            
+            // Update the title
+            this._panel.title = `Log: ${fileName}`;
+            
+            // Define tabs including the new USER_DEBUG tab
+            const tabs: LogTab[] = [
+                { id: 'overview', label: 'Overview' },
+                { id: 'timeline', label: 'Timeline' },
+                { id: 'execution', label: 'Execution' },
+                { id: 'database', label: 'Database' },
+                { id: 'limits', label: 'Limits' },
+                { id: 'user_debug', label: 'Debug' },
+                { id: 'raw', label: 'Raw Log' }
+            ];
+            
+            // Get custom content for tabs
+            const executionTabContent = ExecutionTabHandler.getPlaceholderHtml();
+            const rawLogTabContent = RawLogTabHandler.getPlaceholderHtml();
+            
+            // Get JavaScript for custom tabs
+            const executionTabJs = ExecutionTabHandler.getJavaScript();
+            const rawLogTabJs = RawLogTabHandler.getJavaScript();
+            
+            // Combine JavaScript
+            const customJavaScript = executionTabJs + '\n' + rawLogTabJs;
+            
+            // Update the webview content with execution tab HTML and JavaScript
+            webview.html = getHtmlTemplate(
+                this._parsedData,
+                fileName,
+                fileSize,
+                this._currentTab,
+                tabs,
+                executionTabContent,
+                customJavaScript,
+                rawLogTabContent
+            );
+            
+            // If the current tab is execution, update execution tab content
+            if (this._currentTab === 'execution') {
+                setTimeout(() => {
+                    this._executionTabHandler.updateExecutionTab();
+                }, 100); // Small delay to ensure the webview is ready
+            }
+            
+            // If the current tab is raw log, update raw log tab content
+            if (this._currentTab === 'raw') {
+                setTimeout(() => {
+                    this._rawLogTabHandler.updateRawLogTab();
+                }, 100); // Small delay to ensure the webview is ready
+            }
+            
+            statusBarService.showSuccess('Log view updated');
+        } catch (error: any) {
+            console.error('[LogDetailView] _update -- Error updating webview content:', error);
+            statusBarService.showError(`Error updating log view: ${error.message}`);
+            vscode.window.showErrorMessage(`Error updating log view: ${error.message}`);
         }
-        
-        console.log('[LogDetailView] _update -- Webview content updated');
     }
 
     /**
@@ -529,6 +544,7 @@ export class LogDetailView {
     // Add a new method to handle the searchRawLog message
     private _searchRawLog(searchTerm: string, caseSensitive: boolean = false, wholeWord: boolean = false, useRegex: boolean = false): void {
         console.log(`[LogDetailView] _searchRawLog -- Searching for "${searchTerm}" (caseSensitive: ${caseSensitive}, wholeWord: ${wholeWord}, useRegex: ${useRegex})`);
+        statusBarService.showProgress(`Searching log for: ${searchTerm}`);
         
         try {
             // Get all log lines
@@ -589,12 +605,11 @@ export class LogDetailView {
                 command: 'searchResults',
                 results: results
             });
+            
+            statusBarService.showSuccess(`Search completed for: ${searchTerm}`);
         } catch (error: any) {
-            console.error('[LogDetailView] _searchRawLog -- Error searching raw log:', error);
-            this._panel.webview.postMessage({
-                command: 'searchResults',
-                results: []
-            });
+            console.error(`[LogDetailView] _searchRawLog -- Error searching for "${searchTerm}":`, error);
+            statusBarService.showError(`Error searching log: ${error.message}`);
         }
     }
 } 
