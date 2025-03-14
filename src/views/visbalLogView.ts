@@ -807,16 +807,32 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
             console.log(`[VisbalLogView] _fetchLogsSoql -- Error message: ${errorMessage}`);
             
             // Add helpful suggestions based on the error
-            if (error.message.includes('SFDX CLI is not installed')) {
+            if (error.message.includes('Salesforce CLI is not installed') || error.message.includes('SFDX CLI is not installed')) {
                 console.log('[VisbalLogView] _fetchLogsSoql -- Adding CLI installation suggestion');
-                errorMessage += '\n\nPlease install the Salesforce CLI from https://developer.salesforce.com/tools/sfdxcli';
+                errorMessage = 'Error fetching logs via SOQL: Salesforce CLI is not installed.\n\n';
+                errorMessage += 'To install the Salesforce CLI, use one of these methods:\n\n';
+                errorMessage += '1. Install the new SF CLI:\n   npm install -g @salesforce/cli\n\n';
+                errorMessage += '2. Install the legacy SFDX CLI:\n   npm install -g sfdx-cli\n\n';
+                errorMessage += '3. Download the installer from:\n   https://developer.salesforce.com/tools/sfdxcli\n\n';
+                errorMessage += 'After installation, authenticate with your org using:\n';
+                errorMessage += '- sf org login web\n';
+                errorMessage += '- sfdx force:auth:web:login --setdefaultusername';
             } else if (error.message.includes('No default Salesforce org found')) {
                 console.log('[VisbalLogView] _fetchLogsSoql -- Adding default org suggestion');
-                errorMessage += '\n\nPlease set a default org using one of these commands:\n- sf org login web\n- sfdx force:auth:web:login --setdefaultusername';
+                errorMessage = 'Error fetching logs via SOQL: No default Salesforce org found.\n\n';
+                errorMessage += 'Please authenticate and set a default org using one of these commands:\n\n';
+                errorMessage += '- sf org login web\n';
+                errorMessage += '- sfdx force:auth:web:login --setdefaultusername';
             } else if (error.message.includes('Command failed')) {
                 // For general command failures, suggest updating the CLI
                 console.log('[VisbalLogView] _fetchLogsSoql -- Adding CLI update suggestion');
-                errorMessage += '\n\nTry updating your Salesforce CLI with one of these commands:\n- npm update -g @salesforce/cli\n- sfdx update';
+                errorMessage = 'Error fetching logs via SOQL: Command failed.\n\n';
+                errorMessage += 'Try updating your Salesforce CLI with one of these commands:\n\n';
+                errorMessage += '- npm update -g @salesforce/cli\n';
+                errorMessage += '- sfdx update\n\n';
+                errorMessage += 'If the issue persists, try authenticating again:\n';
+                errorMessage += '- sf org login web\n';
+                errorMessage += '- sfdx force:auth:web:login --setdefaultusername';
             }
             
             // Send error to webview
@@ -843,27 +859,51 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
     private async _fetchSalesforceLogsSoql(): Promise<SalesforceLog[]> {
         console.log('[VisbalLogView] _fetchSalesforceLogsSoql -- Starting to fetch Salesforce logs via SOQL');
         try {
-            // Check if SFDX CLI is installed
+            // Check if either SFDX CLI or SF CLI is installed
+            let sfdxInstalled = false;
+            let sfInstalled = false;
+            
             try {
                 console.log('[VisbalLogView] _fetchSalesforceLogsSoql -- Checking if SFDX CLI is installed');
                 const { stdout: versionOutput } = await execAsync('sfdx --version');
                 console.log(`[VisbalLogView] _fetchSalesforceLogsSoql -- SFDX CLI version: ${versionOutput.trim()}`);
+                sfdxInstalled = true;
             } catch (error) {
-                console.error('[VisbalLogView] _fetchSalesforceLogsSoql -- SFDX CLI not installed:', error);
-                throw new Error('SFDX CLI is not installed. Please install it to use this feature.');
+                console.log('[VisbalLogView] _fetchSalesforceLogsSoql -- SFDX CLI not installed, checking for SF CLI');
             }
             
-            // Try to get the default org using the new command format first
-            let orgData;
-            console.log('[VisbalLogView] _fetchSalesforceLogsSoql -- Trying to get default org with new CLI format');
             try {
-                const { stdout: orgInfo } = await execAsync('sf org display --json');
-                console.log('[VisbalLogView] _fetchSalesforceLogsSoql -- Successfully got org info with new CLI format');
-                orgData = JSON.parse(orgInfo);
-                console.log('[VisbalLogView] _fetchSalesforceLogsSoql -- Parsed org data:', orgData.result?.username);
+                console.log('[VisbalLogView] _fetchSalesforceLogsSoql -- Checking if SF CLI is installed');
+                const { stdout: versionOutput } = await execAsync('sf --version');
+                console.log(`[VisbalLogView] _fetchSalesforceLogsSoql -- SF CLI version: ${versionOutput.trim()}`);
+                sfInstalled = true;
             } catch (error) {
-                console.log('[VisbalLogView] _fetchSalesforceLogsSoql -- Failed with new CLI format, trying old format', error);
-                // If the new command fails, try the old format
+                console.log('[VisbalLogView] _fetchSalesforceLogsSoql -- SF CLI not installed');
+            }
+            
+            if (!sfdxInstalled && !sfInstalled) {
+                console.error('[VisbalLogView] _fetchSalesforceLogsSoql -- Neither SFDX CLI nor SF CLI is installed');
+                throw new Error('Salesforce CLI is not installed. Please install it to use this feature. You can install either the new SF CLI (npm install -g @salesforce/cli) or the legacy SFDX CLI (npm install -g sfdx-cli).');
+            }
+            
+            // Try to get the default org using the new command format first if SF CLI is installed
+            let orgData;
+            if (sfInstalled) {
+                console.log('[VisbalLogView] _fetchSalesforceLogsSoql -- Trying to get default org with new CLI format');
+                try {
+                    const { stdout: orgInfo } = await execAsync('sf org display --json');
+                    console.log('[VisbalLogView] _fetchSalesforceLogsSoql -- Successfully got org info with new CLI format');
+                    orgData = JSON.parse(orgInfo);
+                    console.log('[VisbalLogView] _fetchSalesforceLogsSoql -- Parsed org data:', orgData.result?.username);
+                } catch (error) {
+                    console.log('[VisbalLogView] _fetchSalesforceLogsSoql -- Failed with new CLI format', error);
+                    // Continue to try the old format if available
+                }
+            }
+            
+            // If the new command fails or SF CLI is not installed, try the old format if SFDX CLI is installed
+            if (!orgData && sfdxInstalled) {
+                console.log('[VisbalLogView] _fetchSalesforceLogsSoql -- Trying to get default org with old CLI format');
                 try {
                     const { stdout: orgInfo } = await execAsync('sfdx force:org:display --json');
                     console.log('[VisbalLogView] _fetchSalesforceLogsSoql -- Successfully got org info with old CLI format');
@@ -871,13 +911,18 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
                     console.log('[VisbalLogView] _fetchSalesforceLogsSoql -- Parsed org data:', orgData.result?.username);
                 } catch (innerError) {
                     console.error('[VisbalLogView] _fetchSalesforceLogsSoql -- Failed to get org info with both formats:', innerError);
-                    throw new Error('Failed to get default org information. Please ensure you have a default org set.');
+                    throw new Error('Failed to get default org information. Please ensure you have a default org set using one of these commands:\n- sf org login web\n- sfdx force:auth:web:login --setdefaultusername');
                 }
+            }
+            
+            if (!orgData) {
+                console.error('[VisbalLogView] _fetchSalesforceLogsSoql -- Failed to get org info with both formats');
+                throw new Error('Failed to get default org information. Please ensure you have a default org set using one of these commands:\n- sf org login web\n- sfdx force:auth:web:login --setdefaultusername');
             }
             
             if (!orgData.result || !orgData.result.username) {
                 console.error('[VisbalLogView] _fetchSalesforceLogsSoql -- No username found in org data');
-                throw new Error('No default Salesforce org found. Please set a default org using Salesforce CLI.');
+                throw new Error('No default Salesforce org found. Please set a default org using one of these commands:\n- sf org login web\n- sfdx force:auth:web:login --setdefaultusername');
             }
             
             console.log(`[VisbalLogView] _fetchSalesforceLogsSoql -- Connected to org: ${orgData.result.username}`);
