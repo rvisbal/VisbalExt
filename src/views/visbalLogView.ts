@@ -151,6 +151,10 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
                         console.error('Error executing script:', error);
                     }
                     break;
+                case 'openDefaultOrg':
+                    console.log('[VisbalLogView] resolveWebviewView -- Opening default org');
+                    this.openDefaultOrg();
+                    break;
             }
         });
 
@@ -164,10 +168,10 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
                     command: 'executeScript',
                     script: `
                         // Function to add the "Delete via SOQL" button
-                        function addDeleteViaSoqlButton() {
+                        function addDeleteViaSoqlButton() {         
                             // Find the "Delete Server Logs" button
                             const deleteServerLogsButton = document.querySelector('button[data-command="deleteServerLogs"]');
-                            
+
                             if (deleteServerLogsButton && !document.querySelector('button[data-command="deleteServerLogsViaSoql"]')) {
                                 // Create the new button
                                 const deleteViaSoqlButton = document.createElement('button');
@@ -177,7 +181,7 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
                                 
                                 // Add the button next to the "Delete Server Logs" button
                                 deleteServerLogsButton.parentNode.insertBefore(deleteViaSoqlButton, deleteServerLogsButton.nextSibling);
-                                
+
                                 // Add event listener
                                 deleteViaSoqlButton.addEventListener('click', function() {
                                     // Send message to extension
@@ -573,7 +577,7 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
                 this._sendLogsToWebview(this._logs);
                 return;
             }
-            
+
             // Set loading state
             this._isLoading = true;
             this._updateWebviewContent();
@@ -1960,7 +1964,7 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
             }
             
             // Don't try to get the user ID or debug configuration from Salesforce
-                                return;
+            return;
         } catch (error: any) {
             console.error('[VisbalLogView] Error in _getCurrentDebugConfig:', error);
             
@@ -2397,6 +2401,28 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
         this._fetchLogs(true).catch(error => {
             console.error('[VisbalLogView] refresh -- Error:', error);
             statusBarService.showError(`Error refreshing logs: ${error.message}`);
+        });
+    }
+    
+    
+    // Add a new method to open the default org
+    public openDefaultOrg(): void {
+        console.log('[VisbalLogView] openDefaultOrg -- Opening default Salesforce org');
+        vscode.window.withProgress({
+            location: vscode.ProgressLocation.Notification,
+            title: "Opening default Salesforce org...",
+            cancellable: false
+        }, async (progress) => {
+            try {
+                const terminal = vscode.window.createTerminal('Salesforce Org');
+                terminal.sendText('sf org open');
+                terminal.show();
+                vscode.window.showInformationMessage('Opening default Salesforce org in browser');
+                console.log('[VisbalLogView] openDefaultOrg -- Command sent to terminal');
+            } catch (error) {
+                console.error('[VisbalLogView] openDefaultOrg -- Error:', error);
+                vscode.window.showErrorMessage(`Failed to open default org: ${error}`);
+            }
         });
     }
 

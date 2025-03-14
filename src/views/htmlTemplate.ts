@@ -180,6 +180,7 @@ export function getLogListTemplate(): string {
                 const DEBUG = true;
                 
                 // Elements
+				        const openOrgButton = document.getElementById('openOrgButton');
                 const refreshButton = document.getElementById('refreshButton');
                 const refreshSoqlButton = document.getElementById('refreshSoqlButton');
                 const logsTable = document.getElementById('logsTable');
@@ -369,6 +370,13 @@ export function getLogListTemplate(): string {
                     
                     // Show message to user that they need to click refresh
                     noLogsMessage.textContent = 'Click Refresh to fetch logs. No automatic fetching to prevent API errors.';
+                });
+				
+				// Event listeners
+                openOrgButton.addEventListener('click', () => {
+                    debug('Refresh button clicked');
+                    vscode.postMessage({ command: 'openDefaultOrg' });
+                    showLoading();
                 });
                 
                 // Event listeners
@@ -1705,11 +1713,14 @@ export function getHtmlForWebview(extensionUri: vscode.Uri, webview: vscode.Webv
         </div>
         <div class="actions-section">
           <div class="button-group">
+            <button id="open-org-button" title="Open Org">
+              <span>🌐</span> Open
+            </button>
             <button id="refresh-button" title="Refresh Logs">
               <span>🔄</span> Refresh
             </button>
             <button id="soql-button" title="Refresh with SOQL">
-              <span>🔍</span> SOQL
+              <span>🔄</span> SOQL
             </button>
           </div>
           <button class="text-button warning-button" id="clear-local-button" title="Clear Downloaded Log Files">
@@ -1783,6 +1794,7 @@ export function getHtmlForWebview(extensionUri: vscode.Uri, webview: vscode.Webv
       const vscode = acquireVsCodeApi();
       
       // Elements
+      const openOrgButton = document.getElementById('open-org-button');
       const refreshButton = document.getElementById('refresh-button');
       const soqlButton = document.getElementById('soql-button');
       const clearLocalButton = document.getElementById('clear-local-button');
@@ -2364,6 +2376,16 @@ export function getHtmlForWebview(extensionUri: vscode.Uri, webview: vscode.Webv
         }
       }
       
+	  // Open Org button
+      openOrgButton.addEventListener('click', () => {
+        console.log('open org button clicked');
+        hideError();
+        vscode.postMessage({
+          command: 'openDefaultOrg'
+        });
+        showLoading('Open default Org...');
+      });
+	  
       // Refresh button
       refreshButton.addEventListener('click', () => {
         console.log('Refresh button clicked');
