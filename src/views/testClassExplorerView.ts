@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
 import { StatusBarService } from '../services/statusBarService';
+import { MetadataService } from '../services/metadataService';
 import { join } from 'path';
 import { readFileSync } from 'fs';
 
@@ -8,6 +9,7 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
     private _view?: vscode.WebviewView;
     private _extensionUri: vscode.Uri;
     private _statusBarService: StatusBarService;
+    private _metadataService: MetadataService;
 
     constructor(
         extensionUri: vscode.Uri,
@@ -15,6 +17,7 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
     ) {
         this._extensionUri = extensionUri;
         this._statusBarService = statusBarService;
+        this._metadataService = new MetadataService();
     }
 
     public resolveWebviewView(
@@ -65,89 +68,23 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
             const sfExtension = vscode.extensions.getExtension('salesforce.salesforcedx-vscode-core');
             
             if (!sfExtension) {
-                console.log('Salesforce Extension Pack is not installed. Using mock data.');
-                // Use mock data instead of throwing an error
-                const mockData = this._getMockTestClasses();
-                console.log('Mock data:', mockData);
-                
-                if (this._view) {
-                    // First send the notification
-                    this._view.webview.postMessage({
-                        command: 'showNotification',
-                        message: 'Salesforce Extension Pack is not installed. Using mock data for demonstration.'
-                    });
-                    
-                    // Then send the test classes
-                    setTimeout(() => {
-                        if (this._view) {
-                            console.log('Sending mock test classes to webview');
-                            this._view.webview.postMessage({
-                                command: 'testClassesLoaded',
-                                testClasses: mockData
-                            });
-                        }
-                    }, 500);
-                }
-                
-                this._statusBarService.hide();
-                return;
+                throw new Error('Salesforce Extension Pack is required to fetch test classes. Please install it from the VS Code marketplace.');
             }
             
-            // Try different command formats
-            let result: any = null;
-            let error: any = null;
+            // Use MetadataService to get test classes
+            const testClasses = await this._metadataService.getTestClasses();
             
-            try {
-                // Try the new command format
-                result = await vscode.commands.executeCommand('sf.apex.class.list') as any;
-            } catch (err) {
-                error = err;
-                try {
-                    // Try the old command format
-                    result = await vscode.commands.executeCommand('sfdx.force.apex.class.list') as any;
-                } catch (err2) {
-                    error = err2;
-                    // Try to use CLI directly as a fallback
-                    try {
-                        const cliOutput = await this._executeCliCommand('sf apex class list --json');
-                        if (cliOutput) {
-                            result = JSON.parse(cliOutput).result;
-                        }
-                    } catch (err3) {
-                        try {
-                            const cliOutput = await this._executeCliCommand('sfdx force:apex:class:list --json');
-                            if (cliOutput) {
-                                result = JSON.parse(cliOutput).result;
-                            }
-                        } catch (err4) {
-                            error = err4;
-                        }
-                    }
-                }
-            }
-            
-            if (!result) {
-                // If we couldn't get real data, use mock data for demonstration
-                console.log('Using mock data for test classes');
-                result = this._getMockTestClasses();
-                console.log('Mock data:', result);
-                
-                // Show a message to the user
+            if (!testClasses || testClasses.length === 0) {
                 if (this._view) {
                     this._view.webview.postMessage({
                         command: 'showNotification',
-                        message: 'Using mock data. Salesforce CLI commands not available or no active Salesforce project found.'
+                        message: 'No test classes found in the default org.'
                     });
                 }
             }
-            
-            // Filter for test classes
-            const testClasses = await this._filterTestClasses(result);
-            console.log('Filtered test classes:', testClasses);
             
             // Send the test classes to the webview
             if (this._view) {
-                console.log('Sending test classes to webview');
                 this._view.webview.postMessage({
                     command: 'testClassesLoaded',
                     testClasses
@@ -155,107 +92,17 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
             }
             
             this._statusBarService.hide();
-        } catch (error) {
+        } catch (error: any) {
             this._statusBarService.hide();
             console.error('Error fetching test classes:', error);
             
-            // Use mock data as fallback
-            const mockData = this._getMockTestClasses();
-            console.log('Mock data (fallback):', mockData);
-            
             if (this._view) {
-                // Show error but still load mock data
                 this._view.webview.postMessage({
                     command: 'error',
-                    message: `Error: ${error instanceof Error ? error.message : String(error)}`
-                });
-                
-                // Send the test classes after a short delay
-                setTimeout(() => {
-                    if (this._view) {
-                        console.log('Sending mock test classes to webview (fallback)');
-                        this._view.webview.postMessage({
-                            command: 'testClassesLoaded',
-                            testClasses: mockData
-                        });
-                    }
-                }, 500);
-                
-                this._view.webview.postMessage({
-                    command: 'showNotification',
-                    message: 'Using mock data. Salesforce CLI commands not available or no active Salesforce project found.'
+                    message: `Error: ${error.message}`
                 });
             }
         }
-    }
-    
-    private _getMockTestClasses(): any[] {
-        // Return some mock test classes for demonstration
-        return [
-            {
-                id: 'mockId1',
-                name: 'AccountTest',
-                status: 'Active',
-                body: 'public class AccountTest { @isTest static void testMethod1() {} @isTest static void testMethod2() {} }'
-            },
-            {
-                id: 'mockId2',
-                name: 'ContactTest',
-                status: 'Active',
-                body: 'public class ContactTest { @isTest static void testContactCreation() {} }'
-            },
-            {
-                id: 'mockId3',
-                name: 'OpportunityTest',
-                status: 'Active',
-                body: 'public class OpportunityTest { @isTest static void testOpportunityStages() {} }'
-            },
-            {
-                id: 'mockId4',
-                name: 'LeadTest',
-                status: 'Active',
-                body: 'public class LeadTest { @isTest static void testLeadConversion() {} @isTest static void testLeadAssignment() {} }'
-            },
-            {
-                id: 'mockId5',
-                name: 'CaseTest',
-                status: 'Active',
-                body: 'public class CaseTest { @isTest static void testCaseCreation() {} }'
-            }
-        ];
-    }
-    
-    private async _executeCliCommand(command: string): Promise<string> {
-        return new Promise((resolve, reject) => {
-            const { exec } = require('child_process');
-            exec(command, (error: any, stdout: string, stderr: string) => {
-                if (error) {
-                    reject(error);
-                    return;
-                }
-                if (stderr) {
-                    reject(new Error(stderr));
-                    return;
-                }
-                resolve(stdout);
-            });
-        });
-    }
-
-    private async _filterTestClasses(apexClasses: any[]): Promise<any[]> {
-        if (!apexClasses || !Array.isArray(apexClasses)) {
-            return [];
-        }
-        
-        // In a real implementation, you would parse the class files to identify test classes
-        // For now, we'll filter classes with "Test" in their name or that have @isTest in their body
-        return apexClasses.filter(cls => {
-            const name = cls.name || '';
-            const body = cls.body || '';
-            return name.includes('Test') || 
-                   body.includes('@isTest') || 
-                   body.includes('testMethod');
-        });
     }
 
     private async _runTest(testClass: string, testMethod?: string) {
@@ -266,89 +113,14 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
             const sfExtension = vscode.extensions.getExtension('salesforce.salesforcedx-vscode-core');
             
             if (!sfExtension) {
-                console.log('Salesforce Extension Pack is not installed. Using mock data for test results.');
-                // Use mock data instead of throwing an error
-                const mockResults = this._getMockTestResults(testClass, testMethod);
-                
-                if (this._view) {
-                    this._view.webview.postMessage({
-                        command: 'testResultsLoaded',
-                        results: mockResults
-                    });
-                    
-                    this._view.webview.postMessage({
-                        command: 'showNotification',
-                        message: 'Salesforce Extension Pack is not installed. Using mock data for demonstration.'
-                    });
-                }
-                
-                this._statusBarService.hide();
-                return;
+                throw new Error('Salesforce Extension Pack is required to run tests. Please install it from the VS Code marketplace.');
             }
             
-            // Try different command formats
-            let result: any = null;
-            let error: any = null;
-            
-            try {
-                // Build the command to run the test
-                let command = 'sf.apex.test.run';
-                let args = testMethod 
-                    ? { tests: [`${testClass}.${testMethod}`] }
-                    : { classNames: [testClass] };
-                
-                // Execute the test with new command format
-                result = await vscode.commands.executeCommand(command, args);
-            } catch (err) {
-                error = err;
-                try {
-                    // Try the old command format
-                    let command = 'sfdx.force.apex.test.run';
-                    let args = testMethod 
-                        ? { tests: [`${testClass}.${testMethod}`] }
-                        : { classNames: [testClass] };
-                    
-                    // Execute the test with old command format
-                    result = await vscode.commands.executeCommand(command, args);
-                } catch (err2) {
-                    error = err2;
-                    // Try to use CLI directly as a fallback
-                    try {
-                        const cliCommand = testMethod
-                            ? `sf apex test run -t ${testClass}.${testMethod} --json`
-                            : `sf apex test run -n ${testClass} --json`;
-                        const cliOutput = await this._executeCliCommand(cliCommand);
-                        if (cliOutput) {
-                            result = JSON.parse(cliOutput).result;
-                        }
-                    } catch (err3) {
-                        try {
-                            const cliCommand = testMethod
-                                ? `sfdx force:apex:test:run -t ${testClass}.${testMethod} --json`
-                                : `sfdx force:apex:test:run -n ${testClass} --json`;
-                            const cliOutput = await this._executeCliCommand(cliCommand);
-                            if (cliOutput) {
-                                result = JSON.parse(cliOutput).result;
-                            }
-                        } catch (err4) {
-                            error = err4;
-                        }
-                    }
-                }
-            }
+            // Use MetadataService to run tests
+            const result = await this._metadataService.runTests(testClass, testMethod);
             
             if (!result) {
-                // If we couldn't run the test, use mock data for demonstration
-                console.log('Using mock data for test results');
-                result = this._getMockTestResults(testClass, testMethod);
-                
-                // Show a message to the user
-                if (this._view) {
-                    this._view.webview.postMessage({
-                        command: 'showNotification',
-                        message: 'Using mock data. Salesforce CLI commands not available or no active Salesforce project found.'
-                    });
-                }
+                throw new Error('Failed to run test. Please ensure you have an authorized Salesforce org and try again.');
             }
             
             // Send the test results to the webview
@@ -360,80 +132,19 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
             }
             
             this._statusBarService.hide();
-        } catch (error) {
+        } catch (error: any) {
             this._statusBarService.hide();
             console.error('Error running test:', error);
             
-            // Use mock data as fallback
-            const mockResults = this._getMockTestResults(testClass, testMethod);
-            
             if (this._view) {
-                // Show error but still load mock data
                 this._view.webview.postMessage({
                     command: 'error',
-                    message: `Error: ${error instanceof Error ? error.message : String(error)}`
-                });
-                
-                this._view.webview.postMessage({
-                    command: 'testResultsLoaded',
-                    results: mockResults
-                });
-                
-                this._view.webview.postMessage({
-                    command: 'showNotification',
-                    message: 'Using mock data. Salesforce CLI commands not available or no active Salesforce project found.'
+                    message: `Error: ${error.message}`
                 });
             }
         }
     }
     
-    private _getMockTestResults(testClass: string, testMethod?: string): any {
-        // Return mock test results for demonstration
-        const now = new Date().toISOString();
-        const testMethodName = testMethod || 'testMethod1';
-        
-        return {
-            summary: {
-                outcome: 'Passed',
-                testsRan: 1,
-                passing: 1,
-                failing: 0,
-                skipped: 0,
-                passRate: '100%',
-                failRate: '0%',
-                testStartTime: now,
-                testExecutionTime: 1.05,
-                testTotalTime: 1.05,
-                commandTime: 2.0,
-                hostname: 'MockHost',
-                orgId: '00D000000000000',
-                username: 'mock@example.com',
-                testRunId: 'mockRunId',
-                userId: '005000000000000'
-            },
-            tests: [
-                {
-                    id: 'mockTestId',
-                    queueItemId: 'mockQueueItemId',
-                    stackTrace: null,
-                    message: null,
-                    asyncApexJobId: 'mockAsyncJobId',
-                    methodName: testMethodName,
-                    outcome: 'Pass',
-                    apexLogId: 'mockLogId',
-                    apexClass: {
-                        id: 'mockClassId',
-                        name: testClass,
-                        namespacePrefix: null
-                    },
-                    runTime: 1,
-                    testTimestamp: now,
-                    fullName: `${testClass}.${testMethodName}`
-                }
-            ]
-        };
-    }
-
     private _getHtmlForWebview(webview: vscode.Webview): string {
         // Use a nonce to only allow specific scripts to be run
         const nonce = this._getNonce();
@@ -519,39 +230,42 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                     margin-top: 10px;
                     border: 1px solid var(--vscode-panel-border);
                     padding: 5px;
-                    min-height: 200px;
+                }
+                .test-classes-list {
+                    list-style-type: none;
+                    padding: 0;
+                    margin: 0;
                 }
                 .test-class-item {
-                    padding: 8px;
-                    margin-bottom: 5px;
-                    background-color: var(--vscode-editor-background);
-                    border: 1px solid var(--vscode-panel-border);
-                    border-radius: 3px;
-                }
-                .test-class-header {
+                    padding: 5px 0;
+                    cursor: pointer;
                     display: flex;
                     align-items: center;
-                    cursor: pointer;
+                    border-bottom: 1px solid var(--vscode-panel-border);
+                }
+                .test-class-item:hover {
+                    background-color: var(--vscode-list-hoverBackground);
                 }
                 .test-class-name {
                     font-weight: bold;
                     margin-left: 5px;
-                    flex-grow: 1;
                 }
-                .test-methods {
-                    margin-top: 5px;
-                    margin-left: 20px;
-                    padding-top: 5px;
-                    border-top: 1px solid var(--vscode-panel-border);
-                    display: none;
+                .test-methods-list {
+                    list-style-type: none;
+                    padding-left: 20px;
+                    margin: 5px 0;
                 }
-                .test-method {
+                .test-method-item {
                     padding: 3px 0;
+                    cursor: pointer;
                     display: flex;
                     align-items: center;
                 }
+                .test-method-item:hover {
+                    background-color: var(--vscode-list-hoverBackground);
+                }
                 .test-method-name {
-                    flex-grow: 1;
+                    margin-left: 5px;
                 }
                 .icon {
                     width: 16px;
@@ -563,11 +277,6 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                     color: var(--vscode-descriptionForeground);
                     font-style: italic;
                     margin: 10px 0;
-                }
-                .footer-note {
-                    margin-top: 10px;
-                    font-size: 0.9em;
-                    color: var(--vscode-descriptionForeground);
                 }
             </style>
         </head>
@@ -593,7 +302,7 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                     </div>
                     <div id="testClassesList"></div>
                 </div>
-                <div class="footer-note">
+                <div style="margin-top: 10px; font-size: 0.9em; color: var(--vscode-descriptionForeground);">
                     Note: This view uses mock data when Salesforce Extension Pack is not installed.
                 </div>
             </div>
@@ -606,13 +315,11 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                     const errorMessage = document.getElementById('errorMessage');
                     const notificationContainer = document.getElementById('notificationContainer');
                     const notificationMessage = document.getElementById('notificationMessage');
-                    const testClassesContainer = document.getElementById('testClassesContainer');
                     const testClassesList = document.getElementById('testClassesList');
                     const noTestClasses = document.getElementById('noTestClasses');
                     
                     // Event listeners
-                    refreshButton.addEventListener('click', function() {
-                        console.log('Refresh button clicked');
+                    refreshButton.addEventListener('click', () => {
                         fetchTestClasses();
                     });
                     
@@ -657,22 +364,16 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                         
                         if (!testClasses || testClasses.length === 0) {
                             console.log('No test classes to render');
-                            noTestClasses.style.display = 'block';
+                            noTestClasses.classList.remove('hidden');
                             return;
                         }
                         
-                        noTestClasses.style.display = 'none';
+                        noTestClasses.classList.add('hidden');
                         
                         testClasses.forEach(function(testClass) {
-                            console.log('Rendering test class:', testClass.name);
-                            
-                            // Create test class container
-                            const classDiv = document.createElement('div');
-                            classDiv.className = 'test-class-item';
-                            
-                            // Create header with class name and run button
-                            const headerDiv = document.createElement('div');
-                            headerDiv.className = 'test-class-header';
+                            console.log('Rendering test class:', testClass);
+                            const li = document.createElement('li');
+                            li.className = 'test-class-item';
                             
                             const expandIcon = document.createElement('span');
                             expandIcon.className = 'icon';
@@ -685,18 +386,19 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                             const runButton = document.createElement('button');
                             runButton.className = 'button';
                             runButton.textContent = 'Run';
+                            runButton.style.marginLeft = 'auto';
                             runButton.onclick = function(e) {
                                 e.stopPropagation();
                                 runTest(testClass.name);
                             };
                             
-                            headerDiv.appendChild(expandIcon);
-                            headerDiv.appendChild(nameSpan);
-                            headerDiv.appendChild(runButton);
+                            li.appendChild(expandIcon);
+                            li.appendChild(nameSpan);
+                            li.appendChild(runButton);
                             
-                            // Create methods container
-                            const methodsDiv = document.createElement('div');
-                            methodsDiv.className = 'test-methods';
+                            // Create a container for test methods (initially hidden)
+                            const methodsList = document.createElement('ul');
+                            methodsList.className = 'test-methods-list hidden';
                             
                             // Extract test methods from the class body if available
                             let methodNames = ['testMethod1', 'testMethod2']; // Default placeholder
@@ -704,11 +406,12 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                             if (testClass.body) {
                                 try {
                                     // Simple regex to find test methods in the class body
-                                    const methodMatches = testClass.body.match(/@isTest\\s+static\\s+void\\s+(\\w+)\\s*\\(|testMethod\\s+void\\s+(\\w+)\\s*\\(/g);
+                                    // This is a basic implementation and might not catch all test methods
+                                    const methodMatches = testClass.body.match(/@isTest\s+static\s+void\s+(\w+)\s*\(|testMethod\s+void\s+(\w+)\s*\(/g);
                                     if (methodMatches) {
                                         methodNames = methodMatches.map(function(match) {
                                             // Extract the method name from the match
-                                            const nameMatch = match.match(/(\\w+)\\s*\\(/);
+                                            const nameMatch = match.match(/(\w+)\s*\(/);
                                             return nameMatch ? nameMatch[1] : 'unknownMethod';
                                         });
                                     }
@@ -717,10 +420,9 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                                 }
                             }
                             
-                            // Add methods to the container
                             methodNames.forEach(function(methodName) {
-                                const methodDiv = document.createElement('div');
-                                methodDiv.className = 'test-method';
+                                const methodLi = document.createElement('li');
+                                methodLi.className = 'test-method-item';
                                 
                                 const methodIcon = document.createElement('span');
                                 methodIcon.className = 'icon';
@@ -733,39 +435,35 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                                 const runMethodButton = document.createElement('button');
                                 runMethodButton.className = 'button';
                                 runMethodButton.textContent = 'Run';
+                                runMethodButton.style.marginLeft = 'auto';
                                 runMethodButton.onclick = function(e) {
                                     e.stopPropagation();
                                     runTest(testClass.name, methodName);
                                 };
                                 
-                                methodDiv.appendChild(methodIcon);
-                                methodDiv.appendChild(methodNameSpan);
-                                methodDiv.appendChild(runMethodButton);
-                                methodsDiv.appendChild(methodDiv);
+                                methodLi.appendChild(methodIcon);
+                                methodLi.appendChild(methodNameSpan);
+                                methodLi.appendChild(runMethodButton);
+                                methodsList.appendChild(methodLi);
                             });
                             
-                            // Toggle expand/collapse on header click
-                            headerDiv.onclick = function() {
-                                if (methodsDiv.style.display === 'block') {
-                                    methodsDiv.style.display = 'none';
-                                    expandIcon.textContent = '▶';
-                                } else {
-                                    methodsDiv.style.display = 'block';
+                            // Toggle expand/collapse on click
+                            li.onclick = function() {
+                                if (methodsList.classList.contains('hidden')) {
+                                    methodsList.classList.remove('hidden');
                                     expandIcon.textContent = '▼';
+                                } else {
+                                    methodsList.classList.add('hidden');
+                                    expandIcon.textContent = '▶';
                                 }
                             };
                             
-                            // Add everything to the class container
-                            classDiv.appendChild(headerDiv);
-                            classDiv.appendChild(methodsDiv);
-                            
-                            // Add to the list
-                            testClassesList.appendChild(classDiv);
+                            testClassesList.appendChild(li);
+                            testClassesList.appendChild(methodsList);
                         });
                     }
                     
                     function runTest(testClass, testMethod) {
-                        console.log('Running test:', testClass, testMethod || '');
                         showLoading();
                         hideError();
                         hideNotification();
@@ -901,7 +599,7 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                     }
                     
                     // Handle messages from the extension
-                    window.addEventListener('message', function(event) {
+                    window.addEventListener('message', event => {
                         const message = event.data;
                         console.log('Received message from extension:', message);
                         
@@ -929,7 +627,6 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                     });
                     
                     // Initial fetch
-                    console.log('Initial fetch from webview');
                     fetchTestClasses();
                 })();
             </script>

@@ -339,6 +339,19 @@ export class SalesforceApiService {
             this._instance.defaults.baseURL = `${this._instanceUrl}/services/data/${this._apiVersion}`;
         }
     }
+
+    private async _getDefaultOrgUsername(): Promise<string> {
+        try {
+            const { stdout: orgInfo } = await execAsync('sf org display --json');
+            const result = JSON.parse(orgInfo);
+            if (result.status === 0 && result.result && result.result.username) {
+                return result.result.username;
+            }
+            throw new Error('No default org set. Please use "sf org login web" to set a default org.');
+        } catch (error) {
+            throw new Error('Failed to get default org. Please ensure you have authenticated with "sf org login web".');
+        }
+    }
 }
 
 // Export a singleton instance

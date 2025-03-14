@@ -8,6 +8,7 @@ import { exec } from 'child_process';
 import { promisify } from 'util';
 import { LogDetailView } from './logDetailView';
 import { statusBarService } from '../services/statusBarService';
+import { readFile, unlink } from 'fs/promises';
 
 const execAsync = promisify(exec);
 
@@ -572,7 +573,7 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
                 this._sendLogsToWebview(this._logs);
                 return;
             }
-
+            
             // Set loading state
             this._isLoading = true;
             this._updateWebviewContent();
@@ -863,68 +864,32 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
     private async _fetchSalesforceLogsSoql(): Promise<SalesforceLog[]> {
         console.log('[VisbalLogView] _fetchSalesforceLogsSoql -- Starting to fetch Salesforce logs via SOQL');
         try {
-            // Check if either SFDX CLI or SF CLI is installed
-            let sfdxInstalled = false;
+            // Check if SF CLI is installed
             let sfInstalled = false;
-            
-            try {
-                console.log('[VisbalLogView] _fetchSalesforceLogsSoql -- Checking if SFDX CLI is installed');
-                const { stdout: versionOutput } = await execAsync('sfdx --version');
-                console.log(`[VisbalLogView] _fetchSalesforceLogsSoql -- SFDX CLI version: ${versionOutput.trim()}`);
-                sfdxInstalled = true;
-            } catch (error) {
-                console.log('[VisbalLogView] _fetchSalesforceLogsSoql -- SFDX CLI not installed, checking for SF CLI');
-            }
-            
             try {
                 console.log('[VisbalLogView] _fetchSalesforceLogsSoql -- Checking if SF CLI is installed');
-                const { stdout: versionOutput } = await execAsync('sf --version');
-                console.log(`[VisbalLogView] _fetchSalesforceLogsSoql -- SF CLI version: ${versionOutput.trim()}`);
+                const { stdout: sfVersionOutput } = await execAsync('sf version');
+                console.log(`[VisbalLogView] _fetchSalesforceLogsSoql -- SF CLI version: ${sfVersionOutput.trim()}`);
                 sfInstalled = true;
-            } catch (error) {
+            } catch (err) {
                 console.log('[VisbalLogView] _fetchSalesforceLogsSoql -- SF CLI not installed');
             }
-            
-            if (!sfdxInstalled && !sfInstalled) {
-                console.error('[VisbalLogView] _fetchSalesforceLogsSoql -- Neither SFDX CLI nor SF CLI is installed');
-                throw new Error('Salesforce CLI is not installed. Please install it to use this feature. You can install either the new SF CLI (npm install -g @salesforce/cli) or the legacy SFDX CLI (npm install -g sfdx-cli).');
+
+            if (!sfInstalled) {
+                console.error('[VisbalLogView] _fetchSalesforceLogsSoql -- SF CLI is not installed');
+                throw new Error('Please install the Salesforce CLI (npm install -g @salesforce/cli).');
             }
-            
-            // Try to get the default org using the new command format first if SF CLI is installed
+
+            // Get the default org username
             let orgData;
-            if (sfInstalled) {
-                console.log('[VisbalLogView] _fetchSalesforceLogsSoql -- Trying to get default org with new CLI format');
-                try {
-                    const { stdout: orgInfo } = await execAsync('sf org display --json');
-                    console.log('[VisbalLogView] _fetchSalesforceLogsSoql -- Successfully got org info with new CLI format');
-                    orgData = JSON.parse(orgInfo);
-                    console.log('[VisbalLogView] _fetchSalesforceLogsSoql -- Parsed org data:', orgData.result?.username);
-                } catch (error) {
-                    console.log('[VisbalLogView] _fetchSalesforceLogsSoql -- Failed with new CLI format', error);
-                    // Continue to try the old format if available
-                }
+            try {
+                const { stdout: orgInfo } = await execAsync('sf org display --json');
+                orgData = JSON.parse(orgInfo);
+            } catch (err) {
+                throw new Error('No default org set. Please use this command:\n- sf org login web');
             }
-            
-            // If the new command fails or SF CLI is not installed, try the old format if SFDX CLI is installed
-            if (!orgData && sfdxInstalled) {
-                console.log('[VisbalLogView] _fetchSalesforceLogsSoql -- Trying to get default org with old CLI format');
-                try {
-                    const { stdout: orgInfo } = await execAsync('sfdx force:org:display --json');
-                    console.log('[VisbalLogView] _fetchSalesforceLogsSoql -- Successfully got org info with old CLI format');
-                    orgData = JSON.parse(orgInfo);
-                    console.log('[VisbalLogView] _fetchSalesforceLogsSoql -- Parsed org data:', orgData.result?.username);
-                } catch (innerError) {
-                    console.error('[VisbalLogView] _fetchSalesforceLogsSoql -- Failed to get org info with both formats:', innerError);
-                    throw new Error('Failed to get default org information. Please ensure you have a default org set using one of these commands:\n- sf org login web\n- sfdx force:auth:web:login --setdefaultusername');
-                }
-            }
-            
-            if (!orgData) {
-                console.error('[VisbalLogView] _fetchSalesforceLogsSoql -- Failed to get org info with both formats');
-                throw new Error('Failed to get default org information. Please ensure you have a default org set using one of these commands:\n- sf org login web\n- sfdx force:auth:web:login --setdefaultusername');
-            }
-            
-            if (!orgData.result || !orgData.result.username) {
+
+            if (!orgData || !orgData.result || !orgData.result.username) {
                 console.error('[VisbalLogView] _fetchSalesforceLogsSoql -- No username found in org data');
                 throw new Error('No default Salesforce org found. Please set a default org using one of these commands:\n- sf org login web\n- sfdx force:auth:web:login --setdefaultusername');
             }
@@ -932,14 +897,14 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
             console.log(`[VisbalLogView] _fetchSalesforceLogsSoql -- Connected to org: ${orgData.result.username}`);
             
             // SOQL query to fetch debug logs
-            const soqlQuery = "SELECT Id, LogUser.Name, Application, Operation, Request, Status, LogLength, LastModifiedDate FROM ApexLog ORDER BY LastModifiedDate DESC LIMIT 200";
+            const soqlQuery = `SELECT Id, LogUser.Name, Operation, Application, Status, LogLength, LastModifiedDate, Request, Location FROM ApexLog ORDER BY LastModifiedDate DESC LIMIT 50`;
             console.log(`[VisbalLogView] _fetchSalesforceLogsSoql -- SOQL query: ${soqlQuery}`);
             
             // Try to execute SOQL query using the new command format first
             let queryResult;
             console.log('[VisbalLogView] _fetchSalesforceLogsSoql -- Trying to execute SOQL query with new CLI format');
             try {
-                const command = `sf data query -q "${soqlQuery}" --json`;
+                const command = `sf data query --query "${soqlQuery}" --json`;
                 console.log(`[VisbalLogView] _fetchSalesforceLogsSoql -- Executing: ${command}`);
                 const { stdout: queryData } = await execAsync(command);
                 console.log('[VisbalLogView] _fetchSalesforceLogsSoql -- Successfully executed SOQL query with new CLI format');
@@ -1978,8 +1943,8 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
             // This avoids making API calls when we don't have a valid connection
             if (this._view) {
                 this._view.webview.postMessage({
-                    command: 'currentDebugConfig',
-                    config: {
+                                command: 'currentDebugConfig',
+                                config: {
                         'ApexCode': 'DEBUG',
                         'ApexProfiling': 'INFO',
                         'Callout': 'INFO',
@@ -1995,15 +1960,15 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
             }
             
             // Don't try to get the user ID or debug configuration from Salesforce
-            return;
+                                return;
         } catch (error: any) {
             console.error('[VisbalLogView] Error in _getCurrentDebugConfig:', error);
             
             // Send a default configuration to the webview
             if (this._view) {
                 this._view.webview.postMessage({
-                    command: 'currentDebugConfig',
-                    config: {
+                command: 'currentDebugConfig',
+                config: {
                         'ApexCode': 'DEBUG',
                         'ApexProfiling': 'INFO',
                         'Callout': 'INFO',
@@ -2433,5 +2398,222 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
             console.error('[VisbalLogView] refresh -- Error:', error);
             statusBarService.showError(`Error refreshing logs: ${error.message}`);
         });
+    }
+
+    private async _getLogContent(logId: string): Promise<string> {
+        try {
+            const tempFile = path.join(os.tmpdir(), `${logId}.log`);
+            const command = `sf apex log get --log-id ${logId} > "${tempFile}"`;
+            await this._executeCommand(command);
+            const content = await readFile(tempFile, 'utf8');
+            await unlink(tempFile);
+            return content;
+        } catch (error) {
+            console.error('Error getting log content:', error);
+            throw error;
+        }
+    }
+
+    private async _getLogContentJson(logId: string): Promise<any> {
+        try {
+            const result = await this._executeCommand(`sf apex log get --log-id ${logId} --json`);
+            // ... rest of the method ...
+        } catch (error) {
+            // ... error handling ...
+        }
+    }
+
+    private async _getLogContentDirect(logId: string): Promise<string> {
+        try {
+            const { stdout } = await execAsync(`sf apex log get --log-id ${logId}`, { maxBuffer: MAX_BUFFER_SIZE });
+            return stdout;
+        } catch (error) {
+            console.error('Error getting log content directly:', error);
+            throw error;
+        }
+    }
+
+    private async _fetchSalesforceLogs(): Promise<void> {
+        try {
+            const result = await this._executeCommand('sf apex log list --json');
+            // ... rest of the method ...
+        } catch (error) {
+            // ... error handling ...
+        }
+    }
+
+    private async _getTraceFlag(userId: string): Promise<any> {
+        try {
+            const query = `SELECT Id, DebugLevelId FROM TraceFlag WHERE TracedEntityId = '${userId}' AND LogType = 'DEVELOPER_LOG'`;
+            const traceFlagResult = await this._executeCommand(`sf data query --query "${query}" --use-tooling-api --json`);
+            // ... rest of the method ...
+        } catch (error) {
+            // ... error handling ...
+        }
+    }
+
+    private async _createDebugLevel(debugLevelName: string): Promise<string> {
+        try {
+            const debugLevelCmd = `sf data create record --sobject DebugLevel --values "DeveloperName=${debugLevelName} MasterLabel=${debugLevelName} ApexCode=FINEST ApexProfiling=FINEST Callout=FINEST Database=FINEST System=FINEST Validation=FINEST Visualforce=FINEST Workflow=FINEST" --use-tooling-api --json`;
+            const result = await this._executeCommand(debugLevelCmd);
+            const parsedResult = JSON.parse(result);
+            if (parsedResult.status === 0 && parsedResult.result && parsedResult.result.id) {
+                return parsedResult.result.id;
+            }
+            throw new Error('Failed to create debug level');
+        } catch (error) {
+            console.error('Error creating debug level:', error);
+            throw error;
+        }
+    }
+
+    private async _deleteTraceFlag(existingTraceFlag: any): Promise<void> {
+        try {
+            await this._executeCommand(`sf data delete record --sobject TraceFlag --record-id ${existingTraceFlag.Id} --use-tooling-api --json`);
+            // ... rest of the method ...
+        } catch (error) {
+            // ... error handling ...
+        }
+    }
+
+    private async _createTraceFlag(userId: string, debugLevelId: string): Promise<void> {
+        try {
+            const now = new Date();
+            const expirationDate = new Date(now.getTime() + 24 * 60 * 60 * 1000); // 24 hours from now
+            
+            const formattedStartDate = now.toISOString();
+            const formattedExpirationDate = expirationDate.toISOString();
+            
+            const traceFlagCmd = `sf data create record --sobject TraceFlag --values "TracedEntityId=${userId} LogType=DEVELOPER_LOG DebugLevelId=${debugLevelId} StartDate=${formattedStartDate} ExpirationDate=${formattedExpirationDate}" --use-tooling-api --json`;
+            // ... rest of the method ...
+        } catch (error) {
+            // ... error handling ...
+        }
+    }
+
+    private async _deleteLog(logId: string): Promise<void> {
+        try {
+            const oldDeleteCmd = `sf data delete record --sobject ApexLog --record-id ${logId} --json`;
+            // ... rest of the method ...
+        } catch (error) {
+            // ... error handling ...
+        }
+    }
+
+    private async _deleteLogBulk(logId: string): Promise<void> {
+        try {
+            const oldDeleteCmd = `sf data delete record --sobject ApexLog --record-id ${logId} --json`;
+            // ... rest of the method ...
+        } catch (error) {
+            // ... error handling ...
+        }
+    }
+
+    private async _updateDebugLevel(existingDebugLevelId: string, debugLevelFields: string): Promise<void> {
+        try {
+            const updateDebugLevelCommand = `sf data update record --sobject DebugLevel --record-id ${existingDebugLevelId} --values "${debugLevelFields}" --use-tooling-api --json`;
+            // ... rest of the method ...
+        } catch (error) {
+            // ... error handling ...
+        }
+    }
+
+    private async _createNewDebugLevel(debugLevelName: string, debugLevelFields: string): Promise<string> {
+        try {
+            const createDebugLevelCommand = `sf data create record --sobject DebugLevel --values "DeveloperName=${debugLevelName} MasterLabel=${debugLevelName} ${debugLevelFields}" --use-tooling-api --json`;
+            const result = await this._executeCommand(createDebugLevelCommand);
+            const parsedResult = JSON.parse(result);
+            if (parsedResult.status === 0 && parsedResult.result && parsedResult.result.id) {
+                return parsedResult.result.id;
+            }
+            throw new Error('Failed to create new debug level');
+        } catch (error) {
+            console.error('Error creating new debug level:', error);
+            throw error;
+        }
+    }
+
+    private async _deleteExistingTraceFlag(existingTraceFlag: any): Promise<void> {
+        try {
+            const deleteTraceFlagCommand = `sf data delete record --sobject TraceFlag --record-id ${existingTraceFlag.Id} --use-tooling-api --json`;
+            // ... rest of the method ...
+        } catch (error) {
+            // ... error handling ...
+        }
+    }
+
+    private async _createNewTraceFlag(debugLevelId: string, userId: string, formattedStartDate: string, formattedExpirationDate: string): Promise<void> {
+        try {
+            const createTraceFlagCommand = `sf data create record --sobject TraceFlag --values "DebugLevelId=${debugLevelId} LogType=DEVELOPER_LOG TracedEntityId=${userId} StartDate=${formattedStartDate} ExpirationDate=${formattedExpirationDate}" --use-tooling-api --json`;
+            // ... rest of the method ...
+        } catch (error) {
+            // ... error handling ...
+        }
+    }
+
+    private async _deleteAllLogs(): Promise<void> {
+        try {
+            const queryCommand = 'sf data query --query "SELECT Id FROM ApexLog" --use-tooling-api --json';
+            const queryResult = await this._executeCommand(queryCommand);
+            const parsedResult = JSON.parse(queryResult);
+            
+            if (parsedResult.status === 0 && parsedResult.result && parsedResult.result.records) {
+                const logIds = parsedResult.result.records.map((record: any) => record.Id);
+                if (logIds.length > 0) {
+                    const deleteCommand = `sf data delete record --sobject ApexLog --record-ids ${logIds.join(',')} --use-tooling-api --json`;
+                    await this._executeCommand(deleteCommand);
+                }
+            }
+        } catch (error) {
+            console.error('Error deleting all logs:', error);
+            throw error;
+        }
+    }
+
+    private async _getCurrentUserId(): Promise<string> {
+        try {
+            const userIdResult = await this._executeCommand('sf org display user --json');
+            const result = JSON.parse(userIdResult);
+            if (result.status === 0 && result.result) {
+                return result.result.id;
+            }
+            throw new Error('Failed to get current user ID');
+        } catch (error) {
+            throw error;
+        }
+    }
+
+    private _handleCliError(error: any): void {
+        let errorMessage = 'An error occurred while executing the command.\n\n';
+
+        if (error.message.includes('Salesforce CLI is not installed') || error.message.includes('SFDX CLI is not installed')) {
+            errorMessage = 'Salesforce CLI is not installed. Please follow these steps:\n\n';
+            errorMessage += '1. Install Node.js from:\n   https://nodejs.org\n\n';
+            errorMessage += '2. Install the Salesforce CLI:\n   npm install -g @salesforce/cli\n\n';
+            errorMessage += '3. Or download the installer from:\n   https://developer.salesforce.com/tools/salesforcecli\n\n';
+            errorMessage += '4. After installation, authenticate with your org:\n';
+            errorMessage += '- sf org login web\n\n';
+            errorMessage += '5. Then try again.';
+        } else if (error.message.includes('No authorization information found')) {
+            errorMessage = 'Not authenticated with Salesforce. Please run:\n';
+            errorMessage += '- sf org login web\n\n';
+            errorMessage += 'Then try again.';
+        } else if (error.message.includes('expired access/refresh token')) {
+            errorMessage = 'Your Salesforce session has expired. Please re-authenticate:\n';
+            errorMessage += '- sf org login web\n\n';
+            errorMessage += 'Then try again.';
+        } else if (error.message.includes('Update Available')) {
+            errorMessage = 'Your Salesforce CLI needs to be updated. Please run:\n';
+            errorMessage += '- sf update\n\n';
+            errorMessage += 'Then authenticate with your org:\n';
+            errorMessage += '- sf org login web\n\n';
+            errorMessage += 'Then try again.';
+        }
+
+        this._showErrorMessage(errorMessage);
+    }
+
+    private _showErrorMessage(message: string): void {
+        vscode.window.showErrorMessage(message);
     }
 }
