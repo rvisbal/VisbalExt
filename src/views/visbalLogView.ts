@@ -85,7 +85,8 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
 
         // Handle messages from the webview
         webviewView.webview.onDidReceiveMessage(async (message) => {
-            console.log(`[VisbalLogView] resolveWebviewView -- Received message from webview: ${message.command}`, message);
+            console.log(`[VisbalLogView] resolveWebviewView -- Received message: ${message.command}`);
+            
             switch (message.command) {
                 case 'fetchLogs':
                     console.log('[VisbalLogView] resolveWebviewView -- Fetching logs from command');
@@ -131,6 +132,19 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
                     console.log(`[VisbalLogView] resolveWebviewView -- Getting current debug configuration`);
                     await this._getCurrentDebugConfig();
                     break;
+                case 'deleteServerLogsViaSoql':
+                    console.log('[VisbalLogView] resolveWebviewView -- Deleting server logs via SOQL');
+                    await this._deleteServerLogsViaSoql();
+                    break;
+                case 'executeScript':
+                    try {
+                        console.log('Executing script from extension');
+                        // Execute the script
+                        eval(message.script);
+                    } catch (error) {
+                        console.error('Error executing script:', error);
+                    }
+                    break;
             }
         });
 
@@ -138,6 +152,45 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
         setTimeout(() => {
             if (webviewView.visible) {
                 console.log('[VisbalLogView] resolveWebviewView -- View is visible, checking for cached logs');
+                
+                // Add the script to inject the "Delete via SOQL" button
+                this._view?.webview.postMessage({
+                    command: 'executeScript',
+                    script: `
+                        // Function to add the "Delete via SOQL" button
+                        function addDeleteViaSoqlButton() {
+                            // Find the "Delete Server Logs" button
+                            const deleteServerLogsButton = document.querySelector('button[data-command="deleteServerLogs"]');
+                            
+                            if (deleteServerLogsButton && !document.querySelector('button[data-command="deleteServerLogsViaSoql"]')) {
+                                // Create the new button
+                                const deleteViaSoqlButton = document.createElement('button');
+                                deleteViaSoqlButton.textContent = 'Delete via SOQL';
+                                deleteViaSoqlButton.className = deleteServerLogsButton.className; // Use the same class as the original button
+                                deleteViaSoqlButton.setAttribute('data-command', 'deleteServerLogsViaSoql');
+                                
+                                // Add the button next to the "Delete Server Logs" button
+                                deleteServerLogsButton.parentNode.insertBefore(deleteViaSoqlButton, deleteServerLogsButton.nextSibling);
+                                
+                                // Add event listener
+                                deleteViaSoqlButton.addEventListener('click', function() {
+                                    // Send message to extension
+                                    vscode.postMessage({
+                                        command: 'deleteServerLogsViaSoql'
+                                    });
+                                });
+                                
+                                console.log('Added "Delete via SOQL" button');
+                            }
+                        }
+                        
+                        // Try to add the button now
+                        addDeleteViaSoqlButton();
+                        
+                        // Also try again after a short delay in case the UI is still loading
+                        setTimeout(addDeleteViaSoqlButton, 1000);
+                    `
+                });
                 
                 // If we have cached logs that aren't too old, send them to the webview
                 const now = Date.now();
@@ -151,7 +204,7 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
                     this._fetchLogs();
                 }
             }
-        }, 1000); // Add a small delay to ensure the webview is fully loaded
+        }, 500); // Add a small delay to ensure the webview is fully loaded
 
         // Fetch logs when the view becomes visible
         webviewView.onDidChangeVisibility(() => {
@@ -2439,6 +2492,66 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
                     workflow: 'INFO'
                 }
             });
+        }
+    }
+
+    /**
+     * Delete all server logs using SOQL and Tooling API
+     * This is an alternative implementation to compare performance with the standard deletion method
+     */
+    private async _deleteServerLogsViaSoql(): Promise<void> {
+        try {
+            console.log('[VisbalLogView] _deleteServerLogsViaSoql -- Starting to delete all server logs via SOQL');
+            this._isLoading = true;
+            this._view?.webview.postMessage({ command: 'loading', isLoading: true, message: 'Deleting all logs via SOQL...' });
+
+            // Query all ApexLog IDs using SOQL
+            console.log('[VisbalLogView] _deleteServerLogsViaSoql -- Querying all ApexLog IDs');
+            const queryCommand = 'sfdx force:data:soql:query --query "SELECT Id FROM ApexLog" --usetoolingapi --json';
+            
+            const queryResult = await this._executeCommand(queryCommand);
+            const queryData = JSON.parse(queryResult);
+            
+            if (!queryData.result || !queryData.result.records || !Array.isArray(queryData.result.records)) {
+                console.log('[VisbalLogView] _deleteServerLogsViaSoql -- No logs found to delete');
+                vscode.window.showInformationMessage('No logs found to delete via SOQL');
+                this._isLoading = false;
+                this._view?.webview.postMessage({ command: 'loading', isLoading: false });
+                return;
+            }
+            
+            const logIds = queryData.result.records.map((record: any) => record.Id);
+            console.log(`[VisbalLogView] _deleteServerLogsViaSoql -- Found ${logIds.length} logs to delete`);
+            
+            if (logIds.length === 0) {
+                console.log('[VisbalLogView] _deleteServerLogsViaSoql -- No logs found to delete');
+                vscode.window.showInformationMessage('No logs found to delete via SOQL');
+                this._isLoading = false;
+                this._view?.webview.postMessage({ command: 'loading', isLoading: false });
+                return;
+            }
+            
+            // Delete logs using Tooling API
+            console.log(`[VisbalLogView] _deleteServerLogsViaSoql -- Deleting ${logIds.length} logs`);
+            
+            // Create a comma-separated list of IDs in single quotes
+            const idList = logIds.map((id: string) => `'${id}'`).join(',');
+            const deleteCommand = `sfdx force:data:record:delete --sobjecttype ApexLog --sobjectids ${idList} --usetoolingapi --json`;
+            
+            const deleteResult = await this._executeCommand(deleteCommand);
+            console.log(`[VisbalLogView] _deleteServerLogsViaSoql -- Delete result:`, deleteResult);
+            
+            // Refresh logs after deletion
+            await this._fetchLogs(true);
+            
+            console.log('[VisbalLogView] _deleteServerLogsViaSoql -- Successfully deleted all logs via SOQL');
+            vscode.window.showInformationMessage(`Successfully deleted ${logIds.length} logs via SOQL`);
+        } catch (error: any) {
+            console.error('[VisbalLogView] _deleteServerLogsViaSoql -- Error deleting logs via SOQL:', error);
+            vscode.window.showErrorMessage(`Error deleting logs via SOQL: ${error.message || error}`);
+        } finally {
+            this._isLoading = false;
+            this._view?.webview.postMessage({ command: 'loading', isLoading: false });
         }
     }
 }
