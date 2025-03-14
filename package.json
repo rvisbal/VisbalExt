@@ -22,6 +22,7 @@
     "onCommand:visbal-ext.showFindModel",
     "onCommand:visbal-ext.showLogSummary",
     "onView:visbalLogView",
+    "onView:testClassExplorerView",
     "onLanguage:log"
   ],
   "contributes": {
@@ -62,6 +63,13 @@
           "title": "Visbal Log",
           "icon": "$(notebook)"
         }
+      ],
+      "activitybar": [
+        {
+          "id": "testExplorerContainer",
+          "title": "Salesforce Test Explorer",
+          "icon": "$(beaker)"
+        }
       ]
     },
     "views": {
@@ -69,6 +77,13 @@
         {
           "id": "visbalLogView",
           "name": "Log Analyzer",
+          "type": "webview"
+        }
+      ],
+      "testExplorerContainer": [
+        {
+          "id": "testClassExplorerView",
+          "name": "Test Classes",
           "type": "webview"
         }
       ]

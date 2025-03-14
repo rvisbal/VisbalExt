@@ -3,6 +3,7 @@ import { FindModel } from './findModel';
 import { SearchLibrary } from './searchLibrary';
 import { VisbalLogView } from './views/visbalLogView';
 import { LogDetailView } from './views/logDetailView';
+import { TestClassExplorerView } from './views/testClassExplorerView';
 import { salesforceApi } from './services/salesforceApiService';
 import { statusBarService } from './services/statusBarService';
 
@@ -55,6 +56,18 @@ export function activate(context: vscode.ExtensionContext) {
     vscode.window.registerWebviewViewProvider(
       VisbalLogView.viewType,
       visbalLogViewProvider
+    )
+  );
+
+  // Register the Test Class Explorer view provider
+  const testClassExplorerViewProvider = new TestClassExplorerView(
+    context.extensionUri,
+    statusBarService
+  );
+  context.subscriptions.push(
+    vscode.window.registerWebviewViewProvider(
+      TestClassExplorerView.viewType,
+      testClassExplorerViewProvider
     )
   );
 
