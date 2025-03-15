@@ -384,8 +384,9 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                 .container {
                     display: flex;
                     flex-direction: column;
-                    height: 100%;
+                    height: 100vh;
                     width: 100%;
+                    overflow: hidden;
                 }
                 .actions {
                     margin-bottom: 5px;
@@ -467,10 +468,60 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                 }
                 .test-classes-container {
                     flex: 1;
-                    overflow: auto;
-                    margin-top: 5px;
-                    border: 1px solid var(--vscode-panel-border);
-                    padding: 5px;
+                    overflow-y: auto;
+                    padding: 0 5px;
+                    min-height: 100px;
+                    margin-bottom: 5px;
+                }
+                .subdivision-panel {
+                    position: relative;
+                    border-top: 1px solid var(--vscode-panel-border);
+                    background-color: var(--vscode-sideBar-background);
+                    min-height: 200px;
+                    height: 300px;
+                    resize: vertical;
+                    overflow: hidden;
+                    display: flex;
+                    flex-direction: column;
+                }
+                .subdivision-header {
+                    padding: 6px 8px;
+                    background-color: var(--vscode-sideBarSectionHeader-background);
+                    cursor: ns-resize;
+                    user-select: none;
+                    display: flex;
+                    align-items: center;
+                    height: 28px;
+                    position: sticky;
+                    top: 0;
+                    z-index: 1;
+                }
+                .subdivision-content {
+                    flex: 1;
+                    overflow-y: auto;
+                    font-family: var(--vscode-editor-font-family);
+                    font-size: var(--vscode-editor-font-size);
+                    padding: 4px 0;
+                }
+                .subdivision-content.expanded {
+                    display: block;
+                }
+                .task-item {
+                    padding: 6px 8px;
+                    display: flex;
+                    align-items: center;
+                    font-size: 12px;
+                    border-bottom: 1px solid var(--vscode-panel-border);
+                }
+                .task-item:hover {
+                    background-color: var(--vscode-list-hoverBackground);
+                }
+                .task-status {
+                    margin-right: 8px;
+                }
+                .task-time {
+                    color: var(--vscode-descriptionForeground);
+                    margin-right: 8px;
                 }
                 .test-classes-list {
                     list-style-type: none;
@@ -578,6 +629,67 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                     font-size: 12px;
                     color: var(--vscode-descriptionForeground);
                 }
+                .test-progress {
+                    margin: 5px 0;
+                    padding: 8px;
+                    background-color: var(--vscode-editor-background);
+                    border: 1px solid var(--vscode-panel-border);
+                    display: none;
+                }
+                .test-progress.visible {
+                    display: block;
+                }
+                .test-progress-header {
+                    display: flex;
+                    justify-content: space-between;
+                    align-items: center;
+                    margin-bottom: 8px;
+                }
+                .test-progress-title {
+                    font-weight: bold;
+                    font-size: 12px;
+                }
+                .test-progress-status {
+                    font-size: 12px;
+                    color: var(--vscode-descriptionForeground);
+                }
+                .test-progress-bar {
+                    height: 4px;
+                    background-color: var(--vscode-progressBar-background);
+                    margin: 8px 0;
+                    position: relative;
+                    overflow: hidden;
+                }
+                .test-progress-bar-fill {
+                    height: 100%;
+                    background-color: var(--vscode-progressBar-foreground);
+                    transition: width 0.3s ease;
+                    position: absolute;
+                    left: 0;
+                    top: 0;
+                }
+                .test-progress-details {
+                    font-size: 12px;
+                    margin-top: 8px;
+                }
+                .test-progress-item {
+                    display: flex;
+                    align-items: center;
+                    margin: 4px 0;
+                    font-size: 11px;
+                }
+                .test-progress-item-status {
+                    margin-right: 8px;
+                }
+                .test-progress-item.running {
+                    color: var(--vscode-progressBar-foreground);
+                }
+                .test-progress-item.passed {
+                    color: var(--vscode-testing-iconPassed);
+                }
+                .test-progress-item.failed {
+                    color: var(--vscode-testing-iconFailed);
+                }
             </style>
         </head>
         <body>
@@ -593,9 +705,15 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                         </svg>
                     </button>
                 </div>
-                <div id="loading" class="loading hidden">
-                    <div class="spinner"></div>
-                    <span>Loading test classes...</span>
+                <div id="testProgress" class="test-progress">
+                    <div class="test-progress-header">
+                        <div class="test-progress-title">Running Tests</div>
+                        <div class="test-progress-status">0 of 0 completed</div>
+                    </div>
+                    <div class="test-progress-bar">
+                        <div class="test-progress-bar-fill" style="width: 0%"></div>
+                    </div>
+                    <div class="test-progress-details"></div>
                 </div>
                 <div id="notificationContainer" class="notification-container hidden">
                     <div class="notification-message" id="notificationMessage"></div>
@@ -609,6 +727,19 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                     </div>
                     <div id="testClassesList"></div>
                 </div>
+                <div id="subdivisionPanel" class="subdivision-panel">
+                    <div id="subdivisionHeader" class="subdivision-header">
+                        <span class="subdivision-chevron">
+                            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                <path d="M10.072 8.024L5.715 3.667l.618-.62L11.5 8.215v.57L6.333 13.95l-.618-.619 4.357-4.357z" fill="currentColor"/>
+                            </svg>
+                        </span>
+                        <span class="subdivision-title">RUNNING TASKS</span>
+                    </div>
+                    <div id="subdivisionContent" class="subdivision-content">
+                        <div id="tasksList"></div>
+                    </div>
+                </div>
             </div>
             <script nonce="${nonce}">
                 (function() {
@@ -616,7 +747,10 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                     const refreshButton = document.getElementById('refreshButton');
                     const runSelectedButton = document.getElementById('runSelectedButton');
                     const selectionCount = document.getElementById('selectionCount');
-                    const loading = document.getElementById('loading');
+                    const testProgress = document.getElementById('testProgress');
+                    const progressDetails = testProgress.querySelector('.test-progress-details');
+                    const progressStatus = testProgress.querySelector('.test-progress-status');
+                    const progressBar = testProgress.querySelector('.test-progress-bar-fill');
                     const errorContainer = document.getElementById('errorContainer');
                     const errorMessage = document.getElementById('errorMessage');
                     const notificationContainer = document.getElementById('notificationContainer');
@@ -641,20 +775,35 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                     });
                     
                     // Functions
-                    function fetchTestClasses() {
-                        console.log('Fetching test classes...');
-                        showLoading();
-                        hideError();
-                        hideNotification();
-                        vscode.postMessage({ command: 'fetchTestClasses' });
-                    }
-                    
-                    function showLoading() {
-                        loading.classList.remove('hidden');
+                    function showLoading(message = 'Loading...') {
+                        testProgress.classList.add('visible');
+                        progressDetails.innerHTML = '';
+                        const loadingItem = document.createElement('div');
+                        loadingItem.className = 'test-progress-item running';
+                        loadingItem.innerHTML = 
+                            '<span class="test-progress-item-status">' +
+                            '<svg class="test-status running" width="14" height="14" viewBox="0 0 16 16">' +
+                            '<path fill="currentColor" d="M14.5 8c0 3.584-2.916 6.5-6.5 6.5S1.5 11.584 1.5 8 4.416 1.5 8 1.5 14.5 4.416 14.5 8zM8 2.5A5.5 5.5 0 1 0 13.5 8 5.506 5.506 0 0 0 8 2.5z"/>' +
+                            '</svg>' +
+                            '</span>' +
+                            '<span>' + message + '</span>';
+                        progressDetails.appendChild(loadingItem);
+                        progressStatus.textContent = 'Loading...';
+                        progressBar.style.width = '0%';
                     }
                     
                     function hideLoading() {
-                        loading.classList.add('hidden');
+                        setTimeout(() => {
+                            testProgress.classList.remove('visible');
+                        }, 1000);
+                    }
+                    
+                    function fetchTestClasses() {
+                        console.log('Fetching test classes...');
+                        showLoading('Fetching test classes...');
+                        hideError();
+                        hideNotification();
+                        vscode.postMessage({ command: 'fetchTestClasses' });
                     }
                     
                     function showError(message) {
@@ -859,22 +1008,19 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                     
                     function loadTestMethods(className, methodsListElement) {
                         console.log('Loading test methods for ' + className + '...');
+                        methodsListElement.innerHTML = '';
                         
                         // Add loading indicator to the methods list
-                        const loadingItem = document.createElement('li');
-                        loadingItem.className = 'loading-item';
-                        
-                        const loadingSpinner = document.createElement('div');
-                        loadingSpinner.className = 'spinner';
-                        loadingSpinner.style.width = '12px';
-                        loadingSpinner.style.height = '12px';
-                        
-                        const loadingText = document.createElement('span');
-                        loadingText.textContent = ' Loading test methods...';
-                        loadingText.style.marginLeft = '8px';
-                        
-                        loadingItem.appendChild(loadingSpinner);
-                        loadingItem.appendChild(loadingText);
+                        const loadingItem = document.createElement('div');
+                        loadingItem.className = 'test-progress-item running';
+                        loadingItem.style.marginLeft = '20px';
+                        loadingItem.innerHTML = 
+                            '<span class="test-progress-item-status">' +
+                            '<svg class="test-status running" width="14" height="14" viewBox="0 0 16 16">' +
+                            '<path fill="currentColor" d="M14.5 8c0 3.584-2.916 6.5-6.5 6.5S1.5 11.584 1.5 8 4.416 1.5 8 1.5 14.5 4.416 14.5 8zM8 2.5A5.5 5.5 0 1 0 13.5 8 5.506 5.506 0 0 0 8 2.5z"/>' +
+                            '</svg>' +
+                            '</span>' +
+                            '<span>Loading test methods...</span>';
                         methodsListElement.appendChild(loadingItem);
                         
                         // Request test methods from the extension
@@ -968,19 +1114,41 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                         showLoading();
                         hideError();
                         hideNotification();
-
-                        // Update loading message to be more specific
-                        loading.querySelector('span').textContent = 'Running ' + (testMethod ? 'method ' + testMethod : 'class ' + testClass) + '...';
+                        
+                        const testName = testMethod ? testClass + '.' + testMethod : testClass;
+                        addTaskEntry('Running test: ' + testName, '$(beaker~spin)');
+                        
+                        // Initialize progress tracking
+                        const testProgress = document.getElementById('testProgress');
+                        const progressDetails = testProgress.querySelector('.test-progress-details');
+                        const progressStatus = testProgress.querySelector('.test-progress-status');
+                        const progressBar = testProgress.querySelector('.test-progress-bar-fill');
+                        
+                        testProgress.classList.add('visible');
+                        progressDetails.innerHTML = '';
+                        
+                        const testItem = document.createElement('div');
+                        testItem.className = 'test-progress-item running';
+                        testItem.innerHTML = 
+                            '<span class="test-progress-item-status">' +
+                            '<svg class="test-status running" width="14" height="14" viewBox="0 0 16 16">' +
+                            '<path fill="currentColor" d="M14.5 8c0 3.584-2.916 6.5-6.5 6.5S1.5 11.584 1.5 8 4.416 1.5 8 1.5 14.5 4.416 14.5 8zM8 2.5A5.5 5.5 0 1 0 13.5 8 5.506 5.506 0 0 0 8 2.5z"/>' +
+                            '</svg>' +
+                            '</span>' +
+                            '<span>' + testName + '</span>';
+                        progressDetails.appendChild(testItem);
+                        progressStatus.textContent = 'Running...';
+                        progressBar.style.width = '0%';
 
                         // Update UI to show loading state
                         const selector = testMethod ? 
                             '.test-method-item[data-class="' + testClass + '"][data-method="' + testMethod + '"]' :
                             '.test-class-item[data-class-name="' + testClass + '"]';
                         
-                        const testItem = document.querySelector(selector);
-                        if (testItem) {
-                            const runButton = testItem.querySelector('.run');
-                            const statusIcon = testItem.querySelector('.test-status');
+                        const testListItem = document.querySelector(selector);
+                        if (testListItem) {
+                            const runButton = testListItem.querySelector('.run');
+                            const statusIcon = testListItem.querySelector('.test-status');
                             
                             if (runButton) {
                                 runButton.style.display = 'none';
@@ -1004,178 +1172,58 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                             return;
                         }
 
-                        // Update test status icons and cache logs
-                        if (results.tests) {
-                            results.tests.forEach(test => {
-                                const [className, methodName] = test.fullName.split('.');
-                                const statusIcon = document.querySelector('.test-status[data-class-name="' + className + '"][data-method-name="' + methodName + '"]');
-                                const runButton = statusIcon?.parentElement?.querySelector('.run');
-                                
-                                if (statusIcon) {
-                                    statusIcon.innerHTML = test.outcome === 'Pass' ? 
-                                        '<svg width="14" height="14" viewBox="0 0 16 16"><path fill="currentColor" d="M14.4 3.686L5.707 12.379 1.6 8.272l.707-.707 3.4 3.4 8-8 .693.721z"/></svg>' :
-                                        '<svg width="14" height="14" viewBox="0 0 16 16"><path fill="currentColor" d="M13.657 3.757L9.414 8l4.243 4.242-.707.707L8.707 8.707l-4.243 4.243-.707-.707L8 8 3.757 3.757l.707-.707L8.707 7.293l4.243-4.243z"/></svg>';
-                                    
-                                    statusIcon.className = 'icon test-status ' + (test.outcome === 'Pass' ? 'passed' : 'failed');
-
-                                    // Add log ID to the status icon for later reference
-                                    if (test.apexLogId) {
-                                        statusIcon.dataset.logId = test.apexLogId;
-                                        statusIcon.style.cursor = 'pointer';
-                                        statusIcon.title = 'Click to view test log';
-                                        
-                                        // Add click handler to view log
-                                        statusIcon.onclick = (e) => {
-                                            e.stopPropagation();
-                                            vscode.postMessage({
-                                                command: 'viewTestLog',
-                                                logId: test.apexLogId,
-                                                testName: test.fullName
-                                            });
-                                        };
-                                    }
-                                }
-                                
-                                if (runButton) {
-                                    runButton.style.display = 'inline-flex';
-                                }
-                            });
-                        }
+                        // Update progress UI
+                        const testProgress = document.getElementById('testProgress');
+                        const progressDetails = testProgress.querySelector('.test-progress-details');
+                        const progressStatus = testProgress.querySelector('.test-progress-status');
+                        const progressBar = testProgress.querySelector('.test-progress-bar-fill');
                         
-                        // Create a results container
-                        const resultsContainer = document.createElement('div');
-                        resultsContainer.className = 'test-results-container';
-                        resultsContainer.style.margin = '10px 0';
-                        resultsContainer.style.padding = '10px';
-                        resultsContainer.style.backgroundColor = 'var(--vscode-editor-background)';
-                        resultsContainer.style.border = '1px solid var(--vscode-panel-border)';
-                        
-                        // Add summary
                         const summary = results.summary;
-                        const summaryDiv = document.createElement('div');
-                        summaryDiv.style.marginBottom = '10px';
+                        const total = summary.testsRan;
+                        const completed = summary.passing + summary.failing;
+                        const percentage = (completed / total) * 100;
                         
-                        const summaryTitle = document.createElement('h3');
-                        summaryTitle.textContent = 'Test Results';
-                        summaryTitle.style.margin = '0 0 5px 0';
-                        summaryTitle.style.fontSize = '1.1em';
+                        progressBar.style.width = percentage + '%';
+                        progressStatus.textContent = completed + ' of ' + total + ' completed';
                         
-                        const outcomeSpan = document.createElement('span');
-                        outcomeSpan.textContent = 'Outcome: ' + summary.outcome;
-                        outcomeSpan.style.display = 'block';
-                        outcomeSpan.style.fontWeight = 'bold';
-                        outcomeSpan.style.color = summary.outcome === 'Passed' ? 'var(--vscode-testing-iconPassed)' : 'var(--vscode-testing-iconFailed)';
+                        // Add summary to task list
+                        const summaryMessage = 'Tests completed - Passed: ' + summary.passing + 
+                                            ', Failed: ' + summary.failing + 
+                                            ', Skipped: ' + summary.skipped +
+                                            ', Time: ' + summary.testTotalTime + 's';
+                        const status = summary.outcome === 'Passed' ? '$(check)' : '$(x)';
+                        addTaskEntry(summaryMessage, status);
                         
-                        const statsSpan = document.createElement('span');
-                        statsSpan.textContent = 'Tests: ' + summary.testsRan + ', Passed: ' + summary.passing + 
-                                               ', Failed: ' + summary.failing + ', Skipped: ' + summary.skipped;
-                        statsSpan.style.display = 'block';
-                        
-                        const timeSpan = document.createElement('span');
-                        timeSpan.textContent = 'Time: ' + summary.testTotalTime + 's';
-                        timeSpan.style.display = 'block';
-                        
-                        summaryDiv.appendChild(summaryTitle);
-                        summaryDiv.appendChild(outcomeSpan);
-                        summaryDiv.appendChild(statsSpan);
-                        summaryDiv.appendChild(timeSpan);
-                        
-                        // Add test details with log links
-                        const detailsDiv = document.createElement('div');
-                        
-                        if (results.tests && results.tests.length > 0) {
-                            const testsList = document.createElement('ul');
-                            testsList.style.listStyleType = 'none';
-                            testsList.style.padding = '0';
-                            testsList.style.margin = '0';
-                            
-                            results.tests.forEach(function(test) {
-                                const testItem = document.createElement('li');
-                                testItem.style.padding = '5px 0';
-                                testItem.style.borderBottom = '1px solid var(--vscode-panel-border)';
+                        // Update progress details
+                        if (results.tests) {
+                            progressDetails.innerHTML = '';
+                            results.tests.forEach(test => {
+                                const testItem = document.createElement('div');
+                                testItem.className = 'test-progress-item ' + (test.outcome === 'Pass' ? 'passed' : 'failed');
                                 
-                                const testName = document.createElement('div');
-                                testName.textContent = test.fullName;
-                                testName.style.fontWeight = 'bold';
+                                const icon = test.outcome === 'Pass' ? 
+                                    '<svg width="14" height="14" viewBox="0 0 16 16"><path fill="currentColor" d="M14.4 3.686L5.707 12.379 1.6 8.272l.707-.707 3.4 3.4 8-8 .693.721z"/></svg>' :
+                                    '<svg width="14" height="14" viewBox="0 0 16 16"><path fill="currentColor" d="M13.657 3.757L9.414 8l4.243 4.242-.707.707L8.707 8.707l-4.243 4.243-.707-.707L8 8 3.757 3.757l.707-.707L8.707 7.293l4.243-4.243z"/></svg>';
                                 
-                                const testOutcome = document.createElement('div');
-                                testOutcome.textContent = 'Outcome: ' + test.outcome;
-                                testOutcome.style.color = test.outcome === 'Pass' ? 'var(--vscode-testing-iconPassed)' : 'var(--vscode-testing-iconFailed)';
+                                testItem.innerHTML = 
+                                    '<span class="test-progress-item-status">' + icon + '</span>' +
+                                    '<span>' + test.fullName + '</span>' +
+                                    '<span style="margin-left: auto">' + test.runTime + 's</span>';
+                                progressDetails.appendChild(testItem);
                                 
-                                const testTime = document.createElement('div');
-                                testTime.textContent = 'Runtime: ' + test.runTime + 's';
-                                
-                                testItem.appendChild(testName);
-                                testItem.appendChild(testOutcome);
-                                testItem.appendChild(testTime);
-                                
-                                // Add log link if available
-                                if (test.apexLogId) {
-                                    const logLink = document.createElement('a');
-                                    logLink.href = '#';
-                                    logLink.textContent = 'View Log';
-                                    logLink.style.marginLeft = '10px';
-                                    logLink.style.color = 'var(--vscode-textLink-foreground)';
-                                    logLink.onclick = (e) => {
-                                        e.preventDefault();
-                                        vscode.postMessage({
-                                            command: 'viewTestLog',
-                                            logId: test.apexLogId,
-                                            testName: test.fullName
-                                        });
-                                    };
-                                    testTime.appendChild(logLink);
-                                }
-                                
-                                // Add error message if any
-                                if (test.message) {
-                                    const errorMessage = document.createElement('div');
-                                    errorMessage.textContent = 'Error: ' + test.message;
-                                    errorMessage.style.color = 'var(--vscode-testing-iconFailed)';
-                                    errorMessage.style.marginTop = '5px';
-                                    testItem.appendChild(errorMessage);
-                                }
-                                
-                                // Add stack trace if any
-                                if (test.stackTrace) {
-                                    const stackTrace = document.createElement('pre');
-                                    stackTrace.textContent = test.stackTrace;
-                                    stackTrace.style.fontSize = '0.9em';
-                                    stackTrace.style.overflow = 'auto';
-                                    stackTrace.style.backgroundColor = 'var(--vscode-editor-background)';
-                                    stackTrace.style.padding = '5px';
-                                    stackTrace.style.marginTop = '5px';
-                                    testItem.appendChild(stackTrace);
-                                }
-                                
-                                testsList.appendChild(testItem);
+                                // Add individual test result to task list
+                                const testStatus = test.outcome === 'Pass' ? '$(check)' : '$(x)';
+                                const testMessage = test.fullName + ' - ' + test.outcome + 
+                                                 (test.message ? ' - ' + test.message : '') +
+                                                 ' (' + test.runTime + 's)';
+                                addTaskEntry(testMessage, testStatus);
                             });
-                            
-                            detailsDiv.appendChild(testsList);
-                        } else {
-                            const noTests = document.createElement('div');
-                            noTests.textContent = 'No test details available';
-                            noTests.style.fontStyle = 'italic';
-                            detailsDiv.appendChild(noTests);
                         }
-                        
-                        // Add close button
-                        const closeButton = document.createElement('button');
-                        closeButton.textContent = 'Close Results';
-                        closeButton.className = 'button';
-                        closeButton.style.marginTop = '10px';
-                        closeButton.onclick = function() {
-                            resultsContainer.remove();
-                        };
-                        
-                        // Assemble the results container
-                        resultsContainer.appendChild(summaryDiv);
-                        resultsContainer.appendChild(detailsDiv);
-                        resultsContainer.appendChild(closeButton);
-                        
-                        // Add to the DOM
-                        const container = document.querySelector('.container');
-                        container.insertBefore(resultsContainer, testClassesContainer);
+
+                        // Hide progress after a delay
+                        setTimeout(() => {
+                            testProgress.classList.remove('visible');
+                        }, 5000);
                     }
                     
                     // Handle messages from the extension
@@ -1209,6 +1257,37 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                                 break;
                         }
                     });
+                    
+                    // Initialize subdivision panel
+                    const subdivisionHeader = document.getElementById('subdivisionHeader');
+                    const subdivisionChevron = subdivisionHeader.querySelector('.subdivision-chevron');
+                    const subdivisionContent = document.getElementById('subdivisionContent');
+                    const tasksList = document.getElementById('tasksList');
+
+                    subdivisionHeader.addEventListener('click', () => {
+                        subdivisionChevron.classList.toggle('collapsed');
+                        subdivisionContent.classList.toggle('expanded');
+                    });
+
+                    function addTaskEntry(message, status = '') {
+                        const taskItem = document.createElement('div');
+                        taskItem.className = 'task-item';
+                        
+                        const time = new Date().toLocaleTimeString();
+                        taskItem.innerHTML = 
+                            '<span class="task-time">' + time + '</span>' +
+                            '<span class="task-status">' + status + '</span>' +
+                            '<span class="task-message">' + message + '</span>';
+                        
+                        tasksList.appendChild(taskItem);
+                        subdivisionContent.scrollTop = subdivisionContent.scrollHeight;
+                        
+                        // Ensure the subdivision is expanded when new tasks are added
+                        if (!subdivisionContent.classList.contains('expanded')) {
+                            subdivisionChevron.classList.remove('collapsed');
+                            subdivisionContent.classList.add('expanded');
+                        }
+                    }
                     
                     // Initial fetch
                     fetchTestClasses();
