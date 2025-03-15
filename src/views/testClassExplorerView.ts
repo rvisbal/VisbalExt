@@ -430,13 +430,11 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                     cursor: pointer;
                     display: flex;
                     align-items: center;
-                    border-bottom: 1px solid var(--vscode-panel-border);
                 }
                 .test-class-item:hover {
                     background-color: var(--vscode-list-hoverBackground);
                 }
                 .test-class-name {
-                    font-weight: bold;
                     margin-left: 5px;
                     flex: 1;
                 }
@@ -450,6 +448,7 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                     cursor: pointer;
                     display: flex;
                     align-items: center;
+                    margin-left: 20px;
                 }
                 .test-method-item:hover {
                     background-color: var(--vscode-list-hoverBackground);
@@ -464,10 +463,21 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                     display: inline-block;
                     text-align: center;
                 }
+                .test-status {
+                    margin-right: 5px;
+                    color: var(--vscode-testing-iconPassed);
+                }
+                .test-status.failed {
+                    color: var(--vscode-testing-iconFailed);
+                }
+                .test-status.running {
+                    animation: spin 1s linear infinite;
+                }
                 .no-data {
                     color: var(--vscode-descriptionForeground);
                     font-style: italic;
                     margin: 10px 0;
+                    display: none;
                 }
                 .footer-note {
                     margin-top: 5px;
@@ -486,6 +496,18 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                 .selection-actions {
                     display: flex;
                     align-items: center;
+                    gap: 8px;
+                }
+                #runSelectedButton {
+                    display: none;
+                }
+                #runSelectedButton:not([disabled]) {
+                    cursor: pointer;
+                    opacity: 1;
+                }
+                #runSelectedButton[disabled] {
+                    opacity: 0.5;
+                    cursor: not-allowed;
                 }
                 .selection-count {
                     margin-right: 8px;
@@ -593,8 +615,10 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                     }
                     
                     function updateSelectionCount() {
-                        selectionCount.textContent = selectedTests.count + ' selected';
-                        runSelectedButton.disabled = selectedTests.count === 0;
+                        const count = selectedTests.count;
+                        selectionCount.textContent = count + ' selected';
+                        runSelectedButton.style.display = count > 0 ? 'inline-block' : 'none';
+                        runSelectedButton.disabled = count === 0;
                     }
                     
                     function toggleClassSelection(className, checkbox) {
@@ -832,8 +856,8 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                         
                         // Add each test method to the list
                         testMethods.forEach(function(method) {
-                            const methodLi = document.createElement('li');
-                            methodLi.className = 'test-method-item';
+                                const methodLi = document.createElement('li');
+                                methodLi.className = 'test-method-item';
                             
                             // Add checkbox for method selection
                             const checkboxContainer = document.createElement('div');
@@ -850,37 +874,59 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                             });
                             
                             checkboxContainer.appendChild(checkbox);
-                            
-                            const methodIcon = document.createElement('span');
-                            methodIcon.className = 'icon';
-                            methodIcon.textContent = '⚫';
-                            
-                            const methodNameSpan = document.createElement('span');
-                            methodNameSpan.className = 'test-method-name';
+                                
+                                const methodIcon = document.createElement('span');
+                                methodIcon.className = 'icon test-status';
+                                methodIcon.dataset.methodName = method.name;
+                                methodIcon.dataset.className = className;
+                                methodIcon.innerHTML = ''; // Remove the bullet point
+                                
+                                const methodNameSpan = document.createElement('span');
+                                methodNameSpan.className = 'test-method-name';
                             methodNameSpan.textContent = method.name;
-                            
+                                
                             // Create run button with play icon
-                            const runMethodButton = document.createElement('button');
+                                const runMethodButton = document.createElement('button');
                             runMethodButton.className = 'icon-button run';
                             runMethodButton.title = 'Run Test Method';
                             runMethodButton.innerHTML = '<svg width="14" height="14" viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg" fill="currentColor"><path d="M3.78 2L3 2.41v12l.78.42 9-6V8l-9-6zM4 13.48V3.35l7.6 5.07L4 13.48z"/><path fill-rule="evenodd" clip-rule="evenodd" d="M3.78 2L3 2.41v12l.78.42 9-6V8l-9-6zM4 13.48V3.35l7.6 5.07L4 13.48z"/></svg>';
-                            runMethodButton.onclick = function(e) {
-                                e.stopPropagation();
+                                runMethodButton.onclick = function(e) {
+                                    e.stopPropagation();
                                 runTest(className, method.name);
-                            };
-                            
+                                };
+                                
                             methodLi.appendChild(checkboxContainer);
-                            methodLi.appendChild(methodIcon);
-                            methodLi.appendChild(methodNameSpan);
-                            methodLi.appendChild(runMethodButton);
-                            methodsList.appendChild(methodLi);
-                        });
+                                methodLi.appendChild(methodIcon);
+                                methodLi.appendChild(methodNameSpan);
+                                methodLi.appendChild(runMethodButton);
+                                methodsList.appendChild(methodLi);
+                            });
                     }
                     
                     function runTest(testClass, testMethod) {
                         showLoading();
                         hideError();
                         hideNotification();
+
+                        // Update UI to show loading state
+                        const selector = testMethod ? 
+                            '.test-method-item[data-class="' + testClass + '"][data-method="' + testMethod + '"]' :
+                            '.test-class-item[data-class-name="' + testClass + '"]';
+                        
+                        const testItem = document.querySelector(selector);
+                        if (testItem) {
+                            const runButton = testItem.querySelector('.run');
+                            const statusIcon = testItem.querySelector('.test-status');
+                            
+                            if (runButton) {
+                                runButton.style.display = 'none';
+                            }
+                            
+                            if (statusIcon) {
+                                statusIcon.innerHTML = '<svg class="test-status running" width="14" height="14" viewBox="0 0 16 16"><path fill="currentColor" d="M14.5 8c0 3.584-2.916 6.5-6.5 6.5S1.5 11.584 1.5 8 4.416 1.5 8 1.5 14.5 4.416 14.5 8zM8 2.5A5.5 5.5 0 1 0 13.5 8 5.506 5.506 0 0 0 8 2.5z"/></svg>';
+                            }
+                        }
+
                         vscode.postMessage({ 
                             command: 'runTest',
                             testClass,
@@ -892,6 +938,27 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                         if (!results || !results.summary) {
                             showError('Invalid test results received');
                             return;
+                        }
+
+                        // Update test status icons
+                        if (results.tests) {
+                            results.tests.forEach(test => {
+                                const [className, methodName] = test.fullName.split('.');
+                                const statusIcon = document.querySelector('.test-status[data-class-name="' + className + '"][data-method-name="' + methodName + '"]');
+                                const runButton = statusIcon?.parentElement?.querySelector('.run');
+                                
+                                if (statusIcon) {
+                                    statusIcon.innerHTML = test.outcome === 'Pass' ? 
+                                        '<svg width="14" height="14" viewBox="0 0 16 16"><path fill="currentColor" d="M14.4 3.686L5.707 12.379 1.6 8.272l.707-.707 3.4 3.4 8-8 .693.721z"/></svg>' :
+                                        '<svg width="14" height="14" viewBox="0 0 16 16"><path fill="currentColor" d="M13.657 3.757L9.414 8l4.243 4.242-.707.707L8.707 8.707l-4.243 4.243-.707-.707L8 8 3.757 3.757l.707-.707L8.707 7.293l4.243-4.243z"/></svg>';
+                                    
+                                    statusIcon.className = 'icon test-status ' + (test.outcome === 'Pass' ? 'passed' : 'failed');
+                                }
+                                
+                                if (runButton) {
+                                    runButton.style.display = 'inline-flex';
+                                }
+                            });
                         }
                         
                         // Create a results container
