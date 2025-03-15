@@ -430,6 +430,9 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                     cursor: pointer;
                     display: flex;
                     align-items: center;
+                    white-space: nowrap;
+                    overflow: hidden;
+                    text-overflow: ellipsis;
                 }
                 .test-class-item:hover {
                     background-color: var(--vscode-list-hoverBackground);
@@ -437,11 +440,14 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                 .test-class-name {
                     margin-left: 5px;
                     flex: 1;
+                    overflow: hidden;
+                    text-overflow: ellipsis;
+                    padding-right: 8px;
                 }
                 .test-methods-list {
                     list-style-type: none;
-                    padding-left: 20px;
-                    margin: 3px 0;
+                    padding: 0;
+                    margin: 0;
                 }
                 .test-method-item {
                     padding: 2px 0;
@@ -449,13 +455,19 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                     display: flex;
                     align-items: center;
                     margin-left: 20px;
+                    white-space: nowrap;
+                    overflow: hidden;
+                    text-overflow: ellipsis;
                 }
                 .test-method-item:hover {
                     background-color: var(--vscode-list-hoverBackground);
                 }
                 .test-method-name {
-                    margin-left: 5px;
+                    margin-left: 2px;
                     flex: 1;
+                    overflow: hidden;
+                    text-overflow: ellipsis;
+                    padding-right: 8px;
                 }
                 .icon {
                     width: 16px;
@@ -464,7 +476,7 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                     text-align: center;
                 }
                 .test-status {
-                    margin-right: 5px;
+                    margin-right: 2px;
                     color: var(--vscode-testing-iconPassed);
                 }
                 .test-status.failed {
@@ -485,13 +497,13 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                     color: var(--vscode-descriptionForeground);
                 }
                 .checkbox {
-                    margin-right: 5px;
+                    margin: 0 3px;
                     cursor: pointer;
                 }
                 .checkbox-container {
                     display: flex;
                     align-items: center;
-                    margin-right: 5px;
+                    margin-right: 0;
                 }
                 .selection-actions {
                     display: flex;
@@ -883,7 +895,7 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                                 
                                 const methodNameSpan = document.createElement('span');
                                 methodNameSpan.className = 'test-method-name';
-                            methodNameSpan.textContent = method.name;
+                                methodNameSpan.textContent = method.name.trim();
                                 
                             // Create run button with play icon
                                 const runMethodButton = document.createElement('button');
