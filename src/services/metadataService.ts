@@ -318,4 +318,31 @@ export class MetadataService {
             throw new Error(`Failed to get test methods for ${className}: ${error.message}`);
         }
     }
+
+    public async getTestLog(logId: string): Promise<string> {
+        try {
+            console.log('[MetadataService] Attempting to fetch test log with ID:', logId);
+            
+            // Execute SFDX command to get the log
+            const command = 'sf apex get log --json -i ' + logId;
+            console.log('[MetadataService] Executing command:', command);
+            
+            const result = await this.executeCliCommand(command);
+            console.log('[MetadataService] Raw command result:', result);
+
+            const parsedResult = JSON.parse(result);
+            console.log('[MetadataService] Parsed result:', parsedResult);
+
+            if (parsedResult && parsedResult.status === 0 && parsedResult.result) {
+                console.log('[MetadataService] Successfully retrieved log content');
+                return parsedResult.result.log;
+            }
+
+            console.error('[MetadataService] Failed to fetch test log - Invalid response structure');
+            throw new Error('Failed to fetch test log - Invalid response structure');
+        } catch (error) {
+            console.error('[MetadataService] Error fetching test log:', error);
+            throw new Error('Failed to fetch test log: ' + (error as Error).message);
+        }
+    }
 } 

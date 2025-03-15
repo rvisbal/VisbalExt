@@ -51,6 +51,9 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                 case 'runSelectedTests':
                     await this._runSelectedTests(data.tests);
                     break;
+                case 'viewTestLog':
+                    await this._viewTestLog(data.logId, data.testName);
+                    break;
                 case 'error':
                     vscode.window.showErrorMessage(data.message);
                     break;
@@ -152,6 +155,7 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
 
     private async _runTest(testClass: string, testMethod?: string) {
         try {
+            console.log('[TestClassExplorerView] Starting test execution:', { testClass, testMethod });
             this._statusBarService.showMessage(`$(beaker~spin) Running test: ${testClass}${testMethod ? '.' + testMethod : ''}`);
             
             // Check if Salesforce Extension Pack is installed
@@ -162,14 +166,62 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
             }
             
             // Use MetadataService to run tests
+            console.log('[TestClassExplorerView] Calling MetadataService.runTests');
             const result = await this._metadataService.runTests(testClass, testMethod);
+            console.log('[TestClassExplorerView] Test execution result:', result);
             
             if (!result) {
                 throw new Error('Failed to run test. Please ensure you have an authorized Salesforce org and try again.');
             }
+
+            // Get test logs if available
+            if (result.tests && result.tests.length > 0) {
+                console.log('[TestClassExplorerView] Processing test results for logs:', result.tests);
+                for (const test of result.tests) {
+                    console.log('[TestClassExplorerView] Processing test result:', {
+                        testName: test.fullName,
+                        outcome: test.outcome,
+                        logId: test.apexLogId
+                    });
+                    
+                    if (test.apexLogId) {
+                        console.log('[TestClassExplorerView] Found log ID for test:', test.apexLogId);
+                        try {
+                            console.log('[TestClassExplorerView] Attempting to fetch log content for:', test.fullName);
+                            const logContent = await this._metadataService.getTestLog(test.apexLogId);
+                            console.log('[TestClassExplorerView] Log content retrieved:', !!logContent);
+                            
+                            if (logContent) {
+                                // Create a temporary file with the log content
+                                const tmpPath = join(vscode.workspace.rootPath || '', '.sf', 'logs', `${test.fullName}-${new Date().getTime()}.log`);
+                                console.log('[TestClassExplorerView] Creating log file at:', tmpPath);
+                                
+                                const document = await vscode.workspace.openTextDocument(vscode.Uri.parse('untitled:' + tmpPath));
+                                const editor = await vscode.window.showTextDocument(document);
+                                await editor.edit(editBuilder => {
+                                    editBuilder.insert(new vscode.Position(0, 0), logContent);
+                                });
+                                console.log('[TestClassExplorerView] Log file created and opened');
+                            }
+                        } catch (error) {
+                            console.error('[TestClassExplorerView] Error fetching test log:', {
+                                testName: test.fullName,
+                                logId: test.apexLogId,
+                                error: error
+                            });
+                            vscode.window.showWarningMessage(`Could not fetch log for test ${test.fullName}: ${(error as Error).message}`);
+                        }
+                    } else {
+                        console.log('[TestClassExplorerView] No log ID found for test:', test.fullName);
+                    }
+                }
+            } else {
+                console.log('[TestClassExplorerView] No test results found to process logs');
+            }
             
             // Send the test results to the webview
             if (this._view) {
+                console.log('[TestClassExplorerView] Sending test results to webview');
                 this._view.webview.postMessage({
                     command: 'testResultsLoaded',
                     results: result
@@ -179,7 +231,7 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
             this._statusBarService.hide();
         } catch (error: any) {
             this._statusBarService.hide();
-            console.error('Error running test:', error);
+            console.error('[TestClassExplorerView] Error in test execution:', error);
             
             if (this._view) {
                 this._view.webview.postMessage({
@@ -557,9 +609,6 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                     </div>
                     <div id="testClassesList"></div>
                 </div>
-                <div class="footer-note">
-                    Note: This view uses mock data when Salesforce Extension Pack is not installed.
-                </div>
             </div>
             <script nonce="${nonce}">
                 (function() {
@@ -920,6 +969,9 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                         hideError();
                         hideNotification();
 
+                        // Update loading message to be more specific
+                        loading.querySelector('span').textContent = 'Running ' + (testMethod ? 'method ' + testMethod : 'class ' + testClass) + '...';
+
                         // Update UI to show loading state
                         const selector = testMethod ? 
                             '.test-method-item[data-class="' + testClass + '"][data-method="' + testMethod + '"]' :
@@ -952,7 +1004,7 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                             return;
                         }
 
-                        // Update test status icons
+                        // Update test status icons and cache logs
                         if (results.tests) {
                             results.tests.forEach(test => {
                                 const [className, methodName] = test.fullName.split('.');
@@ -965,6 +1017,23 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                                         '<svg width="14" height="14" viewBox="0 0 16 16"><path fill="currentColor" d="M13.657 3.757L9.414 8l4.243 4.242-.707.707L8.707 8.707l-4.243 4.243-.707-.707L8 8 3.757 3.757l.707-.707L8.707 7.293l4.243-4.243z"/></svg>';
                                     
                                     statusIcon.className = 'icon test-status ' + (test.outcome === 'Pass' ? 'passed' : 'failed');
+
+                                    // Add log ID to the status icon for later reference
+                                    if (test.apexLogId) {
+                                        statusIcon.dataset.logId = test.apexLogId;
+                                        statusIcon.style.cursor = 'pointer';
+                                        statusIcon.title = 'Click to view test log';
+                                        
+                                        // Add click handler to view log
+                                        statusIcon.onclick = (e) => {
+                                            e.stopPropagation();
+                                            vscode.postMessage({
+                                                command: 'viewTestLog',
+                                                logId: test.apexLogId,
+                                                testName: test.fullName
+                                            });
+                                        };
+                                    }
                                 }
                                 
                                 if (runButton) {
@@ -1011,7 +1080,7 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                         summaryDiv.appendChild(statsSpan);
                         summaryDiv.appendChild(timeSpan);
                         
-                        // Add test details
+                        // Add test details with log links
                         const detailsDiv = document.createElement('div');
                         
                         if (results.tests && results.tests.length > 0) {
@@ -1039,6 +1108,24 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                                 testItem.appendChild(testName);
                                 testItem.appendChild(testOutcome);
                                 testItem.appendChild(testTime);
+                                
+                                // Add log link if available
+                                if (test.apexLogId) {
+                                    const logLink = document.createElement('a');
+                                    logLink.href = '#';
+                                    logLink.textContent = 'View Log';
+                                    logLink.style.marginLeft = '10px';
+                                    logLink.style.color = 'var(--vscode-textLink-foreground)';
+                                    logLink.onclick = (e) => {
+                                        e.preventDefault();
+                                        vscode.postMessage({
+                                            command: 'viewTestLog',
+                                            logId: test.apexLogId,
+                                            testName: test.fullName
+                                        });
+                                    };
+                                    testTime.appendChild(logLink);
+                                }
                                 
                                 // Add error message if any
                                 if (test.message) {
@@ -1138,5 +1225,33 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
             text += possible.charAt(Math.floor(Math.random() * possible.length));
         }
         return text;
+    }
+
+    private async _viewTestLog(logId: string, testName: string) {
+        try {
+            console.log('[TestClassExplorerView] Viewing test log:', { logId, testName });
+            const logContent = await this._metadataService.getTestLog(logId);
+            console.log('[TestClassExplorerView] Log content retrieved:', !!logContent);
+            
+            if (logContent) {
+                // Create a temporary file with the log content
+                const tmpPath = join(vscode.workspace.rootPath || '', '.sf', 'logs', `${testName}-${new Date().getTime()}.log`);
+                console.log('[TestClassExplorerView] Creating log file at:', tmpPath);
+                
+                const document = await vscode.workspace.openTextDocument(vscode.Uri.parse('untitled:' + tmpPath));
+                const editor = await vscode.window.showTextDocument(document);
+                await editor.edit(editBuilder => {
+                    editBuilder.insert(new vscode.Position(0, 0), logContent);
+                });
+                console.log('[TestClassExplorerView] Log file created and opened');
+            }
+        } catch (error) {
+            console.error('[TestClassExplorerView] Error viewing test log:', {
+                testName,
+                logId,
+                error: error
+            });
+            vscode.window.showWarningMessage(`Could not view log for test ${testName}: ${(error as Error).message}`);
+        }
     }
 }
