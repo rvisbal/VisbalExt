@@ -43,6 +43,7 @@
       {
         "command": "visbal-ext.refreshVisbalLog",
         "title": "Refresh Visbal Log",
+        "category": "Visbal",
         "icon": "$(refresh)"
       },
       {
@@ -54,14 +55,29 @@
         "command": "visbal.executeApexRest",
         "title": "Execute Salesforce Apex REST Endpoint",
         "icon": "$(play)"
+      },
+      {
+        "command": "visbal-ext.showVisbalLog",
+        "title": "Show Visbal Log",
+        "category": "Visbal"
+      },
+      {
+        "command": "visbal-ext.showVisbalSoql",
+        "title": "Show Visbal SOQL",
+        "category": "Visbal"
       }
     ],
     "viewsContainers": {
       "panel": [
         {
-          "id": "visbalLogContainer",
+          "id": "visbal-log-container",
           "title": "Visbal Log",
           "icon": "$(notebook)"
+        },
+        {
+          "id": "visbal-soql-container",
+          "title": "Visbal SOQL",
+          "icon": "$(database)"
         }
       ],
       "activitybar": [
@@ -73,18 +89,25 @@
       ]
     },
     "views": {
-      "visbalLogContainer": [
-        {
-          "id": "visbalLogView",
-          "name": "Log Analyzer",
-          "type": "webview"
-        }
-      ],
       "testExplorerContainer": [
         {
           "id": "testClassExplorerView",
           "name": "Test Classes",
           "type": "webview"
+        }
+      ],
+      "visbal-log-container": [
+        {
+          "type": "webview",
+          "id": "visbal-log",
+          "name": "Log Analyzer"
+        }
+      ],
+      "visbal-soql-container": [
+        {
+          "type": "webview",
+          "id": "visbal-soql",
+          "name": "SOQL Query"
         }
       ]
     },
@@ -105,12 +128,12 @@
       "view/title": [
         {
           "command": "visbal-ext.refreshVisbalLog",
-          "when": "view == visbalLogView",
+          "when": "view == visbal-log",
           "group": "navigation"
         },
         {
           "command": "visbal.fetchLogsViaRestApi",
-          "when": "view == visbalLogView",
+          "when": "view == visbal-log",
           "group": "navigation"
         }
       ],
@@ -122,6 +145,14 @@
         {
           "command": "visbal.executeApexRest",
           "group": "Salesforce"
+        },
+        {
+          "command": "visbal-ext.showVisbalSoql",
+          "when": "workspaceHasVisbalProject"
+        },
+        {
+          "command": "visbal-ext.showVisbalLog",
+          "when": "workspaceHasVisbalProject"
         }
       ]
     }

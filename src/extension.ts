@@ -6,6 +6,9 @@ import { LogDetailView } from './views/logDetailView';
 import { TestClassExplorerView } from './views/testClassExplorerView';
 import { salesforceApi } from './services/salesforceApiService';
 import { statusBarService } from './services/statusBarService';
+import { SoqlPanelView } from './views/soqlPanelView';
+import { MetadataService } from './services/metadataService';
+import { StatusBarService } from './services/statusBarService';
 
 // This method is called when your extension is activated
 export function activate(context: vscode.ExtensionContext) {
@@ -50,25 +53,59 @@ export function activate(context: vscode.ExtensionContext) {
     LogDetailView.createOrShow(context.extensionUri, logFilePath, logId);
   });
 
-  // Register the Visbal Log view provider
-  const visbalLogViewProvider = new VisbalLogView(context);
-  context.subscriptions.push(
-    vscode.window.registerWebviewViewProvider(
-      VisbalLogView.viewType,
-      visbalLogViewProvider
-    )
-  );
+  // Initialize services
+  const metadataService = new MetadataService();
 
-  // Register the Test Class Explorer view provider
-  const testClassExplorerViewProvider = new TestClassExplorerView(
-    context.extensionUri,
-    statusBarService
-  );
+  // Create view providers
+  const visbalLogViewProvider = new VisbalLogView(context);
+  const testExplorer = new TestClassExplorerView(context.extensionUri, statusBarService);
+  const soqlPanel = new SoqlPanelView(metadataService);
+
+  // Register Test Explorer View (sidebar)
   context.subscriptions.push(
     vscode.window.registerWebviewViewProvider(
       TestClassExplorerView.viewType,
-      testClassExplorerViewProvider
+      testExplorer
     )
+  );
+
+  // Register Visbal Log View (bottom panel)
+  context.subscriptions.push(
+    vscode.window.registerWebviewViewProvider(
+      'visbal-log',
+      visbalLogViewProvider,
+      {
+        webviewOptions: {
+          retainContextWhenHidden: true
+        }
+      }
+    )
+  );
+
+  // Register SOQL Panel View (bottom panel)
+  context.subscriptions.push(
+    vscode.window.registerWebviewViewProvider(
+      'visbal-soql',
+      soqlPanel,
+      {
+        webviewOptions: {
+          retainContextWhenHidden: true
+        }
+      }
+    )
+  );
+
+  // Register commands for panel activation
+  context.subscriptions.push(
+    vscode.commands.registerCommand('visbal-ext.showVisbalLog', () => {
+      vscode.commands.executeCommand('workbench.view.extension.visbal-log-container');
+    })
+  );
+
+  context.subscriptions.push(
+    vscode.commands.registerCommand('visbal-ext.showVisbalSoql', () => {
+      vscode.commands.executeCommand('workbench.view.extension.visbal-soql-container');
+    })
   );
 
   // Register the Refresh Visbal Log command

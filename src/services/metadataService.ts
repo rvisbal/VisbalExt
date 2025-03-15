@@ -92,6 +92,32 @@ export class MetadataService {
     }
 
     /**
+     * Executes a SOQL query and returns the results
+     * @param query The SOQL query to execute
+     * @returns Promise containing the query results
+     */
+    public async executeSoqlQuery(query: string): Promise<any[]> {
+        try {
+            console.log('[MetadataService] Executing SOQL query:', query);
+            
+            // Execute the query using the Salesforce CLI
+            const command = `sf data query --query "${query}" --json`;
+            const resultStr = await this.executeCliCommand(command);
+            const result = JSON.parse(resultStr);
+            
+            if (result.status === 0 && result.result) {
+                console.log('[MetadataService] SOQL query executed successfully');
+                return result.result.records || [];
+            } else {
+                throw new Error(result.message || 'Failed to execute SOQL query');
+            }
+        } catch (error: any) {
+            console.error('[MetadataService] Error executing SOQL query:', error);
+            throw error;
+        }
+    }
+
+    /**
      * Lists all Apex classes using SOQL query
      */
     public async listApexClasses(): Promise<ApexClass[]> {

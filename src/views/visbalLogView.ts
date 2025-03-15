@@ -37,7 +37,7 @@ interface SalesforceLog {
  * VisbalLogView class for displaying logs in the panel area
  */
 export class VisbalLogView implements vscode.WebviewViewProvider {
-    public static readonly viewType = 'visbalLogView';
+    public static readonly viewType = 'visbal-log';
     private _view?: vscode.WebviewView;
     private _extensionUri: vscode.Uri;
     private _downloadedLogs: Set<string> = new Set<string>();
