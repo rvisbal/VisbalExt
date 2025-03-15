@@ -11,6 +11,7 @@ export interface ApexClass {
     fullName?: string;
     status?: string;
     body?: string;
+    namespace?: string;
 }
 
 export interface TestMethod {
@@ -96,8 +97,8 @@ export class MetadataService {
     public async listApexClasses(): Promise<ApexClass[]> {
         try {
             console.log('[MetadataService] Listing Apex classes...');
-            // Use SOQL query to get Apex classes
-            const soqlQuery = "SELECT Id, Name FROM ApexClass ORDER BY Name";
+            // Use SOQL query to get Apex classes with TracHier namespace
+            const soqlQuery = "SELECT Id, Name, NamespacePrefix FROM ApexClass WHERE NamespacePrefix = 'TracHier' ORDER BY Name";
             const command = `sf data query --query "${soqlQuery}" --json`;
             
             console.log(`[MetadataService] Executing SOQL query: ${soqlQuery}`);
@@ -110,12 +111,13 @@ export class MetadataService {
             }
             
             const records = parsedOutput.result.records;
-            console.log(`[MetadataService] Found ${records.length} classes`);
+            console.log(`[MetadataService] Found ${records.length} classes in TracHier namespace`);
             
             return records.map((cls: any) => ({
                 id: cls.Id,
                 name: cls.Name,
                 fullName: cls.Name,
+                namespace: cls.NamespacePrefix,
                 status: 'Active'
             }));
         } catch (error: any) {
@@ -158,21 +160,51 @@ export class MetadataService {
         console.log('[MetadataService] Extracting test methods from class body...');
         const methods: TestMethod[] = [];
         
-        // Regular expressions to match test methods
+        // Regular expressions to match test methods - improved to catch more patterns
         const patterns = [
             /@isTest\s+(?:static\s+)?void\s+(\w+)\s*\(/g,
             /testMethod\s+(?:static\s+)?void\s+(\w+)\s*\(/g,
-            /@isTest\s+(?:static\s+)?(?:void\s+)?(\w+)\s*\(/g
+            /@isTest\s+(?:static\s+)?(?:void\s+)?(\w+)\s*\(/g,
+            /static\s+(?:void|testmethod)\s+(\w+)\s*\(/gi,
+            /(?:public|private|protected)?\s+static\s+(?:void|testmethod)\s+(\w+)\s*\(/gi,
+            /(?:public|private|protected)?\s+(?:static)?\s+(?:void)?\s+(?:testmethod)?\s+(\w+Test)\s*\(/gi
         ];
 
+        // If the class itself is annotated with @isTest, all methods could be test methods
+        const isTestClass = classBody.includes('@isTest') || 
+                           classBody.toLowerCase().includes('testmethod');
+        
+        if (isTestClass) {
+            // Look for all methods in the class
+            const methodPattern = /(?:public|private|protected)?\s+(?:static)?\s+(?:void)?\s+(\w+)\s*\(/gi;
+            let methodMatch;
+            while ((methodMatch = methodPattern.exec(classBody)) !== null) {
+                const methodName = methodMatch[1];
+                // Skip constructor and known non-test methods
+                if (!methodName.includes('__') && 
+                    !['equals', 'hashCode', 'toString', 'clone'].includes(methodName) &&
+                    !methods.some(m => m.name === methodName)) {
+                    console.log(`[MetadataService] Found potential test method in @isTest class: ${methodName}`);
+                    methods.push({
+                        name: methodName,
+                        isTestMethod: true
+                    });
+                }
+            }
+        }
+        
+        // Use the specific test method patterns
         for (const pattern of patterns) {
             let match;
             while ((match = pattern.exec(classBody)) !== null) {
-                console.log(`[MetadataService] Found test method: ${match[1]}`);
-                methods.push({
-                    name: match[1],
-                    isTestMethod: true
-                });
+                const methodName = match[1];
+                if (!methods.some(m => m.name === methodName)) {
+                    console.log(`[MetadataService] Found test method: ${methodName}`);
+                    methods.push({
+                        name: methodName,
+                        isTestMethod: true
+                    });
+                }
             }
         }
 
@@ -202,33 +234,13 @@ export class MetadataService {
             const allClasses = await this.listApexClasses();
             console.log(`[MetadataService] Retrieved ${allClasses.length} total classes`);
             
-            // Filter potential test classes by name first
-            const potentialTestClasses = allClasses.filter(cls => 
+            // Filter test classes by name only (without checking body)
+            const testClasses = allClasses.filter(cls => 
                 cls.name.toLowerCase().includes('test') || 
                 cls.name.toLowerCase().endsWith('tests')
             );
-            console.log(`[MetadataService] Found ${potentialTestClasses.length} potential test classes by name`);
-
-            // Get the body for each potential test class and verify
-            const testClasses: ApexClass[] = [];
             
-            for (const cls of potentialTestClasses) {
-                try {
-                    console.log(`[MetadataService] Checking class: ${cls.name}`);
-                    const body = await this.getApexClassBody(cls.name);
-                    if (this.isTestClass(body)) {
-                        console.log(`[MetadataService] Confirmed ${cls.name} is a test class`);
-                        cls.body = body;
-                        testClasses.push(cls);
-                    } else {
-                        console.log(`[MetadataService] ${cls.name} is not a test class`);
-                    }
-                } catch (error: any) {
-                    console.error(`[MetadataService] Failed to get body for class ${cls.name}:`, error);
-                }
-            }
-
-            console.log(`[MetadataService] Found ${testClasses.length} confirmed test classes`);
+            console.log(`[MetadataService] Found ${testClasses.length} test classes by name`);
             return testClasses;
         } catch (error: any) {
             console.error('[MetadataService] Failed to get test classes:', error);
@@ -284,6 +296,26 @@ export class MetadataService {
         } catch (error: any) {
             console.error('[MetadataService] Failed to list Apex logs:', error);
             throw new Error(`Failed to list Apex logs: ${error.message}`);
+        }
+    }
+
+    /**
+     * Gets test methods for a specific class
+     */
+    public async getTestMethodsForClass(className: string): Promise<TestMethod[]> {
+        try {
+            console.log(`[MetadataService] Getting test methods for class: ${className}`);
+            // Get the class body
+            const classBody = await this.getApexClassBody(className);
+            
+            // Extract test methods from the body
+            const testMethods = this.extractTestMethods(classBody);
+            console.log(`[MetadataService] Found ${testMethods.length} test methods in ${className}`);
+            
+            return testMethods;
+        } catch (error: any) {
+            console.error(`[MetadataService] Failed to get test methods for ${className}:`, error);
+            throw new Error(`Failed to get test methods for ${className}: ${error.message}`);
         }
     }
 } 
