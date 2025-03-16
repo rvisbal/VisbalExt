@@ -380,12 +380,44 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                     background-color: var(--vscode-editor-background);
                     padding: 5px;
                     margin: 0;
+                    height: 100vh;
+                    overflow: hidden;
                 }
                 .container {
                     display: flex;
                     flex-direction: column;
                     height: 100%;
                     width: 100%;
+                }
+                .split-container {
+                    display: flex;
+                    flex-direction: column;
+                    flex: 1;
+                    min-height: 0;
+                    position: relative;
+                }
+                .test-classes-container {
+                    flex: 1;
+                    overflow: auto;
+                    margin-top: 5px;
+                    border: 1px solid var(--vscode-panel-border);
+                    padding: 5px;
+                    min-height: 100px;
+                }
+                .bottom-container {
+                    height: 200px;
+                    min-height: 50px;
+                    overflow: auto;
+                    margin-top: 5px;
+                    border: 1px solid var(--vscode-panel-border);
+                    padding: 5px;
+                    resize: vertical;
+                }
+                .resizer {
+                    height: 5px;
+                    background: var(--vscode-panel-border);
+                    cursor: ns-resize;
+                    margin: 5px 0;
                 }
                 .actions {
                     margin-bottom: 5px;
@@ -464,13 +496,6 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                     background-color: var(--vscode-inputValidation-infoBackground);
                     border: 1px solid var(--vscode-inputValidation-infoBorder);
                     color: var(--vscode-inputValidation-infoForeground);
-                }
-                .test-classes-container {
-                    flex: 1;
-                    overflow: auto;
-                    margin-top: 5px;
-                    border: 1px solid var(--vscode-panel-border);
-                    padding: 5px;
                 }
                 .test-classes-list {
                     list-style-type: none;
@@ -603,11 +628,18 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                 <div id="errorContainer" class="error-container hidden">
                     <div class="error-message" id="errorMessage"></div>
                 </div>
-                <div id="testClassesContainer" class="test-classes-container">
-                    <div id="noTestClasses" class="no-data">
-                        No test classes found. Click the refresh button to fetch test classes.
+                <div class="split-container">
+                    <div id="testClassesContainer" class="test-classes-container">
+                        <div id="noTestClasses" class="no-data">
+                            No test classes found. Click the refresh button to fetch test classes.
+                        </div>
+                        <div id="testClassesList"></div>
                     </div>
-                    <div id="testClassesList"></div>
+                    <div class="resizer" id="resizer"></div>
+                    <div class="bottom-container" id="bottomContainer">
+                        <h3>Test Results</h3>
+                        <div id="testResults">No test results available</div>
+                    </div>
                 </div>
             </div>
             <script nonce="${nonce}">
@@ -1212,6 +1244,33 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                     
                     // Initial fetch
                     fetchTestClasses();
+
+                    // Add resizer functionality
+                    const resizer = document.getElementById('resizer');
+                    const bottomContainer = document.getElementById('bottomContainer');
+                    let startY;
+                    let startHeight;
+
+                    resizer.addEventListener('mousedown', initResize, false);
+
+                    function initResize(e) {
+                        startY = e.clientY;
+                        startHeight = parseInt(document.defaultView.getComputedStyle(bottomContainer).height, 10);
+                        document.documentElement.addEventListener('mousemove', resize, false);
+                        document.documentElement.addEventListener('mouseup', stopResize, false);
+                    }
+
+                    function resize(e) {
+                        const newHeight = startHeight + (e.clientY - startY);
+                        if (newHeight > 50) { // Minimum height
+                            bottomContainer.style.height = newHeight + 'px';
+                        }
+                    }
+
+                    function stopResize() {
+                        document.documentElement.removeEventListener('mousemove', resize, false);
+                        document.documentElement.removeEventListener('mouseup', stopResize, false);
+                    }
                 })();
             </script>
         </body>
