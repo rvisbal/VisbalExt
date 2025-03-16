@@ -404,7 +404,7 @@ export function getLogListTemplate(): string {
                 // Handle messages from the extension
                 window.addEventListener('message', event => {
                     const message = event.data;
-                    console.log('[VisbalLogView:WebView] Received message:', message.command, message);
+                    console.log('[VisbalExt.VisbalLogView:WebView] Received message:', message.command, message);
                     
                     switch (message.command) {
                         case 'updateLogs':
@@ -514,10 +514,10 @@ export function getLogListTemplate(): string {
                             break;
                             
                         case 'getLogDetails':
-                            console.log('[VisbalLogView:WebView] Getting log details for:', message.logId);
+                            console.log('[VisbalExt.VisbalLogView:WebView] Getting log details for:', message.logId);
                             const logId = message.logId;
                             const logDetails = logs.find(log => log.id === logId);
-                            console.log('[VisbalLogView:WebView] Found log details:', logDetails);
+                            console.log('[VisbalExt.VisbalLogView:WebView] Found log details:', logDetails);
                             
                             // Send the details back to the extension
                             vscode.postMessage({
@@ -567,9 +567,9 @@ export function getHtmlTemplate(
     rawLogTabHtml: string = '',
     categories: any[] = []
 ): string {
-    console.log('[VisbalLogView:WebView] Generating HTML template for log detail view');
-    console.log('[VisbalLogView:WebView] Log filename:', logFileName);
-    console.log('[VisbalLogView:WebView] Current tab:', currentTab);
+    console.log('[VisbalExt.VisbalLogView:WebView] Generating HTML template for log detail view');
+    console.log('[VisbalExt.VisbalLogView:WebView] Log filename:', logFileName);
+    console.log('[VisbalExt.VisbalLogView:WebView] Current tab:', currentTab);
     
     return `<!DOCTYPE html>
     <html lang="en">
@@ -1016,7 +1016,7 @@ export function getHtmlTemplate(
         
         <script>
             (function() {
-                console.log('[VisbalLogView:WebView] Log detail view initialized');
+                console.log('[VisbalExt.VisbalLogView:WebView] Log detail view initialized');
                 
                 // VSCode API
                 const vscode = acquireVsCodeApi();
@@ -1026,7 +1026,7 @@ export function getHtmlTemplate(
                 // Tab switching
                 document.querySelectorAll('.tab').forEach(tab => {
                     tab.addEventListener('click', () => {
-                        console.log('[VisbalLogView:WebView] Tab clicked:', tab.dataset.tab);
+                        console.log('[VisbalExt.VisbalLogView:WebView] Tab clicked:', tab.dataset.tab);
                         
                         // Hide all tab contents
                         document.querySelectorAll('.tab-content').forEach(content => {
@@ -1055,7 +1055,7 @@ export function getHtmlTemplate(
                 
                 // Back button
                 document.getElementById('backButton').addEventListener('click', () => {
-                    console.log('[VisbalLogView:WebView] Back button clicked');
+                    console.log('[VisbalExt.VisbalLogView:WebView] Back button clicked');
                     vscode.postMessage({
                         command: 'backToList'
                     });
@@ -1063,7 +1063,7 @@ export function getHtmlTemplate(
                 
                 // Download button
                 document.getElementById('downloadButton').addEventListener('click', () => {
-                    console.log('[VisbalLogView:WebView] Download button clicked');
+                    console.log('[VisbalExt.VisbalLogView:WebView] Download button clicked');
                     vscode.postMessage({
                         command: 'downloadCurrentLog'
                     });
@@ -1072,7 +1072,7 @@ export function getHtmlTemplate(
                 // Filter tags
                 document.querySelectorAll('.filter-tag').forEach(tag => {
                     tag.addEventListener('click', () => {
-                        console.log('[VisbalLogView:WebView] Filter tag clicked:', tag.textContent);
+                        console.log('[VisbalExt.VisbalLogView:WebView] Filter tag clicked:', tag.textContent);
                         
                         // Toggle active class
                         document.querySelectorAll('.filter-tag').forEach(t => {
@@ -1094,7 +1094,7 @@ export function getHtmlTemplate(
                 
                 searchButton.addEventListener('click', () => {
                     const searchTerm = searchInput.value.trim();
-                    console.log('[VisbalLogView:WebView] Search button clicked, term:', searchTerm);
+                    console.log('[VisbalExt.VisbalLogView:WebView] Search button clicked, term:', searchTerm);
                     
                     if (searchTerm) {
                         vscode.postMessage({
@@ -1114,27 +1114,27 @@ export function getHtmlTemplate(
                 // Handle messages from the extension
                 window.addEventListener('message', event => {
                     const message = event.data;
-                    console.log('[VisbalLogView:WebView] Received message:', message.command);
+                    console.log('[VisbalExt.VisbalLogView:WebView] Received message:', message.command);
                     
                     switch (message.command) {
                         case 'updateLogData':
-                            console.log('[VisbalLogView:WebView] Updating log data');
+                            console.log('[VisbalExt.VisbalLogView:WebView] Updating log data');
                             // Handle log data update
                             break;
                             
                         case 'searchResults':
-                            console.log('[VisbalLogView:WebView] Received search results');
+                            console.log('[VisbalExt.VisbalLogView:WebView] Received search results');
                             // Handle search results
                             break;
                             
                         case 'updateExecutionTab':
-                            console.log('[VisbalLogView:WebView] Updating execution tab');
+                            console.log('[VisbalExt.VisbalLogView:WebView] Updating execution tab');
                             updateExecutionTab(message.executionData);
                             break;
                     }
                 });
                 
-                console.log('[VisbalLogView:WebView] Log detail view script loaded');
+                console.log('[VisbalExt.VisbalLogView:WebView] Log detail view script loaded');
             })();
         </script>
     </body>
@@ -1920,7 +1920,7 @@ export function getHtmlForWebview(extensionUri: vscode.Uri, webview: vscode.Webv
       // Initialize preset dropdown
       debugPreset.addEventListener('change', () => {
         const selectedPreset = debugPreset.value;
-        console.log('Preset changed to:', selectedPreset);
+        console.log('[VisbalExt.VisbalLogView] Preset changed to:', selectedPreset);
         
         // Apply the preset values to the dropdowns
         applyPreset(selectedPreset);
@@ -1933,7 +1933,7 @@ export function getHtmlForWebview(extensionUri: vscode.Uri, webview: vscode.Webv
       // Apply debug configuration and turn on debug
       applyDebugConfigButton.addEventListener('click', () => {
         const config = getDebugConfig();
-        console.log('Applying debug configuration and turning on debug:', config);
+        console.log('[VisbalExt.VisbalLogView] Applying debug configuration and turning on debug:', config);
         
         vscode.postMessage({
           command: 'applyDebugConfig',
@@ -1947,7 +1947,7 @@ export function getHtmlForWebview(extensionUri: vscode.Uri, webview: vscode.Webv
       // Handle messages from the extension
       window.addEventListener('message', event => {
         const message = event.data;
-        console.log('Received message:', message);
+        console.log('[VisbalExt.VisbalLogView] Received message:', message);
         
         switch (message.command) {
           case 'updateLogs':
@@ -2024,7 +2024,7 @@ export function getHtmlForWebview(extensionUri: vscode.Uri, webview: vscode.Webv
             hideLoading();
             break;
           case 'currentDebugConfig':
-            console.log('Received current debug config:', message.config);
+            console.log('[VisbalExt.VisbalLogView] Received current debug config:', message.config);
             // Update the debug configuration UI with the received config
             if (message.config) {
               Object.keys(message.config).forEach(key => {
@@ -2158,7 +2158,7 @@ export function getHtmlForWebview(extensionUri: vscode.Uri, webview: vscode.Webv
       
       // Sort logs
       function sortLogs(column, direction) {
-        console.log('Sorting logs by ' + column + ' ' + direction);
+        console.log('[VisbalExt.VisbalLogView] Sorting logs by ' + column + ' ' + direction);
         
         // Update current sort
         currentSort = {
@@ -2217,7 +2217,7 @@ export function getHtmlForWebview(extensionUri: vscode.Uri, webview: vscode.Webv
       // Handle messages from the extension
       window.addEventListener('message', event => {
         const message = event.data;
-        console.log('Received message:', message);
+        console.log('[VisbalExt.VisbalLogView] Received message:', message);
         
         switch (message.command) {
           case 'updateLogs':
@@ -2294,7 +2294,7 @@ export function getHtmlForWebview(extensionUri: vscode.Uri, webview: vscode.Webv
             hideLoading();
             break;
           case 'currentDebugConfig':
-            console.log('Received current debug config:', message.config);
+            console.log('[VisbalExt.VisbalLogView] Received current debug config:', message.config);
             // Update the debug configuration UI with the received config
             if (message.config) {
               Object.keys(message.config).forEach(key => {
@@ -2378,7 +2378,7 @@ export function getHtmlForWebview(extensionUri: vscode.Uri, webview: vscode.Webv
       
 	  // Open Org button
       openOrgButton.addEventListener('click', () => {
-        console.log('open org button clicked');
+        console.log('[VisbalExt.VisbalLogView] open org button clicked');
         hideError();
         vscode.postMessage({
           command: 'openDefaultOrg'
@@ -2398,7 +2398,7 @@ export function getHtmlForWebview(extensionUri: vscode.Uri, webview: vscode.Webv
       
       // SOQL button
       soqlButton.addEventListener('click', () => {
-        console.log('SOQL button clicked');
+        console.log('[VisbalExt.VisbalLogView] SOQL button clicked');
         hideError();
         vscode.postMessage({
           command: 'fetchLogsSoql'
@@ -2408,7 +2408,7 @@ export function getHtmlForWebview(extensionUri: vscode.Uri, webview: vscode.Webv
       
       // Clear Local button
       clearLocalButton.addEventListener('click', () => {
-        console.log('Clear Local button clicked');
+        console.log('[VisbalExt.VisbalLogView] Clear Local button clicked');
         showConfirmModal(
           'Clear Local Log Files',
           'Are you sure you want to delete all downloaded log files from your local directory? This action cannot be undone.',
@@ -2424,7 +2424,7 @@ export function getHtmlForWebview(extensionUri: vscode.Uri, webview: vscode.Webv
       
       // Delete Server button
       deleteServerButton.addEventListener('click', () => {
-        console.log('Delete Server button clicked');
+        console.log('[VisbalExt.VisbalLogView] Delete Server button clicked');
         showConfirmModal(
           'Delete Server Logs',
           'Are you sure you want to delete all logs from the Salesforce server? This action cannot be undone.',
@@ -2440,7 +2440,7 @@ export function getHtmlForWebview(extensionUri: vscode.Uri, webview: vscode.Webv
       
       // Delete REST API button
       deleteRestApiButton.addEventListener('click', () => {
-        console.log('Delete REST API button clicked');
+        console.log('[VisbalExt.VisbalLogView] Delete REST API button clicked');
         showConfirmModal(
           'Delete Logs using REST API',
           'Are you sure you want to delete all logs using the Salesforce REST API? This action cannot be undone.',
@@ -2518,7 +2518,7 @@ export function getHtmlForWebview(extensionUri: vscode.Uri, webview: vscode.Webv
         
         logs.forEach(log => {
           if (!log || !log.id) {
-            console.error('Invalid log entry:', log);
+            console.error('[VisbalExt.VisbalLogView] Invalid log entry:', log);
             return;
           }
           
@@ -2584,7 +2584,7 @@ export function getHtmlForWebview(extensionUri: vscode.Uri, webview: vscode.Webv
         document.querySelectorAll('.download-icon').forEach(button => {
           button.addEventListener('click', () => {
             const logId = button.getAttribute('data-id');
-            console.log('Download button clicked for log:', logId);
+            console.log('[VisbalExt.VisbalLogView] Download button clicked for log:', logId);
             
             vscode.postMessage({
               command: 'downloadLog',
@@ -2599,7 +2599,7 @@ export function getHtmlForWebview(extensionUri: vscode.Uri, webview: vscode.Webv
         document.querySelectorAll('.open-icon').forEach(button => {
           button.addEventListener('click', () => {
             const logId = button.getAttribute('data-id');
-            console.log('Open button clicked for log:', logId);
+            console.log('[VisbalExt.VisbalLogView] Open button clicked for log:', logId);
             
             vscode.postMessage({
               command: 'openLog',
@@ -2615,7 +2615,7 @@ export function getHtmlForWebview(extensionUri: vscode.Uri, webview: vscode.Webv
         document.querySelectorAll('.view-icon').forEach(button => {
           button.addEventListener('click', () => {
             const logId = button.getAttribute('data-id');
-            console.log('View button clicked for log:', logId);
+            console.log('[VisbalExt.VisbalLogView] View button clicked for log:', logId);
             
             vscode.postMessage({
               command: 'viewLog',
@@ -2633,7 +2633,6 @@ export function getHtmlForWebview(extensionUri: vscode.Uri, webview: vscode.Webv
         document.querySelectorAll('.select-log-checkbox').forEach(checkbox => {
           checkbox.addEventListener('change', () => {
             const logId = checkbox.getAttribute('data-id');
-            console.log('Select checkbox changed for log:', logId, 'to', checkbox.checked);
             
             // Update selected log IDs
             if (checkbox.checked) {
@@ -2671,7 +2670,7 @@ export function getHtmlForWebview(extensionUri: vscode.Uri, webview: vscode.Webv
       // Select all checkbox
       const selectAllCheckbox = document.getElementById('select-all-checkbox');
       selectAllCheckbox.addEventListener('change', () => {
-        console.log('Select all checkbox changed to', selectAllCheckbox.checked);
+        console.log('[VisbalExt.VisbalLogView] Select all checkbox changed to', selectAllCheckbox.checked);
         
         // Get all visible checkboxes
         const visibleRows = Array.from(document.querySelectorAll('#logs-table-body tr'))
@@ -2701,7 +2700,7 @@ export function getHtmlForWebview(extensionUri: vscode.Uri, webview: vscode.Webv
       // Delete selected button
       const deleteSelectedButton = document.getElementById('delete-selected-button');
       deleteSelectedButton.addEventListener('click', () => {
-        console.log('Delete selected button clicked');
+        console.log('[VisbalExt.VisbalLogView] Delete selected button clicked');
         
         if (selectedLogIds.size === 0) {
           return;
@@ -2723,7 +2722,7 @@ export function getHtmlForWebview(extensionUri: vscode.Uri, webview: vscode.Webv
       
       // Initialize by requesting logs
       document.addEventListener('DOMContentLoaded', () => {
-        console.log('DOM content loaded - manual refresh required');
+        console.log('[VisbalExt.VisbalLogView] DOM content loaded - manual refresh required');
         // Removed automatic log fetching to prevent unnecessary API calls
         // vscode.postMessage({ command: 'fetchLogs' });
         // showLoading();

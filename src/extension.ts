@@ -7,13 +7,14 @@ import { TestClassExplorerView } from './views/testClassExplorerView';
 import { salesforceApi } from './services/salesforceApiService';
 import { statusBarService } from './services/statusBarService';
 import { SoqlPanelView } from './views/soqlPanelView';
+import { ApexPanelView } from './views/apexPanelView';
 import { MetadataService } from './services/metadataService';
 import { StatusBarService } from './services/statusBarService';
 import { LogTreeView } from './views/logTreeView';
 
 // This method is called when your extension is activated
 export function activate(context: vscode.ExtensionContext) {
-  console.log('RV:Congratulations, your extension "visbal-ext" is now active!');
+  console.log('[VisbalExt.Extension] RV:Congratulations, your extension "visbal-ext" is now active!');
   
   // Initialize status bar
   statusBarService.showMessage('Visbal Extension activated', 'rocket');
@@ -61,6 +62,7 @@ export function activate(context: vscode.ExtensionContext) {
   const visbalLogViewProvider = new VisbalLogView(context);
   const testExplorer = new TestClassExplorerView(context.extensionUri, statusBarService);
   const soqlPanel = new SoqlPanelView(metadataService);
+  const apexPanel = new ApexPanelView(metadataService);
 
   // Register Test Explorer View (sidebar)
   context.subscriptions.push(
@@ -96,6 +98,19 @@ export function activate(context: vscode.ExtensionContext) {
     )
   );
 
+  // Register Apex Panel View (bottom panel)
+  context.subscriptions.push(
+    vscode.window.registerWebviewViewProvider(
+      'visbal-apex',
+      apexPanel,
+      {
+        webviewOptions: {
+          retainContextWhenHidden: true
+        }
+      }
+    )
+  );
+
   // Register commands for panel activation
   context.subscriptions.push(
     vscode.commands.registerCommand('visbal-ext.showVisbalLog', () => {
@@ -109,6 +124,12 @@ export function activate(context: vscode.ExtensionContext) {
     })
   );
 
+  context.subscriptions.push(
+    vscode.commands.registerCommand('visbal-ext.showVisbalApex', () => {
+      vscode.commands.executeCommand('workbench.view.extension.visbal-apex-container');
+    })
+  );
+
   // Register the Refresh Visbal Log command
   let refreshVisbalLogCommand = vscode.commands.registerCommand('visbal-ext.refreshVisbalLog', () => {
     visbalLogViewProvider.refresh();
@@ -117,7 +138,7 @@ export function activate(context: vscode.ExtensionContext) {
   // Register command to open log detail view
   context.subscriptions.push(
     vscode.commands.registerCommand('visbal.openLogDetail', (logFilePath: string, logId: string) => {
-      console.log(`[Extension] openLogDetail -- Opening log detail view for: ${logFilePath}`);
+      console.log(`[VisbalExt.Extension] openLogDetail -- Opening log detail view for: ${logFilePath}`);
       LogDetailView.createOrShow(context.extensionUri, logFilePath, logId);
     })
   );
@@ -125,7 +146,7 @@ export function activate(context: vscode.ExtensionContext) {
   // Register command to download log
   context.subscriptions.push(
     vscode.commands.registerCommand('visbal.downloadLog', (logId: string) => {
-      console.log(`[Extension] downloadLog -- Downloading log: ${logId}`);
+      console.log(`[VisbalExt.Extension] downloadLog -- Downloading log: ${logId}`);
       vscode.commands.executeCommand('visbal.refreshLogs');
     })
   );

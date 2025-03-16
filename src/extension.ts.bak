@@ -58,7 +58,7 @@ export function activate(context: vscode.ExtensionContext) {
   // Register command to open log detail view
   context.subscriptions.push(
     vscode.commands.registerCommand('visbal.openLogDetail', (logFilePath: string, logId: string) => {
-      console.log(`[Extension] openLogDetail -- Opening log detail view for: ${logFilePath}`);
+      console.log(`[VisbalExt.Extension] openLogDetail -- Opening log detail view for: ${logFilePath}`);
       LogDetailView.createOrShow(context.extensionUri, logFilePath, logId);
     })
   );
@@ -66,7 +66,7 @@ export function activate(context: vscode.ExtensionContext) {
   // Register command to download log
   context.subscriptions.push(
     vscode.commands.registerCommand('visbal.downloadLog', (logId: string) => {
-      console.log(`[Extension] downloadLog -- Downloading log: ${logId}`);
+      console.log(`[VisbalExt.Extension] downloadLog -- Downloading log: ${logId}`);
       vscode.commands.executeCommand('visbal.refreshLogs');
     })
   );

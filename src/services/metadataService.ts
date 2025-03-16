@@ -348,7 +348,7 @@ export class MetadataService {
     public async getTestLog(logId: string): Promise<string> {
         try {
             console.log('[VisbalExt.MetadataService] Getting test log:', logId);
-            const result = await this.executeCliCommand(`sf apex get log -i ${logId} --json`);
+            const result = await this.executeCliCommand(`sf apex get log --log-id ${logId} --json`);
             const parsedResult = JSON.parse(result);
             console.log('[VisbalExt.MetadataService] Test log retrieved');
             return parsedResult.result?.log || '';
@@ -361,12 +361,74 @@ export class MetadataService {
     public async getTestRunResult(testRunId: string): Promise<any> {
         try {
             console.log('[VisbalExt.MetadataService] Getting test run result:', testRunId);
-            const result = await this.executeCliCommand(`sf apex get test -i ${testRunId} --json`);
+            
+            // Get the test run details
+            const result = await this.executeCliCommand(`sf apex get test --test-run-id ${testRunId} --json`);
             const parsedResult = JSON.parse(result);
             console.log('[VisbalExt.MetadataService] Test run result retrieved:', parsedResult);
+
+            // If we have test results with log IDs, fetch the logs
+            if (parsedResult.result && parsedResult.result.tests) {
+                for (const test of parsedResult.result.tests) {
+                    if (test.apexLogId) {
+                        try {
+                            console.log('[VisbalExt.MetadataService] Fetching log for test:', test.fullName);
+                            const logResult = await this.executeCliCommand(`sf apex get log --log-id ${test.apexLogId} --json`);
+                            const parsedLog = JSON.parse(logResult);
+                            test.logContent = parsedLog.result?.log || '';
+                            console.log('[VisbalExt.MetadataService] Log fetched successfully for test:', test.fullName);
+                        } catch (logError) {
+                            console.error('[VisbalExt.MetadataService] Error fetching log for test:', test.fullName, logError);
+                            test.logError = `Failed to fetch log: ${(logError as Error).message}`;
+                        }
+                    }
+                }
+            }
+
             return parsedResult.result || null;
         } catch (error) {
             console.error('[VisbalExt.MetadataService] Error getting test run result:', error);
+            throw error;
+        }
+    }
+    
+     public async executeAnonymousApex(code: string): Promise<any> {
+        try {
+            console.log('[VisbalExt.MetadataService] Executing anonymous Apex:', code);
+            
+            // Create a temporary file to store the Apex code
+            const tempFile = `${os.tmpdir()}/temp_apex_${Date.now()}.apex`;
+            await vscode.workspace.fs.writeFile(
+                vscode.Uri.file(tempFile),
+                Buffer.from(code, 'utf8')
+            );
+
+            // Execute the anonymous Apex using the Salesforce CLI
+            const command = `sf apex run --file "${tempFile}" --json`;
+            const resultStr = await this.executeCliCommand(command);
+            const result = JSON.parse(resultStr);
+            
+            // Clean up the temporary file
+            try {
+                await vscode.workspace.fs.delete(vscode.Uri.file(tempFile));
+            } catch (error) {
+                console.warn('[VisbalExt.MetadataService] Failed to delete temporary file:', error);
+            }
+
+            if (result.status === 0) {
+                console.log('[VisbalExt.MetadataService] Anonymous Apex executed successfully');
+                return {
+                    success: result.result.success,
+                    compileProblem: result.result.compiled ? null : result.result.compileProblem,
+                    exceptionMessage: result.result.exceptionMessage,
+                    exceptionStackTrace: result.result.exceptionStackTrace,
+                    logs: result.result.logs
+                };
+            } else {
+                throw new Error(result.message || 'Failed to execute anonymous Apex');
+            }
+        } catch (error: any) {
+            console.error('[VisbalExt.MetadataService] Error executing anonymous Apex:', error);
             throw error;
         }
     }

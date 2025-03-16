@@ -216,11 +216,11 @@ export class RawLogTabHandler {
             
             // Function to update raw log tab content
             function updateRawLogTab(data) {
-                console.log('[VisbalLogView:WebView] Updating raw log tab with data:', data);
+                console.log('[VisbalExt.VisbalLogView:WebView] Updating raw log tab with data:', data);
                 const placeholder = document.getElementById('raw-log-tab-placeholder');
                 
                 if (!placeholder) {
-                    console.error('[VisbalLogView:WebView] Raw log tab placeholder not found');
+                    console.error('[VisbalExt.VisbalLogView:WebView] Raw log tab placeholder not found');
                     return;
                 }
                 
@@ -228,8 +228,6 @@ export class RawLogTabHandler {
                 const viewport = document.getElementById('raw-log-viewport');
                 const content = document.getElementById('raw-log-content-inner');
                 
-                if (!viewport || !content) {
-                    console.error('[VisbalLogView:WebView] Raw log content elements not found');
                     return;
                 }
                 
@@ -374,7 +372,7 @@ export class RawLogTabHandler {
             
             // Function to request a chunk of log lines
             function requestChunk(chunkIndex) {
-                console.log('[VisbalLogView:WebView] Requesting chunk:', chunkIndex);
+                console.log('[VisbalExt.VisbalLogView:WebView] Requesting chunk:', chunkIndex);
                 
                 // Send a message to the extension to request the chunk
                 vscode.postMessage({
@@ -386,7 +384,7 @@ export class RawLogTabHandler {
             
             // Function to receive a chunk of log lines
             function receiveLogChunk(chunkIndex, chunk) {
-                console.log('[VisbalLogView:WebView] Received chunk:', chunkIndex, 'with', chunk.length, 'lines');
+                console.log('[VisbalExt.VisbalLogView:WebView] Received chunk:', chunkIndex, 'with', chunk.length, 'lines');
                 
                 // Store the chunk
                 loadedChunks[chunkIndex] = chunk;

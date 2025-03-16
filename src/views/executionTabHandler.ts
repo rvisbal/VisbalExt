@@ -201,18 +201,18 @@ export class ExecutionTabHandler {
         return `
             // Function to update execution tab content
             function updateExecutionTab(executionData) {
-                console.log('[VisbalLogView:WebView] Updating execution tab with data:', executionData);
+                console.log('[VisbalExt.VisbalLogView:WebView] Updating execution tab with data:', executionData);
                 const placeholder = document.getElementById('execution-tab-placeholder');
                 
                 if (!placeholder) {
-                    console.error('[VisbalLogView:WebView] Execution tab placeholder not found');
+                    console.error('[VisbalExt.VisbalLogView:WebView] Execution tab placeholder not found');
                     return;
                 }
                 
                 // Find the table body
                 const tbody = placeholder.querySelector('tbody');
                 if (!tbody) {
-                    console.error('[VisbalLogView:WebView] Execution table body not found');
+                    console.error('[VisbalExt.VisbalLogView:WebView] Execution table body not found');
                     return;
                 }
                 
@@ -573,7 +573,7 @@ export class ExecutionTabHandler {
      * @returns Array of execution path entries
      */
     public static extractExecutionPath(executionLines: string[]): any[] {
-        console.log('[ExecutionTabHandler] extractExecutionPath -- Extracting execution path data');
+        console.log('[VisbalExt.ExecutionTabHandler] extractExecutionPath -- Extracting execution path data');
         
         // Stack to keep track of open execution units
         const stack: any[] = [];
@@ -806,7 +806,7 @@ export class ExecutionTabHandler {
         // Calculate self time for all root units
         rootUnits.forEach(unit => calculateSelfTime(unit));
         
-        console.log(`[ExecutionTabHandler] extractExecutionPath -- Extracted ${rootUnits.length} root execution units`);
+        console.log(`[VisbalExt.ExecutionTabHandler] extractExecutionPath -- Extracted ${rootUnits.length} root execution units`);
         
         return rootUnits;
     }

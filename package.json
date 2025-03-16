@@ -65,6 +65,11 @@
         "command": "visbal-ext.showVisbalSoql",
         "title": "Show Visbal SOQL",
         "category": "Visbal"
+      },
+      {
+        "command": "visbal-ext.showVisbalApex",
+        "title": "Show Visbal Apex",
+        "category": "Visbal"
       }
     ],
     "viewsContainers": {
@@ -78,6 +83,11 @@
           "id": "visbal-soql-container",
           "title": "Visbal SOQL",
           "icon": "$(database)"
+        },
+        {
+          "id": "visbal-apex-container",
+          "title": "Visbal Apex",
+          "icon": "$(symbol-method)"
         }
       ],
       "activitybar": [
@@ -108,6 +118,13 @@
           "type": "webview",
           "id": "visbal-soql",
           "name": "SOQL Query"
+        }
+      ],
+      "visbal-apex-container": [
+        {
+          "type": "webview",
+          "id": "visbal-apex",
+          "name": "Execute Anonymous Apex"
         }
       ],
       "explorer": [
@@ -155,6 +172,10 @@
         },
         {
           "command": "visbal-ext.showVisbalSoql",
+          "when": "workspaceHasVisbalProject"
+        },
+        {
+          "command": "visbal-ext.showVisbalApex",
           "when": "workspaceHasVisbalProject"
         },
         {

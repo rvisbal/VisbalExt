@@ -58,6 +58,8 @@ export class SoqlPanelView implements vscode.WebviewViewProvider {
                     display: flex;
                     flex-direction: column;
                     height: 100vh;
+                    background-color: var(--vscode-editor-background);
+                    color: var(--vscode-foreground);
                 }
                 .query-container {
                     padding: 10px;
@@ -65,6 +67,12 @@ export class SoqlPanelView implements vscode.WebviewViewProvider {
                     gap: 10px;
                     background: var(--vscode-editor-background);
                     border-bottom: 1px solid var(--vscode-panel-border);
+                }
+                .query-section {
+                    display: flex;
+                    flex-direction: column;
+                    gap: 5px;
+                    align-items: center;
                 }
                 #soqlInput {
                     flex: 1;
@@ -74,52 +82,86 @@ export class SoqlPanelView implements vscode.WebviewViewProvider {
                     background: var(--vscode-input-background);
                     color: var(--vscode-input-foreground);
                     border: 1px solid var(--vscode-input-border);
+                    resize: vertical;
+                    min-height: 100px;
+                    height: auto;
                 }
                 #runSoqlButton {
-                    padding: 5px 10px;
+                    width: 40px;
+                    height: 40px;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
                     background: var(--vscode-button-background);
                     color: var(--vscode-button-foreground);
                     border: none;
                     cursor: pointer;
+                    border-radius: 4px;
                 }
                 #runSoqlButton:hover {
                     background: var(--vscode-button-hoverBackground);
                 }
+                #soqlStatus {
+                    padding: 5px;
+                    font-style: italic;
+                    color: var(--vscode-descriptionForeground);
+                    text-align: center;
+                    min-width: 40px;
+                    font-size: 0.9em;
+                }
                 .results-container {
                     flex: 1;
                     overflow: auto;
-                    padding: 10px;
-                }
-                #soqlStatus {
-                    padding: 5px 10px;
-                    font-style: italic;
-                    color: var(--vscode-descriptionForeground);
+                    padding: 0;
+                    background: var(--vscode-editor-background);
                 }
                 table {
                     width: 100%;
                     border-collapse: collapse;
-                    margin-top: 10px;
+                    margin: 0;
+                    font-family: var(--vscode-font-family);
                 }
-                th, td {
-                    padding: 8px;
-                    text-align: left;
-                    border: 1px solid var(--vscode-panel-border);
+                thead {
+                    position: sticky;
+                    top: 0;
+                    z-index: 1;
+                    background: var(--vscode-editor-background);
                 }
                 th {
+                    color: var(--vscode-foreground);
+                    font-weight: 600;
+                    text-align: left;
+                    padding: 4px 8px;
                     background: var(--vscode-editor-background);
-                    font-weight: bold;
+                    border-bottom: 1px solid var(--vscode-panel-border);
+                    white-space: nowrap;
                 }
-                tr:nth-child(even) {
-                    background: var(--vscode-list-activeSelectionBackground);
+                td {
+                    padding: 4px 8px;
+                    border-bottom: 1px solid var(--vscode-panel-border);
+                    color: var(--vscode-foreground);
+                    white-space: nowrap;
+                }
+                tr {
+                    background-color: var(--vscode-list-inactiveSelectionBackground);
+                }
+                tr:hover {
+                    background-color: var(--vscode-list-hoverBackground);
                 }
             </style>
         </head>
         <body>
             <div class="query-container">
-                <input type="text" id="soqlInput" placeholder="Enter SOQL query...">
-                <button id="runSoqlButton">Run Query</button>
+                <textarea id="soqlInput" placeholder="Enter SOQL query..." rows="4">SELECT Id, Name FROM Account LIMIT 20</textarea>
+                <div class="query-section">
+                    <button id="runSoqlButton" title="Run Query">
+                        <svg width="16" height="16" viewBox="0 0 16 16">
+                            <path fill="currentColor" d="M3.5 3v10l9-5-9-5z"/>
+                        </svg>
+                    </button>
+                    <div id="soqlStatus"></div>
+                </div>
             </div>
-            <div id="soqlStatus"></div>
             <div class="results-container">
                 <table>
                     <thead id="soqlResultsHeader"></thead>
@@ -138,10 +180,10 @@ export class SoqlPanelView implements vscode.WebviewViewProvider {
                     runSoqlButton.addEventListener('click', () => {
                         const query = soqlInput.value.trim();
                         if (!query) {
-                            soqlStatus.textContent = 'Please enter a SOQL query';
+                            soqlStatus.textContent = 'Please enter a query';
                             return;
                         }
-                        soqlStatus.textContent = 'Running query...';
+                        soqlStatus.textContent = 'Running...';
                         vscode.postMessage({
                             command: 'executeSoqlQuery',
                             query: query
@@ -164,13 +206,13 @@ export class SoqlPanelView implements vscode.WebviewViewProvider {
 
                     function handleSoqlResults(results) {
                         if (!results || !results.records || results.records.length === 0) {
-                            soqlStatus.textContent = 'No results found';
+                            soqlStatus.textContent = 'No results';
                             soqlResultsHeader.innerHTML = '';
                             soqlResultsBody.innerHTML = '';
                             return;
                         }
 
-                        const columns = Object.keys(results.records[0]);
+                        const columns = Object.keys(results.records[0]).filter(col => col !== 'attributes');
                         soqlResultsHeader.innerHTML = '<tr>' + columns.map(col => 
                             '<th>' + col + '</th>'
                         ).join('') + '</tr>';
@@ -181,7 +223,7 @@ export class SoqlPanelView implements vscode.WebviewViewProvider {
                             ).join('') + '</tr>'
                         ).join('');
 
-                        soqlStatus.textContent = results.records.length + ' rows returned';
+                        soqlStatus.textContent = results.records.length + ' rows';
                     }
                 })();
             </script>

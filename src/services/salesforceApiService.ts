@@ -76,12 +76,12 @@ export class SalesforceApiService {
                 `/tooling/query?q=${encodedQuery}` : 
                 `/query?q=${encodedQuery}`;
             
-            console.log(`[SalesforceApiService] query -- Executing SOQL query: ${soql}`);
+            console.log(`[VisbalExt.SalesforceApiService] query -- Executing SOQL query: ${soql}`);
             
             // Execute the query
             const response = await this._instance!.get(endpoint);
             
-            console.log(`[SalesforceApiService] query -- Query returned ${response.data.records?.length || 0} records`);
+            console.log(`[VisbalExt.SalesforceApiService] query -- Query returned ${response.data.records?.length || 0} records`);
             statusBarService.showSuccess('SOQL query completed');
             return response.data;
         } catch (error: any) {
@@ -118,12 +118,12 @@ export class SalesforceApiService {
                 endpoint += `?fields=${encodeURIComponent(fields)}`;
             }
             
-            console.log(`[SalesforceApiService] getRecord -- Getting record: ${objectType}/${recordId}`);
+            console.log(`[VisbalExt.SalesforceApiService] getRecord -- Getting record: ${objectType}/${recordId}`);
             
             // Execute the request
             const response = await this._instance!.get(endpoint);
             
-            console.log(`[SalesforceApiService] getRecord -- Successfully retrieved record: ${objectType}/${recordId}`);
+            console.log(`[VisbalExt.SalesforceApiService] getRecord -- Successfully retrieved record: ${objectType}/${recordId}`);
             return response.data;
         } catch (error: any) {
             console.error('[VisbalExt.SalesforceApiService] getRecord -- Error:', error);
@@ -152,12 +152,12 @@ export class SalesforceApiService {
             // Build the endpoint URL
             const endpoint = `${baseEndpoint}/${objectType}`;
             
-            console.log(`[SalesforceApiService] createRecord -- Creating record: ${objectType}`);
+            console.log(`[VisbalExt.SalesforceApiService] createRecord -- Creating record: ${objectType}`);
             
             // Execute the request
             const response = await this._instance!.post(endpoint, data);
             
-            console.log(`[SalesforceApiService] createRecord -- Successfully created record: ${response.data.id}`);
+            console.log(`[VisbalExt.SalesforceApiService] createRecord -- Successfully created record: ${response.data.id}`);
             return response.data;
         } catch (error: any) {
             console.error('[VisbalExt.SalesforceApiService] createRecord -- Error:', error);
@@ -187,12 +187,12 @@ export class SalesforceApiService {
             // Build the endpoint URL
             const endpoint = `${baseEndpoint}/${objectType}/${recordId}`;
             
-            console.log(`[SalesforceApiService] updateRecord -- Updating record: ${objectType}/${recordId}`);
+            console.log(`[VisbalExt.SalesforceApiService] updateRecord -- Updating record: ${objectType}/${recordId}`);
             
             // Execute the request
             const response = await this._instance!.patch(endpoint, data);
             
-            console.log(`[SalesforceApiService] updateRecord -- Successfully updated record: ${objectType}/${recordId}`);
+            console.log(`[VisbalExt.SalesforceApiService] updateRecord -- Successfully updated record: ${objectType}/${recordId}`);
             return response.data;
         } catch (error: any) {
             console.error('[VisbalExt.SalesforceApiService] updateRecord -- Error:', error);
@@ -221,12 +221,12 @@ export class SalesforceApiService {
             // Build the endpoint URL
             const endpoint = `${baseEndpoint}/${objectType}/${recordId}`;
             
-            console.log(`[SalesforceApiService] deleteRecord -- Deleting record: ${objectType}/${recordId}`);
+            console.log(`[VisbalExt.SalesforceApiService] deleteRecord -- Deleting record: ${objectType}/${recordId}`);
             
             // Execute the request
             await this._instance!.delete(endpoint);
             
-            console.log(`[SalesforceApiService] deleteRecord -- Successfully deleted record: ${objectType}/${recordId}`);
+            console.log(`[VisbalExt.SalesforceApiService] deleteRecord -- Successfully deleted record: ${objectType}/${recordId}`);
         } catch (error: any) {
             console.error('[VisbalExt.SalesforceApiService] deleteRecord -- Error:', error);
             throw new Error(`Failed to delete record: ${error.message}`);
