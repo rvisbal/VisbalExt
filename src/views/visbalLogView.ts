@@ -92,7 +92,7 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
             switch (message.command) {
                 case 'fetchLogs':
                     console.log('[VisbalLogView] resolveWebviewView -- Fetching logs from command');
-                    await this._fetchLogs(true); // Force refresh
+                    await this._fetchLogs(true);
                     break;
                 case 'fetchLogsSoql':
                     console.log('[VisbalLogView] resolveWebviewView -- Fetching logs via SOQL from command');
@@ -117,39 +117,6 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
                 case 'clearLocalLogs':
                     console.log('[VisbalLogView] resolveWebviewView -- Clearing local log files');
                     await this._clearLocalLogs();
-                    break;
-                case 'deleteServerLogs':
-                    console.log('[VisbalLogView] resolveWebviewView -- Deleting server logs');
-                    await this._deleteServerLogs();
-                    break;
-                case 'deleteSelectedLogs':
-                    console.log(`[VisbalLogView] resolveWebviewView -- Deleting selected logs: ${message.logIds.length} logs`);
-                    await this._deleteSelectedLogs(message.logIds);
-                    break;
-                case 'applyDebugConfig':
-                    console.log(`[VisbalLogView] resolveWebviewView -- Applying debug configuration:`, message.config);
-                    await this._applyDebugConfig(message.config, message.turnOnDebug);
-                    break;
-                case 'getCurrentDebugConfig':
-                    console.log(`[VisbalLogView] resolveWebviewView -- Getting current debug configuration`);
-                    await this._getCurrentDebugConfig();
-                    break;
-                case 'deleteServerLogsViaSoql':
-                    console.log('[VisbalLogView] resolveWebviewView -- Deleting server logs via SOQL');
-                    await this._deleteServerLogsViaSoql();
-                    break;
-                case 'deleteViaSoql':
-                    console.log('[VisbalLogView] resolveWebviewView -- Deleting logs via SOQL API');
-                    await this._deleteViaSoqlApi();
-                    break;
-                case 'executeScript':
-                    try {
-                        console.log('Executing script from extension');
-                        // Execute the script
-                        eval(message.script);
-                    } catch (error) {
-                        console.error('Error executing script:', error);
-                    }
                     break;
                 case 'openDefaultOrg':
                     console.log('[VisbalLogView] resolveWebviewView -- Opening default org');
@@ -2386,10 +2353,12 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
      */
     private _getWebviewContent(): string {
         console.log('[VisbalLogView] _getWebviewContent -- Getting HTML content for webview');
-        // Use the new HTML template with the webview parameter
-        const html = getHtmlForWebview(this._extensionUri, this._view!.webview);
-        console.log('[VisbalLogView] _getWebviewContent -- HTML content length:', html.length);
-        return html;
+        
+        // Get the base HTML template
+        const baseHtml = getHtmlForWebview(this._extensionUri, this._view!.webview);
+        
+        console.log('[VisbalLogView] _getWebviewContent -- HTML content length:', baseHtml.length);
+        return baseHtml;
     }
 
     /**
@@ -2408,20 +2377,47 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
     // Add a new method to open the default org
     public openDefaultOrg(): void {
         console.log('[VisbalLogView] openDefaultOrg -- Opening default Salesforce org');
+        
+        // Clear any existing loading state
+        if (this._view) {
+            this._view.webview.postMessage({ command: 'loading', isLoading: false });
+        }
+        
         vscode.window.withProgress({
             location: vscode.ProgressLocation.Notification,
             title: "Opening default Salesforce org...",
-            cancellable: false
-        }, async (progress) => {
+            cancellable: true
+        }, async (progress, token) => {
             try {
                 const terminal = vscode.window.createTerminal('Salesforce Org');
+                
+                // Register cancellation handler
+                token.onCancellationRequested(() => {
+                    terminal.dispose();
+                    vscode.window.showInformationMessage('Opening default org was cancelled');
+                    if (this._view) {
+                        this._view.webview.postMessage({ command: 'loading', isLoading: false });
+                    }
+                });
+                
                 terminal.sendText('sf org open');
                 terminal.show();
-                vscode.window.showInformationMessage('Opening default Salesforce org in browser');
+                
+                // Show success message and clear loading state after a short delay
+                setTimeout(() => {
+                    vscode.window.showInformationMessage('Opening default Salesforce org in browser');
+                    if (this._view) {
+                        this._view.webview.postMessage({ command: 'loading', isLoading: false });
+                    }
+                }, 2000);
+                
                 console.log('[VisbalLogView] openDefaultOrg -- Command sent to terminal');
             } catch (error) {
                 console.error('[VisbalLogView] openDefaultOrg -- Error:', error);
                 vscode.window.showErrorMessage(`Failed to open default org: ${error}`);
+                if (this._view) {
+                    this._view.webview.postMessage({ command: 'loading', isLoading: false });
+                }
             }
         });
     }

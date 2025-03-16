@@ -58,6 +58,8 @@ export class SoqlPanelView implements vscode.WebviewViewProvider {
                     display: flex;
                     flex-direction: column;
                     height: 100vh;
+                    background-color: var(--vscode-editor-background);
+                    color: var(--vscode-foreground);
                 }
                 .query-container {
                     padding: 10px;
@@ -110,30 +112,50 @@ export class SoqlPanelView implements vscode.WebviewViewProvider {
                 .results-container {
                     flex: 1;
                     overflow: auto;
-                    padding: 10px;
+                    padding: 0;
+                    background: var(--vscode-editor-background);
                 }
                 table {
                     width: 100%;
                     border-collapse: collapse;
-                    margin-top: 10px;
+                    margin: 0;
+                    font-family: var(--vscode-font-family);
                 }
-                th, td {
-                    padding: 8px;
-                    text-align: left;
-                    border: 1px solid var(--vscode-panel-border);
+                thead {
+                    position: sticky;
+                    top: 0;
+                    z-index: 1;
+                    background: var(--vscode-editor-background);
                 }
                 th {
+                    color: var(--vscode-foreground);
+                    font-weight: 600;
+                    text-align: left;
+                    padding: 8px;
                     background: var(--vscode-editor-background);
-                    font-weight: bold;
+                    border-bottom: 1px solid var(--vscode-panel-border);
+                    white-space: nowrap;
+                }
+                td {
+                    padding: 8px;
+                    border: none;
+                    color: var(--vscode-foreground);
+                    white-space: nowrap;
+                }
+                tr {
+                    background-color: var(--vscode-editor-background);
                 }
                 tr:nth-child(even) {
-                    background: var(--vscode-list-activeSelectionBackground);
+                    background-color: var(--vscode-list-inactiveSelectionBackground);
+                }
+                tr:hover {
+                    background-color: var(--vscode-list-hoverBackground);
                 }
             </style>
         </head>
         <body>
             <div class="query-container">
-                <textarea id="soqlInput" placeholder="Enter SOQL query..." rows="4"></textarea>
+                <textarea id="soqlInput" placeholder="Enter SOQL query..." rows="4">SELECT Id, Name FROM Account LIMIT 20</textarea>
                 <div class="query-section">
                     <button id="runSoqlButton" title="Run Query">
                         <svg width="16" height="16" viewBox="0 0 16 16">
