@@ -9,6 +9,7 @@ import { statusBarService } from './services/statusBarService';
 import { SoqlPanelView } from './views/soqlPanelView';
 import { MetadataService } from './services/metadataService';
 import { StatusBarService } from './services/statusBarService';
+import { LogTreeView } from './views/logTreeView';
 
 // This method is called when your extension is activated
 export function activate(context: vscode.ExtensionContext) {
@@ -239,6 +240,9 @@ export function activate(context: vscode.ExtensionContext) {
       }
     })
   );
+
+  // Create and register the log tree view
+  const logTreeView = new LogTreeView(context);
 
   // Add commands to subscriptions
   context.subscriptions.push(helloWorldCommand);

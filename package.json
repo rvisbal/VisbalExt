@@ -109,6 +109,13 @@
           "id": "visbal-soql",
           "name": "SOQL Query"
         }
+      ],
+      "explorer": [
+        {
+          "id": "logTreeView",
+          "name": "Salesforce Logs",
+          "icon": "resources/refresh.svg"
+        }
       ]
     },
     "menus": {
