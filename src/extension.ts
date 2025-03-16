@@ -7,6 +7,7 @@ import { TestClassExplorerView } from './views/testClassExplorerView';
 import { salesforceApi } from './services/salesforceApiService';
 import { statusBarService } from './services/statusBarService';
 import { SoqlPanelView } from './views/soqlPanelView';
+import { ApexPanelView } from './views/apexPanelView';
 import { MetadataService } from './services/metadataService';
 import { StatusBarService } from './services/statusBarService';
 import { LogTreeView } from './views/logTreeView';
@@ -61,6 +62,7 @@ export function activate(context: vscode.ExtensionContext) {
   const visbalLogViewProvider = new VisbalLogView(context);
   const testExplorer = new TestClassExplorerView(context.extensionUri, statusBarService);
   const soqlPanel = new SoqlPanelView(metadataService);
+  const apexPanel = new ApexPanelView(metadataService);
 
   // Register Test Explorer View (sidebar)
   context.subscriptions.push(
@@ -96,6 +98,19 @@ export function activate(context: vscode.ExtensionContext) {
     )
   );
 
+  // Register Apex Panel View (bottom panel)
+  context.subscriptions.push(
+    vscode.window.registerWebviewViewProvider(
+      'visbal-apex',
+      apexPanel,
+      {
+        webviewOptions: {
+          retainContextWhenHidden: true
+        }
+      }
+    )
+  );
+
   // Register commands for panel activation
   context.subscriptions.push(
     vscode.commands.registerCommand('visbal-ext.showVisbalLog', () => {
@@ -106,6 +121,12 @@ export function activate(context: vscode.ExtensionContext) {
   context.subscriptions.push(
     vscode.commands.registerCommand('visbal-ext.showVisbalSoql', () => {
       vscode.commands.executeCommand('workbench.view.extension.visbal-soql-container');
+    })
+  );
+
+  context.subscriptions.push(
+    vscode.commands.registerCommand('visbal-ext.showVisbalApex', () => {
+      vscode.commands.executeCommand('workbench.view.extension.visbal-apex-container');
     })
   );
 

@@ -371,4 +371,45 @@ export class MetadataService {
             throw new Error('Failed to fetch test log: ' + (error as Error).message);
         }
     }
+
+    public async executeAnonymousApex(code: string): Promise<any> {
+        try {
+            console.log('[MetadataService] Executing anonymous Apex:', code);
+            
+            // Create a temporary file to store the Apex code
+            const tempFile = `${os.tmpdir()}/temp_apex_${Date.now()}.apex`;
+            await vscode.workspace.fs.writeFile(
+                vscode.Uri.file(tempFile),
+                Buffer.from(code, 'utf8')
+            );
+
+            // Execute the anonymous Apex using the Salesforce CLI
+            const command = `sf apex run --file "${tempFile}" --json`;
+            const resultStr = await this.executeCliCommand(command);
+            const result = JSON.parse(resultStr);
+            
+            // Clean up the temporary file
+            try {
+                await vscode.workspace.fs.delete(vscode.Uri.file(tempFile));
+            } catch (error) {
+                console.warn('[MetadataService] Failed to delete temporary file:', error);
+            }
+
+            if (result.status === 0) {
+                console.log('[MetadataService] Anonymous Apex executed successfully');
+                return {
+                    success: result.result.success,
+                    compileProblem: result.result.compiled ? null : result.result.compileProblem,
+                    exceptionMessage: result.result.exceptionMessage,
+                    exceptionStackTrace: result.result.exceptionStackTrace,
+                    logs: result.result.logs
+                };
+            } else {
+                throw new Error(result.message || 'Failed to execute anonymous Apex');
+            }
+        } catch (error: any) {
+            console.error('[MetadataService] Error executing anonymous Apex:', error);
+            throw error;
+        }
+    }
 } 
