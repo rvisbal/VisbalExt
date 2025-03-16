@@ -20,14 +20,14 @@ export class SalesforceApiService {
      */
     public async initialize(): Promise<boolean> {
         try {
-            console.log('[SalesforceApiService] initialize -- Initializing Salesforce API service');
+            console.log('[VisbalExt.SalesforceApiService] initialize -- Initializing Salesforce API service');
             statusBarService.showProgress('Initializing Salesforce API...');
             
             // Get authentication details from Salesforce CLI
             const authDetails = await this._getAuthDetailsFromCli();
             
             if (!authDetails) {
-                console.error('[SalesforceApiService] initialize -- Failed to get auth details from CLI');
+                console.error('[VisbalExt.SalesforceApiService] initialize -- Failed to get auth details from CLI');
                 statusBarService.showError('Failed to get auth details from CLI');
                 return false;
             }
@@ -44,11 +44,11 @@ export class SalesforceApiService {
                 }
             });
             
-            console.log('[SalesforceApiService] initialize -- Successfully initialized Salesforce API service');
+            console.log('[VisbalExt.SalesforceApiService] initialize -- Successfully initialized Salesforce API service');
             statusBarService.showSuccess('Salesforce API initialized');
             return true;
         } catch (error: any) {
-            console.error('[SalesforceApiService] initialize -- Error:', error);
+            console.error('[VisbalExt.SalesforceApiService] initialize -- Error:', error);
             statusBarService.showError(`Failed to initialize Salesforce API: ${error.message}`);
             vscode.window.showErrorMessage(`Failed to initialize Salesforce API: ${error.message}`);
             return false;
@@ -85,7 +85,7 @@ export class SalesforceApiService {
             statusBarService.showSuccess('SOQL query completed');
             return response.data;
         } catch (error: any) {
-            console.error('[SalesforceApiService] query -- Error:', error);
+            console.error('[VisbalExt.SalesforceApiService] query -- Error:', error);
             statusBarService.showError(`Query error: ${error.message}`);
             throw error;
         }
@@ -126,7 +126,7 @@ export class SalesforceApiService {
             console.log(`[SalesforceApiService] getRecord -- Successfully retrieved record: ${objectType}/${recordId}`);
             return response.data;
         } catch (error: any) {
-            console.error('[SalesforceApiService] getRecord -- Error:', error);
+            console.error('[VisbalExt.SalesforceApiService] getRecord -- Error:', error);
             throw new Error(`Failed to get record: ${error.message}`);
         }
     }
@@ -160,7 +160,7 @@ export class SalesforceApiService {
             console.log(`[SalesforceApiService] createRecord -- Successfully created record: ${response.data.id}`);
             return response.data;
         } catch (error: any) {
-            console.error('[SalesforceApiService] createRecord -- Error:', error);
+            console.error('[VisbalExt.SalesforceApiService] createRecord -- Error:', error);
             throw new Error(`Failed to create record: ${error.message}`);
         }
     }
@@ -195,7 +195,7 @@ export class SalesforceApiService {
             console.log(`[SalesforceApiService] updateRecord -- Successfully updated record: ${objectType}/${recordId}`);
             return response.data;
         } catch (error: any) {
-            console.error('[SalesforceApiService] updateRecord -- Error:', error);
+            console.error('[VisbalExt.SalesforceApiService] updateRecord -- Error:', error);
             throw new Error(`Failed to update record: ${error.message}`);
         }
     }
@@ -228,7 +228,7 @@ export class SalesforceApiService {
             
             console.log(`[SalesforceApiService] deleteRecord -- Successfully deleted record: ${objectType}/${recordId}`);
         } catch (error: any) {
-            console.error('[SalesforceApiService] deleteRecord -- Error:', error);
+            console.error('[VisbalExt.SalesforceApiService] deleteRecord -- Error:', error);
             throw new Error(`Failed to delete record: ${error.message}`);
         }
     }
@@ -280,17 +280,17 @@ export class SalesforceApiService {
      */
     private async _getAuthDetailsFromCli(): Promise<{ accessToken: string, instanceUrl: string } | null> {
         try {
-            console.log('[SalesforceApiService] _getAuthDetailsFromCli -- Getting auth details from CLI');
+            console.log('[VisbalExt.SalesforceApiService] _getAuthDetailsFromCli -- Getting auth details from CLI');
             
             // Try with new CLI format first
             try {
                 const { stdout: orgInfo } = await execAsync('sf org display --json');
-                console.log('[SalesforceApiService] _getAuthDetailsFromCli -- Successfully got org info with new CLI format');
+                console.log('[VisbalExt.SalesforceApiService] _getAuthDetailsFromCli -- Successfully got org info with new CLI format');
                 
                 const orgData = JSON.parse(orgInfo);
                 
                 if (!orgData.result || !orgData.result.accessToken || !orgData.result.instanceUrl) {
-                    console.error('[SalesforceApiService] _getAuthDetailsFromCli -- Invalid org data from new CLI format:', orgData);
+                    console.error('[VisbalExt.SalesforceApiService] _getAuthDetailsFromCli -- Invalid org data from new CLI format:', orgData);
                     throw new Error('Invalid org data from new CLI format');
                 }
                 
@@ -299,16 +299,16 @@ export class SalesforceApiService {
                     instanceUrl: orgData.result.instanceUrl
                 };
             } catch (error) {
-                console.log('[SalesforceApiService] _getAuthDetailsFromCli -- Failed with new CLI format, trying old format', error);
+                console.log('[VisbalExt.SalesforceApiService] _getAuthDetailsFromCli -- Failed with new CLI format, trying old format', error);
                 
                 // If the new command fails, try the old format
                 const { stdout: orgInfo } = await execAsync('sfdx force:org:display --json');
-                console.log('[SalesforceApiService] _getAuthDetailsFromCli -- Successfully got org info with old CLI format');
+                console.log('[VisbalExt.SalesforceApiService] _getAuthDetailsFromCli -- Successfully got org info with old CLI format');
                 
                 const orgData = JSON.parse(orgInfo);
                 
                 if (!orgData.result || !orgData.result.accessToken || !orgData.result.instanceUrl) {
-                    console.error('[SalesforceApiService] _getAuthDetailsFromCli -- Invalid org data from old CLI format:', orgData);
+                    console.error('[VisbalExt.SalesforceApiService] _getAuthDetailsFromCli -- Invalid org data from old CLI format:', orgData);
                     return null;
                 }
                 
@@ -318,7 +318,7 @@ export class SalesforceApiService {
                 };
             }
         } catch (error: any) {
-            console.error('[SalesforceApiService] _getAuthDetailsFromCli -- Error:', error);
+            console.error('[VisbalExt.SalesforceApiService] _getAuthDetailsFromCli -- Error:', error);
             return null;
         }
     }

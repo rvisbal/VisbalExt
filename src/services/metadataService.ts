@@ -27,12 +27,12 @@ export class MetadataService {
      */
     private async executeCliCommand(command: string): Promise<string> {
         try {
-            console.log(`[MetadataService] Executing CLI command: ${command}`);
+            console.log(`[VisbalExt.MetadataService] Executing CLI command: ${command}`);
             
             // Get the default org username - don't use bash on Windows
             try {
                 const sfCommand = 'sf config get target-org --json';
-                console.log(`[MetadataService] Checking target org with: ${sfCommand}`);
+                console.log(`[VisbalExt.MetadataService] Checking target org with: ${sfCommand}`);
                 
                 const { stdout: orgInfo } = await execAsync(sfCommand);
                 
@@ -42,7 +42,7 @@ export class MetadataService {
                         const targetOrg = parsedInfo.result && parsedInfo.result[0] ? parsedInfo.result[0].value : null;
                         
                         if (targetOrg) {
-                            console.log(`[MetadataService] Using target org: ${targetOrg}`);
+                            console.log(`[VisbalExt.MetadataService] Using target org: ${targetOrg}`);
                             
                             // Add the target org to the command if it doesn't already have one
                             if (!command.includes('-o') && !command.includes('--target-org')) {
@@ -52,7 +52,7 @@ export class MetadataService {
                             throw new Error('No default org set. Please use "sf org set default" to set a default org.');
                         }
                     } catch (parseError) {
-                        console.error('[MetadataService] Failed to parse org info:', parseError);
+                        console.error('[VisbalExt.MetadataService] Failed to parse org info:', parseError);
                         throw new Error('Failed to parse org info. Please ensure Salesforce CLI is properly installed.');
                     }
                 } else {
@@ -72,7 +72,7 @@ export class MetadataService {
             }
             
             // Execute the command directly without bash -c wrapper
-            console.log(`[MetadataService] Executing final command: ${command}`);
+            console.log(`[VisbalExt.MetadataService] Executing final command: ${command}`);
             const { stdout, stderr } = await execAsync(command);
             
             if (stderr) {
@@ -83,10 +83,10 @@ export class MetadataService {
                 }
             }
             
-            console.log(`[MetadataService] Command executed successfully`);
+            console.log(`[VisbalExt.MetadataService] Command executed successfully`);
             return stdout;
         } catch (error: any) {
-            console.error(`[MetadataService] Command execution failed:`, error);
+            console.error(`[VisbalExt.MetadataService] Command execution failed:`, error);
             throw error;
         }
     }
@@ -98,7 +98,7 @@ export class MetadataService {
      */
     public async executeSoqlQuery(query: string): Promise<any[]> {
         try {
-            console.log('[MetadataService] Executing SOQL query:', query);
+            console.log('[VisbalExt.MetadataService] Executing SOQL query:', query);
             
             // Execute the query using the Salesforce CLI
             const command = `sf data query --query "${query}" --json`;
@@ -106,13 +106,13 @@ export class MetadataService {
             const result = JSON.parse(resultStr);
             
             if (result.status === 0 && result.result) {
-                console.log('[MetadataService] SOQL query executed successfully');
+                console.log('[VisbalExt.MetadataService] SOQL query executed successfully');
                 return result.result.records || [];
             } else {
                 throw new Error(result.message || 'Failed to execute SOQL query');
             }
         } catch (error: any) {
-            console.error('[MetadataService] Error executing SOQL query:', error);
+            console.error('[VisbalExt.MetadataService] Error executing SOQL query:', error);
             throw error;
         }
     }
@@ -122,22 +122,22 @@ export class MetadataService {
      */
     public async listApexClasses(): Promise<ApexClass[]> {
         try {
-            console.log('[MetadataService] Listing Apex classes...');
+            console.log('[VisbalExt.MetadataService] Listing Apex classes...');
             // Use SOQL query to get Apex classes with TracHier namespace
             const soqlQuery = "SELECT Id, Name, NamespacePrefix FROM ApexClass WHERE NamespacePrefix = 'TracHier' ORDER BY Name";
             const command = `sf data query --query "${soqlQuery}" --json`;
             
-            console.log(`[MetadataService] Executing SOQL query: ${soqlQuery}`);
+            console.log(`[VisbalExt.MetadataService] Executing SOQL query: ${soqlQuery}`);
             const output = await this.executeCliCommand(command);
             const parsedOutput = JSON.parse(output);
             
             if (!parsedOutput.result || !parsedOutput.result.records) {
-                console.log('[MetadataService] No classes found or unexpected response format');
+                console.log('[VisbalExt.MetadataService] No classes found or unexpected response format');
                 return [];
             }
             
             const records = parsedOutput.result.records;
-            console.log(`[MetadataService] Found ${records.length} classes in TracHier namespace`);
+            console.log(`[VisbalExt.MetadataService] Found ${records.length} classes in TracHier namespace`);
             
             return records.map((cls: any) => ({
                 id: cls.Id,
@@ -147,7 +147,7 @@ export class MetadataService {
                 status: 'Active'
             }));
         } catch (error: any) {
-            console.error('[MetadataService] Failed to list Apex classes:', error);
+            console.error('[VisbalExt.MetadataService] Failed to list Apex classes:', error);
             throw new Error(`Failed to list Apex classes: ${error.message}`);
         }
     }
@@ -157,12 +157,12 @@ export class MetadataService {
      */
     public async getApexClassBody(className: string): Promise<string> {
         try {
-            console.log(`[MetadataService] Getting body for class: ${className}`);
+            console.log(`[VisbalExt.MetadataService] Getting body for class: ${className}`);
             // Use SOQL query to get the class body
             const soqlQuery = `SELECT Id, Name, Body FROM ApexClass WHERE Name = '${className}' LIMIT 1`;
             const command = `sf data query --query "${soqlQuery}" --json`;
             
-            console.log(`[MetadataService] Executing SOQL query: ${soqlQuery}`);
+            console.log(`[VisbalExt.MetadataService] Executing SOQL query: ${soqlQuery}`);
             const output = await this.executeCliCommand(command);
             const parsedOutput = JSON.parse(output);
             
@@ -171,10 +171,10 @@ export class MetadataService {
             }
             
             const classRecord = parsedOutput.result.records[0];
-            console.log('[MetadataService] Successfully retrieved class body');
+            console.log('[VisbalExt.MetadataService] Successfully retrieved class body');
             return classRecord.Body;
         } catch (error: any) {
-            console.error(`[MetadataService] Failed to get class body for ${className}:`, error);
+            console.error(`[VisbalExt.MetadataService] Failed to get class body for ${className}:`, error);
             throw new Error(`Failed to get class body for ${className}: ${error.message}`);
         }
     }
@@ -183,7 +183,7 @@ export class MetadataService {
      * Extracts test methods from a class body
      */
     public extractTestMethods(classBody: string): TestMethod[] {
-        console.log('[MetadataService] Extracting test methods from class body...');
+        console.log('[VisbalExt.MetadataService] Extracting test methods from class body...');
         const methods: TestMethod[] = [];
         
         // Regular expressions to match test methods - improved to catch more patterns
@@ -210,7 +210,7 @@ export class MetadataService {
                 if (!methodName.includes('__') && 
                     !['equals', 'hashCode', 'toString', 'clone'].includes(methodName) &&
                     !methods.some(m => m.name === methodName)) {
-                    console.log(`[MetadataService] Found potential test method in @isTest class: ${methodName}`);
+                    console.log(`[VisbalExt.MetadataService] Found potential test method in @isTest class: ${methodName}`);
                     methods.push({
                         name: methodName,
                         isTestMethod: true
@@ -225,7 +225,7 @@ export class MetadataService {
             while ((match = pattern.exec(classBody)) !== null) {
                 const methodName = match[1];
                 if (!methods.some(m => m.name === methodName)) {
-                    console.log(`[MetadataService] Found test method: ${methodName}`);
+                    console.log(`[VisbalExt.MetadataService] Found test method: ${methodName}`);
                     methods.push({
                         name: methodName,
                         isTestMethod: true
@@ -234,7 +234,7 @@ export class MetadataService {
             }
         }
 
-        console.log(`[MetadataService] Extracted ${methods.length} test methods`);
+        console.log(`[VisbalExt.MetadataService] Extracted ${methods.length} test methods`);
         return methods;
     }
 
@@ -242,11 +242,11 @@ export class MetadataService {
      * Checks if a class is a test class based on its body
      */
     public isTestClass(classBody: string): boolean {
-        console.log('[MetadataService] Checking if class is a test class...');
+        console.log('[VisbalExt.MetadataService] Checking if class is a test class...');
         const isTest = classBody.includes('@isTest') || 
                       classBody.includes('testMethod') || 
                       this.extractTestMethods(classBody).length > 0;
-        console.log(`[MetadataService] Is test class: ${isTest}`);
+        console.log(`[VisbalExt.MetadataService] Is test class: ${isTest}`);
         return isTest;
     }
 
@@ -255,10 +255,10 @@ export class MetadataService {
      */
     public async getTestClasses(): Promise<ApexClass[]> {
         try {
-            console.log('[MetadataService] Getting all test classes...');
+            console.log('[VisbalExt.MetadataService] Getting all test classes...');
             // Get all classes first
             const allClasses = await this.listApexClasses();
-            console.log(`[MetadataService] Retrieved ${allClasses.length} total classes`);
+            console.log(`[VisbalExt.MetadataService] Retrieved ${allClasses.length} total classes`);
             
             // Filter test classes by name only (without checking body)
             const testClasses = allClasses.filter(cls => 
@@ -266,10 +266,10 @@ export class MetadataService {
                 cls.name.toLowerCase().endsWith('tests')
             );
             
-            console.log(`[MetadataService] Found ${testClasses.length} test classes by name`);
+            console.log(`[VisbalExt.MetadataService] Found ${testClasses.length} test classes by name`);
             return testClasses;
         } catch (error: any) {
-            console.error('[MetadataService] Failed to get test classes:', error);
+            console.error('[VisbalExt.MetadataService] Failed to get test classes:', error);
             throw new Error(`Failed to get test classes: ${error.message}`);
         }
     }
@@ -279,16 +279,16 @@ export class MetadataService {
      */
     public async runTests(testClass: string, testMethod?: string): Promise<any> {
         try {
-            console.log(`[MetadataService] Running tests for class: ${testClass}${testMethod ? `, method: ${testMethod}` : ''}`);
+            console.log(`[VisbalExt.MetadataService] Running tests for class: ${testClass}${testMethod ? `, method: ${testMethod}` : ''}`);
             const command = testMethod
                 ? `sf apex run test --tests ${testClass}.${testMethod} --json`
                 : `sf apex run test --class-names ${testClass} --json`;
             const output = await this.executeCliCommand(command);
             const result = JSON.parse(output).result;
-            console.log('[MetadataService] Test run completed successfully');
+            console.log('[VisbalExt.MetadataService] Test run completed successfully');
             return result;
         } catch (error: any) {
-            console.error('[MetadataService] Failed to run tests:', error);
+            console.error('[VisbalExt.MetadataService] Failed to run tests:', error);
             throw new Error(`Failed to run tests: ${error.message}`);
         }
     }
@@ -298,13 +298,13 @@ export class MetadataService {
      */
     public async getApexLog(logId: string): Promise<any> {
         try {
-            console.log(`[MetadataService] Getting Apex log with ID: ${logId}`);
+            console.log(`[VisbalExt.MetadataService] Getting Apex log with ID: ${logId}`);
             const output = await this.executeCliCommand(`sf apex get log --log-id ${logId} --json`);
             const result = JSON.parse(output).result;
-            console.log('[MetadataService] Successfully retrieved Apex log');
+            console.log('[VisbalExt.MetadataService] Successfully retrieved Apex log');
             return result;
         } catch (error: any) {
-            console.error(`[MetadataService] Failed to get Apex log ${logId}:`, error);
+            console.error(`[VisbalExt.MetadataService] Failed to get Apex log ${logId}:`, error);
             throw new Error(`Failed to get Apex log: ${error.message}`);
         }
     }
@@ -314,13 +314,13 @@ export class MetadataService {
      */
     public async listApexLogs(): Promise<any[]> {
         try {
-            console.log('[MetadataService] Listing Apex logs...');
+            console.log('[VisbalExt.MetadataService] Listing Apex logs...');
             const output = await this.executeCliCommand('sf apex list log --json');
             const result = JSON.parse(output).result;
-            console.log(`[MetadataService] Found ${result.length} logs`);
+            console.log(`[VisbalExt.MetadataService] Found ${result.length} logs`);
             return result;
         } catch (error: any) {
-            console.error('[MetadataService] Failed to list Apex logs:', error);
+            console.error('[VisbalExt.MetadataService] Failed to list Apex logs:', error);
             throw new Error(`Failed to list Apex logs: ${error.message}`);
         }
     }
@@ -330,45 +330,44 @@ export class MetadataService {
      */
     public async getTestMethodsForClass(className: string): Promise<TestMethod[]> {
         try {
-            console.log(`[MetadataService] Getting test methods for class: ${className}`);
+            console.log(`[VisbalExt.MetadataService] Getting test methods for class: ${className}`);
             // Get the class body
             const classBody = await this.getApexClassBody(className);
             
             // Extract test methods from the body
             const testMethods = this.extractTestMethods(classBody);
-            console.log(`[MetadataService] Found ${testMethods.length} test methods in ${className}`);
+            console.log(`[VisbalExt.MetadataService] Found ${testMethods.length} test methods in ${className}`);
             
             return testMethods;
         } catch (error: any) {
-            console.error(`[MetadataService] Failed to get test methods for ${className}:`, error);
+            console.error(`[VisbalExt.MetadataService] Failed to get test methods for ${className}:`, error);
             throw new Error(`Failed to get test methods for ${className}: ${error.message}`);
         }
     }
 
     public async getTestLog(logId: string): Promise<string> {
         try {
-            console.log('[MetadataService] Attempting to fetch test log with ID:', logId);
-            
-            // Execute SFDX command to get the log
-            const command = 'sf apex get log --json -i ' + logId;
-            console.log('[MetadataService] Executing command:', command);
-            
-            const result = await this.executeCliCommand(command);
-            console.log('[MetadataService] Raw command result:', result);
-
+            console.log('[VisbalExt.MetadataService] Getting test log:', logId);
+            const result = await this.executeCliCommand(`sf apex get log -i ${logId} --json`);
             const parsedResult = JSON.parse(result);
-            console.log('[MetadataService] Parsed result:', parsedResult);
-
-            if (parsedResult && parsedResult.status === 0 && parsedResult.result) {
-                console.log('[MetadataService] Successfully retrieved log content');
-                return parsedResult.result.log;
-            }
-
-            console.error('[MetadataService] Failed to fetch test log - Invalid response structure');
-            throw new Error('Failed to fetch test log - Invalid response structure');
+            console.log('[VisbalExt.MetadataService] Test log retrieved');
+            return parsedResult.result?.log || '';
         } catch (error) {
-            console.error('[MetadataService] Error fetching test log:', error);
-            throw new Error('Failed to fetch test log: ' + (error as Error).message);
+            console.error('[VisbalExt.MetadataService] Error getting test log:', error);
+            throw error;
+        }
+    }
+
+    public async getTestRunResult(testRunId: string): Promise<any> {
+        try {
+            console.log('[VisbalExt.MetadataService] Getting test run result:', testRunId);
+            const result = await this.executeCliCommand(`sf apex get test -i ${testRunId} --json`);
+            const parsedResult = JSON.parse(result);
+            console.log('[VisbalExt.MetadataService] Test run result retrieved:', parsedResult);
+            return parsedResult.result || null;
+        } catch (error) {
+            console.error('[VisbalExt.MetadataService] Error getting test run result:', error);
+            throw error;
         }
     }
 } 
