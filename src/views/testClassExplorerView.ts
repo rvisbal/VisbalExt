@@ -10,6 +10,7 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
     private _extensionUri: vscode.Uri;
     private _statusBarService: StatusBarService;
     private _metadataService: MetadataService;
+    private _cachedTestClasses?: any[]; // Add cache for test classes
 
     constructor(
         extensionUri: vscode.Uri,
@@ -40,7 +41,7 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
             console.log('Received message from webview:', data);
             switch (data.command) {
                 case 'fetchTestClasses':
-                    await this._fetchTestClasses();
+                    await this._fetchTestClasses(data.forceRefresh);
                     break;
                 case 'fetchTestMethods':
                     await this._fetchTestMethods(data.className);
@@ -64,13 +65,34 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
         setTimeout(() => {
             console.log('Initial fetch of test classes');
             if (this._view && this._view.visible) {
-                this._fetchTestClasses();
+                // Use cached data if available
+                if (this._cachedTestClasses) {
+                    console.log('Using cached test classes');
+                    this._view.webview.postMessage({
+                        command: 'testClassesLoaded',
+                        testClasses: this._cachedTestClasses
+                    });
+                } else {
+                    this._fetchTestClasses(false);
+                }
             }
         }, 1000);
     }
 
-    private async _fetchTestClasses() {
+    private async _fetchTestClasses(forceRefresh: boolean = false) {
         try {
+            // If we have cached data and don't need to refresh, use it
+            if (this._cachedTestClasses && !forceRefresh) {
+                console.log('Using cached test classes');
+                if (this._view) {
+                    this._view.webview.postMessage({
+                        command: 'testClassesLoaded',
+                        testClasses: this._cachedTestClasses
+                    });
+                }
+                return;
+            }
+
             this._statusBarService.showMessage('$(sync~spin) Fetching test classes...');
             
             // Check if Salesforce Extension Pack is installed
@@ -82,6 +104,9 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
             
             // Use MetadataService to get test classes
             const testClasses = await this._metadataService.getTestClasses();
+            
+            // Cache the test classes
+            this._cachedTestClasses = testClasses;
             
             if (!testClasses || testClasses.length === 0) {
                 if (this._view) {
@@ -675,7 +700,7 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                     
                     // Event listeners
                     refreshButton.addEventListener('click', () => {
-                        fetchTestClasses();
+                        fetchTestClasses(true);
                     });
                     
                     runSelectedButton.addEventListener('click', () => {
@@ -683,12 +708,15 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                     });
                     
                     // Functions
-                    function fetchTestClasses() {
+                    function fetchTestClasses(forceRefresh = false) {
                         console.log('Fetching test classes...');
                         showLoading();
                         hideError();
                         hideNotification();
-                        vscode.postMessage({ command: 'fetchTestClasses' });
+                        vscode.postMessage({ 
+                            command: 'fetchTestClasses',
+                            forceRefresh: forceRefresh 
+                        });
                     }
                     
                     function showLoading() {
@@ -1251,8 +1279,8 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                         }
                     });
                     
-                    // Initial fetch
-                    fetchTestClasses();
+                    // Initial fetch without force refresh
+                    fetchTestClasses(false);
 
                     // Add resizer functionality
                     const resizer = document.getElementById('resizer');
