@@ -371,8 +371,9 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
         <head>
             <meta charset="UTF-8">
             <meta name="viewport" content="width=device-width, initial-scale=1.0">
-            <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${webview.cspSource} 'unsafe-inline'; script-src 'nonce-${nonce}';">
+            <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${webview.cspSource} 'unsafe-inline'; font-src ${webview.cspSource}; script-src 'nonce-${nonce}';">
             <title>Test Class Explorer</title>
+            <link href="${webview.asWebviewUri(vscode.Uri.joinPath(this._extensionUri, 'node_modules', '@vscode/codicons', 'dist', 'codicon.css'))}" rel="stylesheet" />
             <style>
                 body {
                     font-family: var(--vscode-font-family);
@@ -602,6 +603,15 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                     margin-right: 8px;
                     font-size: 12px;
                     color: var(--vscode-descriptionForeground);
+                }
+                .codicon {
+                    font-size: 16px;
+                    line-height: 16px;
+                    width: 16px;
+                    height: 16px;
+                    display: inline-block;
+                    text-align: center;
+                    vertical-align: middle;
                 }
             </style>
         </head>
@@ -840,9 +850,8 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                             
                             checkboxContainer.appendChild(checkbox);
                             
-                            const expandIcon = document.createElement('span');
-                            expandIcon.className = 'icon';
-                            expandIcon.textContent = '▶';
+                            const expandIcon = document.createElement('i');
+                            expandIcon.className = 'codicon codicon-chevron-right';
                             
                             const nameSpan = document.createElement('span');
                             nameSpan.className = 'test-class-name';
@@ -872,7 +881,7 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                             li.onclick = function() {
                                 if (methodsList.classList.contains('hidden')) {
                                     methodsList.classList.remove('hidden');
-                                    expandIcon.textContent = '▼';
+                                    expandIcon.className = 'codicon codicon-chevron-down';
                                     
                                     // Load test methods if not already loaded
                                     if (methodsList.dataset.loaded === 'false') {
@@ -880,7 +889,7 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                                     }
                                 } else {
                                     methodsList.classList.add('hidden');
-                                    expandIcon.textContent = '▶';
+                                    expandIcon.className = 'codicon codicon-chevron-right';
                                 }
                             };
                             
