@@ -131,21 +131,18 @@ export class SoqlPanelView implements vscode.WebviewViewProvider {
                     color: var(--vscode-foreground);
                     font-weight: 600;
                     text-align: left;
-                    padding: 8px;
+                    padding: 4px 8px;
                     background: var(--vscode-editor-background);
                     border-bottom: 1px solid var(--vscode-panel-border);
                     white-space: nowrap;
                 }
                 td {
-                    padding: 8px;
-                    border: none;
+                    padding: 4px 8px;
+                    border-bottom: 1px solid var(--vscode-panel-border);
                     color: var(--vscode-foreground);
                     white-space: nowrap;
                 }
                 tr {
-                    background-color: var(--vscode-editor-background);
-                }
-                tr:nth-child(even) {
                     background-color: var(--vscode-list-inactiveSelectionBackground);
                 }
                 tr:hover {
