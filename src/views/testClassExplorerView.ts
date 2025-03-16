@@ -405,8 +405,8 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                     min-height: 100px;
                 }
                 .bottom-container {
-                    height: 200px;
-                    min-height: 50px;
+                    height: 400px;
+                    min-height: 100px;
                     overflow: auto;
                     margin-top: 5px;
                     border: 1px solid var(--vscode-panel-border);
