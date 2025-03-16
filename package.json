@@ -23,6 +23,7 @@
     "onCommand:visbal-ext.showLogSummary",
     "onView:visbalLogView",
     "onView:testClassExplorerView",
+    "onView:visbal-apex",
     "onLanguage:log"
   ],
   "contributes": {

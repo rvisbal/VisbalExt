@@ -30,7 +30,7 @@ export class LogDetailView {
      * @param logId The ID of the log
      */
     public static createOrShow(extensionUri: vscode.Uri, logFilePath: string, logId: string): LogDetailView {
-        console.log(`[LogDetailView] createOrShow -- Creating or showing log detail view for log: ${logId}`);
+        console.log(`[VisbalExt.LogDetailView] createOrShow -- Creating or showing log detail view for log: ${logId}`);
         statusBarService.showProgress(`Opening log detail view for: ${path.basename(logFilePath)}`);
         
         const column = vscode.window.activeTextEditor
@@ -39,14 +39,14 @@ export class LogDetailView {
 
         // If we already have a panel, show it
         if (LogDetailView.currentPanel) {
-            console.log('[LogDetailView] createOrShow -- Reusing existing panel');
+            console.log('[VisbalExt.LogDetailView] createOrShow -- Reusing existing panel');
             LogDetailView.currentPanel._panel.reveal(column);
             LogDetailView.currentPanel.updateLogFile(logFilePath, logId);
             return LogDetailView.currentPanel;
         }
 
         // Otherwise, create a new panel
-        console.log('[LogDetailView] createOrShow -- Creating new panel');
+        console.log('[VisbalExt.LogDetailView] createOrShow -- Creating new panel');
         const panel = vscode.window.createWebviewPanel(
             'logDetailView',
             'Log Detail View',
@@ -70,7 +70,7 @@ export class LogDetailView {
      * @param logId The ID of the log
      */
     private constructor(panel: vscode.WebviewPanel, extensionUri: vscode.Uri, logFilePath: string, logId: string) {
-        console.log(`[LogDetailView] constructor -- Initializing log detail view for log: ${logId}`);
+        console.log(`[VisbalExt.LogDetailView] constructor -- Initializing log detail view for log: ${logId}`);
         
         this._panel = panel;
         this._extensionUri = extensionUri;
@@ -90,7 +90,7 @@ export class LogDetailView {
         this._panel.onDidChangeViewState(
             e => {
                 if (this._panel.visible) {
-                    console.log('[LogDetailView] onDidChangeViewState -- Panel became visible, updating content');
+                    console.log('[VisbalExt.LogDetailView] onDidChangeViewState -- Panel became visible, updating content');
                     this._update();
                 }
             },
@@ -101,11 +101,11 @@ export class LogDetailView {
         // Handle messages from the webview
         this._panel.webview.onDidReceiveMessage(
             message => {
-                console.log(`[LogDetailView] onDidReceiveMessage -- Received message: ${message.command}`, message);
+                console.log(`[VisbalExt.LogDetailView] onDidReceiveMessage -- Received message: ${message.command}`, message);
                 
                 switch (message.command) {
                     case 'changeTab':
-                        console.log(`[LogDetailView] onDidReceiveMessage -- Changing tab to: ${message.tab}`);
+                        console.log(`[VisbalExt.LogDetailView] onDidReceiveMessage -- Changing tab to: ${message.tab}`);
                         this._currentTab = message.tab;
                         this._update();
                         
@@ -124,27 +124,27 @@ export class LogDetailView {
                         }
                         break;
                     case 'backToList':
-                        console.log('[LogDetailView] onDidReceiveMessage -- Going back to log list');
+                        console.log('[VisbalExt.LogDetailView] onDidReceiveMessage -- Going back to log list');
                         this.dispose();
                         break;
                     case 'downloadCurrentLog':
-                        console.log('[LogDetailView] onDidReceiveMessage -- Downloading current log');
+                        console.log('[VisbalExt.LogDetailView] onDidReceiveMessage -- Downloading current log');
                         vscode.commands.executeCommand('visbal.downloadLog', this._logId);
                         break;
                     case 'search':
-                        console.log(`[LogDetailView] onDidReceiveMessage -- Searching for: ${message.term}`);
+                        console.log(`[VisbalExt.LogDetailView] onDidReceiveMessage -- Searching for: ${message.term}`);
                         this._searchLog(message.term);
                         break;
                     case 'applyFilter':
-                        console.log(`[LogDetailView] onDidReceiveMessage -- Applying filter: ${message.filter}`);
+                        console.log(`[VisbalExt.LogDetailView] onDidReceiveMessage -- Applying filter: ${message.filter}`);
                         this._applyFilter(message.filter);
                         break;
                     case 'searchRawLog':
-                        console.log(`[LogDetailView] onDidReceiveMessage -- Searching raw log for: ${message.term}`);
+                        console.log(`[VisbalExt.LogDetailView] onDidReceiveMessage -- Searching raw log for: ${message.term}`);
                         this._searchRawLog(message.searchTerm, message.caseSensitive, message.wholeWord, message.useRegex);
                         break;
                     case 'getLogChunk':
-                        console.log(`[LogDetailView] onDidReceiveMessage -- Getting log chunk: ${message.chunkIndex}`);
+                        console.log(`[VisbalExt.LogDetailView] onDidReceiveMessage -- Getting log chunk: ${message.chunkIndex}`);
                         this._getLogChunk(message.chunkIndex, message.chunkSize);
                         break;
                 }
@@ -160,7 +160,7 @@ export class LogDetailView {
      * @param logId The ID of the log
      */
     public updateLogFile(logFilePath: string, logId: string): void {
-        console.log(`[LogDetailView] updateLogFile -- Updating log file: ${logFilePath}`);
+        console.log(`[VisbalExt.LogDetailView] updateLogFile -- Updating log file: ${logFilePath}`);
         statusBarService.showProgress(`Loading log file: ${path.basename(logFilePath)}`);
         
         this._logFilePath = logFilePath;
@@ -175,7 +175,7 @@ export class LogDetailView {
      * @param term The search term
      */
     private _searchLog(term: string): void {
-        console.log(`[LogDetailView] _searchLog -- Searching log for: ${term}`);
+        console.log(`[VisbalExt.LogDetailView] _searchLog -- Searching log for: ${term}`);
         statusBarService.showProgress(`Searching log for: ${term}`);
         
         // Implement search functionality
@@ -198,7 +198,7 @@ export class LogDetailView {
      * @param filter The filter to apply
      */
     private _applyFilter(filter: string): void {
-        console.log(`[LogDetailView] _applyFilter -- Applying filter: ${filter}`);
+        console.log(`[VisbalExt.LogDetailView] _applyFilter -- Applying filter: ${filter}`);
         
         // Implement filter functionality
         // This would typically involve filtering the log content based on the selected category
@@ -212,16 +212,16 @@ export class LogDetailView {
      */
     private _parseLogFile(): ParsedLogData {
         try {
-            console.log(`[LogDetailView] _parseLogFile -- Parsing log file: ${this._logFilePath}`);
+            console.log(`[VisbalExt.LogDetailView] _parseLogFile -- Parsing log file: ${this._logFilePath}`);
             statusBarService.showProgress(`Parsing log file: ${path.basename(this._logFilePath)}`);
             
             if (!fs.existsSync(this._logFilePath)) {
-                console.error(`[LogDetailView] _parseLogFile -- Log file not found: ${this._logFilePath}`);
+                console.error(`[VisbalExt.LogDetailView] _parseLogFile -- Log file not found: ${this._logFilePath}`);
                 return { error: 'Log file not found' } as ParsedLogData;
             }
 
             const logContent = fs.readFileSync(this._logFilePath, 'utf8');
-            console.log(`[LogDetailView] _parseLogFile -- Read log file, size: ${logContent.length} bytes`);
+            console.log(`[VisbalExt.LogDetailView] _parseLogFile -- Read log file, size: ${logContent.length} bytes`);
             
             // Basic parsing for now - in a real implementation, this would be more sophisticated
             const lines = logContent.split('\n');
@@ -235,7 +235,7 @@ export class LogDetailView {
             
             // Extract debug-related lines using utility function
             const userDebugLines = extractDebugLines(lines);
-            console.log(`[LogDetailView] _parseLogFile -- Found ${userDebugLines.length} debug-related lines`);
+            console.log(`[VisbalExt.LogDetailView] _parseLogFile -- Found ${userDebugLines.length} debug-related lines`);
             
             // Extract execution path data using ExecutionTabHandler
             const executionPath = ExecutionTabHandler.extractExecutionPath(executionLines);
@@ -260,12 +260,12 @@ export class LogDetailView {
             (parsedData as any).executionPath = executionPath;
             this._executionTabHandler.setExecutionData(executionPath);
             
-            console.log('[LogDetailView] _parseLogFile -- Parsed log data:', parsedData.summary);
+            console.log('[VisbalExt.LogDetailView] _parseLogFile -- Parsed log data:', parsedData.summary);
             
             statusBarService.showSuccess(`Log file parsed: ${path.basename(this._logFilePath)}`);
             return parsedData;
         } catch (error: any) {
-            console.error('[LogDetailView] _parseLogFile -- Error parsing log file:', error);
+            console.error('[VisbalExt.LogDetailView] _parseLogFile -- Error parsing log file:', error);
             statusBarService.showError(`Error parsing log file: ${error.message}`);
             vscode.window.showErrorMessage(`Error parsing log file: ${error.message}`);
             return { 
@@ -341,7 +341,7 @@ export class LogDetailView {
      * @param lines The log lines
      */
     private _extractTimeline(lines: string[]): LogTimelineEvent[] {
-        console.log('[LogDetailView] _extractTimeline -- Extracting timeline from log lines');
+        console.log('[VisbalExt.LogDetailView] _extractTimeline -- Extracting timeline from log lines');
         
         const timeline: LogTimelineEvent[] = [];
         let currentTime = 0;
@@ -384,7 +384,7 @@ export class LogDetailView {
             }
         });
         
-        console.log(`[LogDetailView] _extractTimeline -- Extracted ${timeline.length} timeline events`);
+        console.log(`[VisbalExt.LogDetailView] _extractTimeline -- Extracted ${timeline.length} timeline events`);
         
         return timeline;
     }
@@ -407,7 +407,7 @@ export class LogDetailView {
      */
     private _update(): void {
         try {
-            console.log('[LogDetailView] _update -- Updating webview content');
+            console.log('[VisbalExt.LogDetailView] _update -- Updating webview content');
             statusBarService.showProgress('Updating log view...');
             
             const webview = this._panel.webview;
@@ -423,7 +423,7 @@ export class LogDetailView {
                 const stats = fs.statSync(this._logFilePath);
                 fileSize = this._formatFileSize(stats.size);
             } catch (error: any) {
-                console.error('[LogDetailView] _update -- Error getting file stats:', error);
+                console.error('[VisbalExt.LogDetailView] _update -- Error getting file stats:', error);
             }
             
             // Update the title
@@ -479,7 +479,7 @@ export class LogDetailView {
             
             statusBarService.showSuccess('Log view updated');
         } catch (error: any) {
-            console.error('[LogDetailView] _update -- Error updating webview content:', error);
+            console.error('[VisbalExt.LogDetailView] _update -- Error updating webview content:', error);
             statusBarService.showError(`Error updating log view: ${error.message}`);
             vscode.window.showErrorMessage(`Error updating log view: ${error.message}`);
         }
@@ -503,7 +503,7 @@ export class LogDetailView {
      * Disposes of the panel
      */
     public dispose(): void {
-        console.log('[LogDetailView] dispose -- Disposing log detail view');
+        console.log('[VisbalExt.LogDetailView] dispose -- Disposing log detail view');
         
         LogDetailView.currentPanel = undefined;
         
@@ -520,7 +520,7 @@ export class LogDetailView {
 
     // Add a new method to handle the getLogChunk message
     private _getLogChunk(chunkIndex: number, chunkSize: number): void {
-        console.log(`[LogDetailView] _getLogChunk -- Getting chunk ${chunkIndex} with size ${chunkSize}`);
+        console.log(`[VisbalExt.LogDetailView] _getLogChunk -- Getting chunk ${chunkIndex} with size ${chunkSize}`);
         
         try {
             // Calculate start and end indices
@@ -537,13 +537,13 @@ export class LogDetailView {
                 chunk: chunk
             });
         } catch (error: any) {
-            console.error(`[LogDetailView] _getLogChunk -- Error getting chunk ${chunkIndex}:`, error);
+            console.error(`[VisbalExt.LogDetailView] _getLogChunk -- Error getting chunk ${chunkIndex}:`, error);
         }
     }
 
     // Add a new method to handle the searchRawLog message
     private _searchRawLog(searchTerm: string, caseSensitive: boolean = false, wholeWord: boolean = false, useRegex: boolean = false): void {
-        console.log(`[LogDetailView] _searchRawLog -- Searching for "${searchTerm}" (caseSensitive: ${caseSensitive}, wholeWord: ${wholeWord}, useRegex: ${useRegex})`);
+        console.log(`[VisbalExt.LogDetailView] _searchRawLog -- Searching for "${searchTerm}" (caseSensitive: ${caseSensitive}, wholeWord: ${wholeWord}, useRegex: ${useRegex})`);
         statusBarService.showProgress(`Searching log for: ${searchTerm}`);
         
         try {
@@ -568,7 +568,7 @@ export class LogDetailView {
                     }
                 }
             } catch (e) {
-                console.error('[LogDetailView] _searchRawLog -- Invalid regex pattern:', e);
+                console.error('[VisbalExt.LogDetailView] _searchRawLog -- Invalid regex pattern:', e);
                 this._panel.webview.postMessage({
                     command: 'searchResults',
                     results: []
@@ -598,7 +598,7 @@ export class LogDetailView {
                 }
             });
             
-            console.log(`[LogDetailView] _searchRawLog -- Found ${results.length} matches`);
+            console.log(`[VisbalExt.LogDetailView] _searchRawLog -- Found ${results.length} matches`);
             
             // Send the results back to the webview
             this._panel.webview.postMessage({
@@ -608,7 +608,7 @@ export class LogDetailView {
             
             statusBarService.showSuccess(`Search completed for: ${searchTerm}`);
         } catch (error: any) {
-            console.error(`[LogDetailView] _searchRawLog -- Error searching for "${searchTerm}":`, error);
+            console.error(`[VisbalExt.LogDetailView] _searchRawLog -- Error searching for "${searchTerm}":`, error);
             statusBarService.showError(`Error searching log: ${error.message}`);
         }
     }

@@ -101,7 +101,7 @@ export function activate(context: vscode.ExtensionContext) {
   // Register Apex Panel View (bottom panel)
   context.subscriptions.push(
     vscode.window.registerWebviewViewProvider(
-      'visbal-apex',
+      ApexPanelView.viewType,
       apexPanel,
       {
         webviewOptions: {

@@ -2,12 +2,12 @@ import * as vscode from 'vscode';
 import { MetadataService } from '../services/metadataService';
 
 export class ApexPanelView implements vscode.WebviewViewProvider {
-    public static readonly viewType = 'visbalApex';
+    public static readonly viewType = 'visbal-apex';
     private _view?: vscode.WebviewView;
     private _metadataService: MetadataService;
 
     constructor(metadataService: MetadataService) {
-        console.log('[ApexPanelView] Initializing ApexPanelView');
+        console.log('[VisbalExt.ApexPanelView] Initializing ApexPanelView');
         this._metadataService = metadataService;
     }
 
@@ -16,30 +16,31 @@ export class ApexPanelView implements vscode.WebviewViewProvider {
         context: vscode.WebviewViewResolveContext,
         _token: vscode.CancellationToken,
     ) {
-        console.log('[ApexPanelView] Resolving webview view');
+        console.log('[VisbalExt.ApexPanelView] Resolving webview view');
         this._view = webviewView;
 
         webviewView.webview.options = {
-            enableScripts: true
+            enableScripts: true,
+            localResourceRoots: []
         };
 
         webviewView.webview.html = this._getWebviewContent();
-        console.log('[ApexPanelView] Webview content set');
+        console.log('[VisbalExt.ApexPanelView] Webview content set');
 
         webviewView.webview.onDidReceiveMessage(async (message) => {
-            console.log('[ApexPanelView] Received message:', message);
+            console.log('[VisbalExt.ApexPanelView] Received message:', message);
             switch (message.command) {
                 case 'executeApex':
                     try {
-                        console.log('[ApexPanelView] Executing Apex code:', message.code);
+                        console.log('[VisbalExt.ApexPanelView] Executing Apex code:', message.code);
                         const results = await this._metadataService.executeAnonymousApex(message.code);
-                        console.log('[ApexPanelView] Execution results:', results);
+                        console.log('[VisbalExt.ApexPanelView] Execution results:', results);
                         this._view?.webview.postMessage({
                             command: 'apexResultsLoaded',
                             results: results
                         });
                     } catch (error: any) {
-                        console.error('[ApexPanelView] Error executing Apex:', error);
+                        console.error('[VisbalExt.ApexPanelView] Error executing Apex:', error);
                         this._view?.webview.postMessage({
                             command: 'error',
                             message: `Error executing Apex: ${error.message}`
@@ -193,137 +194,195 @@ export class ApexPanelView implements vscode.WebviewViewProvider {
             </div>
             <script>
                 (function() {
-                    const vscode = acquireVsCodeApi();
-                    const apexInput = document.getElementById('apexInput');
-                    const runApexButton = document.getElementById('runApexButton');
-                    const apexStatus = document.getElementById('apexStatus');
-                    const apexOutput = document.getElementById('apexOutput');
+                    try {
+                        console.log('[VisbalExt.ApexPanel] Starting webview initialization');
+                        const vscode = acquireVsCodeApi();
+                        console.log('[VisbalExt.ApexPanel] VS Code API acquired');
 
-                    console.log('[ApexPanel] Initializing webview script');
+                        const apexInput = document.getElementById('apexInput');
+                        const runApexButton = document.getElementById('runApexButton');
+                        const apexStatus = document.getElementById('apexStatus');
+                        const apexOutput = document.getElementById('apexOutput');
 
-                    if (runApexButton) {
-                        console.log('[ApexPanel] Adding click handler to run button');
-                        runApexButton.onclick = () => {
+                        console.log('[VisbalExt.ApexPanel] DOM elements found:', {
+                            apexInput: !!apexInput,
+                            runApexButton: !!runApexButton,
+                            apexStatus: !!apexStatus,
+                            apexOutput: !!apexOutput
+                        });
+
+                        // Immediately show we're connected
+                        apexStatus.textContent = 'Ready';
+                        console.log('[VisbalExt.ApexPanel] Webview script loaded and initialized');
+
+                        // Add click handler using both onclick and addEventListener
+                        if (runApexButton) {
+                            console.log('[VisbalExt.ApexPanel] Setting up button click handlers');
+                            
+                            // Direct click handler
+                            runApexButton.onclick = (e) => {
+                                console.log('[VisbalExt.ApexPanel] Button clicked via onclick');
+                                e.preventDefault();
+                                handleButtonClick();
+                            };
+
+                            // Backup click handler
+                            runApexButton.addEventListener('click', (e) => {
+                                console.log('[VisbalExt.ApexPanel] Button clicked via addEventListener');
+                                e.preventDefault();
+                                handleButtonClick();
+                            });
+
+                            // Also handle on keypress for accessibility
+                            runApexButton.addEventListener('keypress', (e) => {
+                                if (e.key === 'Enter' || e.key === ' ') {
+                                    console.log('[VisbalExt.ApexPanel] Button activated via keypress:', e.key);
+                                    e.preventDefault();
+                                    handleButtonClick();
+                                }
+                            });
+
+                            console.log('[VisbalExt.ApexPanel] Button click handlers set up successfully');
+                        } else {
+                            console.error('[VisbalExt.ApexPanel] CRITICAL: Run button not found in DOM');
+                            apexStatus.textContent = 'Error: Button not initialized';
+                        }
+
+                        function handleButtonClick() {
                             try {
-                                console.log('[ApexPanel] ====== Run Button Click Debug ======');
-                                console.log('[ApexPanel] Run button clicked - Starting execution flow');
+                                // Immediate visual feedback
+                                apexStatus.textContent = 'Processing...';
+                                runApexButton.style.backgroundColor = 'var(--vscode-button-hoverBackground)';
+                                
+                                console.log('[VisbalExt.ApexPanel] ====== Run Button Click Debug ======');
+                                console.log('[VisbalExt.ApexPanel] Button clicked - Starting execution');
+                                
                                 const code = apexInput.value.trim();
-                                console.log('[ApexPanel] Code to execute:', code);
-                                console.log('[ApexPanel] Button state:', {
-                                    disabled: runApexButton.disabled,
-                                    classList: Array.from(runApexButton.classList)
-                                });
+                                console.log('[VisbalExt.ApexPanel] Code length:', code.length);
+                                console.log('[VisbalExt.ApexPanel] Code to execute:', code);
 
                                 if (!code) {
-                                    console.log('[ApexPanel] No code entered - Stopping execution');
+                                    console.log('[VisbalExt.ApexPanel] No code entered - Stopping execution');
                                     apexStatus.textContent = 'Please enter Apex code';
                                     return;
                                 }
 
-                                console.log('[ApexPanel] Preparing to send executeApex message');
-                                apexStatus.textContent = 'Executing...';
-                                apexOutput.innerHTML = '';
+                                // Visual feedback during execution
+                                apexOutput.innerHTML = '<div style="color: var(--vscode-descriptionForeground)">Sending request...</div>';
                                 runApexButton.classList.add('executing');
                                 runApexButton.disabled = true;
 
-                                console.log('[ApexPanel] Sending executeApex message to extension');
-                                vscode.postMessage({
-                                    command: 'executeApex',
-                                    code: code
-                                });
-                                console.log('[ApexPanel] Message sent to extension');
-                                console.log('[ApexPanel] ====== End Run Button Click Debug ======');
+                                try {
+                                    console.log('[VisbalExt.ApexPanel] Attempting to send message to extension...');
+                                    vscode.postMessage({
+                                        command: 'executeApex',
+                                        code: code
+                                    });
+                                    console.log('[VisbalExt.ApexPanel] Message sent successfully');
+                                    apexStatus.textContent = 'Request sent...';
+                                } catch (postError) {
+                                    console.error('[VisbalExt.ApexPanel] Failed to send message:', postError);
+                                    apexStatus.textContent = 'Failed to send request';
+                                    runApexButton.classList.remove('executing');
+                                    runApexButton.disabled = false;
+                                    apexOutput.innerHTML = '<div class="error">Failed to send request to extension: ' + postError.message + '</div>';
+                                }
+
+                                console.log('[VisbalExt.ApexPanel] ====== End Button Click Debug ======');
                             } catch (error) {
-                                console.error('[ApexPanel] Error in button click handler:', error);
+                                console.error('[VisbalExt.ApexPanel] Critical error in click handler:', error);
                                 apexStatus.textContent = 'Error: ' + error.message;
+                                runApexButton.classList.remove('executing');
+                                runApexButton.disabled = false;
                             }
-                        };
-                    } else {
-                        console.error('[ApexPanel] Run button not found in DOM');
-                    }
-
-                    window.addEventListener('message', event => {
-                        try {
-                            console.log('[ApexPanel] ====== Message Received Debug ======');
-                            console.log('[ApexPanel] Raw message data:', event.data);
-                            const message = event.data;
-
-                            // Re-enable button after execution
-                            console.log('[ApexPanel] Resetting button state');
-                            runApexButton.classList.remove('executing');
-                            runApexButton.disabled = false;
-                            console.log('[ApexPanel] Button state after reset:', {
-                                disabled: runApexButton.disabled,
-                                classList: Array.from(runApexButton.classList)
-                            });
-                            
-                            switch (message.command) {
-                                case 'apexResultsLoaded':
-                                    console.log('[ApexPanel] Processing Apex results');
-                                    console.log('[ApexPanel] Results data:', message.results);
-                                    handleApexResults(message.results);
-                                    break;
-                                case 'error':
-                                    console.error('[ApexPanel] Error received from extension');
-                                    console.error('[ApexPanel] Error details:', message.message);
-                                    apexStatus.textContent = message.message;
-                                    apexOutput.innerHTML = '<div class="error">' + message.message + '</div>';
-                                    break;
-                                default:
-                                    console.log('[ApexPanel] Unknown command received:', message.command);
-                            }
-                            console.log('[ApexPanel] ====== End Message Received Debug ======');
-                        } catch (error) {
-                            console.error('[ApexPanel] Error handling message:', error);
-                            apexStatus.textContent = 'Error handling response: ' + error.message;
                         }
-                    });
 
-                    function handleApexResults(results) {
-                        try {
-                            console.log('[ApexPanel] ====== Results Processing Debug ======');
-                            console.log('[ApexPanel] Processing results:', results);
-                            
-                            if (!results) {
-                                console.log('[ApexPanel] No results received');
-                                apexStatus.textContent = 'No results';
-                                apexOutput.innerHTML = '';
-                                return;
-                            }
+                        window.addEventListener('message', event => {
+                            try {
+                                console.log('[VisbalExt.ApexPanel] ====== Message Received Debug ======');
+                                console.log('[VisbalExt.ApexPanel] Raw message data:', event.data);
+                                const message = event.data;
 
-                            let output = '';
-                            if (results.success) {
-                                console.log('[ApexPanel] Execution successful');
-                                console.log('[ApexPanel] Logs:', results.logs);
-                                apexStatus.textContent = 'Executed successfully';
-                                if (results.logs) {
-                                    output += '<div class="success">' + results.logs + '</div>';
-                                }
-                            } else {
-                                console.log('[ApexPanel] Execution failed');
-                                console.log('[ApexPanel] Error details:', {
-                                    compileProblem: results.compileProblem,
-                                    exceptionMessage: results.exceptionMessage,
-                                    stackTrace: results.exceptionStackTrace
+                                // Re-enable button after execution
+                                console.log('[VisbalExt.ApexPanel] Resetting button state');
+                                runApexButton.classList.remove('executing');
+                                runApexButton.disabled = false;
+                                console.log('[VisbalExt.ApexPanel] Button state after reset:', {
+                                    disabled: runApexButton.disabled,
+                                    classList: Array.from(runApexButton.classList)
                                 });
-                                apexStatus.textContent = 'Execution failed';
-                                if (results.compileProblem) {
-                                    output += '<div class="error">Compile Error: ' + results.compileProblem + '</div>';
+                                
+                                switch (message.command) {
+                                    case 'apexResultsLoaded':
+                                        console.log('[VisbalExt.ApexPanel] Processing Apex results');
+                                        console.log('[VisbalExt.ApexPanel] Results data:', message.results);
+                                        handleApexResults(message.results);
+                                        break;
+                                    case 'error':
+                                        console.error('[VisbalExt.ApexPanel] Error received from extension');
+                                        console.error('[VisbalExt.ApexPanel] Error details:', message.message);
+                                        apexStatus.textContent = message.message;
+                                        apexOutput.innerHTML = '<div class="error">' + message.message + '</div>';
+                                        break;
+                                    default:
+                                        console.log('[VisbalExt.ApexPanel] Unknown command received:', message.command);
                                 }
-                                if (results.exceptionMessage) {
-                                    output += '<div class="error">Exception: ' + results.exceptionMessage + '</div>';
-                                }
-                                if (results.exceptionStackTrace) {
-                                    output += '<div class="error">Stack Trace:\n' + results.exceptionStackTrace + '</div>';
-                                }
+                                console.log('[VisbalExt.ApexPanel] ====== End Message Received Debug ======');
+                            } catch (error) {
+                                console.error('[VisbalExt.ApexPanel] Error handling message:', error);
+                                apexStatus.textContent = 'Error handling response: ' + error.message;
                             }
-                            console.log('[ApexPanel] Final output to display:', output);
-                            apexOutput.innerHTML = output;
-                            console.log('[ApexPanel] ====== End Results Processing Debug ======');
-                        } catch (error) {
-                            console.error('[ApexPanel] Error processing results:', error);
-                            apexStatus.textContent = 'Error processing results: ' + error.message;
+                        });
+
+                        function handleApexResults(results) {
+                            try {
+                                console.log('[VisbalExt.ApexPanel] ====== Results Processing Debug ======');
+                                console.log('[VisbalExt.ApexPanel] Processing results:', results);
+                                
+                                if (!results) {
+                                    console.log('[VisbalExt.ApexPanel] No results received');
+                                    apexStatus.textContent = 'No results';
+                                    apexOutput.innerHTML = '';
+                                    return;
+                                }
+
+                                let output = '';
+                                if (results.success) {
+                                    console.log('[VisbalExt.ApexPanel] Execution successful');
+                                    console.log('[VisbalExt.ApexPanel] Logs:', results.logs);
+                                    apexStatus.textContent = 'Executed successfully';
+                                    if (results.logs) {
+                                        output += '<div class="success">' + results.logs + '</div>';
+                                    }
+                                } else {
+                                    console.log('[VisbalExt.ApexPanel] Execution failed');
+                                    console.log('[VisbalExt.ApexPanel] Error details:', {
+                                        compileProblem: results.compileProblem,
+                                        exceptionMessage: results.exceptionMessage,
+                                        stackTrace: results.exceptionStackTrace
+                                    });
+                                    apexStatus.textContent = 'Execution failed';
+                                    if (results.compileProblem) {
+                                        output += '<div class="error">Compile Error: ' + results.compileProblem + '</div>';
+                                    }
+                                    if (results.exceptionMessage) {
+                                        output += '<div class="error">Exception: ' + results.exceptionMessage + '</div>';
+                                    }
+                                    if (results.exceptionStackTrace) {
+                                        output += '<div class="error">Stack Trace:\n' + results.exceptionStackTrace + '</div>';
+                                    }
+                                }
+                                console.log('[VisbalExt.ApexPanel] Final output to display:', output);
+                                apexOutput.innerHTML = output;
+                                console.log('[VisbalExt.ApexPanel] ====== End Results Processing Debug ======');
+                            } catch (error) {
+                                console.error('[VisbalExt.ApexPanel] Error processing results:', error);
+                                apexStatus.textContent = 'Error processing results: ' + error.message;
+                            }
                         }
+                    } catch (initError) {
+                        console.error('[VisbalExt.ApexPanel] Critical initialization error:', initError);
+                        document.body.innerHTML = '<div class="error">Failed to initialize Apex panel: ' + initError.message + '</div>';
                     }
                 })();
             </script>
