@@ -1429,30 +1429,36 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                     fetchTestClasses(false);
 
                     // Add resizer functionality
-                    const resizer = document.getElementById('resizer');
+                    const testClassesContainer = document.getElementById('testClassesContainer');
                     const bottomContainer = document.getElementById('bottomContainer');
+                    const resizer = document.getElementById('resizer');
+                    let isResizing = false;
                     let startY;
-                    let startHeight;
+                    let startHeightBottom;
 
                     resizer.addEventListener('mousedown', initResize, false);
 
                     function initResize(e) {
+                        isResizing = true;
                         startY = e.clientY;
-                        startHeight = parseInt(document.defaultView.getComputedStyle(bottomContainer).height, 10);
-                        document.documentElement.addEventListener('mousemove', resize, false);
-                        document.documentElement.addEventListener('mouseup', stopResize, false);
+                        startHeightBottom = bottomContainer.offsetHeight;
+                        
+                        document.addEventListener('mousemove', resize, false);
+                        document.addEventListener('mouseup', stopResize, false);
                     }
 
                     function resize(e) {
-                        const newHeight = startHeight + (e.clientY - startY);
-                        if (newHeight > 50) { // Minimum height
-                            bottomContainer.style.height = newHeight + 'px';
-                        }
+                        if (!isResizing) return;
+                        
+                        const deltaY = startY - e.clientY;
+                        const newHeight = Math.max(100, startHeightBottom + deltaY);
+                        bottomContainer.style.height = newHeight + 'px';
                     }
 
                     function stopResize() {
-                        document.documentElement.removeEventListener('mousemove', resize, false);
-                        document.documentElement.removeEventListener('mouseup', stopResize, false);
+                        isResizing = false;
+                        document.removeEventListener('mousemove', resize, false);
+                        document.removeEventListener('mouseup', stopResize, false);
                     }
                 })();
             </script>
