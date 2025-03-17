@@ -12,13 +12,30 @@ interface TestResult {
     methods: TestMethod[];
 }
 
+interface TestSummary {
+    commandTime?: string;
+    failing?: number;
+    failRate?: string;
+    hostname?: string;
+    orgId?: string;
+    outcome?: string;
+    passing?: number;
+    passRate?: string;
+    skipped?: number;
+    testExecutionTime?: string;
+    testRunId?: string;
+    testsRan?: number;
+    testStartTime?: string;
+    testTotalTime?: string;
+    userId?: string;
+    username?: string;
+}
+
 export class TestResultsView implements vscode.WebviewViewProvider {
-    public static readonly viewType = 'visbal-test-results';
+    public static readonly viewType = 'visbal-test-summary';
     private _view?: vscode.WebviewView;
 
-    constructor(
-        private readonly _extensionUri: vscode.Uri,
-    ) {}
+    constructor(private readonly _extensionUri: vscode.Uri) {}
 
     public resolveWebviewView(
         webviewView: vscode.WebviewView,
@@ -32,43 +49,66 @@ export class TestResultsView implements vscode.WebviewViewProvider {
             localResourceRoots: [this._extensionUri]
         };
 
-        webviewView.webview.html = this._getHtmlForWebview(webviewView.webview);
-
-        // Handle messages from the webview
-        webviewView.webview.onDidReceiveMessage(async (data) => {
-            switch (data.type) {
-                case 'ready':
-                    console.log('Test results view is ready');
-                    break;
-            }
-        });
+        // Set initial content
+        webviewView.webview.html = this._getInitialContent();
     }
 
-    private _getHtmlForWebview(webview: vscode.Webview) {
+    public updateSummary(summary: TestSummary) {
+        console.log('[VisbalExt.TestResultsView] updateSummary -- summary:', summary);
+        if (this._view) {
+            this._view.webview.html = this._getWebviewContent(summary);
+            this._view.show?.(true); // Reveal the view
+        }
+    }
+
+    private _getInitialContent(): string {
         return `<!DOCTYPE html>
         <html lang="en">
         <head>
             <meta charset="UTF-8">
             <meta name="viewport" content="width=device-width, initial-scale=1.0">
-            <title>Test Results</title>
             <style>
                 body {
+                    font-family: var(--vscode-font-family);
                     padding: 10px;
                     color: var(--vscode-foreground);
+                }
+                .message {
+                    text-align: center;
+                    margin-top: 20px;
+                    color: var(--vscode-descriptionForeground);
+                }
+            </style>
+        </head>
+        <body>
+            <div class="message">No test results available</div>
+        </body>
+        </html>`;
+    }
+
+    private _getWebviewContent(summary: TestSummary): string {
+        return `<!DOCTYPE html>
+        <html lang="en">
+        <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <style>
+                body {
                     font-family: var(--vscode-font-family);
-                    background-color: var(--vscode-editor-background);
+                    padding: 10px;
+                    color: var(--vscode-foreground);
                 }
-                .test-results {
-                    margin-bottom: 20px;
+                .summary-item {
+                    margin: 5px 0;
+                    display: flex;
+                    justify-content: space-between;
                 }
-                .test-class {
-                    margin-bottom: 10px;
-                    padding: 5px;
-                    border-left: 3px solid var(--vscode-textLink-foreground);
+                .label {
+                    color: var(--vscode-descriptionForeground);
+                    margin-right: 10px;
                 }
-                .test-method {
-                    margin-left: 20px;
-                    padding: 3px;
+                .value {
+                    color: var(--vscode-foreground);
                 }
                 .success {
                     color: var(--vscode-testing-iconPassed);
@@ -76,100 +116,75 @@ export class TestResultsView implements vscode.WebviewViewProvider {
                 .failure {
                     color: var(--vscode-testing-iconFailed);
                 }
-                .skipped {
-                    color: var(--vscode-testing-iconSkipped);
-                }
-                .duration {
-                    color: var(--vscode-descriptionForeground);
-                    font-size: 0.9em;
-                }
-                .error-message {
-                    color: var(--vscode-errorForeground);
-                    margin-left: 20px;
-                    white-space: pre-wrap;
-                    font-family: var(--vscode-editor-font-family);
+                .header {
+                    font-size: 1.2em;
+                    margin-bottom: 15px;
+                    padding-bottom: 5px;
+                    border-bottom: 1px solid var(--vscode-panel-border);
                 }
             </style>
         </head>
         <body>
-            <div class="test-results" id="testResults"></div>
-            <script>
-                (function() {
-                    const vscode = acquireVsCodeApi();
-                    const testResults = document.getElementById('testResults');
-
-                    // Let extension know the view is ready
-                    vscode.postMessage({ type: 'ready' });
-
-                    // Handle messages from the extension
-                    window.addEventListener('message', event => {
-                        const message = event.data;
-                        switch (message.type) {
-                            case 'updateResults':
-                                updateTestResults(message.results);
-                                break;
-                            case 'clear':
-                                testResults.innerHTML = '';
-                                break;
-                        }
-                    });
-
-                    function updateTestResults(results) {
-                        const container = document.createElement('div');
-                        container.className = 'test-class';
-                        
-                        const header = document.createElement('div');
-                        header.textContent = results.className;
-                        container.appendChild(header);
-
-                        results.methods.forEach(method => {
-                            const methodDiv = document.createElement('div');
-                            methodDiv.className = 'test-method';
-                            
-                            const status = document.createElement('span');
-                            status.className = method.outcome.toLowerCase();
-                            status.textContent = method.outcome === 'Pass' ? '✓' : method.outcome === 'Fail' ? '✗' : '○';
-                            methodDiv.appendChild(status);
-
-                            const name = document.createElement('span');
-                            name.textContent = method.methodName;
-                            methodDiv.appendChild(name);
-
-                            const duration = document.createElement('span');
-                            duration.className = 'duration';
-                            duration.textContent = ' (' + method.duration + 'ms)';
-                            methodDiv.appendChild(duration);
-
-                            if (method.message) {
-                                const error = document.createElement('div');
-                                error.className = 'error-message';
-                                error.textContent = method.message;
-                                methodDiv.appendChild(error);
-                            }
-
-                            container.appendChild(methodDiv);
-                        });
-
-                        testResults.appendChild(container);
-                    }
-                }())
-            </script>
+            <div class="header">Test Run Summary</div>
+            <div class="summary-container">
+                <div class="summary-item">
+                    <span class="label">Outcome:</span>
+                    <span class="value ${summary.outcome === 'Passed' ? 'success' : 'failure'}">${summary.outcome || 'N/A'}</span>
+                </div>
+                <div class="summary-item">
+                    <span class="label">Tests Run:</span>
+                    <span class="value">${summary.testsRan || 0}</span>
+                </div>
+                <div class="summary-item">
+                    <span class="label">Passing:</span>
+                    <span class="value success">${summary.passing || 0} (${summary.passRate || '0%'})</span>
+                </div>
+                <div class="summary-item">
+                    <span class="label">Failing:</span>
+                    <span class="value failure">${summary.failing || 0} (${summary.failRate || '0%'})</span>
+                </div>
+                <div class="summary-item">
+                    <span class="label">Skipped:</span>
+                    <span class="value">${summary.skipped || 0}</span>
+                </div>
+                <div class="summary-item">
+                    <span class="label">Total Time:</span>
+                    <span class="value">${summary.testTotalTime || 'N/A'}</span>
+                </div>
+                <div class="summary-item">
+                    <span class="label">Start Time:</span>
+                    <span class="value">${summary.testStartTime || 'N/A'}</span>
+                </div>
+                <div class="summary-item">
+                    <span class="label">Execution Time:</span>
+                    <span class="value">${summary.testExecutionTime || 'N/A'}</span>
+                </div>
+                <div class="summary-item">
+                    <span class="label">Command Time:</span>
+                    <span class="value">${summary.commandTime || 'N/A'}</span>
+                </div>
+                <div class="summary-item">
+                    <span class="label">Test Run ID:</span>
+                    <span class="value">${summary.testRunId || 'N/A'}</span>
+                </div>
+                <div class="summary-item">
+                    <span class="label">Hostname:</span>
+                    <span class="value">${summary.hostname || 'N/A'}</span>
+                </div>
+                <div class="summary-item">
+                    <span class="label">Org ID:</span>
+                    <span class="value">${summary.orgId || 'N/A'}</span>
+                </div>
+                <div class="summary-item">
+                    <span class="label">User ID:</span>
+                    <span class="value">${summary.userId || 'N/A'}</span>
+                </div>
+                <div class="summary-item">
+                    <span class="label">Username:</span>
+                    <span class="value">${summary.username || 'N/A'}</span>
+                </div>
+            </div>
         </body>
         </html>`;
-    }
-
-    public updateResults(results: TestResult) {
-        if (this._view) {
-            this._view.webview.postMessage({ 
-                type: 'updateResults', 
-                results 
-            });
-        }
-    }
-
-    public clear() {
-        if (this._view) {
-            this._view.webview.postMessage({ type: 'clear' });
-        }
     }
 } 

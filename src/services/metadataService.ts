@@ -597,7 +597,7 @@ export class MetadataService {
             const logListCommand = `sf apex list log --json`;
             console.log('[VisbalExt.MetadataService] getTestLogId -- logListCommand:', logListCommand);
             const logListResult = await this._executeCommand2(logListCommand);
-            console.log(`[VisbalExt.MetadataService] getTestLogId logListResult.stdout:`, logListResult.stdout);
+            //console.log(`[VisbalExt.MetadataService] getTestLogId logListResult.stdout:`, logListResult.stdout);
             const logList = JSON.parse(logListResult.stdout);
             if (!logList?.result) {
                 console.warn('[VisbalExt.MetadataService] No logs found');

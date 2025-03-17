@@ -67,9 +67,9 @@
       ],
       "activitybar": [
         {
-          "id": "testExplorerContainer",
-          "title": "Visbal Test",
-          "icon": "$(beaker)"
+          "id": "visbal-test-container",
+          "title": "Visbal Test Explorer",
+          "icon": "resources/test-explorer.svg"
         }
       ]
     },
@@ -82,18 +82,23 @@
           "when": "inDebugMode"
         }
       ],
-      "testExplorerContainer": [
+      "visbal-test-container": [
         {
           "id": "testClassExplorerView",
           "name": "Test Classes",
           "type": "webview"
         },
         {
-          "type": "tree",
           "id": "testRunResults",
-          "name": "Running Tests",
-          "icon": "$(test-view-icon)",
-          "contextualTitle": "Test Run Results"
+          "name": "Running Tasks",
+          "type": "tree",
+          "visibility": "visible"
+        },
+        {
+          "id": "visbal-test-summary",
+          "name": "Test Summary",
+          "type": "webview",
+          "visibility": "visible"
         }
       ],
       "visbal-log-container": [

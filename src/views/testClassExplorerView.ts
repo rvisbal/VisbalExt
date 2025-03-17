@@ -6,6 +6,7 @@ import { readFileSync, writeFileSync } from 'fs';
 import { existsSync, mkdirSync } from 'fs';
 import { VisbalLogView } from './visbalLogView';
 import { TestRunResultsView } from './testRunResultsView';
+import { TestResultsView } from './testResultsView';
 
 // Add TestClass interface at the top of the file
 interface TestClass {
@@ -35,9 +36,29 @@ interface TestRunFailure {
 }
 
 interface TestRunResult {
-    successes?: TestRunSuccess[];
-    failures?: TestRunFailure[];
-    tests: any[]; // Keep existing tests array
+    status: number;
+    result: {
+        summary: {
+            commandTime?: string;
+            failing?: number;
+            failRate?: string;
+            hostname?: string;
+            orgId?: string;
+            outcome?: string;
+            passing?: number;
+            passRate?: string;
+            skipped?: number;
+            testExecutionTime?: string;
+            testRunId?: string;
+            testsRan?: number;
+            testStartTime?: string;
+            testTotalTime?: string;
+            userId?: string;
+            username?: string;
+        };
+        tests: any[];
+    };
+    warnings: any[];
 }
 
 export class TestClassExplorerView implements vscode.WebviewViewProvider {
@@ -52,12 +73,14 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
     private _testItems: Map<string, vscode.TestItem>;
     private _visbalLogView: VisbalLogView;
     private _testRunResultsView: TestRunResultsView;
+    private _testResultsView: TestResultsView;
 
     constructor(
         extensionUri: vscode.Uri,
         statusBarService: StatusBarService,
         private readonly _context: vscode.ExtensionContext,
-        testRunResultsView: TestRunResultsView
+        testRunResultsView: TestRunResultsView,
+        testResultsView: TestResultsView
     ) {
         this._extensionUri = extensionUri;
         this._statusBarService = statusBarService;
@@ -66,6 +89,7 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
         this._testItems = new Map();
         this._visbalLogView = new VisbalLogView(this._context);
         this._testRunResultsView = testRunResultsView;
+        this._testResultsView = testResultsView;
     }
 
     public resolveWebviewView(
@@ -324,8 +348,17 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
 
             if (result && result.testRunId) {
                 console.log('[VisbalExt.TestClassExplorerView] _runTestFetching test run details for:', result.testRunId);
-                const testRunResult: TestRunResult = await this._metadataService.getTestRunResult(result.testRunId);
-                console.log('[VisbalExt.TestClassExplorerView] _runTestTest run details:', testRunResult);
+                const testRunResult = await this._metadataService.getTestRunResult(result.testRunId);
+                console.log('[VisbalExt.TestClassExplorerView] _runTest -- testRunResult:', testRunResult);
+                console.log('[VisbalExt.TestClassExplorerView] _runTest -- testRunResult.summary:', testRunResult.summary);
+
+                // Use the shared test results view instance
+                if (testRunResult?.summary) {
+                    console.log('[VisbalExt.TestClassExplorerView] Updating test results view with summary:', testRunResult.summary);
+                    this._testResultsView.updateSummary(testRunResult.summary);
+                } else {
+                    console.warn('[VisbalExt.TestClassExplorerView] No summary data available in test run result');
+                }
 
                 // Update test results in webview
                 if (this._view) {

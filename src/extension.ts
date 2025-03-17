@@ -41,19 +41,25 @@ export function activate(context: vscode.ExtensionContext) {
   outputChannel.appendLine('[VisbalExt.Extension] Initializing TestRunResultsView');
   const testRunResultsView = new TestRunResultsView(context);
 
+  // Initialize test results view
+  console.log('[VisbalExt.Extension] Initializing TestResultsView');
+  outputChannel.appendLine('[VisbalExt.Extension] Initializing TestResultsView');
+  const testResultsView = new TestResultsView(context.extensionUri);
+
   // Initialize debug console view
   console.log('[VisbalExt.Extension] Initializing DebugConsoleView');
   outputChannel.appendLine('[VisbalExt.Extension] Initializing DebugConsoleView');
   const debugConsoleView = new DebugConsoleView(context.extensionUri);
 
-  // Initialize test class explorer view
+  // Initialize test class explorer view with test results view
   console.log('[VisbalExt.Extension] Initializing TestClassExplorerView');
   outputChannel.appendLine('[VisbalExt.Extension] Initializing TestClassExplorerView');
   const testClassExplorerView = new TestClassExplorerView(
     context.extensionUri,
     statusBarService,
     context,
-    testRunResultsView
+    testRunResultsView,
+    testResultsView // Pass the shared testResultsView instance
   );
 
   // Create view providers
@@ -81,6 +87,21 @@ export function activate(context: vscode.ExtensionContext) {
     showCollapseAll: true
   });
   context.subscriptions.push(treeView);
+
+  // Register test results view
+  console.log('[VisbalExt.Extension] Registering TestResultsView');
+  outputChannel.appendLine('[VisbalExt.Extension] Registering TestResultsView');
+  context.subscriptions.push(
+    vscode.window.registerWebviewViewProvider(
+      'visbal-test-summary',  // Changed ID to avoid conflict
+      testResultsView,
+      {
+        webviewOptions: {
+          retainContextWhenHidden: true
+        }
+      }
+    )
+  );
 
   // Ensure the view container is visible
   vscode.commands.executeCommand('workbench.view.extension.visbal-test-container');
@@ -129,20 +150,6 @@ export function activate(context: vscode.ExtensionContext) {
     vscode.window.registerWebviewViewProvider(
       'visbal-apex',
       apexPanel,
-      {
-        webviewOptions: {
-          retainContextWhenHidden: true
-        }
-      }
-    )
-  );
-
-  // Register Test Results View
-  const testResultsView = new TestResultsView(context.extensionUri);
-  context.subscriptions.push(
-    vscode.window.registerWebviewViewProvider(
-      TestResultsView.viewType,
-      testResultsView,
       {
         webviewOptions: {
           retainContextWhenHidden: true
