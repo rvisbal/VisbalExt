@@ -19,48 +19,144 @@
     "logs",
     "debug"
   ],
-  "main": "dist/extension.js",
+  "main": "./dist/extension.js",
   "repository": {
     "type": "git",
     "url": "https://github.com/yourusername/visbal-ext.git"
   },
   "scripts": {
+    "clean": "rimraf dist out *.vsix",
     "build": "tsc",
     "watch": "tsc -w",
     "package": "vsce package",
     "lint": "eslint src --ext ts",
     "test": "node ./out/test/runTest.js",
-    "prepackage": "npm run build"
+    "prepackage": "npm run clean && npm run build"
   },
   "engines": {
-    "vscode": "^1.63.0",
-    "cursor": "^0.1.0"
+    "vscode": "^1.87.0"
   },
   "activationEvents": [
-    "onCommand:visbal-ext.helloWorld",
-    "onCommand:visbal-ext.showFindModel",
-    "onCommand:visbal-ext.showLogSummary",
-    "onView:visbalLogView",
+    "onStartupFinished",
     "onView:testClassExplorerView",
-    "onLanguage:log",
+    "onView:visbal-log",
+    "onView:visbal-soql",
+    "onView:visbal-apex",
     "workspaceContains:**/.sfdx/sfdx-config.json",
     "workspaceContains:**/sfdx-project.json"
   ],
   "contributes": {
+    "viewsContainers": {
+      "debug": [
+        {
+          "id": "visbal-debug",
+          "title": "Visbal Debug",
+          "icon": "$(bug)"
+        }
+      ],
+      "panel": [
+        {
+          "id": "visbal-log-container",
+          "title": "Visbal Log",
+          "icon": "$(notebook)"
+        },
+        {
+          "id": "visbal-soql-container",
+          "title": "Visbal SOQL",
+          "icon": "$(database)"
+        },
+        {
+          "id": "visbal-apex-container",
+          "title": "Visbal Apex",
+          "icon": "$(symbol-method)"
+        }
+      ],
+      "activitybar": [
+        {
+          "id": "testExplorerContainer",
+          "title": "Visbal Test",
+          "icon": "$(beaker)"
+        },
+        {
+          "id": "visbal-debug",
+          "title": "Visbal Debug",
+          "icon": "$(debug-alt)"
+        }
+      ]
+    },
+    "views": {
+      "debug": [
+        {
+          "type": "webview",
+          "id": "visbal-debug-console",
+          "name": "Debug Console",
+          "when": "inDebugMode"
+        },
+        {
+          "type": "webview",
+          "id": "visbal-test-results",
+          "name": "Test Results",
+          "when": "inDebugMode"
+        }
+      ],
+      "visbal-debug": [
+        {
+          "type": "webview",
+          "id": "visbal-ports",
+          "name": "Ports"
+        },
+        {
+          "type": "webview",
+          "id": "visbal-gitLens",
+          "name": "GitLens"
+        },
+        {
+          "id": "logTreeView",
+          "name": "Log Tree",
+          "type": "tree",
+          "icon": "$(list-tree)"
+        },
+        {
+          "id": "visbal-debug-console",
+          "name": "Debug Console",
+          "type": "webview"
+        },
+        {
+          "id": "visbal-test-results",
+          "name": "Test Results",
+          "type": "webview"
+        }
+      ],
+      "testExplorerContainer": [
+        {
+          "id": "testClassExplorerView",
+          "name": "Test Classes",
+          "type": "webview"
+        }
+      ],
+      "visbal-log-container": [
+        {
+          "type": "webview",
+          "id": "visbal-log",
+          "name": "Log Analyzer"
+        }
+      ],
+      "visbal-soql-container": [
+        {
+          "type": "webview",
+          "id": "visbal-soql",
+          "name": "SOQL Query"
+        }
+      ],
+      "visbal-apex-container": [
+        {
+          "type": "webview",
+          "id": "visbal-apex",
+          "name": "Execute Anonymous Apex"
+        }
+      ]
+    },
     "commands": [
-      {
-        "command": "visbal-ext.helloWorld",
-        "title": "Hello World"
-      },
-      {
-        "command": "visbal-ext.showFindModel",
-        "title": "Show Find Model"
-      },
-      {
-        "command": "visbal-ext.showLogSummary",
-        "title": "Show Log Summary",
-        "icon": "$(notebook)"
-      },
       {
         "command": "visbal-ext.refreshVisbalLog",
         "title": "Refresh Visbal Log",
@@ -91,85 +187,19 @@
         "command": "visbal-ext.showVisbalApex",
         "title": "Show Visbal Apex",
         "category": "Visbal"
+      },
+      {
+        "command": "visbal-ext.showDebugConsole",
+        "title": "Show Debug Console",
+        "category": "Visbal Debug"
+      },
+      {
+        "command": "visbal-ext.showTestResults",
+        "title": "Show Test Results",
+        "category": "Visbal Debug"
       }
     ],
-    "viewsContainers": {
-      "panel": [
-        {
-          "id": "visbal-log-container",
-          "title": "Visbal Log",
-          "icon": "$(notebook)"
-        },
-        {
-          "id": "visbal-soql-container",
-          "title": "Visbal SOQL",
-          "icon": "$(database)"
-        },
-        {
-          "id": "visbal-apex-container",
-          "title": "Visbal Apex",
-          "icon": "$(symbol-method)"
-        }
-      ],
-      "activitybar": [
-        {
-          "id": "testExplorerContainer",
-          "title": "Visbal Test",
-          "icon": "$(beaker)"
-        }
-      ]
-    },
-    "views": {
-      "testExplorerContainer": [
-        {
-          "id": "testClassExplorerView",
-          "name": "Test Classes",
-          "type": "webview"
-        }
-      ],
-      "visbal-log-container": [
-        {
-          "type": "webview",
-          "id": "visbal-log",
-          "name": "Log Analyzer"
-        }
-      ],
-      "visbal-soql-container": [
-        {
-          "type": "webview",
-          "id": "visbal-soql",
-          "name": "SOQL Query"
-        }
-      ],
-      "visbal-apex-container": [
-        {
-          "type": "webview",
-          "id": "visbal-apex",
-          "name": "Execute Anonymous Apex"
-        }
-      ],
-      "explorer": [
-        {
-          "id": "logTreeView",
-          "name": "Salesforce Logs",
-          "icon": "resources/refresh.svg"
-        }
-      ]
-    },
     "menus": {
-      "editor/context": [
-        {
-          "command": "visbal-ext.showFindModel",
-          "group": "navigation"
-        }
-      ],
-      "editor/title": [
-        {
-          "command": "visbal-ext.showLogSummary",
-          "group": "navigation",
-          "when": "resourceExtname == .log"
-        }
-      ],
       "view/title": [
         {
           "command": "visbal-ext.refreshVisbalLog",
@@ -179,6 +209,16 @@
         {
           "command": "visbal.fetchLogsViaRestApi",
           "when": "view == visbal-log",
+          "group": "navigation"
+        },
+        {
+          "command": "visbal-ext.showDebugConsole",
+          "when": "view == visbal-debug-console",
+          "group": "navigation"
+        },
+        {
+          "command": "visbal-ext.showTestResults",
+          "when": "view == visbal-test-results",
           "group": "navigation"
         }
       ],
@@ -207,18 +247,19 @@
     }
   },
   "devDependencies": {
-    "@types/node": "^16.11.7",
-    "@types/vscode": "^1.63.0",
+    "@types/node": "^20.11.24",
+    "@types/vscode": "^1.87.0",
     "@typescript-eslint/eslint-plugin": "^5.42.0",
     "@typescript-eslint/parser": "^5.42.0",
     "eslint": "^8.26.0",
-    "typescript": "^4.5.5",
-    "vsce": "^2.7.0"
+    "rimraf": "^5.0.5",
+    "typescript": "^5.3.3",
+    "@vscode/vsce": "^2.24.0"
   },
   "dependencies": {
-    "@salesforce/core": "^5.3.20",
+    "@salesforce/core": "^5.3.9",
     "@vscode/codicons": "^0.0.36",
-    "axios": "^1.8.3",
+    "axios": "^1.6.7",
     "jsforce": "^1.11.1"
   }
 }

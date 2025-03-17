@@ -10,7 +10,15 @@ vsc-extension-quickstart.md
 **/.eslintrc.json
 **/*.map
 **/*.ts
-node_modules/**
+.cursor/**
+temp/**
+node_modules/@types/**
+node_modules/typescript/**
+node_modules/eslint/**
+node_modules/@typescript-eslint/**
+node_modules/rimraf/**
+node_modules/@vscode/**
+node_modules/vsce/**
 .github/**
 .git/**
 package-lock.json
