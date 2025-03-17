@@ -24,6 +24,7 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
     private _statusBarService: StatusBarService;
     private _metadataService: MetadataService;
     private _cachedTestClasses?: TestClass[]; // Update type
+    private _cachedTestMethods: Map<string, string[]> = new Map(); // Cache for test methods
     private _testController: vscode.TestController;
     private _testItems: Map<string, vscode.TestItem>;
 
@@ -203,6 +204,19 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
         try {
             this._statusBarService.showMessage(`$(sync~spin) Fetching test methods for ${className}...`);
             
+            // Check cache first
+            if (this._cachedTestMethods.has(className)) {
+                console.log(`[VisbalExt.TestClassExplorerView] Using cached test methods for ${className}`);
+                if (this._view) {
+                    this._view.webview.postMessage({
+                        command: 'testMethodsLoaded',
+                        className,
+                        testMethods: this._cachedTestMethods.get(className)
+                    });
+                }
+                return;
+            }
+            
             // Use MetadataService to get test methods for the class
             const testMethods = await this._metadataService.getTestMethodsForClass(className);
             
@@ -213,6 +227,9 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                         message: `No test methods found in ${className}.`
                     });
                 }
+            } else {
+                // Cache the test methods
+                this._cachedTestMethods.set(className, testMethods.map(m => m.name));
             }
             
             // Send the test methods to the webview
@@ -279,9 +296,9 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
 					
 					try {
 						
-						 const logIds = await this._metadataService.fetchSalesforceLogs(result.testRunId);
-						 if (logIds && logIds.length > 0) {
-							const logResult = await this._metadataService.getLogContent(logIds[0]);
+						 const logId = await this._metadataService.getTestLogId(result.testRunId);
+						 if (logId) {
+							const logResult = await this._metadataService.getLogContent(logId);
 						 } else {
 							console.warn('[VisbalExt.TestClassExplorerView] No log IDs found for test run');
 						 }
@@ -637,7 +654,7 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                     cursor: pointer;
                     display: flex;
                     align-items: center;
-                    margin-left: 20px;
+                    margin-left: 12px;
                     white-space: nowrap;
                     overflow: hidden;
                     text-overflow: ellipsis;
@@ -650,13 +667,14 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                     flex: 1;
                     overflow: hidden;
                     text-overflow: ellipsis;
-                    padding-right: 8px;
+                    padding-right: 4px;
                 }
                 .icon {
                     width: 16px;
                     height: 16px;
                     display: inline-block;
                     text-align: center;
+                    flex-shrink: 0;
                 }
                 .test-status {
                     margin-right: 2px;
@@ -710,10 +728,10 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                     color: var(--vscode-descriptionForeground);
                 }
                 .codicon {
-                    font-size: 16px;
-                    line-height: 16px;
-                    width: 16px;
-                    height: 16px;
+                    font-size: 14px;
+                    line-height: 14px;
+                    width: 14px;
+                    height: 14px;
                     display: inline-block;
                     text-align: center;
                     vertical-align: middle;
@@ -1430,5 +1448,11 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
             });
             vscode.window.showWarningMessage(`[VisbalExt.TestClassExplorerView] Could not view log for test ${testName}: ${(error as Error).message}`);
         }
+    }
+
+    // Add method to clear cache if needed
+    public clearCache() {
+        console.log('[VisbalExt.TestClassExplorerView] Clearing test methods cache');
+        this._cachedTestMethods.clear();
     }
 }

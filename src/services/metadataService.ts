@@ -4,6 +4,9 @@ import { promisify } from 'util';
 import * as os from 'os';
 import * as path from 'path';
 import { readFile, unlink } from 'fs/promises';
+import { join } from 'path';
+import { existsSync, mkdirSync } from 'fs';
+import { readFileSync } from 'fs';
 
 const execAsync = promisify(exec);
 
@@ -419,10 +422,11 @@ export class MetadataService {
                             // Create logs directory if it doesn't exist
                             await vscode.workspace.fs.createDirectory(vscode.Uri.file(logsDir));
                             
+                            console.log('[VisbalExt.MetadataService] getTestRunLog -- parsedLogContent.result.log:', parsedLogContent.result.log);
                             // Write log content to file
                             await vscode.workspace.fs.writeFile(
                                 vscode.Uri.file(targetFilePath),
-                                Buffer.from(parsedLogContent.result.log || '', 'utf8')
+                                Buffer.from(parsedLogContent.result.log.result[0].log || '', 'utf8')
                             );
 
                             // Open the log file
@@ -433,7 +437,7 @@ export class MetadataService {
                             return {
                                 logId: latestLog.Id,
                                 logPath: targetFilePath,
-                                content: parsedLogContent.result.log
+                                content: parsedLogContent.result.loggetLogContent
                             };
                         }
                     }
@@ -517,79 +521,120 @@ export class MetadataService {
 
 	 public async getLogContent(logId: string): Promise<string> {
         try {
-			console.log('[VisbalExt.MetadataService] getLogContent -- logId:',logId);
-            const tempFile = path.join(os.tmpdir(), `${logId}.log`);
-            const command = `sf apex log get --log-id ${logId} > "${tempFile}"`;
-			console.log('[VisbalExt.MetadataService] getLogContent -- command:',command);
-            await this._executeCommand(command);
-            const content = await readFile(tempFile, 'utf8');
-            await unlink(tempFile);
-            return content;
-        } catch (error) {
-            console.error('[VisbalExt.MetadataService] Error getting log content:', error);
-            throw error;
+            console.log('[VisbalExt.MetadataService] getLogContent -- logId:', logId);
+            
+            // Create .sfdx/tools/debug/logs directory if it doesn't exist
+            const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+            if (!workspaceRoot) {
+                throw new Error('No workspace folder found');
+            }
+
+            const logsDir = join(workspaceRoot, '.sfdx', 'tools', 'debug', 'logs');
+            if (!existsSync(logsDir)) {
+                mkdirSync(logsDir, { recursive: true });
+            }
+
+            const logFilePath = join(logsDir, `${logId}.log`);
+            console.log('[VisbalExt.MetadataService] getLogContent -- command:', `sf apex log get --log-id ${logId} > "${logFilePath}"`);
+            
+            // Get the log content and save it to the file
+            const command = `sf apex log get --log-id ${logId} > "${logFilePath}"`;
+            await this.executeCliCommand(command);
+
+            // Read the log content from the file
+            const logContent = readFileSync(logFilePath, 'utf8');
+            console.log('[VisbalExt.MetadataService] getLogContent open  file:',  logFilePath);
+            // Open the file logFilePath
+            const document = await vscode.workspace.openTextDocument(logFilePath);
+            return logContent;
+        } catch (error: any) {
+            console.error('[VisbalExt.MetadataService] getLogContent -- error:', error);
+            throw new Error(`Failed to get log content: ${error.message}`);
         }
     }
 	
 	
-	public async fetchSalesforceLogs(apexId: string): Promise<string[]> {
+	public async getTestLogId(apexId: string): Promise<string> {
         try {
-            console.log('[VisbalExt.MetadataService] fetchSalesforceLogs -- apexId:', apexId);
+            console.log('[VisbalExt.MetadataService] getTestLogId -- apexId:', apexId);
 
-
-            const testRunDetailsCommand1 = `sf apex get test --test-run-id ${apexId}`;
-            console.log('[VisbalExt.MetadataService] fetchSalesforceLogs -- testRunDetailsCommand1:', testRunDetailsCommand1);
-            const testRunDetailsResult1 = await this._executeCommand2(testRunDetailsCommand1);
 
             // Get test run details to get the start time
             const testRunDetailsCommand = `sf apex get test --test-run-id ${apexId} --json`;
-            console.log('[VisbalExt.MetadataService] fetchSalesforceLogs -- testRunDetailsCommand:', testRunDetailsCommand);
+            console.log('[VisbalExt.MetadataService] getTestLogId -- testRunDetailsCommand:', testRunDetailsCommand);
             const testRunDetailsResult = await this._executeCommand2(testRunDetailsCommand);
-            console.log(`[VisbalExt.MetadataService] fetchSalesforceLogs testRunDetailsResult`, testRunDetailsResult);
-            console.log(`[VisbalExt.MetadataService] fetchSalesforceLogs testRunDetailsResult.stdout`, testRunDetailsResult.stdout);    
+
+            console.log(`[VisbalExt.MetadataService] getTestLogId testRunDetailsResult.stdout`, testRunDetailsResult.stdout);    
             const testRunDetails = JSON.parse(testRunDetailsResult.stdout);
             if (!testRunDetails?.result?.summary?.testStartTime) {
                 console.warn('[VisbalExt.MetadataService] No test start time found in test run details');
-                return [];
+                return '';
             }
 
             const testStartTime = new Date(testRunDetails.result.summary.testStartTime);
             console.log('[VisbalExt.MetadataService] Test start time:', testStartTime);
 
 
-
-            const logListCommand1 = `sf apex list log`;
-            console.log('[VisbalExt.MetadataService] fetchSalesforceLogs -- logListCommand1:', logListCommand1);
-            const logListResult1 = await this._executeCommand2(logListCommand1);
-            console.log(`[VisbalExt.MetadataService] fetchSalesforceLogs logListResult1`, logListResult1)
-
-
             // Get all logs and filter by timestamp
             const logListCommand = `sf apex list log --json`;
-            console.log('[VisbalExt.MetadataService] fetchSalesforceLogs -- logListCommand:', logListCommand);
+            console.log('[VisbalExt.MetadataService] getTestLogId -- logListCommand:', logListCommand);
             const logListResult = await this._executeCommand2(logListCommand);
-            console.log(`[VisbalExt.MetadataService] fetchSalesforceLogs logListResult`, logListResult);
-            console.log(`[VisbalExt.MetadataService] fetchSalesforceLogs logListResult.stdout`, logListResult.stdout);
+            console.log(`[VisbalExt.MetadataService] getTestLogId logListResult.stdout:`, logListResult.stdout);
             const logList = JSON.parse(logListResult.stdout);
             if (!logList?.result) {
                 console.warn('[VisbalExt.MetadataService] No logs found');
-                return [];
+                return '';
             }
+            console.log(`[VisbalExt.MetadataService] getTestLogId logList:`,logList);    
+            console.log(`[VisbalExt.MetadataService] getTestLogId logList.result:`,logList.result);  
+            console.log(`[VisbalExt.MetadataService] getTestLogId logList.result[0].Id:`,logList.result[0].Id);  
+            
+            return logList.result[0].Id;
+            /*
 
             // Filter logs that were created after the test started and are ApexTest logs
+            console.log('[VisbalExt.MetadataService] Test start time (UTC):', testStartTime.toISOString());
+            
             const relevantLogs = logList.result
                 .filter((log: any) => {
-                    const logStartTime = new Date(log.StartTime);
-                    return log.Operation === 'ApexTest' && logStartTime >= testStartTime;
+                    try {
+                        const logStartTime = new Date(log.StartTime);
+                        console.log(`[VisbalExt.MetadataService] Comparing log:`, {
+                            logId: log.Id,
+                            operation: log.Operation,
+                            startTime: logStartTime.toISOString(),
+                            isApexTest: log.Operation === 'ApexTest',
+                            isAfterTestStart: logStartTime >= testStartTime
+                        });
+                        return log.Operation === 'ApexTest';  // Temporarily remove time filter for debugging
+                    } catch (error) {
+                        console.error('[VisbalExt.MetadataService] Error processing log:', error, log);
+                        return false;
+                    }
                 })
-                .sort((a: any, b: any) => new Date(b.StartTime).getTime() - new Date(a.StartTime).getTime());
+                .sort((a: any, b: any) => {
+                    try {
+                        const timeA = new Date(a.StartTime).getTime();
+                        const timeB = new Date(b.StartTime).getTime();
+                        console.log(`[VisbalExt.MetadataService] Sorting logs:`, {
+                            logA: { id: a.Id, time: new Date(a.StartTime).toISOString() },
+                            logB: { id: b.Id, time: new Date(b.StartTime).toISOString() }
+                        });
+                        return timeB - timeA;
+                    } catch (error) {
+                        console.error('[VisbalExt.MetadataService] Error sorting logs:', error);
+                        return 0;
+                    }
+                });
 
+            console.log(`[VisbalExt.MetadataService] getTestLogId relevantLogs:`, relevantLogs);          
             const logIds = relevantLogs.map((log: any) => log.Id);
-            console.log('[VisbalExt.MetadataService] fetchSalesforceLogs -- logIds:', logIds);
+            console.log('[VisbalExt.MetadataService] getTestLogId -- logIds:', logIds);
+            */
 
-            return logIds;
+            
         } catch (error) {
-            console.error('[VisbalExt.MetadataService] fetchSalesforceLogs -- error:', error);
+            console.error('[VisbalExt.MetadataService] getTestLogId -- error:', error);
             throw error;
         }
     }
