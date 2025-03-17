@@ -22,6 +22,7 @@
     "onCommand:visbal-ext.showFindModel",
     "onCommand:visbal-ext.showLogSummary",
     "onView:visbalLogView",
+    "onView:testClassExplorerView",
     "onLanguage:log"
   ],
   "contributes": {
@@ -42,6 +43,7 @@
       {
         "command": "visbal-ext.refreshVisbalLog",
         "title": "Refresh Visbal Log",
+        "category": "Visbal",
         "icon": "$(refresh)"
       },
       {
@@ -53,23 +55,83 @@
         "command": "visbal.executeApexRest",
         "title": "Execute Salesforce Apex REST Endpoint",
         "icon": "$(play)"
+      },
+      {
+        "command": "visbal-ext.showVisbalLog",
+        "title": "Show Visbal Log",
+        "category": "Visbal"
+      },
+      {
+        "command": "visbal-ext.showVisbalSoql",
+        "title": "Show Visbal SOQL",
+        "category": "Visbal"
+      },
+      {
+        "command": "visbal-ext.showVisbalApex",
+        "title": "Show Visbal Apex",
+        "category": "Visbal"
       }
     ],
     "viewsContainers": {
       "panel": [
         {
-          "id": "visbalLogContainer",
+          "id": "visbal-log-container",
           "title": "Visbal Log",
           "icon": "$(notebook)"
+        },
+        {
+          "id": "visbal-soql-container",
+          "title": "Visbal SOQL",
+          "icon": "$(database)"
+        },
+        {
+          "id": "visbal-apex-container",
+          "title": "Visbal Apex",
+          "icon": "$(symbol-method)"
+        }
+      ],
+      "activitybar": [
+        {
+          "id": "testExplorerContainer",
+          "title": "Visbal Test",
+          "icon": "$(beaker)"
         }
       ]
     },
     "views": {
-      "visbalLogContainer": [
+      "testExplorerContainer": [
         {
-          "id": "visbalLogView",
-          "name": "Log Analyzer",
+          "id": "testClassExplorerView",
+          "name": "Test Classes",
           "type": "webview"
+        }
+      ],
+      "visbal-log-container": [
+        {
+          "type": "webview",
+          "id": "visbal-log",
+          "name": "Log Analyzer"
+        }
+      ],
+      "visbal-soql-container": [
+        {
+          "type": "webview",
+          "id": "visbal-soql",
+          "name": "SOQL Query"
+        }
+      ],
+      "visbal-apex-container": [
+        {
+          "type": "webview",
+          "id": "visbal-apex",
+          "name": "Execute Anonymous Apex"
+        }
+      ],
+      "explorer": [
+        {
+          "id": "logTreeView",
+          "name": "Salesforce Logs",
+          "icon": "resources/refresh.svg"
         }
       ]
     },
@@ -90,12 +152,12 @@
       "view/title": [
         {
           "command": "visbal-ext.refreshVisbalLog",
-          "when": "view == visbalLogView",
+          "when": "view == visbal-log",
           "group": "navigation"
         },
         {
           "command": "visbal.fetchLogsViaRestApi",
-          "when": "view == visbalLogView",
+          "when": "view == visbal-log",
           "group": "navigation"
         }
       ],
@@ -107,6 +169,18 @@
         {
           "command": "visbal.executeApexRest",
           "group": "Salesforce"
+        },
+        {
+          "command": "visbal-ext.showVisbalSoql",
+          "when": "workspaceHasVisbalProject"
+        },
+        {
+          "command": "visbal-ext.showVisbalApex",
+          "when": "workspaceHasVisbalProject"
+        },
+        {
+          "command": "visbal-ext.showVisbalLog",
+          "when": "workspaceHasVisbalProject"
         }
       ]
     }
@@ -118,6 +192,7 @@
     "vsce": "^2.7.0"
   },
   "dependencies": {
+    "@vscode/codicons": "^0.0.36",
     "axios": "^1.8.3"
   }
 }
