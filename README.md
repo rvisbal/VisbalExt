@@ -1,129 +1,98 @@
-# Visbal - Salesforce Debug Logs Extension for VS Code
+# Visbal Extension for VS Code
 
-## Overview
-
-Visbal is a VS Code extension that provides a streamlined interface for viewing, downloading, and managing Salesforce debug logs directly within your development environment. It eliminates the need to switch between VS Code and the Salesforce UI when working with debug logs.
+A Visual Studio Code extension that enhances Salesforce development with improved test execution and log analysis capabilities.
 
 ## Features
 
-- **Log Listing**: View all available debug logs from your connected Salesforce org
-- **Log Details**: See comprehensive information about each log including user, operation, application, and size
-- **Download Logs**: Download logs directly to your workspace with a single click
-- **Open Logs**: Open downloaded logs directly in the VS Code editor
-- **Large Log Support**: Handles logs of virtually any size through direct file output
-- **Multiple CLI Format Support**: Works with both new (`sf`) and legacy (`sfdx`) CLI formats
-- **SOQL Query Support**: Fetch logs using SOQL queries for more advanced filtering
-- **Informative Filenames**: Log files are saved with descriptive names that include ID, operation, status, size, and timestamp
-- **Tabbed Log Analysis**: Analyze logs with a tabbed interface showing overview, timeline, execution path, database operations, and governor limits
+### Test Class Explorer
+- View and manage Apex test classes in a dedicated sidebar
+- Run individual test methods or entire test classes
+- View test results with detailed logs
+- Cache test methods for improved performance
+- Multi-select and batch run tests
+
+### Log Analysis
+- View and analyze Salesforce debug logs
+- Download and open logs directly in VS Code
+- Organize logs by test execution
+- Parse and display log content in a structured format
+- Save logs to `.sfdx/tools/debug/logs` directory
+
+### SOQL Query Panel
+- Execute SOQL queries
+- View query results in a structured format
+- Save and reuse queries
+
+### Apex Execution
+- Execute anonymous Apex code
+- View execution results and debug logs
+- REST API integration for Apex endpoints
 
 ## Requirements
 
-- Visual Studio Code 1.60.0 or higher
-- Salesforce CLI (either the new `sf` format or the legacy `sfdx` format)
-- An authenticated Salesforce org connection
+- Visual Studio Code 1.63.0 or higher
+- Salesforce CLI (sf)
+- Salesforce Extension Pack
+- Active Salesforce org connection
 
 ## Installation
 
-1. Install the extension from the VS Code Marketplace
-2. Ensure you have the Salesforce CLI installed:
-   - New format: `npm install -g @salesforce/cli`
-   - Legacy format: `npm install -g sfdx-cli`
-3. Authenticate with your Salesforce org:
-   - New format: `sf org login web`
-   - Legacy format: `sfdx force:auth:web:login --setdefaultusername`
-
-### Installing from VSIX file
-
-If you have the VSIX file, you can install it directly using one of these methods:
-
-1. **Using the VS Code/Cursor UI**:
-   - Go to Extensions view (Ctrl+Shift+X)
-   - Click "..." (More Actions) at the top of the Extensions view
-   - Select "Install from VSIX..."
-   - Navigate to and select the VSIX file
-
-2. **Using the command line**:
-   ```
-   code --install-extension visbal-ext-0.0.1.vsix
-   ```
+1. Install the extension from the VS Code marketplace
+2. Ensure you have the Salesforce CLI installed
+3. Connect to your Salesforce org using `sf org login`
+4. Open a Salesforce project in VS Code
 
 ## Usage
 
-### Viewing Logs
+### Test Class Explorer
 
-1. Open the Salesforce Debug Logs view from the Activity Bar or Explorer
-2. Click "Refresh" to fetch the latest logs from your org
-3. View log details including user, operation, size, and timestamp
+1. Open the Test Explorer from the activity bar (beaker icon)
+2. Click the refresh button to load test classes
+3. Expand a class to view its test methods
+4. Click the play button to run tests
+5. View test results and logs in the panel below
 
-### Downloading Logs
+### Log Analysis
 
-1. Click the "Download" button next to any log
-2. The log will be downloaded to your workspace's `.sfdx/tools/debug/logs` directory
-3. The log will automatically open in the editor once downloaded
-4. Log files are saved with descriptive filenames in the format: `id_operation_status_size_timestamp.log`
-   - Example: `07LAq00000NWz3MMAT_aura_success_2420000_2023-03-12T00-26-18.905Z.log`
+1. Open the Visbal Log panel from the bottom panel
+2. View downloaded logs
+3. Click on a log to open it in the editor
+4. Use the Log Summary view for structured analysis
 
-### Opening and Analyzing Logs
+### SOQL Queries
 
-1. Click the "Open" button next to any previously downloaded log
-2. The log will open in the Log Detail View with multiple tabs:
-   - **Overview**: Summary of log events and categories
-   - **Timeline**: Chronological view of log events
-   - **Execution**: Apex code execution path
-   - **Database**: SOQL queries and DML operations
-   - **Limits**: Governor limits usage visualization
-   - **Raw Log**: Complete raw log content
+1. Open the SOQL panel from the bottom panel
+2. Enter your SOQL query
+3. Click execute to run the query
+4. View results in a structured format
 
-3. Use the search functionality to find specific content within the log
-4. Apply filters to focus on specific event types (Errors, Warnings, Debug, Info)
+### Apex Execution
 
-### Using SOQL Queries
-
-1. Click the "SOQL" button to fetch logs using a SOQL query
-2. This allows for more advanced filtering of logs
-
-## Troubleshooting
-
-### Common Issues
-
-#### "SFDX CLI is not installed"
-- Install the Salesforce CLI using one of these commands:
-  - `npm install -g @salesforce/cli`
-  - `npm install -g sfdx-cli`
-
-#### "No default Salesforce org found"
-- Set a default org using one of these commands:
-  - `sf org login web`
-  - `sfdx force:auth:web:login --setdefaultusername`
-
-#### "Failed to download log: maxBuffer length exceeded"
-- For very large logs, the extension will attempt to use direct file output
-- If this still fails, use the Salesforce CLI directly:
-  - `sf apex get log -i <LOG_ID> > log_file.log`
-  - `sfdx force:apex:log:get --logid <LOG_ID> > log_file.log`
-
-### Viewing Logs
-
-- Server-side logs can be viewed in the VS Code Developer Tools (Help > Toggle Developer Tools)
-- Client-side logs can be viewed in the Webview Developer Tools (right-click in the extension view and select "Inspect Element")
+1. Open the Apex panel from the bottom panel
+2. Enter your Apex code
+3. Click execute to run the code
+4. View execution results and logs
 
 ## Extension Settings
 
 This extension contributes the following settings:
 
-* `visbal.maxLogLimit`: Maximum number of logs to fetch (default: 200)
-* `visbal.autoRefresh`: Automatically refresh logs when the view becomes visible (default: true)
+* `visbal.logDirectory`: Directory to store downloaded logs (default: `.sfdx/tools/debug/logs`)
+* `visbal.cacheTimeout`: Duration to cache test methods in minutes (default: 5)
+
+## Known Issues
+
+See [GitHub issues](https://github.com/yourusername/visbal-ext/issues) for known issues and feature requests.
 
 ## Release Notes
 
-### 0.0.1
+### 0.1.0
 
-- Initial release
-- Support for viewing, downloading, and opening Salesforce debug logs
-- Support for both new (`sf`) and legacy (`sfdx`) CLI formats
-- Large log handling with direct file output
-- Descriptive log filenames with operation, status, and size information
-- Tabbed log analysis interface for detailed log inspection
+Initial release of Visbal Extension with:
+- Test Class Explorer
+- Log Analysis
+- SOQL Query Panel
+- Apex Execution Panel
 
 ## Contributing
 
