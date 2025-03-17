@@ -94,11 +94,6 @@
           "type": "webview",
           "id": "visbal-log",
           "name": "Log Analyzer"
-        },
-        {
-          "id": "logTreeView",
-          "name": "Log Tree",
-          "type": "tree"
         }
       ],
       "visbal-soql-container": [

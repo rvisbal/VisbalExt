@@ -9,7 +9,6 @@ import { statusBarService } from './services/statusBarService';
 import { SoqlPanelView } from './views/soqlPanelView';
 import { MetadataService } from './services/metadataService';
 import { StatusBarService } from './services/statusBarService';
-import { LogTreeView } from './views/logTreeView';
 import { DebugConsoleView } from './views/debugConsoleView';
 import { TestResultsView } from './views/testResultsView';
 import { SamplePanelView } from './views/samplePanelView';
@@ -256,9 +255,6 @@ export function activate(context: vscode.ExtensionContext) {
       }
     })
   );
-
-  // Create and register the log tree view
-  const logTreeView = new LogTreeView(context);
 
   // Register the Show Find Model command
   let showFindModelCommand = vscode.commands.registerCommand('visbal-ext.showFindModel', () => {
