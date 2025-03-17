@@ -122,6 +122,18 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
                     console.log('[VisbalExt.VisbalLogView] resolveWebviewView -- Opening default org');
                     this.openDefaultOrg();
                     break;
+                case 'deleteSelectedLogs':
+                    console.log('[VisbalExt.VisbalLogView] resolveWebviewView -- deleteSelectedLogs');
+                    //this._deleteSelectedLogs();
+                    break;
+                case 'deleteServerLogs':
+                    console.log('[VisbalExt.VisbalLogView] resolveWebviewView -- deleteServerLogs');
+                    this._deleteServerLogs();
+                    break;
+                case 'deleteViaSoql':
+                    console.log('[VisbalExt.VisbalLogView] resolveWebviewView -- deleteViaSoqlApi');
+                    this._deleteViaSoqlApi();
+                    break;
             }
         });
 

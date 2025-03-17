@@ -536,21 +536,55 @@ export class MetadataService {
         try {
             console.log('[VisbalExt.MetadataService] fetchSalesforceLogs -- apexId:', apexId);
 
-            // Get test run details to ensure it exists and get potential log Ids.
+
+            const testRunDetailsCommand1 = `sf apex get test --test-run-id ${apexId}`;
+            console.log('[VisbalExt.MetadataService] fetchSalesforceLogs -- testRunDetailsCommand1:', testRunDetailsCommand1);
+            const testRunDetailsResult1 = await this._executeCommand2(testRunDetailsCommand1);
+
+            // Get test run details to get the start time
             const testRunDetailsCommand = `sf apex get test --test-run-id ${apexId} --json`;
             console.log('[VisbalExt.MetadataService] fetchSalesforceLogs -- testRunDetailsCommand:', testRunDetailsCommand);
             const testRunDetailsResult = await this._executeCommand2(testRunDetailsCommand);
             console.log(`[VisbalExt.MetadataService] fetchSalesforceLogs testRunDetailsResult`, testRunDetailsResult);
+            console.log(`[VisbalExt.MetadataService] fetchSalesforceLogs testRunDetailsResult.stdout`, testRunDetailsResult.stdout);    
+            const testRunDetails = JSON.parse(testRunDetailsResult.stdout);
+            if (!testRunDetails?.result?.summary?.testStartTime) {
+                console.warn('[VisbalExt.MetadataService] No test start time found in test run details');
+                return [];
+            }
 
-            // Get the log IDs associated with the test run.
-            const logListCommand = `sf apex log list --test-run-id ${apexId} --json`;
+            const testStartTime = new Date(testRunDetails.result.summary.testStartTime);
+            console.log('[VisbalExt.MetadataService] Test start time:', testStartTime);
+
+
+
+            const logListCommand1 = `sf apex list log`;
+            console.log('[VisbalExt.MetadataService] fetchSalesforceLogs -- logListCommand1:', logListCommand1);
+            const logListResult1 = await this._executeCommand2(logListCommand1);
+            console.log(`[VisbalExt.MetadataService] fetchSalesforceLogs logListResult1`, logListResult1)
+
+
+            // Get all logs and filter by timestamp
+            const logListCommand = `sf apex list log --json`;
             console.log('[VisbalExt.MetadataService] fetchSalesforceLogs -- logListCommand:', logListCommand);
             const logListResult = await this._executeCommand2(logListCommand);
             console.log(`[VisbalExt.MetadataService] fetchSalesforceLogs logListResult`, logListResult);
+            console.log(`[VisbalExt.MetadataService] fetchSalesforceLogs logListResult.stdout`, logListResult.stdout);
+            const logList = JSON.parse(logListResult.stdout);
+            if (!logList?.result) {
+                console.warn('[VisbalExt.MetadataService] No logs found');
+                return [];
+            }
 
-            // Parse the JSON output and extract the log IDs.
-            const logListJson = JSON.parse(logListResult.stdout);
-            const logIds: string[] = Array.isArray(logListJson) ? logListJson.map((log: any) => log.Id) : [];
+            // Filter logs that were created after the test started and are ApexTest logs
+            const relevantLogs = logList.result
+                .filter((log: any) => {
+                    const logStartTime = new Date(log.StartTime);
+                    return log.Operation === 'ApexTest' && logStartTime >= testStartTime;
+                })
+                .sort((a: any, b: any) => new Date(b.StartTime).getTime() - new Date(a.StartTime).getTime());
+
+            const logIds = relevantLogs.map((log: any) => log.Id);
             console.log('[VisbalExt.MetadataService] fetchSalesforceLogs -- logIds:', logIds);
 
             return logIds;
@@ -579,4 +613,27 @@ export class MetadataService {
     }
 
 	//#endregion LOGFILE
+
+    public async deleteViaSoql(logId: string): Promise<void> {
+        try {
+            console.log('[VisbalExt.MetadataService] Deleting log via SOQL:', logId);
+            
+            // Use SOQL query to delete the log
+            const soqlQuery = `DELETE FROM ApexLog WHERE Id = '${logId}'`;
+            const command = `sf data delete record --sobject ApexLog --record-id ${logId} --json`;
+            
+            console.log(`[VisbalExt.MetadataService] Executing delete command: ${command}`);
+            const output = await this.executeCliCommand(command);
+            const result = JSON.parse(output);
+            
+            if (result.status === 0) {
+                console.log('[VisbalExt.MetadataService] Log deleted successfully');
+            } else {
+                throw new Error(result.message || 'Failed to delete log');
+            }
+        } catch (error: any) {
+            console.error('[VisbalExt.MetadataService] Error deleting log:', error);
+            throw new Error(`Failed to delete log: ${error.message}`);
+        }
+    }
 } 
