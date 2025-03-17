@@ -36,7 +36,7 @@ export function activate(context: vscode.ExtensionContext) {
   const metadataService = new MetadataService();
   context.subscriptions.push(statusBarService);
 
-  // Initialize views
+  // Initialize test run results view first
   console.log('[VisbalExt.Extension] Initializing TestRunResultsView');
   outputChannel.appendLine('[VisbalExt.Extension] Initializing TestRunResultsView');
   const testRunResultsView = new TestRunResultsView(context);
@@ -64,12 +64,26 @@ export function activate(context: vscode.ExtensionContext) {
   // Register views
   console.log('[VisbalExt.Extension] Registering views');
   outputChannel.appendLine('[VisbalExt.Extension] Registering views');
+
+  // Register test class explorer view
   context.subscriptions.push(
     vscode.window.registerWebviewViewProvider(
       TestClassExplorerView.viewType,
       testClassExplorerView
     )
   );
+
+  // Register test run results view
+  console.log('[VisbalExt.Extension] Registering TestRunResultsView');
+  outputChannel.appendLine('[VisbalExt.Extension] Registering TestRunResultsView');
+  const treeView = vscode.window.createTreeView('testRunResults', {
+    treeDataProvider: testRunResultsView.getProvider(),
+    showCollapseAll: true
+  });
+  context.subscriptions.push(treeView);
+
+  // Ensure the view container is visible
+  vscode.commands.executeCommand('workbench.view.extension.visbal-test-container');
 
   // Register Debug Console View
   context.subscriptions.push(
@@ -135,16 +149,6 @@ export function activate(context: vscode.ExtensionContext) {
         }
       }
     )
-  );
-
-  // Register test run results view
-  console.log('[VisbalExt.Extension] Registering TestRunResultsView');
-  outputChannel.appendLine('[VisbalExt.Extension] Registering TestRunResultsView');
-  context.subscriptions.push(
-    vscode.window.createTreeView('testRunResults', {
-      treeDataProvider: testRunResultsView.getProvider(),
-      showCollapseAll: true
-    })
   );
 
   // Register commands for panel activation

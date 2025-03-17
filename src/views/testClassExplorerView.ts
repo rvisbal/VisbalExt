@@ -294,7 +294,7 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
 
     private async _runTest(testClass: string, testMethod?: string) {
         try {
-            console.log(`[VisbalExt.TestClassExplorerView] [EXECUTION] Starting test run for class: ${testClass}${testMethod ? `, method: ${testMethod}` : ''}`);
+            console.log(`[VisbalExt.TestClassExplorerView] _runTest -- Starting test run for class: ${testClass}${testMethod ? `, method: ${testMethod}` : ''}`);
             
             // Get test methods if not provided
             let methodsToRun: string[] = [];
@@ -306,11 +306,11 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
             }
 
             // Add test run to results view
-            console.log('[VisbalExt.TestClassExplorerView] Adding test run to results view');
+            console.log('[VisbalExt.TestClassExplorerView] _runTest -- Adding test run to results view');
             this._testRunResultsView.addTestRun(testClass, methodsToRun);
 
             // Update each method to running state
-            console.log('[VisbalExt.TestClassExplorerView] Setting methods to running state');
+            console.log('[VisbalExt.TestClassExplorerView] _runTest -- Setting methods to running state');
             methodsToRun.forEach(method => {
                 this._testRunResultsView.updateMethodStatus(testClass, method, 'running');
             });
@@ -318,14 +318,14 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
             // Update status bar
             this._statusBarService.showMessage(`$(sync~spin) Running tests in ${testClass}...`);
 
-            console.log('[VisbalExt.TestClassExplorerView] Calling MetadataService.runTests');
+            console.log('[VisbalExt.TestClassExplorerView] _runTest -- Calling MetadataService.runTests');
             const result = await this._metadataService.runTests(testClass, testMethod);
-            console.log('[VisbalExt.TestClassExplorerView] Test execution completed. Result:', result);
+            console.log('[VisbalExt.TestClassExplorerView] _runTest -- Test execution completed. Result:', result);
 
             if (result && result.testRunId) {
-                console.log('[VisbalExt.TestClassExplorerView] Fetching test run details for:', result.testRunId);
+                console.log('[VisbalExt.TestClassExplorerView] _runTestFetching test run details for:', result.testRunId);
                 const testRunResult: TestRunResult = await this._metadataService.getTestRunResult(result.testRunId);
-                console.log('[VisbalExt.TestClassExplorerView] Test run details:', testRunResult);
+                console.log('[VisbalExt.TestClassExplorerView] _runTestTest run details:', testRunResult);
 
                 // Update test results in webview
                 if (this._view) {
@@ -336,28 +336,54 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                     });
                 }
 
+                const mainClassMap = new Map<string, Boolean>();
+                testRunResult.tests.forEach((t: any) => {
+                    if (!mainClassMap.has(t.ApexClass.Name)) {
+                        mainClassMap.set(t.ApexClass.Name, true);
+                    }
+                    console.log('[VisbalExt.TestClassExplorerView] _runTest -- Test:', t);
+                    if (t.Outcome === 'Pass') {
+                        this._testRunResultsView.updateMethodStatus(testClass, t.MethodName, 'success');
+                    }
+                    else {
+                        this._testRunResultsView.updateMethodStatus(testClass, t.methodName, 'failed');
+                        mainClassMap.set(t.ApexClass.Name, false);
+                    }
+                });
+
+                for (const [className, isMainClass] of mainClassMap.entries()) {
+                    if (isMainClass) {
+                        this._testRunResultsView.updateClassStatus(className, 'success');
+                    }
+                    else {
+                        this._testRunResultsView.updateClassStatus(className, 'failed');
+                    }
+                }
+                /*
                 // Update test run results view
-                console.log('[VisbalExt.TestClassExplorerView] Updating test run results view with successes and failures');
+                console.log('[VisbalExt.TestClassExplorerView] _runTest -- Updating test run results view with successes and failures');
                 if (testRunResult.successes) {
                     testRunResult.successes.forEach((success: TestRunSuccess) => {
-                        console.log(`[VisbalExt.TestClassExplorerView] Marking method as success: ${success.methodName}`);
+                        console.log(`[VisbalExt.TestClassExplorerView] _runTest -- Marking method as success: ${success.methodName}`);
                         this._testRunResultsView.updateMethodStatus(testClass, success.methodName, 'success');
                     });
                 }
                 if (testRunResult.failures) {
                     testRunResult.failures.forEach((failure: TestRunFailure) => {
-                        console.log(`[VisbalExt.TestClassExplorerView] Marking method as failed: ${failure.methodName}`);
+                        console.log(`[VisbalExt.TestClassExplorerView] _runTest -- Marking method as failed: ${failure.methodName}`);
                         this._testRunResultsView.updateMethodStatus(testClass, failure.methodName, 'failed');
                     });
                 }
 
+
                 // Update class status based on overall result
                 const hasFailures = testRunResult.failures && testRunResult.failures.length > 0;
-                console.log(`[VisbalExt.TestClassExplorerView] Updating class status to: ${hasFailures ? 'failed' : 'success'}`);
+                console.log(`[VisbalExt.TestClassExplorerView] _runTest -- Updating class status to: ${hasFailures ? 'failed' : 'success'}`);
                 this._testRunResultsView.updateClassStatus(testClass, hasFailures ? 'failed' : 'success');
+                */
             }
         } catch (error: any) {
-            console.error('[VisbalExt.TestClassExplorerView] [EXECUTION] Error during test execution:', error);
+            console.error('[VisbalExt.TestClassExplorerView] _runTest -- Error during test execution:', error);
             this._testRunResultsView.updateClassStatus(testClass, 'failed');
             if (testMethod) {
                 this._testRunResultsView.updateMethodStatus(testClass, testMethod, 'failed');

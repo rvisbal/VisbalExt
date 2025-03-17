@@ -60,9 +60,14 @@ export class TestRunResultsProvider implements vscode.TreeDataProvider<TestItem>
     private testRuns: Map<string, TestItem> = new Map();
     private refreshTimer: NodeJS.Timeout | undefined;
     private pendingUpdates: Set<string> = new Set(); // Track pending updates
+    private _view: vscode.TreeView<TestItem> | undefined;
 
     constructor() {
         console.log('[VisbalExt.TestRunResultsProvider] Initializing provider');
+    }
+
+    setTreeView(view: vscode.TreeView<TestItem>) {
+        this._view = view;
     }
 
     getTreeItem(element: TestItem): vscode.TreeItem {
@@ -107,6 +112,9 @@ export class TestRunResultsProvider implements vscode.TreeDataProvider<TestItem>
         const startTime = Date.now();
         console.log(`[VisbalExt.TestRunResultsProvider] Adding test run for class: ${className} with ${methods.length} methods at ${new Date(startTime).toISOString()}`);
         
+        // Clear any existing test run for this class
+        this.testRuns.delete(className);
+        
         const methodItems = methods.map(method => {
             console.log(`[VisbalExt.TestRunResultsProvider] Creating method item: ${method}`);
             return new TestItem(
@@ -128,17 +136,22 @@ export class TestRunResultsProvider implements vscode.TreeDataProvider<TestItem>
         const endTime = Date.now();
         console.log(`[VisbalExt.TestRunResultsProvider] Test run added in ${endTime - startTime}ms, scheduling refresh`);
         this.scheduleRefresh();
+
+        // Reveal the new test run
+        if (this._view) {
+            this._view.reveal(classItem, { focus: true, select: true, expand: true });
+        }
     }
 
     updateMethodStatus(className: string, methodName: string, status: 'running' | 'success' | 'failed') {
         const startTime = Date.now();
-        console.log(`[VisbalExt.TestRunResultsProvider] Updating method status: ${className}.${methodName} -> ${status} at ${new Date(startTime).toISOString()}`);
+        console.log(`[VisbalExt.TestRunResultsProvider] updateMethodStatus -- Updating method status: ${className}.${methodName} -> ${status} at ${new Date(startTime).toISOString()}`);
         
         const classItem = this.testRuns.get(className);
         if (classItem) {
             const methodItem = classItem.children.find(m => m.label === methodName);
             if (methodItem) {
-                console.log(`[VisbalExt.TestRunResultsProvider] Found method item, updating status`);
+                console.log(`[VisbalExt.TestRunResultsProvider] updateMethodStatus -- Found method item, updating status`);
                 methodItem.updateStatus(status);
 
                 // Track this update
@@ -154,6 +167,11 @@ export class TestRunResultsProvider implements vscode.TreeDataProvider<TestItem>
                 const endTime = Date.now();
                 console.log(`[VisbalExt.TestRunResultsProvider] Method status updated in ${endTime - startTime}ms, scheduling refresh`);
                 this.scheduleRefresh();
+
+                // Reveal the updated method
+                if (this._view) {
+                    this._view.reveal(methodItem, { focus: true, select: true });
+                }
             } else {
                 console.warn(`[VisbalExt.TestRunResultsProvider] Method ${methodName} not found in class ${className}`);
             }
@@ -164,7 +182,7 @@ export class TestRunResultsProvider implements vscode.TreeDataProvider<TestItem>
 
     updateClassStatus(className: string, status: 'running' | 'success' | 'failed') {
         const startTime = Date.now();
-        console.log(`[VisbalExt.TestRunResultsProvider] Updating class status: ${className} -> ${status} at ${new Date(startTime).toISOString()}`);
+        console.log(`[VisbalExt.TestRunResultsProvider] updateClassStatus -- Updating class status: ${className} -> ${status} at ${new Date(startTime).toISOString()}`);
         
         const classItem = this.testRuns.get(className);
         if (classItem) {
@@ -177,6 +195,11 @@ export class TestRunResultsProvider implements vscode.TreeDataProvider<TestItem>
             const endTime = Date.now();
             console.log(`[VisbalExt.TestRunResultsProvider] Class status updated in ${endTime - startTime}ms, scheduling refresh`);
             this.scheduleRefresh();
+
+            // Reveal the updated class
+            if (this._view) {
+                this._view.reveal(classItem, { focus: true, select: true });
+            }
         } else {
             console.warn(`[VisbalExt.TestRunResultsProvider] Class ${className} not found in test runs`);
         }
@@ -197,14 +220,16 @@ export class TestRunResultsProvider implements vscode.TreeDataProvider<TestItem>
 
 export class TestRunResultsView {
     private provider: TestRunResultsProvider;
+    private treeView: vscode.TreeView<TestItem>;
 
     constructor(context: vscode.ExtensionContext) {
         this.provider = new TestRunResultsProvider();
-        const view = vscode.window.createTreeView('testRunResults', {
+        this.treeView = vscode.window.createTreeView('testRunResults', {
             treeDataProvider: this.provider,
             showCollapseAll: true
         });
-        context.subscriptions.push(view);
+        this.provider.setTreeView(this.treeView);
+        context.subscriptions.push(this.treeView);
     }
 
     getProvider(): TestRunResultsProvider {
