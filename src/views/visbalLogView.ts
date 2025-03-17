@@ -123,8 +123,8 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
                     this.openDefaultOrg();
                     break;
                 case 'deleteSelectedLogs':
-                    console.log('[VisbalExt.VisbalLogView] resolveWebviewView -- deleteSelectedLogs');
-                    //this._deleteSelectedLogs();
+                    console.log(`[VisbalExt.VisbalLogView] resolveWebviewView -- Deleting selected logs: ${message.logIds.length} logs `, message.logIds);
+                    await this._deleteSelectedLogs(message.logIds);
                     break;
                 case 'deleteServerLogs':
                     console.log('[VisbalExt.VisbalLogView] resolveWebviewView -- deleteServerLogs');
@@ -133,6 +133,23 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
                 case 'deleteViaSoql':
                     console.log('[VisbalExt.VisbalLogView] resolveWebviewView -- deleteViaSoqlApi');
                     this._deleteViaSoqlApi();
+                    break;
+                case 'applyDebugConfig':
+                    console.log(`[VisbalExt.VisbalLogView]  resolveWebviewView -- Applying debug configuration:`, message.config);
+                    await this._applyDebugConfig(message.config, message.turnOnDebug);
+                    break;
+                case 'getCurrentDebugConfig':
+                    console.log(`[VisbalExt.VisbalLogView]  resolveWebviewView -- Getting current debug configuration`);
+                    await this._getCurrentDebugConfig();
+                    break;
+                case 'executeScript':
+                    try {
+                        console.log('[VisbalExt.VisbalLogView]  Executing script from extension');
+                        // Execute the script
+                        eval(message.script);
+                    } catch (error) {
+                        console.error('Error executing script:', error);
+                    }
                     break;
             }
         });
