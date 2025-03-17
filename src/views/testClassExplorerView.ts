@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
 import { StatusBarService } from '../services/statusBarService';
-import { MetadataService } from '../services/metadataService';
+import { MetadataService, TestMethod } from '../services/metadataService';
 import { join } from 'path';
 import { readFileSync, writeFileSync } from 'fs';
 import { existsSync, mkdirSync } from 'fs';
@@ -24,7 +24,7 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
     private _statusBarService: StatusBarService;
     private _metadataService: MetadataService;
     private _cachedTestClasses?: TestClass[]; // Update type
-    private _cachedTestMethods: Map<string, string[]> = new Map(); // Cache for test methods
+    private _cachedTestMethods: Map<string, TestMethod[]> = new Map(); // Cache for test methods
     private _testController: vscode.TestController;
     private _testItems: Map<string, vscode.TestItem>;
 
@@ -101,6 +101,13 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
         console.log('[VisbalExt.TestClassExplorerView] [FETCH] Starting test class fetch. Force refresh:', forceRefresh);
         
         try {
+            // Clear caches if force refresh
+            if (forceRefresh) {
+                this._cachedTestClasses = undefined;
+                this._cachedTestMethods.clear();
+                console.log('[VisbalExt.TestClassExplorerView] [FETCH] Cleared caches due to force refresh');
+            }
+
             // Check cache first
             if (this._cachedTestClasses && !forceRefresh) {
                 console.log('[VisbalExt.TestClassExplorerView] [FETCH] Using cached test classes:', this._cachedTestClasses.length, 'classes');
@@ -206,7 +213,7 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
             
             // Check cache first
             if (this._cachedTestMethods.has(className)) {
-                console.log(`[VisbalExt.TestClassExplorerView] Using cached test methods for ${className}`);
+                console.log(`[VisbalExt.TestClassExplorerView] Using cached test methods for ${className}:`, this._cachedTestMethods.get(className));
                 if (this._view) {
                     this._view.webview.postMessage({
                         command: 'testMethodsLoaded',
@@ -228,8 +235,9 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                     });
                 }
             } else {
-                // Cache the test methods
-                this._cachedTestMethods.set(className, testMethods.map(m => m.name));
+                // Cache the test methods with full objects
+                this._cachedTestMethods.set(className, testMethods);
+                console.log(`[VisbalExt.TestClassExplorerView] Cached test methods for ${className}:`, testMethods);
             }
             
             // Send the test methods to the webview
