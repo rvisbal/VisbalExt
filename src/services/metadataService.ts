@@ -367,27 +367,85 @@ export class MetadataService {
             const parsedResult = JSON.parse(result);
             console.log('[VisbalExt.MetadataService] Test run result retrieved:', parsedResult);
 
-            // If we have test results with log IDs, fetch the logs
-            if (parsedResult.result && parsedResult.result.tests) {
-                for (const test of parsedResult.result.tests) {
-                    if (test.apexLogId) {
-                        try {
-                            console.log('[VisbalExt.MetadataService] Fetching log for test:', test.fullName);
-                            const logResult = await this.executeCliCommand(`sf apex get log --log-id ${test.apexLogId} --json`);
-                            const parsedLog = JSON.parse(logResult);
-                            test.logContent = parsedLog.result?.log || '';
-                            console.log('[VisbalExt.MetadataService] Log fetched successfully for test:', test.fullName);
-                        } catch (logError) {
-                            console.error('[VisbalExt.MetadataService] Error fetching log for test:', test.fullName, logError);
-                            test.logError = `Failed to fetch log: ${(logError as Error).message}`;
-                        }
-                    }
-                }
-            }
-
+            // Return the result immediately - log fetching will be handled separately after test completion
             return parsedResult.result || null;
         } catch (error) {
             console.error('[VisbalExt.MetadataService] Error getting test run result:', error);
+            throw error;
+        }
+    }
+
+    public async getTestRunLog(testRunId: string): Promise<any> {
+        try {
+            console.log('[VisbalExt.MetadataService] Fetching logs for completed test run:', testRunId);
+            
+            // First verify the test run has completed
+            const testResult = await this.executeCliCommand(`sf apex get test --test-run-id ${testRunId} --json`);
+            const parsedTestResult = JSON.parse(testResult);
+            
+            if (!parsedTestResult.result?.tests?.[0]) {
+                throw new Error('Test results not found');
+            }
+
+            // Get the test run logs
+            try {
+                const logResult = await this.executeCliCommand(`sf apex list log --json`);
+                const parsedLog = JSON.parse(logResult);
+                
+                // Find the most recent log for this test run
+                const testLogs = parsedLog.result.filter((log: any) => 
+                    log.Operation === 'ApexTest' && 
+                    new Date(log.StartTime) >= new Date(parsedTestResult.result.summary.testStartTime)
+                ).sort((a: any, b: any) => 
+                    new Date(b.StartTime).getTime() - new Date(a.StartTime).getTime()
+                );
+
+                if (testLogs.length > 0) {
+                    const latestLog = testLogs[0];
+                    // Fetch the actual log content
+                    const logContent = await this.executeCliCommand(`sf apex get log --log-id ${latestLog.Id} --json`);
+                    const parsedLogContent = JSON.parse(logContent);
+
+                    if (parsedLogContent.result) {
+                        const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+                        if (workspaceRoot) {
+                            const logsDir = `${workspaceRoot}/.sf/logs`;
+                            const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+                            const fileName = `test-run-${testRunId}-${timestamp}.log`;
+                            const targetFilePath = `${logsDir}/${fileName}`;
+
+                            // Create logs directory if it doesn't exist
+                            await vscode.workspace.fs.createDirectory(vscode.Uri.file(logsDir));
+                            
+                            // Write log content to file
+                            await vscode.workspace.fs.writeFile(
+                                vscode.Uri.file(targetFilePath),
+                                Buffer.from(parsedLogContent.result.log || '', 'utf8')
+                            );
+
+                            // Open the log file
+                            const document = await vscode.workspace.openTextDocument(targetFilePath);
+                            await vscode.window.showTextDocument(document);
+                            
+                            console.log('[VisbalExt.MetadataService] Test run log saved and opened:', targetFilePath);
+                            return {
+                                logId: latestLog.Id,
+                                logPath: targetFilePath,
+                                content: parsedLogContent.result.log
+                            };
+                        }
+                    }
+                } else {
+                    console.warn('[VisbalExt.MetadataService] No matching logs found for test run');
+                }
+            } catch (logError) {
+                console.error('[VisbalExt.MetadataService] Error fetching test run log:', logError);
+                throw logError;
+            }
+
+            return null;
+        } catch (error) {
+            console.error('[VisbalExt.MetadataService] Error getting test run log:', error);
             throw error;
         }
     }

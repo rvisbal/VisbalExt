@@ -266,44 +266,7 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
 
                 if (testRunResult && testRunResult.tests && testRunResult.tests.length > 0) {
                     const testResult = testRunResult.tests[0]; // Get the first test result
-
-                    // Automatically fetch and display the log if available
-                    if (testResult.ApexLogId) {
-                        try {
-                            console.log('[VisbalExt.TestClassExplorerView] Automatically fetching test log:', testResult.ApexLogId);
-                            const logContent = await this._metadataService.getTestLog(testResult.ApexLogId);
-                            
-                            if (logContent) {
-                                // Create a directory for logs if it doesn't exist
-                                const logsDir = join(vscode.workspace.rootPath || '', '.sf', 'logs');
-                                if (!existsSync(logsDir)) {
-                                    mkdirSync(logsDir, { recursive: true });
-                                }
-
-                                // Create the log file with a timestamp
-                                const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-                                const logFileName = `${testClass}${testMethod ? `-${testMethod}` : ''}-${timestamp}.log`;
-                                const logPath = join(logsDir, logFileName);
-                                
-                                console.log('[VisbalExt.TestClassExplorerView] Creating log file at:', logPath);
-                                
-                                // Write the log content to the file
-                                writeFileSync(logPath, logContent);
-                                
-                                // Open the log file in VS Code
-                                const document = await vscode.workspace.openTextDocument(vscode.Uri.file(logPath));
-                                await vscode.window.showTextDocument(document, { preview: false });
-                                
-                                console.log('[VisbalExt.TestClassExplorerView] Log file created and opened:', logPath);
-                                
-                                // Show success message
-                                vscode.window.showInformationMessage(`Test log saved to: ${logFileName}`);
-                            }
-                        } catch (logError) {
-                            console.error('[VisbalExt.TestClassExplorerView] Error fetching test log:', logError);
-                            vscode.window.showWarningMessage(`Could not fetch test log: ${(logError as Error).message}`);
-                        }
-                    }
+                    console.log('[VisbalExt.TestClassExplorerView] testResult:', testResult);
 
                     // Update test status in UI
                     const success = testResult.Outcome === 'Pass';
@@ -318,6 +281,23 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                             : `All tests in ${testClass} passed in ${runTime}ms`;
                         console.log(`[VisbalExt.TestClassExplorerView] [EXECUTION] ${successMessage}`);
                         vscode.window.showInformationMessage(successMessage);
+
+                        // Wait a moment for the test to fully complete and logs to be available
+                        await new Promise(resolve => setTimeout(resolve, 2000));
+
+                        // Now fetch the log
+                        try {
+                            console.log('[VisbalExt.TestClassExplorerView] Fetching test run log for:', result.testRunId);
+                            const logResult = await this._metadataService.getTestRunLog(result.testRunId);
+                            
+                            if (logResult && logResult.logPath) {
+                                console.log('[VisbalExt.TestClassExplorerView] Log file created at:', logResult.logPath);
+                                vscode.window.showInformationMessage(`Test log saved to: ${logResult.logPath}`);
+                            }
+                        } catch (logError) {
+                            console.error('[VisbalExt.TestClassExplorerView] Error fetching test log:', logError);
+                            vscode.window.showWarningMessage(`Could not fetch test log: ${(logError as Error).message}`);
+                        }
                     } else {
                         console.error('[VisbalExt.TestClassExplorerView] [EXECUTION] Test failed:', message);
                         vscode.window.showErrorMessage(`Test failed: ${message}`);
