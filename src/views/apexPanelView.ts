@@ -13,14 +13,17 @@ export class ApexPanelView implements vscode.WebviewViewProvider {
 
     public resolveWebviewView(
         webviewView: vscode.WebviewView,
-        context: vscode.WebviewViewResolveContext,
+        context: vscode.WebviewViewResolveContext<unknown> & { extensionUri: vscode.Uri },
         _token: vscode.CancellationToken,
     ) {
         console.log('[VisbalExt.ApexPanelView] Resolving webview view');
         this._view = webviewView;
 
         webviewView.webview.options = {
-            enableScripts: true
+            enableScripts: true,
+            localResourceRoots: [
+                vscode.Uri.joinPath(context.extensionUri, 'node_modules', '@vscode/codicons')
+            ]
         };
 
         webviewView.webview.html = this._getWebviewContent();
@@ -52,10 +55,11 @@ export class ApexPanelView implements vscode.WebviewViewProvider {
 
     private _getWebviewContent() {
         return `<!DOCTYPE html>
-        <html>
+        <html lang="en">
         <head>
             <meta charset="UTF-8">
             <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <link href="vscode-codicon://vscode/codicons/codicon.css" rel="stylesheet" />
             <style>
                 body {
                     padding: 0;

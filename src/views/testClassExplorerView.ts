@@ -305,14 +305,12 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
 					
 					
 					console.log('[VisbalExt.TestClassExplorerView] DOWNLOAD THE LOG');
-					
-                  
-
+				
 					try {
 						
 						 const logId = await this._metadataService.getTestLogId(result.testRunId);
 						 if (logId) {
-                           await this._visbalLogView.downloadLog(logId);
+                            await this._visbalLogView.downloadLog(logId);
                             await this._visbalLogView.openLog(logId);
                             //download the log with json values
 							//const logResult = await this._metadataService.getLogContent(logId);
