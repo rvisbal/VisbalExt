@@ -9,10 +9,10 @@ import { statusBarService } from './services/statusBarService';
 import { SoqlPanelView } from './views/soqlPanelView';
 import { ApexPanelView } from './views/apexPanelView';
 import { MetadataService } from './services/metadataService';
-import { StatusBarService } from './services/statusBarService';
 import { LogTreeView } from './views/logTreeView';
 import { DebugConsoleView } from './views/debugConsoleView';
 import { TestResultsView } from './views/testResultsView';
+import { TestRunResultsView } from './views/testRunResultsView';
 
 let outputChannel: vscode.OutputChannel;
 
@@ -22,7 +22,8 @@ export function activate(context: vscode.ExtensionContext) {
   outputChannel = vscode.window.createOutputChannel('Visbal Extension');
   context.subscriptions.push(outputChannel);
 
-  outputChannel.appendLine('[VisbalExt.Extension] Activating Visbal Extension...');
+  console.log('[VisbalExt.Extension] Activating extension');
+  outputChannel.appendLine('[VisbalExt.Extension] Activating extension');
   
   // Initialize status bar
   statusBarService.showMessage('Visbal Extension activated', 'rocket');
@@ -33,23 +34,40 @@ export function activate(context: vscode.ExtensionContext) {
 
   // Initialize services
   const metadataService = new MetadataService();
+  context.subscriptions.push(statusBarService);
+
+  // Initialize views
+  console.log('[VisbalExt.Extension] Initializing TestRunResultsView');
+  outputChannel.appendLine('[VisbalExt.Extension] Initializing TestRunResultsView');
+  const testRunResultsView = new TestRunResultsView(context);
+
+  // Initialize debug console view
+  console.log('[VisbalExt.Extension] Initializing DebugConsoleView');
+  outputChannel.appendLine('[VisbalExt.Extension] Initializing DebugConsoleView');
+  const debugConsoleView = new DebugConsoleView(context.extensionUri);
+
+  // Initialize test class explorer view
+  console.log('[VisbalExt.Extension] Initializing TestClassExplorerView');
+  outputChannel.appendLine('[VisbalExt.Extension] Initializing TestClassExplorerView');
+  const testClassExplorerView = new TestClassExplorerView(
+    context.extensionUri,
+    statusBarService,
+    context,
+    testRunResultsView
+  );
 
   // Create view providers
   const visbalLogViewProvider = new VisbalLogView(context);
-  const testExplorer = new TestClassExplorerView(
-    context.extensionUri,
-    statusBarService,
-    context
-  );
   const soqlPanel = new SoqlPanelView(metadataService);
   const apexPanel = new ApexPanelView(metadataService);
-  const debugConsoleView = new DebugConsoleView(context.extensionUri);
 
-  // Register Test Explorer View (sidebar)
+  // Register views
+  console.log('[VisbalExt.Extension] Registering views');
+  outputChannel.appendLine('[VisbalExt.Extension] Registering views');
   context.subscriptions.push(
     vscode.window.registerWebviewViewProvider(
       TestClassExplorerView.viewType,
-      testExplorer
+      testClassExplorerView
     )
   );
 
@@ -117,6 +135,16 @@ export function activate(context: vscode.ExtensionContext) {
         }
       }
     )
+  );
+
+  // Register test run results view
+  console.log('[VisbalExt.Extension] Registering TestRunResultsView');
+  outputChannel.appendLine('[VisbalExt.Extension] Registering TestRunResultsView');
+  context.subscriptions.push(
+    vscode.window.createTreeView('testRunResults', {
+      treeDataProvider: testRunResultsView.getProvider(),
+      showCollapseAll: true
+    })
   );
 
   // Register commands for panel activation
@@ -291,11 +319,13 @@ export function activate(context: vscode.ExtensionContext) {
   context.subscriptions.push(showFindModelCommand);
   context.subscriptions.push(showLogSummaryCommand);
 
-  // Update debug event handlers to use output channel
+  // Update debug event handlers
   vscode.debug.onDidStartDebugSession(() => {
+    console.log('[VisbalExt.Extension] Debug session started');
     outputChannel.appendLine('[Debug] Debug session started');
     debugConsoleView.clear();
     debugConsoleView.addOutput('Debug session started', 'info');
+    testRunResultsView.clear();
   });
 
   vscode.debug.onDidTerminateDebugSession(() => {

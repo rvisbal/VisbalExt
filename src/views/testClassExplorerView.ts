@@ -5,6 +5,7 @@ import { join } from 'path';
 import { readFileSync, writeFileSync } from 'fs';
 import { existsSync, mkdirSync } from 'fs';
 import { VisbalLogView } from './visbalLogView';
+import { TestRunResultsView } from './testRunResultsView';
 
 // Add TestClass interface at the top of the file
 interface TestClass {
@@ -18,6 +19,27 @@ interface TestClass {
     };
 }
 
+interface TestRunSuccess {
+    methodName: string;
+    outcome: string;
+    runTime: number;
+    message?: string;
+}
+
+interface TestRunFailure {
+    methodName: string;
+    outcome: string;
+    runTime: number;
+    message: string;
+    stackTrace?: string;
+}
+
+interface TestRunResult {
+    successes?: TestRunSuccess[];
+    failures?: TestRunFailure[];
+    tests: any[]; // Keep existing tests array
+}
+
 export class TestClassExplorerView implements vscode.WebviewViewProvider {
     public static readonly viewType = 'testClassExplorerView';
     private _view?: vscode.WebviewView;
@@ -29,11 +51,13 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
     private _testController: vscode.TestController;
     private _testItems: Map<string, vscode.TestItem>;
     private _visbalLogView: VisbalLogView;
+    private _testRunResultsView: TestRunResultsView;
 
     constructor(
         extensionUri: vscode.Uri,
         statusBarService: StatusBarService,
-        private readonly _context: vscode.ExtensionContext
+        private readonly _context: vscode.ExtensionContext,
+        testRunResultsView: TestRunResultsView
     ) {
         this._extensionUri = extensionUri;
         this._statusBarService = statusBarService;
@@ -41,6 +65,7 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
         this._testController = vscode.tests.createTestController('testClassExplorerView', 'Test Class Explorer');
         this._testItems = new Map();
         this._visbalLogView = new VisbalLogView(this._context);
+        this._testRunResultsView = testRunResultsView;
     }
 
     public resolveWebviewView(
@@ -268,30 +293,41 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
     }
 
     private async _runTest(testClass: string, testMethod?: string) {
-        console.log(`[VisbalExt.TestClassExplorerView] [EXECUTION] Starting test run for class: ${testClass}${testMethod ? `, method: ${testMethod}` : ''}`);
-        
         try {
-            // Show running state in the webview
-            if (this._view) {
-                this._view.webview.postMessage({
-                    command: 'testRunStarted'
-                });
+            console.log(`[VisbalExt.TestClassExplorerView] [EXECUTION] Starting test run for class: ${testClass}${testMethod ? `, method: ${testMethod}` : ''}`);
+            
+            // Get test methods if not provided
+            let methodsToRun: string[] = [];
+            if (testMethod) {
+                methodsToRun = [testMethod];
+            } else {
+                const methods = await this._metadataService.getTestMethodsForClass(testClass);
+                methodsToRun = methods.map(m => m.name);
             }
 
-            this._statusBarService.showMessage('$(sync~spin) Running test...');
-            
-            // Execute the test
+            // Add test run to results view
+            console.log('[VisbalExt.TestClassExplorerView] Adding test run to results view');
+            this._testRunResultsView.addTestRun(testClass, methodsToRun);
+
+            // Update each method to running state
+            console.log('[VisbalExt.TestClassExplorerView] Setting methods to running state');
+            methodsToRun.forEach(method => {
+                this._testRunResultsView.updateMethodStatus(testClass, method, 'running');
+            });
+
+            // Update status bar
+            this._statusBarService.showMessage(`$(sync~spin) Running tests in ${testClass}...`);
+
             console.log('[VisbalExt.TestClassExplorerView] Calling MetadataService.runTests');
             const result = await this._metadataService.runTests(testClass, testMethod);
             console.log('[VisbalExt.TestClassExplorerView] Test execution completed. Result:', result);
 
-            // Get test run details using the testRunId
             if (result && result.testRunId) {
                 console.log('[VisbalExt.TestClassExplorerView] Fetching test run details for:', result.testRunId);
-                const testRunResult = await this._metadataService.getTestRunResult(result.testRunId);
+                const testRunResult: TestRunResult = await this._metadataService.getTestRunResult(result.testRunId);
                 console.log('[VisbalExt.TestClassExplorerView] Test run details:', testRunResult);
 
-                // Send the test results to the webview
+                // Update test results in webview
                 if (this._view) {
                     console.log('[VisbalExt.TestClassExplorerView] Sending test results to webview');
                     this._view.webview.postMessage({
@@ -300,89 +336,35 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                     });
                 }
 
-                if (testRunResult && testRunResult.tests && testRunResult.tests.length > 0) {
-                    const testResult = testRunResult.tests[0]; // Get the first test result
-                    console.log('[VisbalExt.TestClassExplorerView] testResult:', testResult);
-
-                    // Update test status in UI
-                    const success = testResult.Outcome === 'Pass';
-                    const runTime = testResult.RunTime || 0;
-                    const message = testResult.Message || '';
-                    const stackTrace = testResult.StackTrace || '';
-					
-					
-					console.log('[VisbalExt.TestClassExplorerView] DOWNLOAD THE LOG');
-				
-					try {
-						
-						 const logId = await this._metadataService.getTestLogId(result.testRunId);
-						 if (logId) {
-                            await this._visbalLogView.downloadLog(logId);
-                            await this._visbalLogView.openLog(logId);
-                            //download the log with json values
-							//const logResult = await this._metadataService.getLogContent(logId);
-						 } else {
-							console.warn('[VisbalExt.TestClassExplorerView] No log IDs found for test run');
-						 }
-					}catch (logError) {
-						console.error('[VisbalExt.TestClassExplorerView] Error getLogContent:', logError);
-						vscode.window.showWarningMessage(`Could not fetch test log: ${(logError as Error).message}`);
-					}
-
-                    if (success) {
-                        console.log('[VisbalExt.TestClassExplorerView] Test passed');
-                        const successMessage = testMethod 
-                            ? `Method ${testMethod} passed in ${runTime}ms`
-                            : `All tests in ${testClass} passed in ${runTime}ms`;
-                        console.log(`[VisbalExt.TestClassExplorerView] [EXECUTION] ${successMessage}`);
-                        vscode.window.showInformationMessage(successMessage);
-
-                        // Wait a moment for the test to fully complete and logs to be available
-                        await new Promise(resolve => setTimeout(resolve, 2000));
-						
-						
-
-
-                        // Now fetch the log
-                        try {
-                            console.log('[VisbalExt.TestClassExplorerView] Fetching test run log for:', result.testRunId);
-                            const logResult = await this._metadataService.getTestRunLog(result.testRunId);
-                            
-                            if (logResult && logResult.logPath) {
-                                console.log('[VisbalExt.TestClassExplorerView] Log file created at:', logResult.logPath);
-                                vscode.window.showInformationMessage(`Test log saved to: ${logResult.logPath}`);
-                            }
-                        } catch (logError) {
-                            console.error('[VisbalExt.TestClassExplorerView] Error fetching test log:', logError);
-                            vscode.window.showWarningMessage(`Could not fetch test log: ${(logError as Error).message}`);
-                        }
-                    } else {
-                        console.error('[VisbalExt.TestClassExplorerView] [EXECUTION] Test failed:', message);
-                        vscode.window.showErrorMessage(`Test failed: ${message}`);
-                    }
-                } else {
-                    throw new Error('No test results found in the response');
+                // Update test run results view
+                console.log('[VisbalExt.TestClassExplorerView] Updating test run results view with successes and failures');
+                if (testRunResult.successes) {
+                    testRunResult.successes.forEach((success: TestRunSuccess) => {
+                        console.log(`[VisbalExt.TestClassExplorerView] Marking method as success: ${success.methodName}`);
+                        this._testRunResultsView.updateMethodStatus(testClass, success.methodName, 'success');
+                    });
                 }
-            } else {
-                throw new Error('No test run ID received from test execution');
-            }
+                if (testRunResult.failures) {
+                    testRunResult.failures.forEach((failure: TestRunFailure) => {
+                        console.log(`[VisbalExt.TestClassExplorerView] Marking method as failed: ${failure.methodName}`);
+                        this._testRunResultsView.updateMethodStatus(testClass, failure.methodName, 'failed');
+                    });
+                }
 
-            console.log('[VisbalExt.TestClassExplorerView] Test run ended');
+                // Update class status based on overall result
+                const hasFailures = testRunResult.failures && testRunResult.failures.length > 0;
+                console.log(`[VisbalExt.TestClassExplorerView] Updating class status to: ${hasFailures ? 'failed' : 'success'}`);
+                this._testRunResultsView.updateClassStatus(testClass, hasFailures ? 'failed' : 'success');
+            }
         } catch (error: any) {
             console.error('[VisbalExt.TestClassExplorerView] [EXECUTION] Error during test execution:', error);
-            this._statusBarService.showError(`Error running test: ${error.message}`);
-            vscode.window.showErrorMessage(`Failed to run test: ${error.message}`);
-            
-            // Send error to webview
-            if (this._view) {
-                this._view.webview.postMessage({
-                    command: 'error',
-                    message: `Error running test: ${error.message}`
-                });
+            this._testRunResultsView.updateClassStatus(testClass, 'failed');
+            if (testMethod) {
+                this._testRunResultsView.updateMethodStatus(testClass, testMethod, 'failed');
             }
+            vscode.window.showErrorMessage(`Error running tests: ${error.message}`);
         } finally {
             this._statusBarService.hide();
-            console.log('[VisbalExt.TestClassExplorerView] Status bar cleared');
         }
     }
     

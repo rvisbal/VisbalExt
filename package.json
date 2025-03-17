@@ -87,6 +87,13 @@
           "id": "testClassExplorerView",
           "name": "Test Classes",
           "type": "webview"
+        },
+        {
+          "type": "tree",
+          "id": "testRunResults",
+          "name": "Running Tests",
+          "icon": "$(test-view-icon)",
+          "contextualTitle": "Test Run Results"
         }
       ],
       "visbal-log-container": [
@@ -189,5 +196,8 @@
     "@vscode/codicons": "^0.0.35",
     "axios": "^1.6.7",
     "jsforce": "^1.11.1"
+  },
+  "resolutions": {
+    "@vscode/codicons": "^0.0.35"
   }
 }
