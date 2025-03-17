@@ -7,12 +7,12 @@ import { TestClassExplorerView } from './views/testClassExplorerView';
 import { salesforceApi } from './services/salesforceApiService';
 import { statusBarService } from './services/statusBarService';
 import { SoqlPanelView } from './views/soqlPanelView';
-import { ApexPanelView } from './views/apexPanelView';
 import { MetadataService } from './services/metadataService';
 import { StatusBarService } from './services/statusBarService';
 import { LogTreeView } from './views/logTreeView';
 import { DebugConsoleView } from './views/debugConsoleView';
 import { TestResultsView } from './views/testResultsView';
+import { SamplePanelView } from './views/samplePanelView';
 
 let outputChannel: vscode.OutputChannel;
 
@@ -25,7 +25,7 @@ export function activate(context: vscode.ExtensionContext) {
   outputChannel.appendLine('[VisbalExt.Extension] Activating Visbal Extension...');
   
   // Initialize status bar
-  statusBarService.showMessage('Visbal Extension activated', 'rocket');
+  statusBarService.showMessage('[VisbalExt.Extension] activated', 'rocket');
   context.subscriptions.push({ dispose: () => {
     statusBarService.dispose();
     outputChannel.dispose();
@@ -42,8 +42,8 @@ export function activate(context: vscode.ExtensionContext) {
     context
   );
   const soqlPanel = new SoqlPanelView(metadataService);
-  const apexPanel = new ApexPanelView(metadataService);
   const debugConsoleView = new DebugConsoleView(context.extensionUri);
+  const samplePanel = new SamplePanelView();
 
   // Register Test Explorer View (sidebar)
   context.subscriptions.push(
@@ -92,11 +92,11 @@ export function activate(context: vscode.ExtensionContext) {
     )
   );
 
-  // Register Apex Panel View (bottom panel)
+  // Register Sample Panel View (bottom panel)
   context.subscriptions.push(
     vscode.window.registerWebviewViewProvider(
-      'visbal-apex',
-      apexPanel,
+      'visbal-sample',
+      samplePanel,
       {
         webviewOptions: {
           retainContextWhenHidden: true
@@ -133,8 +133,8 @@ export function activate(context: vscode.ExtensionContext) {
   );
 
   context.subscriptions.push(
-    vscode.commands.registerCommand('visbal-ext.showVisbalApex', () => {
-      vscode.commands.executeCommand('workbench.view.extension.visbal-apex-container');
+    vscode.commands.registerCommand('visbal-ext.showVisbalSample', () => {
+      vscode.commands.executeCommand('workbench.view.extension.visbal-sample-container');
     })
   );
 
