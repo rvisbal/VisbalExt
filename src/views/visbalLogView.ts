@@ -2424,14 +2424,16 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
 
     private async _getLogContent(logId: string): Promise<string> {
         try {
+			console.log('[VisbalExt.VisbalLogView] _getLogContent -- logId:',logId);
             const tempFile = path.join(os.tmpdir(), `${logId}.log`);
             const command = `sf apex log get --log-id ${logId} > "${tempFile}"`;
+			console.log('[VisbalExt.VisbalLogView] _getLogContent -- command:',command);
             await this._executeCommand(command);
             const content = await readFile(tempFile, 'utf8');
             await unlink(tempFile);
             return content;
         } catch (error) {
-            console.error('Error getting log content:', error);
+            console.error('[VisbalExt.VisbalLogView] Error getting log content:', error);
             throw error;
         }
     }
@@ -2450,7 +2452,7 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
             const { stdout } = await execAsync(`sf apex log get --log-id ${logId}`, { maxBuffer: MAX_BUFFER_SIZE });
             return stdout;
         } catch (error) {
-            console.error('Error getting log content directly:', error);
+            console.error('[VisbalExt.VisbalLogView] Error getting log content directly:', error);
             throw error;
         }
     }
@@ -2484,7 +2486,7 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
             }
             throw new Error('Failed to create debug level');
         } catch (error) {
-            console.error('Error creating debug level:', error);
+            console.error('[VisbalExt.VisbalLogView] Error creating debug level:', error);
             throw error;
         }
     }
@@ -2550,7 +2552,7 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
             }
             throw new Error('Failed to create new debug level');
         } catch (error) {
-            console.error('Error creating new debug level:', error);
+            console.error('[VisbalExt.VisbalLogView] Error creating new debug level:', error);
             throw error;
         }
     }
@@ -2587,7 +2589,7 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
                 }
             }
         } catch (error) {
-            console.error('Error deleting all logs:', error);
+            console.error('[VisbalExt.VisbalLogView] Error deleting all logs:', error);
             throw error;
         }
     }

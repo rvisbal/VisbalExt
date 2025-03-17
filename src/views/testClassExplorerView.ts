@@ -273,6 +273,22 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                     const runTime = testResult.RunTime || 0;
                     const message = testResult.Message || '';
                     const stackTrace = testResult.StackTrace || '';
+					
+					
+					console.log('[VisbalExt.TestClassExplorerView] DOWNLOAD THE LOG');
+					
+					try {
+						
+						 const logIds = await this._metadataService.fetchSalesforceLogs(result.testRunId);
+						 if (logIds && logIds.length > 0) {
+							const logResult = await this._metadataService.getLogContent(logIds[0]);
+						 } else {
+							console.warn('[VisbalExt.TestClassExplorerView] No log IDs found for test run');
+						 }
+					}catch (logError) {
+						console.error('[VisbalExt.TestClassExplorerView] Error getLogContent:', logError);
+						vscode.window.showWarningMessage(`Could not fetch test log: ${(logError as Error).message}`);
+					}
 
                     if (success) {
                         console.log('[VisbalExt.TestClassExplorerView] Test passed');
@@ -284,6 +300,9 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
 
                         // Wait a moment for the test to fully complete and logs to be available
                         await new Promise(resolve => setTimeout(resolve, 2000));
+						
+						
+
 
                         // Now fetch the log
                         try {

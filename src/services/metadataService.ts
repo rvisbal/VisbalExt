@@ -2,6 +2,8 @@ import * as vscode from 'vscode';
 import { exec } from 'child_process';
 import { promisify } from 'util';
 import * as os from 'os';
+import * as path from 'path';
+import { readFile, unlink } from 'fs/promises';
 
 const execAsync = promisify(exec);
 
@@ -366,7 +368,7 @@ export class MetadataService {
             const result = await this.executeCliCommand(`sf apex get test --test-run-id ${testRunId} --json`);
             const parsedResult = JSON.parse(result);
             console.log('[VisbalExt.MetadataService] Test run result retrieved:', parsedResult);
-
+			console.log('[VisbalExt.MetadataService] TEST FINISH');
             // Return the result immediately - log fetching will be handled separately after test completion
             return parsedResult.result || null;
         } catch (error) {
@@ -490,4 +492,91 @@ export class MetadataService {
             throw error;
         }
     }
+	
+	
+	//#region LOGFILE
+    // Add this method to execute commands
+    private async _executeCommand(command: string): Promise<string> {
+        return new Promise<string>((resolve, reject) => {
+            exec(command, { maxBuffer: 1024 * 1024 * 10 }, (error, stdout, stderr) => {
+                if (error) {
+                    console.error(`[VisbalExt.MetadataService] Error executing command: ${command}`, error);
+                    reject(error);
+                    return;
+                }
+                
+                if (stderr && stderr.length > 0) {
+                    console.warn(`[VisbalExt.MetadataService] Command produced stderr: ${command}`, stderr);
+                }
+                
+                resolve(stdout);
+            });
+        });
+    }
+
+
+	 public async getLogContent(logId: string): Promise<string> {
+        try {
+			console.log('[VisbalExt.MetadataService] getLogContent -- logId:',logId);
+            const tempFile = path.join(os.tmpdir(), `${logId}.log`);
+            const command = `sf apex log get --log-id ${logId} > "${tempFile}"`;
+			console.log('[VisbalExt.MetadataService] getLogContent -- command:',command);
+            await this._executeCommand(command);
+            const content = await readFile(tempFile, 'utf8');
+            await unlink(tempFile);
+            return content;
+        } catch (error) {
+            console.error('[VisbalExt.MetadataService] Error getting log content:', error);
+            throw error;
+        }
+    }
+	
+	
+	public async fetchSalesforceLogs(apexId: string): Promise<string[]> {
+        try {
+            console.log('[VisbalExt.MetadataService] fetchSalesforceLogs -- apexId:', apexId);
+
+            // Get test run details to ensure it exists and get potential log Ids.
+            const testRunDetailsCommand = `sf apex get test --test-run-id ${apexId} --json`;
+            console.log('[VisbalExt.MetadataService] fetchSalesforceLogs -- testRunDetailsCommand:', testRunDetailsCommand);
+            const testRunDetailsResult = await this._executeCommand2(testRunDetailsCommand);
+            console.log(`[VisbalExt.MetadataService] fetchSalesforceLogs testRunDetailsResult`, testRunDetailsResult);
+
+            // Get the log IDs associated with the test run.
+            const logListCommand = `sf apex log list --test-run-id ${apexId} --json`;
+            console.log('[VisbalExt.MetadataService] fetchSalesforceLogs -- logListCommand:', logListCommand);
+            const logListResult = await this._executeCommand2(logListCommand);
+            console.log(`[VisbalExt.MetadataService] fetchSalesforceLogs logListResult`, logListResult);
+
+            // Parse the JSON output and extract the log IDs.
+            const logListJson = JSON.parse(logListResult.stdout);
+            const logIds: string[] = Array.isArray(logListJson) ? logListJson.map((log: any) => log.Id) : [];
+            console.log('[VisbalExt.MetadataService] fetchSalesforceLogs -- logIds:', logIds);
+
+            return logIds;
+        } catch (error) {
+            console.error('[VisbalExt.MetadataService] fetchSalesforceLogs -- error:', error);
+            throw error;
+        }
+    }
+	
+	
+	private async _executeCommand2(command: string): Promise<{ stdout: string; stderr: string }> {
+        return new Promise((resolve, reject) => {
+            exec(command, (error: Error | null, stdout: string, stderr: string) => {
+                if (error) {
+                    // If there's an error but we still have output, return the output
+                    if (stdout || stderr) {
+                        resolve({ stdout: stdout || '', stderr: stderr || '' });
+                    } else {
+                        reject(error);
+                    }
+                } else {
+                    resolve({ stdout, stderr });
+                }
+            });
+        });
+    }
+
+	//#endregion LOGFILE
 } 
