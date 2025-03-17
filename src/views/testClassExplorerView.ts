@@ -271,6 +271,13 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
         console.log(`[VisbalExt.TestClassExplorerView] [EXECUTION] Starting test run for class: ${testClass}${testMethod ? `, method: ${testMethod}` : ''}`);
         
         try {
+            // Show running state in the webview
+            if (this._view) {
+                this._view.webview.postMessage({
+                    command: 'testRunStarted'
+                });
+            }
+
             this._statusBarService.showMessage('$(sync~spin) Running test...');
             
             // Execute the test
@@ -382,6 +389,14 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
     private async _runSelectedTests(tests: { classes: string[], methods: { className: string, methodName: string }[] }) {
         try {
             const totalCount = tests.classes.length + tests.methods.length;
+            
+            // Show running state in the webview
+            if (this._view) {
+                this._view.webview.postMessage({
+                    command: 'testRunStarted'
+                });
+            }
+
             this._statusBarService.showMessage(`$(beaker~spin) Running ${totalCount} selected tests...`);
             
             // Check if Salesforce Extension Pack is installed
@@ -750,6 +765,15 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                     display: inline-block;
                     text-align: center;
                     vertical-align: middle;
+                }
+                .running-tests {
+                    display: flex;
+                    align-items: center;
+                    color: var(--vscode-foreground);
+                    font-size: 13px;
+                }
+                .running-tests .spinner {
+                    margin-right: 8px;
                 }
             </style>
         </head>
@@ -1389,6 +1413,14 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                             case 'showNotification':
                                 console.log('[VisbalExt.TestClassExplorerView] Notification:', message.message);
                                 showNotification(message.message);
+                                break;
+                            case 'testRunStarted':
+                                document.getElementById('testResults').innerHTML = \`
+                                    <div class="running-tests">
+                                        <div class="spinner"></div>
+                                        <span>Running methods...</span>
+                                    </div>
+                                \`;
                                 break;
                         }
                     });
