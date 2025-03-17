@@ -4,6 +4,7 @@ import { MetadataService, TestMethod } from '../services/metadataService';
 import { join } from 'path';
 import { readFileSync, writeFileSync } from 'fs';
 import { existsSync, mkdirSync } from 'fs';
+import { VisbalLogView } from './visbalLogView';
 
 // Add TestClass interface at the top of the file
 interface TestClass {
@@ -27,16 +28,19 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
     private _cachedTestMethods: Map<string, TestMethod[]> = new Map(); // Cache for test methods
     private _testController: vscode.TestController;
     private _testItems: Map<string, vscode.TestItem>;
+    private _visbalLogView: VisbalLogView;
 
     constructor(
         extensionUri: vscode.Uri,
-        statusBarService: StatusBarService
+        statusBarService: StatusBarService,
+        private readonly _context: vscode.ExtensionContext
     ) {
         this._extensionUri = extensionUri;
         this._statusBarService = statusBarService;
         this._metadataService = new MetadataService();
         this._testController = vscode.tests.createTestController('testClassExplorerView', 'Test Class Explorer');
         this._testItems = new Map();
+        this._visbalLogView = new VisbalLogView(this._context);
     }
 
     public resolveWebviewView(
@@ -302,11 +306,16 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
 					
 					console.log('[VisbalExt.TestClassExplorerView] DOWNLOAD THE LOG');
 					
+                  
+
 					try {
 						
 						 const logId = await this._metadataService.getTestLogId(result.testRunId);
 						 if (logId) {
-							const logResult = await this._metadataService.getLogContent(logId);
+                           await this._visbalLogView.downloadLog(logId);
+                            await this._visbalLogView.openLog(logId);
+                            //download the log with json values
+							//const logResult = await this._metadataService.getLogContent(logId);
 						 } else {
 							console.warn('[VisbalExt.TestClassExplorerView] No log IDs found for test run');
 						 }

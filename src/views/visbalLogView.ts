@@ -100,11 +100,11 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
                     break;
                 case 'downloadLog':
                     console.log(`[VisbalExt.VisbalLogView] resolveWebviewView -- Downloading log: ${message.logId}`);
-                    await this._downloadLog(message.logId);
+                    await this.downloadLog(message.logId);
                     break;
                 case 'openLog':
                     console.log(`[VisbalExt.VisbalLogView] resolveWebviewView -- Opening log: ${message.logId}`);
-                    await this._openLog(message.logId);
+                    await this.openLog(message.logId);
                     break;
                 case 'toggleDownloaded':
                     console.log(`[VisbalExt.VisbalLogView] resolveWebviewView -- Toggling downloaded status for log: ${message.logId} to ${message.downloaded}`);
@@ -231,16 +231,16 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
      * Opens a log directly in the editor
      * @param logId The ID of the log to open
      */
-    private async _openLog(logId: string): Promise<void> {
-        console.log(`[VisbalExt.VisbalLogView] _openLog -- Starting to open log: ${logId}`);
+    public async openLog(logId: string): Promise<void> {
+        console.log(`[VisbalExt.VisbalLogView] openLog -- Starting to open log: ${logId}`);
         if (!this._view) {
-            console.log('[VisbalExt.VisbalLogView] _openLog -- View is not available, cannot open log');
+            console.log('[VisbalExt.VisbalLogView] openLog -- View is not available, cannot open log');
             return;
         }
 
         try {
             // Show loading state
-            console.log('[VisbalExt.VisbalLogView] _openLog -- Sending opening status to webview');
+            console.log('[VisbalExt.VisbalLogView] openLog -- Sending opening status to webview');
             this._view.webview.postMessage({ 
                 command: 'downloadStatus', 
                 logId: logId, 
@@ -250,14 +250,14 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
             // Check if we have a local copy of the log
             const localFilePath = this._downloadedLogPaths.get(logId);
             if (localFilePath && fs.existsSync(localFilePath)) {
-                console.log(`[VisbalExt.VisbalLogView] _openLog -- Found local file: ${localFilePath}`);
+                console.log(`[VisbalExt.VisbalLogView] openLog -- Found local file: ${localFilePath}`);
                 
                 // Open the log in the detail view
-                console.log(`[VisbalExt.VisbalLogView] _openLog -- Opening log in detail view: ${localFilePath}`);
+                console.log(`[VisbalExt.VisbalLogView] openLog -- Opening log in detail view: ${localFilePath}`);
                 LogDetailView.createOrShow(this._extensionUri, localFilePath, logId);
                 
                 // Update status in the view
-                console.log('[VisbalExt.VisbalLogView] _openLog -- Sending success status to webview');
+                console.log('[VisbalExt.VisbalLogView] openLog -- Sending success status to webview');
                 this._view.webview.postMessage({ 
                     command: 'downloadStatus', 
                     logId: logId, 
@@ -268,27 +268,27 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
                 return;
             }
             
-            console.log(`[VisbalExt.VisbalLogView] _openLog -- No local file found for log: ${logId}, fetching from org`);
+            console.log(`[VisbalExt.VisbalLogView] openLog -- No local file found for log: ${logId}, fetching from org`);
 
             // Fetch the log content
-            console.log(`[VisbalExt.VisbalLogView] _openLog -- Fetching content for log: ${logId}`);
+            console.log(`[VisbalExt.VisbalLogView] openLog -- Fetching content for log: ${logId}`);
             const logContent = await this._fetchLogContent(logId);
-            console.log(`[VisbalExt.VisbalLogView] _openLog -- Received log content, length: ${logContent.length} characters`);
+            console.log(`[VisbalExt.VisbalLogView] openLog -- Received log content, length: ${logContent.length} characters`);
 
             // Create a temporary file
             // Sanitize the log ID to avoid any issues with special characters
             const sanitizedLogId = logId.replace(/[\/\\:*?"<>|]/g, '_');
             const timestamp = new Date().toISOString().replace(/:/g, '-');
             const tempFile = path.join(os.tmpdir(), `sf_${sanitizedLogId}_${timestamp}.log`);
-            console.log(`[VisbalExt.VisbalLogView] _openLog -- Creating temporary file: ${tempFile}`);
+            console.log(`[VisbalExt.VisbalLogView] openLog -- Creating temporary file: ${tempFile}`);
             fs.writeFileSync(tempFile, logContent);
 
             // Open the log in the detail view
-            console.log(`[VisbalExt.VisbalLogView] _openLog -- Opening log in detail view: ${tempFile}`);
+            console.log(`[VisbalExt.VisbalLogView] openLog -- Opening log in detail view: ${tempFile}`);
             LogDetailView.createOrShow(this._extensionUri, tempFile, logId);
 
             // Update download status in the view
-            console.log('[VisbalExt.VisbalLogView] _openLog -- Sending success status to webview');
+            console.log('[VisbalExt.VisbalLogView] openLog -- Sending success status to webview');
             this._view.webview.postMessage({ 
                 command: 'downloadStatus', 
                 logId: logId, 
@@ -299,13 +299,13 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
             this._downloadedLogs.add(logId);
             this._saveDownloadedLogs();
         } catch (error: any) {
-            console.error(`[VisbalExt.VisbalLogView] _openLog -- Error opening log ${logId}:`, error);
+            console.error(`[VisbalExt.VisbalLogView] openLog -- Error opening log ${logId}:`, error);
             
             // Show error message
             vscode.window.showErrorMessage(`Failed to open log: ${error.message}`);
             
             // Update status in the view
-            console.log('[VisbalExt.VisbalLogView] _openLog -- Sending error status to webview');
+            console.log('[VisbalExt.VisbalLogView] openLog -- Sending error status to webview');
             this._view.webview.postMessage({ 
                 command: 'downloadStatus', 
                 logId: logId, 
@@ -319,9 +319,9 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
      * Downloads a log
      * @param logId The ID of the log to download
      */
-    private async _downloadLog(logId: string): Promise<void> {
+    public async downloadLog(logId: string): Promise<void> {
         try {
-            console.log(`[VisbalExt.VisbalLogView] _downloadLog -- Downloading log: ${logId}`);
+            console.log(`[VisbalExt.VisbalLogView] downloadLog -- Downloading log: ${logId}`);
             statusBarService.showProgress(`Downloading log: ${logId}...`);
 
             this._isLoading = true;
@@ -552,7 +552,7 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
             await vscode.window.showTextDocument(document);
             
         } catch (error: any) {
-            console.error(`[VisbalExt.VisbalLogView] _downloadLog -- Error downloading log ${logId}:`, error);
+            console.error(`[VisbalExt.VisbalLogView] downloadLog -- Error downloading log ${logId}:`, error);
             statusBarService.showError(`Error downloading log: ${error.message}`);
             vscode.window.showErrorMessage(`Failed to download log: ${error.message}`);
         } finally {

@@ -60,7 +60,11 @@ export function activate(context: vscode.ExtensionContext) {
 
   // Create view providers
   const visbalLogViewProvider = new VisbalLogView(context);
-  const testExplorer = new TestClassExplorerView(context.extensionUri, statusBarService);
+  const testExplorer = new TestClassExplorerView(
+    context.extensionUri,
+    statusBarService,
+    context
+  );
   const soqlPanel = new SoqlPanelView(metadataService);
   const apexPanel = new ApexPanelView(metadataService);
 
