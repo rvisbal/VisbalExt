@@ -76,6 +76,11 @@
           "id": "testExplorerContainer",
           "title": "Visbal Test",
           "icon": "$(beaker)"
+        },
+        {
+          "id": "visbal-debug",
+          "title": "Visbal Debug",
+          "icon": "$(debug-alt)"
         }
       ]
     },
@@ -104,6 +109,22 @@
           "type": "webview",
           "id": "visbal-gitLens",
           "name": "GitLens"
+        },
+        {
+          "id": "logTreeView",
+          "name": "Log Tree",
+          "type": "tree",
+          "icon": "$(list-tree)"
+        },
+        {
+          "id": "visbal-debug-console",
+          "name": "Debug Console",
+          "type": "webview"
+        },
+        {
+          "id": "visbal-test-results",
+          "name": "Test Results",
+          "type": "webview"
         }
       ],
       "testExplorerContainer": [
