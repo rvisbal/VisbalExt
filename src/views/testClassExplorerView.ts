@@ -600,21 +600,8 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                     padding: 5px;
                     min-height: 100px;
                 }
-                .bottom-container {
-                    height: 400px;
-                    min-height: 100px;
-                    overflow: auto;
-                    margin-top: 5px;
-                    border: 1px solid var(--vscode-panel-border);
-                    padding: 5px;
-                    resize: vertical;
-                }
-                .resizer {
-                    height: 5px;
-                    background: var(--vscode-panel-border);
-                    cursor: ns-resize;
-                    margin: 5px 0;
-                }
+   
+               
                 .actions {
                     margin-bottom: 5px;
                     display: flex;
@@ -849,11 +836,6 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                             No test classes found. Click the refresh button to fetch test classes.
                         </div>
                         <div id="testClassesList"></div>
-                    </div>
-                    <div class="resizer" id="resizer"></div>
-                    <div class="bottom-container" id="bottomContainer">
-                        <h3>Test Results</h3>
-                        <div id="testResults">No test results available</div>
                     </div>
                 </div>
             </div>
@@ -1471,38 +1453,9 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                     // Initial fetch without force refresh
                     fetchTestClasses(false);
 
-                    // Add resizer functionality
-                    const testClassesContainer = document.getElementById('testClassesContainer');
-                    const bottomContainer = document.getElementById('bottomContainer');
-                    const resizer = document.getElementById('resizer');
-                    let isResizing = false;
-                    let startY;
-                    let startHeightBottom;
+                   
 
-                    resizer.addEventListener('mousedown', initResize, false);
-
-                    function initResize(e) {
-                        isResizing = true;
-                        startY = e.clientY;
-                        startHeightBottom = bottomContainer.offsetHeight;
-                        
-                        document.addEventListener('mousemove', resize, false);
-                        document.addEventListener('mouseup', stopResize, false);
-                    }
-
-                    function resize(e) {
-                        if (!isResizing) return;
-                        
-                        const deltaY = startY - e.clientY;
-                        const newHeight = Math.max(100, startHeightBottom + deltaY);
-                        bottomContainer.style.height = newHeight + 'px';
-                    }
-
-                    function stopResize() {
-                        isResizing = false;
-                        document.removeEventListener('mousemove', resize, false);
-                        document.removeEventListener('mouseup', stopResize, false);
-                    }
+                   
                 })();
             </script>
         </body>
