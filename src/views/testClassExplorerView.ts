@@ -109,7 +109,7 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
         webviewView.webview.html = this._getHtmlForWebview(webviewView.webview);
 
         webviewView.webview.onDidReceiveMessage(async (data) => {
-            console.log('[VisbalExt.TestClassExplorerView] Received message from webview:', data);
+            console.log('[VisbalExt.TestClassExplorerView] webview -- Received message from webview:', data);
             switch (data.command) {
                 case 'fetchTestClasses':
                     await this._fetchTestClasses(data.forceRefresh);
@@ -1214,7 +1214,7 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                         // Find the methods list element for this class
                         const classItem = document.querySelector('.test-class-item[data-class-name="' + className + '"]');
                         if (!classItem) {
-                            console.error('[VisbalExt.TestClassExplorerView]Could not find class item for ' + className);
+                            console.error('[VisbalExt.TestClassExplorerView] Could not find class item for ' + className);
                             return;
                         }
                         
@@ -1230,15 +1230,19 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                         // Mark as loaded
                         methodsList.dataset.loaded = 'true';
                         
-                        // Filter out @TestSetup methods and keep only @IsTest methods
+                        // Filter out @TestSetup methods
                         const filteredMethods = testMethods.filter(method => {
-                            const annotations = method.annotations || [];
-                            return annotations.some(a => a.name.toLowerCase() === 'istest') && 
-                                   !annotations.some(a => a.name.toLowerCase() === 'testsetup');
+                            // Check if the method has annotations
+                            if (method.annotations) {
+                                // Exclude if it has @TestSetup annotation
+                                return !method.annotations.some(a => 
+                                    a.name.toLowerCase() === 'testsetup'
+                                );
+                            }
+                            return true; // Include methods without annotations
                         });
-                        console.log('[VisbalExt.TestClassExplorerView] Rendering test methods for ' + className + ':', filteredMethods);
                         
-                        if (!testMethods || testMethods.length === 0) {
+                        if (!filteredMethods || filteredMethods.length === 0) {
                             const noMethodsItem = document.createElement('li');
                             noMethodsItem.textContent = 'No test methods found in this class.';
                             noMethodsItem.style.fontStyle = 'italic';
@@ -1248,9 +1252,9 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                         }
                         
                         // Add each test method to the list
-                         testMethods.forEach(function(method) {
-                                const methodLi = document.createElement('li');
-                                methodLi.className = 'test-method-item';
+                        filteredMethods.forEach(function(method) {
+                            const methodLi = document.createElement('li');
+                            methodLi.className = 'test-method-item';
                             
                             // Add checkbox for method selection
                             const checkboxContainer = document.createElement('div');
@@ -1293,7 +1297,7 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                                 methodLi.appendChild(methodNameSpan);
                                 methodLi.appendChild(runMethodButton);
                                 methodsList.appendChild(methodLi);
-                            });
+                        });
                     }
                     
                     function runTest(testClass, testMethod) {
