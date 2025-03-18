@@ -98,33 +98,67 @@ export class SamplePanelView implements vscode.WebviewViewProvider {
                     color: var(--vscode-foreground);
                 }
                 .container {
-                    padding: 20px;
                     display: flex;
                     flex-direction: column;
-                    gap: 16px;
-                    height: 100%;
+                    height: 100vh;
                 }
-                button {
-                    background: var(--vscode-button-background);
-                    color: var(--vscode-button-foreground);
-                    border: none;
+                .header {
+                    display: flex;
+                    align-items: center;
+                    gap: 8px;
                     padding: 8px 12px;
+                    background: var(--vscode-editor-background);
+                }
+                .editor-header {
+                    display: flex;
+                    align-items: center;
+                    justify-content: space-between;
+                    margin-bottom: 12px;
+                }
+                .tabs {
+                    display: flex;
+                    padding: 0 20px;
+                    background: var(--vscode-tab-inactiveBackground);
+                    border-bottom: 1px solid var(--vscode-tab-border);
+                }
+                .tab {
+                    padding: 8px 16px;
                     cursor: pointer;
-                    border-radius: 2px;
-                    align-self: flex-start;
+                    border: none;
+                    background: none;
+                    color: var(--vscode-tab-inactiveForeground);
+                    border-bottom: 2px solid transparent;
                 }
-                button:hover {
-                    background: var(--vscode-button-hoverBackground);
+                .tab.active {
+                    background: var(--vscode-tab-activeBackground);
+                    color: var(--vscode-tab-activeForeground);
+                    border-bottom: 2px solid var(--vscode-focusBorder);
                 }
-                button:disabled {
-                    opacity: 0.5;
-                    cursor: not-allowed;
+                .tab:hover:not(.active) {
+                    background: var(--vscode-tab-hoverBackground);
+                }
+                .content {
+                    flex: 1;
+                    display: none;
+                    padding: 20px;
+                }
+                .content.active {
+                    display: flex;
+                    flex-direction: column;
+                }
+                .editor-container {
+                    display: flex;
+                    flex-direction: column;
+                    gap: 8px;
+                    flex: 1;
+                    min-height: 100px;
                 }
                 .textarea-container {
                     display: flex;
                     flex-direction: column;
                     gap: 8px;
                     flex: 1;
+                    position: relative;
                 }
                 .textarea-label {
                     color: var(--vscode-foreground);
@@ -138,8 +172,9 @@ export class SamplePanelView implements vscode.WebviewViewProvider {
                     padding: 8px;
                     font-family: var(--vscode-editor-font-family);
                     font-size: var(--vscode-editor-font-size);
-                    resize: vertical;
+                    resize: both;
                     min-height: 100px;
+                    min-width: 200px;
                     border-radius: 2px;
                     flex: 1;
                 }
@@ -150,7 +185,31 @@ export class SamplePanelView implements vscode.WebviewViewProvider {
                 .char-count {
                     color: var(--vscode-descriptionForeground);
                     font-size: 11px;
-                    align-self: flex-end;
+                    position: absolute;
+                    bottom: 8px;
+                    right: 8px;
+                    background: var(--vscode-input-background);
+                    padding: 2px 4px;
+                    border-radius: 2px;
+                    opacity: 0.8;
+                }
+                button {
+                    background: var(--vscode-button-background);
+                    color: var(--vscode-button-foreground);
+                    border: none;
+                    padding: 8px 12px;
+                    cursor: pointer;
+                    border-radius: 2px;
+                    display: flex;
+                    align-items: center;
+                    gap: 6px;
+                }
+                button:hover {
+                    background: var(--vscode-button-hoverBackground);
+                }
+                button:disabled {
+                    opacity: 0.5;
+                    cursor: not-allowed;
                 }
                 .output-container {
                     background: var(--vscode-input-background);
@@ -172,25 +231,44 @@ export class SamplePanelView implements vscode.WebviewViewProvider {
                     color: var(--vscode-foreground);
                     font-style: italic;
                 }
+                .codicon {
+                    font-family: codicon;
+                    font-size: 16px;
+                    line-height: 16px;
+                }
             </style>
         </head>
         <body>
             <div class="container">
-                <h2>Visbal Sample Panel</h2>
-                <div class="textarea-container">
-                    <label class="textarea-label" for="sampleTextarea">Enter your Apex code:</label>
-                    <textarea 
-                        id="sampleTextarea" 
-                        placeholder="Type something here..."
-                        rows="6"
-                        maxlength="1000"
-                        aria-label="Sample text input area"
-                    >System.debug('Hello World');</textarea>
-                    <div class="char-count">0 / 1000 characters</div>
+                <div class="tabs">
+                    <button class="tab active" data-tab="editor">Editor</button>
+                    <button class="tab" data-tab="results">Results</button>
                 </div>
-                <button id="executeButton" onclick="executeApex()">Execute Apex</button>
-                <div id="outputContainer" class="output-container">
-                    Execute Apex code to see results here
+                <div id="editorContent" class="content active">
+                    <div class="editor-container">
+                        <div class="editor-header">
+                            <label class="textarea-label" for="sampleTextarea">Enter your Apex code:</label>
+                            <button id="executeButton" onclick="executeApex()" title="Execute Apex Code">
+                                <span class="codicon">$(play)</span>
+                                Execute Apex
+                            </button>
+                        </div>
+                        <div class="textarea-container">
+                            <textarea 
+                                id="sampleTextarea" 
+                                placeholder="Type something here..."
+                                rows="6"
+                                maxlength="1000"
+                                aria-label="Sample text input area"
+                            >System.debug('Hello World');</textarea>
+                            <div class="char-count">0 / 1000 characters</div>
+                        </div>
+                    </div>
+                </div>
+                <div id="resultsContent" class="content">
+                    <div id="outputContainer" class="output-container">
+                        Execute Apex code to see results here
+                    </div>
                 </div>
             </div>
             <script>
@@ -200,6 +278,37 @@ export class SamplePanelView implements vscode.WebviewViewProvider {
                     const charCount = document.querySelector('.char-count');
                     const executeButton = document.getElementById('executeButton');
                     const outputContainer = document.getElementById('outputContainer');
+                    const tabs = document.querySelectorAll('.tab');
+                    const contents = document.querySelectorAll('.content');
+                    
+                    // Tab switching
+                    tabs.forEach(tab => {
+                        tab.addEventListener('click', () => {
+                            const tabId = tab.getAttribute('data-tab');
+                            
+                            // Update tab states
+                            tabs.forEach(t => t.classList.remove('active'));
+                            tab.classList.add('active');
+                            
+                            // Update content states
+                            contents.forEach(content => {
+                                if (content.id === tabId + 'Content') {
+                                    content.classList.add('active');
+                                } else {
+                                    content.classList.remove('active');
+                                }
+                            });
+                        });
+                    });
+
+                    // Switch to results tab when executing
+                    function switchToResultsTab() {
+                        tabs.forEach(tab => {
+                            if (tab.getAttribute('data-tab') === 'results') {
+                                tab.click();
+                            }
+                        });
+                    }
                     
                     // Update character count
                     function updateCharCount() {
@@ -224,6 +333,7 @@ export class SamplePanelView implements vscode.WebviewViewProvider {
                                 executeButton.disabled = true;
                                 outputContainer.className = 'output-container';
                                 outputContainer.innerHTML = '<div class="loading">Executing Apex code...</div>';
+                                switchToResultsTab();
                                 break;
                                 
                             case 'executionResult':
