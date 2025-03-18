@@ -17,6 +17,12 @@ import { TestRunResultsView } from './views/testRunResultsView';
 
 let outputChannel: vscode.OutputChannel;
 
+// Configuration helper function
+function isModuleEnabled(moduleName: string): boolean {
+  const config = vscode.workspace.getConfiguration('visbal');
+  return config.get(`modules.${moduleName}.enabled`, true);
+}
+
 // This method is called when your extension is activated
 export function activate(context: vscode.ExtensionContext) {
   // Create output channel
@@ -37,155 +43,165 @@ export function activate(context: vscode.ExtensionContext) {
   const metadataService = new MetadataService();
   context.subscriptions.push(statusBarService);
 
-  // Initialize test run results view first
-  console.log('[VisbalExt.Extension] Initializing TestRunResultsView');
-  outputChannel.appendLine('[VisbalExt.Extension] Initializing TestRunResultsView');
-  const testRunResultsView = new TestRunResultsView(context);
-
-  // Initialize test results view
-  console.log('[VisbalExt.Extension] Initializing TestResultsView');
-  outputChannel.appendLine('[VisbalExt.Extension] Initializing TestResultsView');
-  const testResultsView = new TestResultsView(context.extensionUri);
-
   // Initialize debug console view
   console.log('[VisbalExt.Extension] Initializing DebugConsoleView');
   outputChannel.appendLine('[VisbalExt.Extension] Initializing DebugConsoleView');
   const debugConsoleView = new DebugConsoleView(context.extensionUri);
 
-  // Initialize test class explorer view with test results view
-  console.log('[VisbalExt.Extension] Initializing TestClassExplorerView');
-  outputChannel.appendLine('[VisbalExt.Extension] Initializing TestClassExplorerView');
-  const testClassExplorerView = new TestClassExplorerView(
-    context.extensionUri,
-    statusBarService,
-    context,
-    testRunResultsView,
-    testResultsView // Pass the shared testResultsView instance
-  );
+  // Declare views that might be conditionally initialized
+  let testRunResultsView: TestRunResultsView | undefined;
+  let visbalLogViewProvider: VisbalLogView | undefined;
+  let soqlPanel: SoqlPanelView | undefined;
+  let samplePanel: SamplePanelView | undefined;
 
-  // Create view providers
-  const visbalLogViewProvider = new VisbalLogView(context);
-  const soqlPanel = new SoqlPanelView(metadataService);
-  const samplePanel = new SamplePanelView();
-
-  // Register views
-  console.log('[VisbalExt.Extension] Registering views');
-  outputChannel.appendLine('[VisbalExt.Extension] Registering views');
-
-  // Register test class explorer view
+  // Watch for configuration changes
   context.subscriptions.push(
-    vscode.window.registerWebviewViewProvider(
-      TestClassExplorerView.viewType,
-      testClassExplorerView
-    )
-  );
-
-  // Register test run results view
-  console.log('[VisbalExt.Extension] Registering TestRunResultsView');
-  outputChannel.appendLine('[VisbalExt.Extension] Registering TestRunResultsView');
-  const treeView = vscode.window.createTreeView('testRunResults', {
-    treeDataProvider: testRunResultsView.getProvider(),
-    showCollapseAll: true
-  });
-  context.subscriptions.push(treeView);
-
-  // Register test results view
-  console.log('[VisbalExt.Extension] Registering TestResultsView');
-  outputChannel.appendLine('[VisbalExt.Extension] Registering TestResultsView');
-  context.subscriptions.push(
-    vscode.window.registerWebviewViewProvider(
-      'visbal-test-summary',  // Changed ID to avoid conflict
-      testResultsView,
-      {
-        webviewOptions: {
-          retainContextWhenHidden: true
-        }
+    vscode.workspace.onDidChangeConfiguration(e => {
+      if (e.affectsConfiguration('visbal.modules')) {
+        vscode.window.showInformationMessage('Visbal Extension configuration changed. Please reload the window to apply changes.');
       }
-    )
+    })
   );
+
+  // Initialize views based on configuration
+  if (isModuleEnabled('testExplorer')) {
+    // Initialize test run results view first
+    console.log('[VisbalExt.Extension] Initializing TestRunResultsView');
+    outputChannel.appendLine('[VisbalExt.Extension] Initializing TestRunResultsView');
+    testRunResultsView = new TestRunResultsView(context);
+
+    // Initialize test results view
+    console.log('[VisbalExt.Extension] Initializing TestResultsView');
+    outputChannel.appendLine('[VisbalExt.Extension] Initializing TestResultsView');
+    const testResultsView = new TestResultsView(context.extensionUri);
+
+    // Initialize test class explorer view with test results view
+    console.log('[VisbalExt.Extension] Initializing TestClassExplorerView');
+    outputChannel.appendLine('[VisbalExt.Extension] Initializing TestClassExplorerView');
+    const testClassExplorerView = new TestClassExplorerView(
+      context.extensionUri,
+      statusBarService,
+      context,
+      testRunResultsView,
+      testResultsView
+    );
+
+    // Register test class explorer view
+    context.subscriptions.push(
+      vscode.window.registerWebviewViewProvider(
+        TestClassExplorerView.viewType,
+        testClassExplorerView
+      )
+    );
+
+    // Register test run results view
+    const treeView = vscode.window.createTreeView('testRunResults', {
+      treeDataProvider: testRunResultsView.getProvider(),
+      showCollapseAll: true
+    });
+    context.subscriptions.push(treeView);
+
+    // Register test results view
+    context.subscriptions.push(
+      vscode.window.registerWebviewViewProvider(
+        'visbal-test-summary',
+        testResultsView,
+        {
+          webviewOptions: {
+            retainContextWhenHidden: true
+          }
+        }
+      )
+    );
+  }
+
+  if (isModuleEnabled('logAnalyzer')) {
+    // Create and register Visbal Log View
+    visbalLogViewProvider = new VisbalLogView(context);
+    context.subscriptions.push(
+      vscode.window.registerWebviewViewProvider(
+        'visbal-log',
+        visbalLogViewProvider,
+        {
+          webviewOptions: {
+            retainContextWhenHidden: true
+          }
+        }
+      )
+    );
+
+    // Register the Refresh Visbal Log command
+    context.subscriptions.push(
+      vscode.commands.registerCommand('visbal-ext.refreshVisbalLog', () => {
+        visbalLogViewProvider?.refresh();
+      })
+    );
+  }
+
+  if (isModuleEnabled('soqlQuery')) {
+    // Create and register SOQL Panel
+    soqlPanel = new SoqlPanelView(metadataService);
+    context.subscriptions.push(
+      vscode.window.registerWebviewViewProvider(
+        'visbal-soql',
+        soqlPanel,
+        {
+          webviewOptions: {
+            retainContextWhenHidden: true
+          }
+        }
+      )
+    );
+  }
+
+  if (isModuleEnabled('samplePanel')) {
+    // Create and register Sample Panel
+    samplePanel = new SamplePanelView();
+    context.subscriptions.push(
+      vscode.window.registerWebviewViewProvider(
+        'visbal-sample',
+        samplePanel,
+        {
+          webviewOptions: {
+            retainContextWhenHidden: true
+          }
+        }
+      )
+    );
+  }
+
+  // Register commands for panel activation (only if respective modules are enabled)
+  if (isModuleEnabled('logAnalyzer')) {
+    context.subscriptions.push(
+      vscode.commands.registerCommand('visbal-ext.showVisbalLog', () => {
+        vscode.commands.executeCommand('workbench.view.extension.visbal-log-container');
+      })
+    );
+  }
+
+  if (isModuleEnabled('soqlQuery')) {
+    context.subscriptions.push(
+      vscode.commands.registerCommand('visbal-ext.showVisbalSoql', () => {
+        vscode.commands.executeCommand('workbench.view.extension.visbal-soql-container');
+      })
+    );
+  }
+
+  if (isModuleEnabled('samplePanel')) {
+    context.subscriptions.push(
+      vscode.commands.registerCommand('visbal-ext.showVisbalSample', () => {
+        vscode.commands.executeCommand('workbench.view.extension.visbal-sample-container');
+      })
+    );
+  }
 
   // Ensure the view container is visible
   vscode.commands.executeCommand('workbench.view.extension.visbal-test-container');
-
-  // Register Debug Console View
-  context.subscriptions.push(
-    vscode.window.registerWebviewViewProvider(
-      'visbal-log',
-      visbalLogViewProvider,
-      {
-        webviewOptions: {
-          retainContextWhenHidden: true
-        }
-      }
-    )
-  );
-
-  // Register Visbal Log View (bottom panel)
-  context.subscriptions.push(
-    vscode.window.registerWebviewViewProvider(
-      'visbal-soql',
-      soqlPanel,
-      {
-        webviewOptions: {
-          retainContextWhenHidden: true
-        }
-      }
-    )
-  );
-
-  // Register Sample Panel View (bottom panel)
-  context.subscriptions.push(
-    vscode.window.registerWebviewViewProvider(
-      'visbal-sample',
-      samplePanel,
-      {
-        webviewOptions: {
-          retainContextWhenHidden: true
-        }
-      }
-    )
-  );
-
-
-
-  // Register commands for panel activation
-  context.subscriptions.push(
-    vscode.commands.registerCommand('visbal-ext.showVisbalLog', () => {
-      vscode.commands.executeCommand('workbench.view.extension.visbal-log-container');
-    })
-  );
-
-  context.subscriptions.push(
-    vscode.commands.registerCommand('visbal-ext.showVisbalSoql', () => {
-      vscode.commands.executeCommand('workbench.view.extension.visbal-soql-container');
-    })
-  );
-
-  context.subscriptions.push(
-    vscode.commands.registerCommand('visbal-ext.showVisbalSample', () => {
-      vscode.commands.executeCommand('workbench.view.extension.visbal-sample-container');
-    })
-  );
 
   // Register debug view commands
   context.subscriptions.push(
     vscode.commands.registerCommand('visbal-ext.showDebugConsole', () => {
       vscode.commands.executeCommand('workbench.view.extension.visbal-debug');
-    })
-  );
-
-  // Register the Refresh Visbal Log command
-  context.subscriptions.push(
-    vscode.commands.registerCommand('visbal-ext.refreshVisbalLog', () => {
-      visbalLogViewProvider.refresh();
-    })
-  );
-
-  // Register command to open log detail view
-  context.subscriptions.push(
-    vscode.commands.registerCommand('visbal.openLogDetail', (logFilePath: string, logId: string) => {
-      console.log(`[VisbalExt.Extension] openLogDetail -- Opening log detail view for: ${logFilePath}`);
-      LogDetailView.createOrShow(context.extensionUri, logFilePath, logId);
     })
   );
 
@@ -324,7 +340,7 @@ export function activate(context: vscode.ExtensionContext) {
     outputChannel.appendLine('[Debug] Debug session started');
     debugConsoleView.clear();
     debugConsoleView.addOutput('Debug session started', 'info');
-    testRunResultsView.clear();
+    testRunResultsView?.clear();
   });
 
   vscode.debug.onDidTerminateDebugSession(() => {

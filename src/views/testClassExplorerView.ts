@@ -624,7 +624,6 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
     }
     
     private _getHtmlForWebview(webview: vscode.Webview): string {
-        // Use a nonce to only allow specific scripts to be run
         const nonce = this._getNonce();
 
         return `<!DOCTYPE html>
@@ -636,87 +635,200 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
             <title>Test Class Explorer</title>
             <link href="${webview.asWebviewUri(vscode.Uri.joinPath(this._extensionUri, 'node_modules', '@vscode/codicons', 'dist', 'codicon.css'))}" rel="stylesheet" />
             <style>
+                :root {
+                    --container-padding: 0;
+                    --input-padding-vertical: 2px;
+                    --input-padding-horizontal: 4px;
+                    --input-margin-vertical: 4px;
+                    --input-margin-horizontal: 0;
+                }
+
                 body {
                     font-family: var(--vscode-font-family);
                     color: var(--vscode-foreground);
                     background-color: var(--vscode-editor-background);
-                    padding: 5px;
+                    padding: var(--container-padding);
                     margin: 0;
+                    width: 100%;
                     height: 100vh;
+                    box-sizing: border-box;
                     overflow: hidden;
                 }
+
                 .container {
-                    display: flex;
-                    flex-direction: column;
                     height: 100%;
-                    width: 100%;
-                }
-                .split-container {
                     display: flex;
                     flex-direction: column;
-                    flex: 1;
-                    min-height: 0;
-                    position: relative;
+                    margin: 0;
+                    padding: 0;
+                    border-right: 1px solid var(--vscode-panel-border);
                 }
+
                 .test-classes-container {
                     flex: 1;
-                    overflow: auto;
-                    margin-top: 5px;
-                    border: 1px solid var(--vscode-panel-border);
+                    overflow-y: auto;
+                    margin: 0;
                     padding: 5px;
-                    min-height: 100px;
+                    border-top: 1px solid var(--vscode-panel-border);
+                    min-height: 0;
+                    scrollbar-width: thin; /* For Firefox */
+                    scrollbar-color: var(--vscode-scrollbarSlider-background) transparent; /* For Firefox */
                 }
-   
-               
+
+                /* Webkit (Chrome, Safari, Edge) scrollbar styles */
+                .test-classes-container::-webkit-scrollbar {
+                    width: 8px;
+                    height: 8px;
+                }
+
+                .test-classes-container::-webkit-scrollbar-track {
+                    background: var(--vscode-scrollbarSlider-background);
+                    opacity: 0.4;
+                }
+
+                .test-classes-container::-webkit-scrollbar-thumb {
+                    background-color: var(--vscode-scrollbarSlider-background);
+                    border-radius: 4px;
+                    min-height: 40px;
+                }
+
+                .test-classes-container::-webkit-scrollbar-thumb:hover {
+                    background-color: var(--vscode-scrollbarSlider-hoverBackground);
+                }
+
+                .test-classes-container::-webkit-scrollbar-thumb:active {
+                    background-color: var(--vscode-scrollbarSlider-activeBackground);
+                }
+
+                .test-classes-container::-webkit-scrollbar-corner {
+                    background: transparent;
+                }
+
+                /* Make sure the container allows scrolling */
+                .split-container {
+                    flex: 1;
+                    display: flex;
+                    flex-direction: column;
+                    min-height: 0;
+                    height: 100%;
+                    position: relative;
+                    margin: 0;
+                    padding: 0;
+                    overflow: hidden;
+                }
+
+                /* Ensure the list takes full height */
+                #testClassesList {
+                    height: 100%;
+                    overflow: visible;
+                }
+
                 .actions {
-                    margin-bottom: 5px;
+                    padding: 5px;
                     display: flex;
                     justify-content: space-between;
                     align-items: center;
+                    background: var(--vscode-editor-background);
+                    min-height: 32px;
                 }
+
+                .test-classes-list {
+                    list-style-type: none;
+                    padding: 0;
+                    margin: 0;
+                    width: 100%;
+                }
+
+                .test-class-item {
+                    padding: 3px 5px;
+                    cursor: pointer;
+                    display: flex;
+                    align-items: center;
+                    width: 100%;
+                }
+
+                .test-class-item:hover {
+                    background-color: var(--vscode-list-hoverBackground);
+                }
+
+                .test-class-name {
+                    margin-left: 5px;
+                    flex: 1;
+                    white-space: nowrap;
+                    overflow: hidden;
+                    text-overflow: ellipsis;
+                }
+
+                .test-methods-list {
+                    list-style-type: none;
+                    padding: 0;
+                    margin: 0;
+                    width: 100%;
+                }
+
+                .test-method-item {
+                    padding: 2px 5px 2px 20px;
+                    cursor: pointer;
+                    display: flex;
+                    align-items: center;
+                    width: 100%;
+                }
+
+                .test-method-item:hover {
+                    background-color: var(--vscode-list-hoverBackground);
+                }
+
+                .test-method-name {
+                    margin-left: 5px;
+                    flex: 1;
+                    white-space: nowrap;
+                    overflow: hidden;
+                    text-overflow: ellipsis;
+                }
+
                 .button {
                     background-color: var(--vscode-button-background);
                     color: var(--vscode-button-foreground);
                     border: none;
-                    padding: 6px 12px;
+                    padding: 4px 8px;
                     cursor: pointer;
                     border-radius: 2px;
-                    margin: 2px;
                     font-size: 12px;
+                    margin: 0 2px;
                 }
+
                 .button:hover {
                     background-color: var(--vscode-button-hoverBackground);
                 }
+
                 .button:disabled {
                     opacity: 0.5;
                     cursor: not-allowed;
                 }
+
                 .icon-button {
                     background: transparent;
                     border: none;
                     cursor: pointer;
-                    padding: 2px;
+                    padding: 4px;
                     display: flex;
                     align-items: center;
                     justify-content: center;
                     color: var(--vscode-editor-foreground);
                     border-radius: 3px;
+                    margin: 0 2px;
                 }
+
                 .icon-button:hover {
                     background-color: var(--vscode-toolbar-hoverBackground);
                 }
-                .icon-button.refresh {
-                    color: var(--vscode-symbolIcon-colorForeground);
-                }
-                .icon-button.run {
-                    color: #3fb950; /* GitHub green color for play button */
-                    margin-left: auto;
-                }
+
                 .loading {
                     display: flex;
                     align-items: center;
-                    margin: 5px 0;
+                    padding: 5px;
                 }
+
                 .spinner {
                     width: 16px;
                     height: 16px;
@@ -726,150 +838,35 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                     animation: spin 1s linear infinite;
                     margin-right: 8px;
                 }
+
                 @keyframes spin {
                     to { transform: rotate(360deg); }
                 }
+
                 .hidden {
                     display: none !important;
                 }
+
                 .error-container {
-                    margin: 5px 0;
+                    margin: 5px;
                     padding: 8px;
                     background-color: var(--vscode-inputValidation-errorBackground);
                     border: 1px solid var(--vscode-inputValidation-errorBorder);
                     color: var(--vscode-inputValidation-errorForeground);
                 }
+
                 .notification-container {
-                    margin: 5px 0;
+                    margin: 5px;
                     padding: 8px;
                     background-color: var(--vscode-inputValidation-infoBackground);
                     border: 1px solid var(--vscode-inputValidation-infoBorder);
                     color: var(--vscode-inputValidation-infoForeground);
                 }
-                .test-classes-list {
-                    list-style-type: none;
-                    padding: 0;
-                    margin: 0;
-                }
-                .test-class-item {
-                    padding: 3px 0;
-                    cursor: pointer;
-                    display: flex;
-                    align-items: center;
-                    white-space: nowrap;
-                    overflow: hidden;
-                    text-overflow: ellipsis;
-                }
-                .test-class-item:hover {
-                    background-color: var(--vscode-list-hoverBackground);
-                }
-                .test-class-name {
-                    margin-left: 5px;
-                    flex: 1;
-                    overflow: hidden;
-                    text-overflow: ellipsis;
-                    padding-right: 8px;
-                }
-                .test-methods-list {
-                    list-style-type: none;
-                    padding: 0;
-                    margin: 0;
-                }
-                .test-method-item {
-                    padding: 2px 0;
-                    cursor: pointer;
-                    display: flex;
-                    align-items: center;
-                    margin-left: 12px;
-                    white-space: nowrap;
-                    overflow: hidden;
-                    text-overflow: ellipsis;
-                }
-                .test-method-item:hover {
-                    background-color: var(--vscode-list-hoverBackground);
-                }
-                .test-method-name {
-                    margin-left: 2px;
-                    flex: 1;
-                    overflow: hidden;
-                    text-overflow: ellipsis;
-                    padding-right: 4px;
-                }
+
                 .icon {
                     width: 16px;
                     height: 16px;
-                    display: inline-block;
-                    text-align: center;
                     flex-shrink: 0;
-                }
-                .test-status {
-                    margin-right: 2px;
-                    color: var(--vscode-testing-iconPassed);
-                }
-                .test-status.failed {
-                    color: var(--vscode-testing-iconFailed);
-                }
-                .test-status.running {
-                    animation: spin 1s linear infinite;
-                }
-                .no-data {
-                    color: var(--vscode-descriptionForeground);
-                    font-style: italic;
-                    margin: 10px 0;
-                    display: none;
-                }
-                .footer-note {
-                    margin-top: 5px;
-                    font-size: 0.8em;
-                    color: var(--vscode-descriptionForeground);
-                }
-                .checkbox {
-                    margin: 0 3px;
-                    cursor: pointer;
-                }
-                .checkbox-container {
-                    display: flex;
-                    align-items: center;
-                    margin-right: 0;
-                }
-                .selection-actions {
-                    display: flex;
-                    align-items: center;
-                    gap: 8px;
-                }
-                #runSelectedButton {
-                    display: none;
-                }
-                #runSelectedButton:not([disabled]) {
-                    cursor: pointer;
-                    opacity: 1;
-                }
-                #runSelectedButton[disabled] {
-                    opacity: 0.5;
-                    cursor: not-allowed;
-                }
-                .selection-count {
-                    margin-right: 8px;
-                    font-size: 12px;
-                    color: var(--vscode-descriptionForeground);
-                }
-                .codicon {
-                    font-size: 14px;
-                    line-height: 14px;
-                    width: 14px;
-                    height: 14px;
-                    display: inline-block;
-                    text-align: center;
-                    vertical-align: middle;
-                }
-                .running-tests {
-                    display: flex;
-                    align-items: center;
-                    color: var(--vscode-foreground);
-                    font-size: 13px;
-                }
-                .running-tests .spinner {
-                    margin-right: 8px;
                 }
             </style>
         </head>
