@@ -101,33 +101,35 @@ export class SamplePanelView implements vscode.WebviewViewProvider {
                     display: flex;
                     flex-direction: column;
                     height: 100vh;
+                    overflow: hidden;
                 }
                 .header {
                     display: flex;
                     align-items: center;
                     gap: 8px;
-                    padding: 8px 12px;
+                    padding: 4px 8px;
                     background: var(--vscode-editor-background);
                 }
                 .editor-header {
                     display: flex;
                     align-items: center;
                     justify-content: space-between;
-                    margin-bottom: 12px;
+                    padding: 4px 8px;
                 }
                 .tabs {
                     display: flex;
-                    padding: 0 20px;
+                    padding: 0;
                     background: var(--vscode-tab-inactiveBackground);
                     border-bottom: 1px solid var(--vscode-tab-border);
                 }
                 .tab {
-                    padding: 8px 16px;
+                    padding: 4px 12px;
                     cursor: pointer;
                     border: none;
                     background: none;
                     color: var(--vscode-tab-inactiveForeground);
                     border-bottom: 2px solid transparent;
+                    font-size: 12px;
                 }
                 .tab.active {
                     background: var(--vscode-tab-activeBackground);
@@ -140,7 +142,8 @@ export class SamplePanelView implements vscode.WebviewViewProvider {
                 .content {
                     flex: 1;
                     display: none;
-                    padding: 20px;
+                    height: calc(100vh - 30px);
+                    overflow: hidden;
                 }
                 .content.active {
                     display: flex;
@@ -149,21 +152,22 @@ export class SamplePanelView implements vscode.WebviewViewProvider {
                 .editor-container {
                     display: flex;
                     flex-direction: column;
-                    gap: 8px;
-                    flex: 1;
-                    min-height: 100px;
+                    height: 100%;
+                    overflow: hidden;
+                    padding: 8px;
                 }
                 .textarea-container {
                     display: flex;
                     flex-direction: column;
-                    gap: 8px;
                     flex: 1;
                     position: relative;
+                    overflow: hidden;
                 }
                 .textarea-label {
                     color: var(--vscode-foreground);
                     font-size: 12px;
                     font-weight: 600;
+                    margin-bottom: 4px;
                 }
                 textarea {
                     background-color: var(--vscode-input-background);
@@ -172,11 +176,11 @@ export class SamplePanelView implements vscode.WebviewViewProvider {
                     padding: 8px;
                     font-family: var(--vscode-editor-font-family);
                     font-size: var(--vscode-editor-font-size);
-                    resize: both;
-                    min-height: 100px;
-                    min-width: 200px;
-                    border-radius: 2px;
+                    resize: none;
                     flex: 1;
+                    min-height: 0;
+                    border-radius: 2px;
+                    overflow-y: auto;
                 }
                 textarea:focus {
                     outline: 1px solid var(--vscode-focusBorder);
@@ -197,12 +201,14 @@ export class SamplePanelView implements vscode.WebviewViewProvider {
                     background: var(--vscode-button-background);
                     color: var(--vscode-button-foreground);
                     border: none;
-                    padding: 8px 12px;
+                    padding: 4px 8px;
                     cursor: pointer;
                     border-radius: 2px;
                     display: flex;
                     align-items: center;
-                    gap: 6px;
+                    gap: 4px;
+                    font-size: 12px;
+                    height: 24px;
                 }
                 button:hover {
                     background: var(--vscode-button-hoverBackground);
@@ -217,8 +223,8 @@ export class SamplePanelView implements vscode.WebviewViewProvider {
                     padding: 8px;
                     font-family: var(--vscode-editor-font-family);
                     font-size: var(--vscode-editor-font-size);
-                    overflow: auto;
-                    max-height: 200px;
+                    overflow-y: auto;
+                    height: 100%;
                     white-space: pre-wrap;
                 }
                 .success {
@@ -249,7 +255,6 @@ export class SamplePanelView implements vscode.WebviewViewProvider {
                         <div class="editor-header">
                             <label class="textarea-label" for="sampleTextarea">Enter your Apex code:</label>
                             <button id="executeButton" onclick="executeApex()" title="Execute Apex Code">
-                                <span class="codicon">$(play)</span>
                                 Execute Apex
                             </button>
                         </div>
@@ -257,9 +262,8 @@ export class SamplePanelView implements vscode.WebviewViewProvider {
                             <textarea 
                                 id="sampleTextarea" 
                                 placeholder="Type something here..."
-                                rows="6"
-                                maxlength="1000"
                                 aria-label="Sample text input area"
+                                maxlength="1000"
                             >System.debug('Hello World');</textarea>
                             <div class="char-count">0 / 1000 characters</div>
                         </div>
