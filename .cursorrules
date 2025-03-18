@@ -1,8 +1,3 @@
----
-description: when engine AI generates code follow the following standards
-globs: 
-alwaysApply: false
----
 # Cursor Rules for Visbal Extension
 
 # View Implementation Rules
@@ -60,8 +55,7 @@ logging: When adding logging:
 - Include appropriate log levels and categories
 - Add timestamps for important operations
 - Log both success and error cases
-- Use consistent message format: '[VisbalExt.Component] Action -- Details', follow this for console.log & console.error
-- create console.log to easy debug new componets
+- Use consistent message format: '[VisbalExt.Component] Action -- Details'
 
 # Status Bar Rules
 statusbar: When updating status bar:
