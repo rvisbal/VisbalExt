@@ -170,12 +170,25 @@
         "command": "visbal-ext.showTestResults",
         "title": "Show Test Results",
         "category": "Visbal Debug"
+      },
+      {
+        "command": "visbal-ext.showLogSummary",
+        "title": "Show Log Summary",
+        "category": "Visbal",
+        "icon": "$(preview)"
       }
     ],
     "menus": {
       "view/title": [
         {
           "command": "visbal.clearConsole",
+          "group": "navigation"
+        }
+      ],
+      "editor/title": [
+        {
+          "command": "visbal-ext.showLogSummary",
+          "when": "resourceExtname == .log",
           "group": "navigation"
         }
       ]
