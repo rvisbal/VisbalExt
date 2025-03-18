@@ -331,6 +331,8 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
 
             // Add test run to results view
             console.log('[VisbalExt.TestClassExplorerView] _runTest -- Adding test run to results view');
+            console.log('[VisbalExt.TestClassExplorerView] _runTest -- testClass:', testClass);
+            console.log('[VisbalExt.TestClassExplorerView] _runTest -- methodsToRun:', methodsToRun);
             this._testRunResultsView.addTestRun(testClass, methodsToRun);
 
             // Update each method to running state
@@ -450,35 +452,61 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
             }
             
             const results = [];
+            console.log('[VisbalExt.TestClassExplorerView] _runSelectedTests -- tests:', tests);
+            console.log('[VisbalExt.TestClassExplorerView] _runSelectedTests -- tests.classes:', tests.classes);
+            console.log('[VisbalExt.TestClassExplorerView] _runSelectedTests -- tests.methods:', tests.methods);
             
+
             // Run class tests
             for (const className of tests.classes) {
                 try {
-                    console.log(`[VisbalExt.TestClassExplorerView] Running test class: ${className}`);
+                    console.log(`[VisbalExt.TestClassExplorerView] _runSelectedTests -- Running test class: ${className}`, className);
                     const result = await this._metadataService.runTests(className);
                     if (result) {
                         results.push(result);
                     }
                 } catch (error: any) {
-                    console.error(`[VisbalExt.TestClassExplorerView] Error running test class ${className}:`, error);
+                    console.error(`[VisbalExt.TestClassExplorerView] _runSelectedTests -- Error running test class ${className}:`, error);
                 }
+            }
+
+
+            //add the tests to the Running task
+            const classesWithMethods = new Map<string, string[]>();
+            for (const { className, methodName } of tests.methods) {
+                try {
+                    if (!classesWithMethods.has(className)) {
+                        classesWithMethods.set(className, []);
+                    }
+                    classesWithMethods.get(className)?.push(methodName);
+                } catch (error: any) {
+                    console.error(`[VisbalExt.TestClassExplorerView] _runSelectedTests -- Error running test class ${className}:`, error);
+                }
+            }
+
+            for (const [className, methodNames] of classesWithMethods.entries()) {
+                this._testRunResultsView.addTestRun(className, methodNames);
             }
             
             // Run method tests
             for (const { className, methodName } of tests.methods) {
                 try {
-                    console.log(`[VisbalExt.VisbalExt.TestClassExplorerView] Running test method: ${className}.${methodName}`);
+                    console.log(`[VisbalExt.VisbalExt.TestClassExplorerView] _runSelectedTests -- Running test method: ${className}.${methodName}`);
                     const result = await this._metadataService.runTests(className, methodName);
+                    // update summary ??
                     if (result) {
                         results.push(result);
                     }
                 } catch (error: any) {
-                    console.error(`[VisbalExt.TestClassExplorerView] Error running test method ${className}.${methodName}:`, error);
+                    console.error(`[VisbalExt.TestClassExplorerView] _runSelectedTests -- Error running test method ${className}.${methodName}:`, error);
                 }
             }
             
+            console.log('[VisbalExt.TestClassExplorerView] _runSelectedTests -- results:', results);
             // Combine results
             const combinedResult = this._combineTestResults(results);
+
+            console.log('[VisbalExt.TestClassExplorerView] _runSelectedTests -- combinedResult:', combinedResult);
             
             // Send the combined results to the webview
             if (this._view) {
