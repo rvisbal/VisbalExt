@@ -41,7 +41,7 @@
     "onView:testClassExplorerView",
     "onView:visbal-log",
     "onView:visbal-soql",
-    "onView:visbal-apex",
+    "onView:visbal-sample",
     "workspaceContains:**/.sfdx/sfdx-config.json",
     "workspaceContains:**/sfdx-project.json"
   ],
@@ -60,16 +60,16 @@
           "icon": "$(database)"
         },
         {
-          "id": "visbal-apex-container",
-          "title": "Visbal Apex",
-          "icon": "$(symbol-method)"
+          "id": "visbal-sample-container",
+          "title": "Visbal Sample",
+          "icon": "$(beaker)"
         }
       ],
       "activitybar": [
         {
           "id": "visbal-test-container",
-          "title": "Visbal Test Explorer",
-          "icon": "resources/test-explorer.svg"
+          "title": "Visbal Test",
+          "icon": "$(beaker)"
         }
       ]
     },
@@ -106,11 +106,6 @@
           "type": "webview",
           "id": "visbal-log",
           "name": "Log Analyzer"
-        },
-        {
-          "id": "logTreeView",
-          "name": "Log Tree",
-          "type": "tree"
         }
       ],
       "visbal-soql-container": [
@@ -120,11 +115,11 @@
           "name": "SOQL Query"
         }
       ],
-      "visbal-apex-container": [
+      "visbal-sample-container": [
         {
           "type": "webview",
-          "id": "visbal-apex",
-          "name": "Execute Anonymous Apex"
+          "id": "visbal-sample",
+          "name": "Sample Panel"
         }
       ]
     },
@@ -162,8 +157,8 @@
         "category": "Visbal"
       },
       {
-        "command": "visbal-ext.showVisbalApex",
-        "title": "Show Visbal Apex",
+        "command": "visbal-ext.showVisbalSample",
+        "title": "Show Visbal Sample",
         "category": "Visbal"
       },
       {
