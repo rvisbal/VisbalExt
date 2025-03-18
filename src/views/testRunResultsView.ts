@@ -1,29 +1,77 @@
 import * as vscode from 'vscode';
 
-class TestItem extends vscode.TreeItem {
-    private _status: 'running' | 'success' | 'failed' | 'pending';
+export class TestItem extends vscode.TreeItem {
+    private _status: 'running' | 'success' | 'failed' | 'pending' | 'downloading';
+    private _logId?: string;
+    private static downloadingLogs = new Set<string>();
 
     constructor(
         public readonly label: string,
         public readonly collapsibleState: vscode.TreeItemCollapsibleState,
-        status: 'running' | 'success' | 'failed' | 'pending' = 'pending',
-        public readonly children: TestItem[] = []
+        status: 'running' | 'success' | 'failed' | 'pending' | 'downloading' = 'pending',
+        public readonly children: TestItem[] = [],
+        logId?: string
     ) {
         super(label, collapsibleState);
         this._status = status;
+        this._logId = logId;
         this.updateStatus(status);
+        
+        // Remove contextValue to hide the icons
+        this.contextValue = undefined;
+        
+        if (logId) {
+            this.tooltip = `Log ID: ${logId}`;
+            this.command = {
+                title: 'View Log',
+                command: 'visbal-ext.viewTestLog',
+                arguments: [logId, label]
+            };
+        }
     }
 
-    get status(): 'running' | 'success' | 'failed' | 'pending' {
+    get status(): 'running' | 'success' | 'failed' | 'pending' | 'downloading' {
         return this._status;
     }
 
-    updateStatus(status: 'running' | 'success' | 'failed' | 'pending') {
+    get logId(): string | undefined {
+        return this._logId;
+    }
+
+    set logId(value: string | undefined) {
+        this._logId = value;
+        if (value) {
+            this.tooltip = `Log ID: ${value}`;
+            this.command = {
+                title: 'View Log',
+                command: 'visbal-ext.viewTestLog',
+                arguments: [value, this.label]
+            };
+        }
+    }
+
+    static isDownloading(logId: string): boolean {
+        return TestItem.downloadingLogs.has(logId);
+    }
+
+    static setDownloading(logId: string, isDownloading: boolean) {
+        if (isDownloading) {
+            TestItem.downloadingLogs.add(logId);
+        } else {
+            TestItem.downloadingLogs.delete(logId);
+        }
+    }
+
+    updateStatus(status: 'running' | 'success' | 'failed' | 'pending' | 'downloading') {
         this._status = status;
         switch (status) {
             case 'running':
                 this.iconPath = new vscode.ThemeIcon('sync~spin');
                 this.description = 'Running...';
+                break;
+            case 'downloading':
+                this.iconPath = new vscode.ThemeIcon('cloud-download');
+                this.description = 'Downloading log...';
                 break;
             case 'success':
                 this.iconPath = new vscode.ThemeIcon('pass-filled');
@@ -40,16 +88,16 @@ class TestItem extends vscode.TreeItem {
         }
     }
 
-    // Helper method to check if all children have completed
+    // Helper method to check if any children have failed
+    hasFailedChildren(): boolean {
+        return this.children.some(child => child.status === 'failed');
+    }
+
+    // Helper method to check if all children are complete (success or failed)
     areAllChildrenComplete(): boolean {
         return this.children.every(child => 
             child.status === 'success' || child.status === 'failed'
         );
-    }
-
-    // Helper method to check if any children have failed
-    hasFailedChildren(): boolean {
-        return this.children.some(child => child.status === 'failed');
     }
 }
 
@@ -71,41 +119,27 @@ export class TestRunResultsProvider implements vscode.TreeDataProvider<TestItem>
     }
 
     getTreeItem(element: TestItem): vscode.TreeItem {
-        console.log(`[VisbalExt.TestRunResultsProvider] getTreeItem called for: ${element.label} (${element.status})`);
+        // Remove contextValue to hide the icons
+        element.contextValue = undefined;
         return element;
     }
 
-    getChildren(element?: TestItem): Thenable<TestItem[]> {
-        console.log(`[VisbalExt.TestRunResultsProvider] getChildren called for: ${element?.label || 'root'}`);
+    getChildren(element?: TestItem): TestItem[] {
         if (!element) {
-            const items = Array.from(this.testRuns.values());
-            console.log(`[VisbalExt.TestRunResultsProvider] Returning ${items.length} root items`);
-            return Promise.resolve(items);
+            return Array.from(this.testRuns.values());
         }
-        console.log(`[VisbalExt.TestRunResultsProvider] Returning ${element.children.length} child items for ${element.label}`);
-        return Promise.resolve(element.children);
+        return element.children;
     }
 
     private scheduleRefresh() {
-        console.log('[VisbalExt.TestRunResultsProvider] Scheduling refresh');
         if (this.refreshTimer) {
             clearTimeout(this.refreshTimer);
         }
-
-        // Fire immediate refresh
-        this._onDidChangeTreeData.fire();
-
-        // Schedule a follow-up refresh
+        
         this.refreshTimer = setTimeout(() => {
-            console.log('[VisbalExt.TestRunResultsProvider] Executing scheduled refresh');
-            // Check if there are any pending updates
-            if (this.pendingUpdates.size > 0) {
-                console.log(`[VisbalExt.TestRunResultsProvider] Processing ${this.pendingUpdates.size} pending updates`);
-                this.pendingUpdates.clear();
-            }
             this._onDidChangeTreeData.fire();
             this.refreshTimer = undefined;
-        }, 100);
+        }, 100); // Debounce updates
     }
 
     addTestRun(className: string, methods: string[]) {
@@ -143,7 +177,7 @@ export class TestRunResultsProvider implements vscode.TreeDataProvider<TestItem>
         }
     }
 
-    updateMethodStatus(className: string, methodName: string, status: 'running' | 'success' | 'failed') {
+    updateMethodStatus(className: string, methodName: string, status: 'running' | 'success' | 'failed' | 'downloading', logId?: string) {
         const startTime = Date.now();
         console.log(`[VisbalExt.TestRunResultsProvider] updateMethodStatus -- Updating method status: ${className}.${methodName} -> ${status} at ${new Date(startTime).toISOString()}`);
         
@@ -153,6 +187,11 @@ export class TestRunResultsProvider implements vscode.TreeDataProvider<TestItem>
             if (methodItem) {
                 console.log(`[VisbalExt.TestRunResultsProvider] updateMethodStatus -- Found method item, updating status`);
                 methodItem.updateStatus(status);
+                
+                // Update logId if provided
+                if (logId) {
+                    methodItem.logId = logId;
+                }
 
                 // Track this update
                 this.pendingUpdates.add(`${className}.${methodName}`);
@@ -180,7 +219,7 @@ export class TestRunResultsProvider implements vscode.TreeDataProvider<TestItem>
         }
     }
 
-    updateClassStatus(className: string, status: 'running' | 'success' | 'failed') {
+    updateClassStatus(className: string, status: 'running' | 'success' | 'failed' | 'downloading') {
         const startTime = Date.now();
         console.log(`[VisbalExt.TestRunResultsProvider] updateClassStatus -- Updating class status: ${className} -> ${status} at ${new Date(startTime).toISOString()}`);
         
@@ -206,15 +245,8 @@ export class TestRunResultsProvider implements vscode.TreeDataProvider<TestItem>
     }
 
     clear() {
-        const startTime = Date.now();
-        console.log(`[VisbalExt.TestRunResultsProvider] Clearing all test runs at ${new Date(startTime).toISOString()}`);
-        
         this.testRuns.clear();
-        this.pendingUpdates.clear();
-        
-        const endTime = Date.now();
-        console.log(`[VisbalExt.TestRunResultsProvider] Test runs cleared in ${endTime - startTime}ms, scheduling refresh`);
-        this.scheduleRefresh();
+        this._onDidChangeTreeData.fire();
     }
 }
 
@@ -226,7 +258,8 @@ export class TestRunResultsView {
         this.provider = new TestRunResultsProvider();
         this.treeView = vscode.window.createTreeView('testRunResults', {
             treeDataProvider: this.provider,
-            showCollapseAll: true
+            showCollapseAll: true,
+            canSelectMany: false
         });
         this.provider.setTreeView(this.treeView);
         context.subscriptions.push(this.treeView);
@@ -240,11 +273,11 @@ export class TestRunResultsView {
         this.provider.addTestRun(className, methods);
     }
 
-    updateMethodStatus(className: string, methodName: string, status: 'running' | 'success' | 'failed') {
-        this.provider.updateMethodStatus(className, methodName, status);
+    updateMethodStatus(className: string, methodName: string, status: 'running' | 'success' | 'failed' | 'downloading', logId?: string) {
+        this.provider.updateMethodStatus(className, methodName, status, logId);
     }
 
-    updateClassStatus(className: string, status: 'running' | 'success' | 'failed') {
+    updateClassStatus(className: string, status: 'running' | 'success' | 'failed' | 'downloading') {
         this.provider.updateClassStatus(className, status);
     }
 

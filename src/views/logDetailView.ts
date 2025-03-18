@@ -223,7 +223,6 @@ export class LogDetailView {
             const logContent = fs.readFileSync(this._logFilePath, 'utf8');
             console.log(`[VisbalExt.LogDetailView] _parseLogFile -- Read log file, size: ${logContent.length} bytes`);
             
-            // Basic parsing for now - in a real implementation, this would be more sophisticated
             const lines = logContent.split('\n');
             
             // Extract lines by category using utility functions
@@ -232,36 +231,60 @@ export class LogDetailView {
             const dmlLines = extractCategoryLines(lines, 'DML_');
             const heapLines = extractCategoryLines(lines, 'HEAP_');
             const limitLines = extractCategoryLines(lines, 'LIMIT_');
-            
-            // Extract debug-related lines using utility function
             const userDebugLines = extractDebugLines(lines);
-            console.log(`[VisbalExt.LogDetailView] _parseLogFile -- Found ${userDebugLines.length} debug-related lines`);
             
-            // Extract execution path data using ExecutionTabHandler
+            // Parse database operations
+            const soqlQueries = this._parseSoqlQueries(soqlLines);
+            const dmlOperations = this._parseDmlOperations(dmlLines);
+            
+            // Parse limits
+            const limits = this._parseLimits(limitLines);
+            
+            // Extract execution path data
             const executionPath = ExecutionTabHandler.extractExecutionPath(executionLines);
             
-            // Create a parsed data object
+            // Create a summary
+            const summary = {
+                totalLines: lines.length,
+                executionCount: executionLines.length,
+                soqlCount: soqlLines.length,
+                dmlCount: dmlLines.length,
+                heapCount: heapLines.length,
+                limitCount: limitLines.length,
+                userDebugCount: userDebugLines.length
+            };
+            
+            // Create categories for overview
+            const categories = [
+                { name: 'EXECUTION', count: executionLines.length, description: 'Execution events' },
+                { name: 'SOQL', count: soqlLines.length, description: 'SOQL queries' },
+                { name: 'DML', count: dmlLines.length, description: 'DML operations' },
+                { name: 'HEAP', count: heapLines.length, description: 'Heap usage' },
+                { name: 'LIMIT', count: limitLines.length, description: 'Governor limits' },
+                { name: 'USER_DEBUG', count: userDebugLines.length, description: 'Debug logs' }
+            ];
+            
+            // Create timeline events
+            const timeline = this._extractTimeline(lines);
+            
+            // Create the parsed data object
             const parsedData: ParsedLogData = {
                 rawLog: logContent,
                 userDebugLog: userDebugLines.join('\n'),
-                summary: this._createSummary(lines, {
-                    executionCount: executionLines.length,
-                    soqlCount: soqlLines.length,
-                    dmlCount: dmlLines.length,
-                    heapCount: heapLines.length,
-                    limitCount: limitLines.length,
-                    userDebugCount: userDebugLines.length
-                }),
-                categories: this._createCategories(executionLines, soqlLines, dmlLines, heapLines, limitLines, userDebugLines),
-                timeline: this._extractTimeline(lines)
+                summary,
+                categories,
+                timeline,
+                soqlQueries,
+                dmlOperations,
+                limits,
+                executionPath
             };
             
-            // Store execution path data separately and update the execution tab handler
-            (parsedData as any).executionPath = executionPath;
+            // Store execution path data and update handlers
             this._executionTabHandler.setExecutionData(executionPath);
+            this._rawLogTabHandler.setLogContent(logContent);
             
             console.log('[VisbalExt.LogDetailView] _parseLogFile -- Parsed log data:', parsedData.summary);
-            
             statusBarService.showSuccess(`Log file parsed: ${path.basename(this._logFilePath)}`);
             return parsedData;
         } catch (error: any) {
@@ -274,22 +297,63 @@ export class LogDetailView {
                 userDebugLog: '',
                 summary: this._createEmptySummary(),
                 categories: [],
-                timeline: []
+                timeline: [],
+                soqlQueries: [],
+                dmlOperations: [],
+                limits: [],
+                executionPath: []
             };
         }
     }
 
-    /**
-     * Creates a summary object from parsed log data
-     * @param lines All log lines
-     * @param counts Category line counts
-     * @returns Summary object
-     */
-    private _createSummary(lines: string[], counts: Partial<LogSummary>): LogSummary {
-        return {
-            totalLines: lines.length,
-            ...counts
-        } as LogSummary;
+    private _parseSoqlQueries(soqlLines: string[]): any[] {
+        return soqlLines.map(line => {
+            const match = line.match(/SOQL_EXECUTE_(\w+).*?(\d+)\s+ms.*?(\d+)\s+rows/i);
+            if (match) {
+                return {
+                    query: line,
+                    time: parseInt(match[2], 10),
+                    rows: parseInt(match[3], 10)
+                };
+            }
+            return null;
+        }).filter(Boolean);
+    }
+
+    private _parseDmlOperations(dmlLines: string[]): any[] {
+        return dmlLines.map(line => {
+            const match = line.match(/DML_(\w+).*?(\w+)__?c?.*?(\d+)\s+ms.*?(\d+)\s+rows/i);
+            if (match) {
+                return {
+                    operation: match[1],
+                    object: match[2],
+                    time: parseInt(match[3], 10),
+                    rows: parseInt(match[4], 10)
+                };
+            }
+            return null;
+        }).filter(Boolean);
+    }
+
+    private _parseLimits(limitLines: string[]): any[] {
+        const limitMap = new Map<string, { used: number, available: number }>();
+        
+        limitLines.forEach(line => {
+            const match = line.match(/LIMIT_USAGE_FOR_NS.*?(\w+)\s+(\d+)\s+of\s+(\d+)/i);
+            if (match) {
+                const [, name, used, available] = match;
+                limitMap.set(name, {
+                    used: parseInt(used, 10),
+                    available: parseInt(available, 10)
+                });
+            }
+        });
+        
+        return Array.from(limitMap.entries()).map(([name, values]) => ({
+            name,
+            used: values.used,
+            available: values.available
+        }));
     }
 
     /**
@@ -306,34 +370,6 @@ export class LogDetailView {
             limitCount: 0,
             userDebugCount: 0
         };
-    }
-
-    /**
-     * Creates categories array from parsed log data
-     * @param executionLines Execution lines
-     * @param soqlLines SOQL lines
-     * @param dmlLines DML lines
-     * @param heapLines Heap lines
-     * @param limitLines Limit lines
-     * @param userDebugLines User debug lines
-     * @returns Categories array
-     */
-    private _createCategories(
-        executionLines: string[], 
-        soqlLines: string[], 
-        dmlLines: string[], 
-        heapLines: string[], 
-        limitLines: string[],
-        userDebugLines: string[]
-    ): LogCategory[] {
-        return [
-            { name: 'EXECUTION', count: executionLines.length },
-            { name: 'SOQL', count: soqlLines.length },
-            { name: 'DML', count: dmlLines.length },
-            { name: 'HEAP', count: heapLines.length },
-            { name: 'LIMIT', count: limitLines.length },
-            { name: 'USER_DEBUG', count: userDebugLines.length }
-        ];
     }
 
     /**

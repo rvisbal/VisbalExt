@@ -25,7 +25,7 @@
     "url": "https://github.com/yourusername/visbal-ext.git"
   },
   "scripts": {
-    "clean": "rimraf dist out *.vsix",
+    "clean": "if exist dist rd /s /q dist && if exist out rd /s /q out && if exist *.vsix del *.vsix",
     "build": "tsc",
     "watch": "tsc -w",
     "package": "vsce package",
@@ -92,7 +92,8 @@
           "id": "testRunResults",
           "name": "Running Tasks",
           "type": "tree",
-          "visibility": "visible"
+          "visibility": "visible",
+          "hideMenus": true
         },
         {
           "id": "visbal-test-summary",
@@ -170,6 +171,12 @@
         "command": "visbal-ext.showTestResults",
         "title": "Show Test Results",
         "category": "Visbal Debug"
+      },
+      {
+        "command": "visbal-ext.showLogSummary",
+        "title": "Show Log Summary",
+        "category": "Visbal",
+        "icon": "$(preview)"
       }
     ],
     "menus": {
@@ -178,7 +185,39 @@
           "command": "visbal.clearConsole",
           "group": "navigation"
         }
+      ],
+      "editor/title": [
+        {
+          "command": "visbal-ext.showLogSummary",
+          "when": "resourceExtname == .log",
+          "group": "navigation"
+        }
       ]
+    },
+    "configuration": {
+      "title": "Visbal Extension",
+      "properties": {
+        "visbal.modules.testExplorer.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable/disable the Test Explorer module"
+        },
+        "visbal.modules.logAnalyzer.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable/disable the Log Analyzer module"
+        },
+        "visbal.modules.soqlQuery.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable/disable the SOQL Query module"
+        },
+        "visbal.modules.samplePanel.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable/disable the Sample Panel module"
+        }
+      }
     }
   },
   "devDependencies": {

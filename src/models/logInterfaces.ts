@@ -47,12 +47,16 @@ export interface LogTimelineEvent {
  * Represents parsed log data
  */
 export interface ParsedLogData {
+    error?: string;
     rawLog: string;
     userDebugLog: string;
     summary: LogSummary;
     categories: LogCategory[];
     timeline: LogTimelineEvent[];
-    error?: string;
+    soqlQueries: SoqlQuery[];
+    dmlOperations: DmlOperation[];
+    limits: LimitInfo[];
+    executionPath: any[]; // Using any[] for now, can be typed more specifically if needed
 }
 
 /**
@@ -75,4 +79,23 @@ export interface DebugConfig {
     visualforce: DebugLogLevel;
     wave: DebugLogLevel;
     workflow: DebugLogLevel;
+}
+
+export interface SoqlQuery {
+    query: string;
+    time: number;
+    rows: number;
+}
+
+export interface DmlOperation {
+    operation: string;
+    object: string;
+    time: number;
+    rows: number;
+}
+
+export interface LimitInfo {
+    name: string;
+    used: number;
+    available: number;
 } 

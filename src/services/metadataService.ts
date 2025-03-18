@@ -129,7 +129,7 @@ export class MetadataService {
         try {
             console.log('[VisbalExt.MetadataService] Listing Apex classes...');
             // Use SOQL query to get Apex classes with TracHier namespace
-            const soqlQuery = "SELECT Id, Name, NamespacePrefix FROM ApexClass WHERE NamespacePrefix = 'TracHier' ORDER BY Name";
+            const soqlQuery = "SELECT Id, Name, NamespacePrefix FROM ApexClass WHERE NamespacePrefix IN ('TracHier', 'TracRTC') ORDER BY Name";
             const command = `sf data query --query "${soqlQuery}" --json`;
             
             console.log(`[VisbalExt.MetadataService] Executing SOQL query: ${soqlQuery}`);
@@ -142,7 +142,7 @@ export class MetadataService {
             }
             
             const records = parsedOutput.result.records;
-            console.log(`[VisbalExt.MetadataService] Found ${records.length} classes in TracHier namespace`);
+            console.log(`[VisbalExt.MetadataService] Found ${records.length} classes in TracHier, TracRTC  namespace`);
             
             return records.map((cls: any) => ({
                 id: cls.Id,
@@ -162,12 +162,12 @@ export class MetadataService {
      */
     public async getApexClassBody(className: string): Promise<string> {
         try {
-            console.log(`[VisbalExt.MetadataService] Getting body for class: ${className}`);
+            console.log(`[VisbalExt.MetadataService] getApexClassBody -- Getting body for class: ${className}`);
             // Use SOQL query to get the class body
             const soqlQuery = `SELECT Id, Name, Body FROM ApexClass WHERE Name = '${className}' LIMIT 1`;
             const command = `sf data query --query "${soqlQuery}" --json`;
             
-            console.log(`[VisbalExt.MetadataService] Executing SOQL query: ${soqlQuery}`);
+            console.log(`[VisbalExt.MetadataService] getApexClassBody -- Executing SOQL query: ${soqlQuery}`);
             const output = await this.executeCliCommand(command);
             const parsedOutput = JSON.parse(output);
             
@@ -176,10 +176,10 @@ export class MetadataService {
             }
             
             const classRecord = parsedOutput.result.records[0];
-            console.log('[VisbalExt.MetadataService] Successfully retrieved class body');
+            console.log('[VisbalExt.MetadataService] getApexClassBody -- Successfully retrieved class body');
             return classRecord.Body;
         } catch (error: any) {
-            console.error(`[VisbalExt.MetadataService] Failed to get class body for ${className}:`, error);
+            console.error(`[VisbalExt.MetadataService] getApexClassBody -- Failed to get class body for ${className}:`, error);
             throw new Error(`Failed to get class body for ${className}: ${error.message}`);
         }
     }
@@ -188,38 +188,58 @@ export class MetadataService {
      * Extracts test methods from a class body
      */
     public extractTestMethods(classBody: string): TestMethod[] {
-        console.log('[VisbalExt.MetadataService] Extracting test methods from class body...');
+        console.log('[VisbalExt.MetadataService] extractTestMethods -- Extracting test methods from class body...');
         const methods: TestMethod[] = [];
         
         // Regular expressions to match test methods - improved to catch more patterns
         const patterns = [
-            /@isTest\s+(?:static\s+)?void\s+(\w+)\s*\(/g,
-            /testMethod\s+(?:static\s+)?void\s+(\w+)\s*\(/g,
-            /@isTest\s+(?:static\s+)?(?:void\s+)?(\w+)\s*\(/g,
-            /static\s+(?:void|testmethod)\s+(\w+)\s*\(/gi,
-            /(?:public|private|protected)?\s+static\s+(?:void|testmethod)\s+(\w+)\s*\(/gi,
-            /(?:public|private|protected)?\s+(?:static)?\s+(?:void)?\s+(?:testmethod)?\s+(\w+Test)\s*\(/gi
+            /(?<!@TestSetup\s+)@isTest\s+(?:static\s+)?void\s+(\w+)\s*\(/gi,
+            /(?<!@TestSetup\s+)testMethod\s+(?:static\s+)?void\s+(\w+)\s*\(/gi,
+            /(?<!@TestSetup\s+)@isTest\s+(?:static\s+)?(?:void\s+)?(\w+)\s*\(/gi,
+            /(?<!@TestSetup\s+)static\s+(?:void|testmethod)\s+(\w+)\s*\(/gi,
+            /(?<!@TestSetup\s+)(?:public|private|protected)?\s+static\s+(?:void|testmethod)\s+(\w+)\s*\(/gi,
+            /(?<!@TestSetup\s+)(?:public|private|protected)?\s+(?:static)?\s+(?:void)?\s+(?:testmethod)?\s+(\w+Test)\s*\(/gi
         ];
 
+        // Pattern to detect @TestSetup methods
+        const testSetupPattern = /@TestSetup\s+(?:static\s+)?void\s+(\w+)\s*\(/gi;
+        
+        // First check for @TestSetup methods and exclude them
+        const testSetupMethods = new Set<string>();
+        let methodMatch;
+        while ((methodMatch = testSetupPattern.exec(classBody)) !== null) {
+            testSetupMethods.add(methodMatch[1]);
+        }
+        
         // If the class itself is annotated with @isTest, all methods could be test methods
-        const isTestClass = classBody.includes('@isTest') || 
-                           classBody.toLowerCase().includes('testmethod');
+        const classBodyLower = classBody.toLowerCase();
+        const isTestClass = classBodyLower.includes('@istest') || 
+                          classBodyLower.includes('testmethod');
         
         if (isTestClass) {
-            // Look for all methods in the class
-            const methodPattern = /(?:public|private|protected)?\s+(?:static)?\s+(?:void)?\s+(\w+)\s*\(/gi;
+            // Look for all methods in the class that are not @TestSetup
+            const methodPattern = /(?<!@TestSetup\s+)(?:public|private|protected)?\s+(?:static)?\s+(?:void)?\s+(\w+)\s*\(/gi;
             let methodMatch;
+            
             while ((methodMatch = methodPattern.exec(classBody)) !== null) {
                 const methodName = methodMatch[1];
-                // Skip constructor and known non-test methods
+                // Skip constructor, known non-test methods, @TestSetup methods, and common keywords
+                const commonKeywords = ['for', 'if', 'while', 'catch', 'finally', 'else', 'do', 'try', 'switch', 'case'];
                 if (!methodName.includes('__') && 
                     !['equals', 'hashCode', 'toString', 'clone'].includes(methodName) &&
+                    !testSetupMethods.has(methodName) &&
+                    !commonKeywords.includes(methodName.toLowerCase()) &&
                     !methods.some(m => m.name === methodName)) {
-                    console.log(`[VisbalExt.MetadataService] Found potential test method in @isTest class: ${methodName}`);
-                    methods.push({
-                        name: methodName,
-                        isTestMethod: true
-                    });
+                    // Additional check to ensure it's not a TestSetup method
+                    const methodStart = classBody.indexOf(methodName);
+                    const methodContext = classBody.substring(Math.max(0, methodStart - 100), methodStart);
+                    if (!methodContext.toLowerCase().includes('@testsetup')) {
+                        console.log(`[VisbalExt.MetadataService] extractTestMethods -- Found potential test method in @isTest class: ${methodName}`);
+                        methods.push({
+                            name: methodName,
+                            isTestMethod: true
+                        });
+                    }
                 }
             }
         }
@@ -229,12 +249,18 @@ export class MetadataService {
             let match;
             while ((match = pattern.exec(classBody)) !== null) {
                 const methodName = match[1];
-                if (!methods.some(m => m.name === methodName)) {
-                    console.log(`[VisbalExt.MetadataService] Found test method: ${methodName}`);
-                    methods.push({
-                        name: methodName,
-                        isTestMethod: true
-                    });
+                // Skip if method is already added or is a TestSetup method
+                if (!methods.some(m => m.name === methodName) && !testSetupMethods.has(methodName)) {
+                    // Additional check to ensure it's not a TestSetup method
+                    const methodStart = classBody.indexOf(methodName);
+                    const methodContext = classBody.substring(Math.max(0, methodStart - 100), methodStart);
+                    if (!methodContext.toLowerCase().includes('@testsetup')) {
+                        console.log(`[VisbalExt.MetadataService] extractTestMethods -- Found test method: ${methodName}`);
+                        methods.push({
+                            name: methodName,
+                            isTestMethod: true
+                        });
+                    }
                 }
             }
         }
@@ -248,8 +274,9 @@ export class MetadataService {
      */
     public isTestClass(classBody: string): boolean {
         console.log('[VisbalExt.MetadataService] Checking if class is a test class...');
-        const isTest = classBody.includes('@isTest') || 
-                      classBody.includes('testMethod') || 
+        const classBodyLower = classBody.toLowerCase();
+        const isTest = classBodyLower.includes('@istest') || 
+                      classBodyLower.includes('testmethod') || 
                       this.extractTestMethods(classBody).length > 0;
         console.log(`[VisbalExt.MetadataService] Is test class: ${isTest}`);
         return isTest;
@@ -345,27 +372,27 @@ export class MetadataService {
      */
     public async getTestMethodsForClass(className: string): Promise<TestMethod[]> {
         try {
-            console.log(`[VisbalExt.MetadataService] Getting test methods for class: ${className}`);
+            console.log(`[VisbalExt.MetadataService] getTestMethodsForClass -- Getting test methods for class: ${className}`);
             // Get the class body
             const classBody = await this.getApexClassBody(className);
             
             // Extract test methods from the body
             const testMethods = this.extractTestMethods(classBody);
-            console.log(`[VisbalExt.MetadataService] Found ${testMethods.length} test methods in ${className}`);
+            console.log(`[VisbalExt.MetadataService] getTestMethodsForClass -- Found ${testMethods.length} test methods in ${className}`);
             
             return testMethods;
         } catch (error: any) {
-            console.error(`[VisbalExt.MetadataService] Failed to get test methods for ${className}:`, error);
+            console.error(`[VisbalExt.MetadataService] getTestMethodsForClass -- Failed to get test methods for ${className}:`, error);
             throw new Error(`Failed to get test methods for ${className}: ${error.message}`);
         }
     }
 
     public async getTestLog(logId: string): Promise<string> {
         try {
-            console.log('[VisbalExt.MetadataService] Getting test log:', logId);
+            console.log('[VisbalExt.MetadataService] getTestLog -- Getting test log:', logId);
             const result = await this.executeCliCommand(`sf apex get log --log-id ${logId} --json`);
             const parsedResult = JSON.parse(result);
-            console.log('[VisbalExt.MetadataService] Test log retrieved');
+            console.log('[VisbalExt.MetadataService] getTestLog -- Test log retrieved');
             return parsedResult.result?.log || '';
         } catch (error) {
             console.error('[VisbalExt.MetadataService] Error getting test log:', error);
