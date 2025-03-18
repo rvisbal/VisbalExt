@@ -495,54 +495,64 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                 try {
                     this._testRunResultsView.updateMethodStatus(className, methodName, 'running');
                     console.log(`[VisbalExt.VisbalExt.TestClassExplorerView] _runSelectedTests -- Running test method: ${className}.${methodName}`);
-                    const result = await this._metadataService.runTests(className, methodName);
-                    // update summary ??
-                    if (result) {
-                        results.push(result);
-                        if (result.testRunId) {
-                            
+                    
+                    // Create an async function to handle test execution and log downloading in parallel
+                    const handleTestAndLog = async () => {
+                        const result = await this._metadataService.runTests(className, methodName);
+                        if (result && result.testRunId) {
+                            const [testRunResult, logId] = await Promise.all([
+                                this._metadataService.getTestRunResult(result.testRunId),
+                                this._metadataService.getTestLogId(result.testRunId)
+                            ]);
 
-                            const mainClassMap = new Map<string, Boolean>();     
-                            const testRunResult = await this._metadataService.getTestRunResult(result.testRunId);        
+                            const mainClassMap = new Map<string, Boolean>();
                             for (const t of testRunResult.tests) {
                                 try {
-                                    //update the "Running Task" treeview status
-                                    this._testRunResultsView.updateMethodStatus(className, t.MethodName, 'downloading');
-                                    const logId = await this._metadataService.getTestLogId(result.testRunId);
                                     if (logId) {
                                         console.log(`[VisbalExt.TestClassExplorer] Processing log for test: ${t.ApexClass?.Name || 'Unknown'}`);
-
-                                        // For subsequent tests, just download in background
-                                        console.log(`[VisbalExt.TestClassExplorer] Downloading additional log: ${logId}`);
-                                        this._visbalLogView.downloadLog(logId);
+                                        this._testRunResultsView.updateMethodStatus(className, t.MethodName, 'downloading');
                                         
-                                    } else {
-                                        console.warn(`[VisbalExt.TestClassExplorer] No log ID found for test: ${t.ApexClass?.Name || 'Unknown'}`);
+                                        // Download log in background
+                                        this._visbalLogView.downloadLog(logId).catch(error => {
+                                            console.error(`[VisbalExt.TestClassExplorer] Error downloading log: ${error}`);
+                                        });
                                     }
-                                    
-                                    //UPDATE THE STATUS OF THE METHOD
+
                                     if (!mainClassMap.has(t.ApexClass.Name)) {
                                         mainClassMap.set(t.ApexClass.Name, true);
                                     }
 
-                                    //update the "Running Task" treeview status
-                                    console.log('[VisbalExt.TestClassExplorerView] _runTest -- Test:', t);
                                     if (t.Outcome === 'Pass') {
                                         this._testRunResultsView.updateMethodStatus(className, t.MethodName, 'success');
-                                    }
-                                    else {
+                                    } else {
                                         this._testRunResultsView.updateMethodStatus(className, t.methodName, 'failed');
                                         mainClassMap.set(t.ApexClass.Name, false);
                                     }
                                 } catch (error) {
-                                    console.error(`[VisbalExt.TestClassExplorer] Error processing test log: ${error}`);
+                                    console.error(`[VisbalExt.TestClassExplorer] Error processing test result: ${error}`);
+                                    this._testRunResultsView.updateMethodStatus(className, t.MethodName, 'failed');
                                 }
                             }
 
+                            // Update class status after all methods are processed
+                            for (const [className, isSuccess] of mainClassMap.entries()) {
+                                this._testRunResultsView.updateClassStatus(
+                                    className, 
+                                    isSuccess ? 'success' : 'failed'
+                                );
+                            }
                         }
-                    }
-                } catch (error: any) {
-                    console.error(`[VisbalExt.TestClassExplorerView] _runSelectedTests -- Error running test method ${className}.${methodName}:`, error);
+                    };
+
+                    // Execute the async function without waiting
+                    handleTestAndLog().catch(error => {
+                        console.error(`[VisbalExt.TestClassExplorer] Error in test execution: ${error}`);
+                        this._testRunResultsView.updateMethodStatus(className, methodName, 'failed');
+                    });
+
+                } catch (error) {
+                    console.error(`[VisbalExt.TestClassExplorer] Error running test method ${className}.${methodName}: ${error}`);
+                    this._testRunResultsView.updateMethodStatus(className, methodName, 'failed');
                 }
             }
             
