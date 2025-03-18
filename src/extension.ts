@@ -12,8 +12,10 @@ import { MetadataService } from './services/metadataService';
 import { DebugConsoleView } from './views/debugConsoleView';
 import { TestResultsView } from './views/testResultsView';
 import { SamplePanelView } from './views/samplePanelView';
-import { TestRunResultsView } from './views/testRunResultsView';
+import { TestRunResultsView, TestItem } from './views/testRunResultsView';
 
+import { join } from 'path';
+import { existsSync, mkdirSync } from 'fs';
 
 let outputChannel: vscode.OutputChannel;
 
@@ -112,6 +114,70 @@ export function activate(context: vscode.ExtensionContext) {
           }
         }
       )
+    );
+
+    // Register command to handle test log viewing
+    context.subscriptions.push(
+      vscode.commands.registerCommand('visbal-ext.viewTestLog', async (logId: string, testName: string) => {
+        try {
+          console.log('[VisbalExt.Extension] Viewing test log:', { logId, testName });
+
+          // Check if this log is already being downloaded
+          if (TestItem.isDownloading(logId)) {
+            console.log('[VisbalExt.Extension] Log download already in progress:', logId);
+            return;
+          }
+
+          // Check if log file already exists in .sf/tools/debug/logs/
+          const logDir = join(vscode.workspace.rootPath || '', '.sf', 'tools', 'debug', 'logs');
+          const files = await vscode.workspace.findFiles(`**/${logId}*.log`);
+          
+          if (files.length > 0) {
+            // Log file exists, open it
+            console.log('[VisbalExt.Extension] Found existing log file:', files[0].fsPath);
+            const document = await vscode.workspace.openTextDocument(files[0]);
+            await vscode.window.showTextDocument(document);
+            return;
+          }
+
+          // Log file not found, download it
+          console.log('[VisbalExt.Extension] Log file not found, downloading:', logId);
+          TestItem.setDownloading(logId, true);
+          
+          try {
+            const logContent = await metadataService.getTestLog(logId);
+            console.log('[VisbalExt.Extension] Log content retrieved:', !!logContent);
+            
+            if (logContent) {
+              // Create logs directory if it doesn't exist
+              if (!existsSync(logDir)) {
+                mkdirSync(logDir, { recursive: true });
+              }
+
+              // Create a file with the log ID in the name
+              const tmpPath = join(logDir, `${logId}-${testName}-${new Date().getTime()}.log`);
+              console.log('[VisbalExt.Extension] Creating log file at:', tmpPath);
+              
+              const document = await vscode.workspace.openTextDocument(vscode.Uri.parse('untitled:' + tmpPath));
+              const editor = await vscode.window.showTextDocument(document);
+              await editor.edit(editBuilder => {
+                editBuilder.insert(new vscode.Position(0, 0), logContent);
+              });
+              console.log('[VisbalExt.Extension] Log file created and opened');
+            }
+          } finally {
+            TestItem.setDownloading(logId, false);
+          }
+        } catch (error) {
+          TestItem.setDownloading(logId, false);
+          console.error('[VisbalExt.Extension] Error viewing test log:', {
+            testName,
+            logId,
+            error: error
+          });
+          vscode.window.showWarningMessage(`Could not view log for test ${testName}: ${(error as Error).message}`);
+        }
+      })
     );
   }
 

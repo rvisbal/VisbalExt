@@ -473,7 +473,7 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                                             // Download log if available
                                             if (logId) {
                                                 console.log(`[VisbalExt.TestClassExplorer] Processing log for test: ${testClassName}.${test.MethodName}`);
-                                                this._testRunResultsView.updateMethodStatus(testClassName, test.MethodName, 'downloading');
+                                                this._testRunResultsView.updateMethodStatus(testClassName, test.MethodName, 'downloading', logId);
                                                 
                                                 // Download log in background
                                                 this._visbalLogView.downloadLog(logId).catch(error => {
@@ -488,9 +488,9 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
 
                                             // Update method status
                                             if (test.Outcome === 'Pass') {
-                                                this._testRunResultsView.updateMethodStatus(testClassName, test.MethodName, 'success');
+                                                this._testRunResultsView.updateMethodStatus(testClassName, test.MethodName, 'success', logId);
                                             } else {
-                                                this._testRunResultsView.updateMethodStatus(testClassName, test.MethodName, 'failed');
+                                                this._testRunResultsView.updateMethodStatus(testClassName, test.MethodName, 'failed', logId);
                                                 mainClassMap.set(testClassName, false);
                                             }
 
@@ -544,7 +544,7 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
 									try {
 										if (logId) {
 											console.log(`[VisbalExt.TestClassExplorer] runSelectedTests.sequentially  Processing log for test: ${t.ApexClass?.Name || 'Unknown'}`);
-											this._testRunResultsView.updateMethodStatus(className, t.MethodName, 'downloading');
+											this._testRunResultsView.updateMethodStatus(className, t.MethodName, 'downloading', logId);
 											
 											// Download log in background
 											this._visbalLogView.downloadLog(logId).catch(error => {
@@ -557,9 +557,9 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
 										}
 
 										if (t.Outcome === 'Pass') {
-											this._testRunResultsView.updateMethodStatus(className, t.MethodName, 'success');
+											this._testRunResultsView.updateMethodStatus(className, t.MethodName, 'success', logId);
 										} else {
-											this._testRunResultsView.updateMethodStatus(className, t.methodName, 'failed');
+											this._testRunResultsView.updateMethodStatus(className, t.methodName, 'failed', logId);
 											mainClassMap.set(t.ApexClass.Name, false);
 										}
 									} catch (error) {
