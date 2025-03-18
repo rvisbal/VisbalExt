@@ -92,7 +92,8 @@
           "id": "testRunResults",
           "name": "Running Tasks",
           "type": "tree",
-          "visibility": "visible"
+          "visibility": "visible",
+          "hideMenus": true
         },
         {
           "id": "visbal-test-summary",

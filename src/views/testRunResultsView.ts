@@ -17,6 +17,9 @@ export class TestItem extends vscode.TreeItem {
         this._logId = logId;
         this.updateStatus(status);
         
+        // Remove contextValue to hide the icons
+        this.contextValue = undefined;
+        
         if (logId) {
             this.tooltip = `Log ID: ${logId}`;
             this.command = {
@@ -116,6 +119,8 @@ export class TestRunResultsProvider implements vscode.TreeDataProvider<TestItem>
     }
 
     getTreeItem(element: TestItem): vscode.TreeItem {
+        // Remove contextValue to hide the icons
+        element.contextValue = undefined;
         return element;
     }
 
@@ -253,7 +258,8 @@ export class TestRunResultsView {
         this.provider = new TestRunResultsProvider();
         this.treeView = vscode.window.createTreeView('testRunResults', {
             treeDataProvider: this.provider,
-            showCollapseAll: true
+            showCollapseAll: true,
+            canSelectMany: false
         });
         this.provider.setTreeView(this.treeView);
         context.subscriptions.push(this.treeView);

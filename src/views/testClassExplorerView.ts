@@ -342,6 +342,8 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                         //update the "Running Task" treeview status
                         this._testRunResultsView.updateMethodStatus(testClass, t.MethodName, 'downloading');
                         const logId = await this._metadataService.getTestLogId(result.testRunId);
+                        this._testRunResultsView.updateMethodStatus(testClass, t.MethodName, 'downloading', logId);
+
                         if (logId) {
                             console.log(`[VisbalExt.TestClassExplorer] Processing log for test: ${t.ApexClass?.Name || 'Unknown'}`);
                             
