@@ -1002,13 +1002,27 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                                 selectedTests.classes[className] = true;
                                 selectedTests.count++;
                             }
+
+                            // Check all method checkboxes for this class
+                            const methodCheckboxes = document.querySelectorAll('.method-checkbox[data-class="' + className + '"]');
+                            methodCheckboxes.forEach(methodCheckbox => {
+                                if (!methodCheckbox.checked) {
+                                    methodCheckbox.checked = true;
+                                    const methodName = methodCheckbox.dataset.method;
+                                    const key = className + '.' + methodName;
+                                    if (!selectedTests.methods[key]) {
+                                        selectedTests.methods[key] = true;
+                                        selectedTests.count++;
+                                    }
+                                }
+                            });
                         } else {
                             if (selectedTests.classes[className]) {
                                 delete selectedTests.classes[className];
                                 selectedTests.count--;
                             }
                             
-                            // Also uncheck all methods of this class
+                            // Uncheck all method checkboxes for this class
                             const methodCheckboxes = document.querySelectorAll('.method-checkbox[data-class="' + className + '"]');
                             methodCheckboxes.forEach(methodCheckbox => {
                                 if (methodCheckbox.checked) {
@@ -1216,6 +1230,14 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                         // Mark as loaded
                         methodsList.dataset.loaded = 'true';
                         
+                        // Filter out @TestSetup methods and keep only @IsTest methods
+                        const filteredMethods = testMethods.filter(method => {
+                            const annotations = method.annotations || [];
+                            return annotations.some(a => a.name.toLowerCase() === 'istest') && 
+                                   !annotations.some(a => a.name.toLowerCase() === 'testsetup');
+                        });
+                        console.log('[VisbalExt.TestClassExplorerView] Rendering test methods for ' + className + ':', filteredMethods);
+                        
                         if (!testMethods || testMethods.length === 0) {
                             const noMethodsItem = document.createElement('li');
                             noMethodsItem.textContent = 'No test methods found in this class.';
@@ -1226,7 +1248,7 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                         }
                         
                         // Add each test method to the list
-                        testMethods.forEach(function(method) {
+                         testMethods.forEach(function(method) {
                                 const methodLi = document.createElement('li');
                                 methodLi.className = 'test-method-item';
                             
