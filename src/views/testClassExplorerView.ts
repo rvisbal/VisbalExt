@@ -884,12 +884,32 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                     height: 16px;
                     flex-shrink: 0;
                 }
+
+                .select-all-container {
+                    display: flex;
+                    align-items: center;
+                    margin-right: 10px;
+                    cursor: pointer;
+                }
+                .select-all-label {
+                    margin-left: 5px;
+                    user-select: none;
+                }
+                .selection-actions {
+                    display: flex;
+                    align-items: center;
+                    gap: 10px;
+                }
             </style>
         </head>
         <body>
             <div class="container">
                 <div class="actions">
                     <div class="selection-actions">
+                        <label class="select-all-container">
+                            <input type="checkbox" id="selectAllCheckbox" class="checkbox">
+                            <span class="select-all-label">Select All</span>
+                        </label>
                         <span id="selectionCount" class="selection-count">0 selected</span>
                         <button id="runSelectedButton" class="button" disabled>Run Selected</button>
                     </div>
@@ -1558,9 +1578,77 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                     // Initial fetch without force refresh
                     fetchTestClasses(false);
 
-                   
+                    const selectAllCheckbox = document.getElementById('selectAllCheckbox');
 
-                   
+                    // Add event listener for select all checkbox
+                    selectAllCheckbox.addEventListener('change', () => {
+                        const isChecked = selectAllCheckbox.checked;
+                        
+                        // Get all class and method checkboxes
+                        const classCheckboxes = document.querySelectorAll('.class-checkbox');
+                        const methodCheckboxes = document.querySelectorAll('.method-checkbox');
+                        
+                        // Reset selection state
+                        selectedTests.classes = {};
+                        selectedTests.methods = {};
+                        selectedTests.count = 0;
+                        
+                        // Update all class checkboxes
+                        classCheckboxes.forEach(checkbox => {
+                            checkbox.checked = isChecked;
+                            if (isChecked) {
+                                const className = checkbox.dataset.class;
+                                selectedTests.classes[className] = true;
+                                selectedTests.count++;
+                            }
+                        });
+                        
+                        // Update all method checkboxes
+                        methodCheckboxes.forEach(checkbox => {
+                            checkbox.checked = isChecked;
+                            if (isChecked) {
+                                const className = checkbox.dataset.class;
+                                const methodName = checkbox.dataset.method;
+                                const key = className + '.' + methodName;
+                                selectedTests.methods[key] = true;
+                                selectedTests.count++;
+                            }
+                        });
+                        
+                        updateSelectionCount();
+                    });
+
+                    // Update select all checkbox state when individual selections change
+                    function updateSelectAllCheckbox() {
+                        const classCheckboxes = Array.from(document.querySelectorAll('.class-checkbox'));
+                        const methodCheckboxes = Array.from(document.querySelectorAll('.method-checkbox'));
+                        const allCheckboxes = [...classCheckboxes, ...methodCheckboxes];
+                        
+                        if (allCheckboxes.length === 0) {
+                            selectAllCheckbox.checked = false;
+                            selectAllCheckbox.indeterminate = false;
+                            return;
+                        }
+                        
+                        const allChecked = allCheckboxes.every(cb => cb.checked);
+                        const someChecked = allCheckboxes.some(cb => cb.checked);
+                        
+                        selectAllCheckbox.checked = allChecked;
+                        selectAllCheckbox.indeterminate = someChecked && !allChecked;
+                    }
+
+                    // Update the existing toggle functions to call updateSelectAllCheckbox
+                    const originalToggleClassSelection = toggleClassSelection;
+                    toggleClassSelection = function(className, checkbox) {
+                        originalToggleClassSelection(className, checkbox);
+                        updateSelectAllCheckbox();
+                    };
+
+                    const originalToggleMethodSelection = toggleMethodSelection;
+                    toggleMethodSelection = function(className, methodName, checkbox) {
+                        originalToggleMethodSelection(className, methodName, checkbox);
+                        updateSelectAllCheckbox();
+                    };
                 })();
             </script>
         </body>
