@@ -370,10 +370,12 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                         results: testRunResult
                     });
                 }
-
+                //test finish we collect the test run id and the logs    
                 const mainClassMap = new Map<string, Boolean>();
                 for (const t of testRunResult.tests) {
                     try {
+                        //update the "Running Task" treeview status
+                        this._testRunResultsView.updateMethodStatus(testClass, t.MethodName, 'downloading');
                         const logId = await this._metadataService.getTestLogId(result.testRunId);
                         if (logId) {
                             console.log(`[VisbalExt.TestClassExplorer] Processing log for test: ${t.ApexClass?.Name || 'Unknown'}`);
@@ -504,6 +506,8 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                             const testRunResult = await this._metadataService.getTestRunResult(result.testRunId);        
                             for (const t of testRunResult.tests) {
                                 try {
+                                    //update the "Running Task" treeview status
+                                    this._testRunResultsView.updateMethodStatus(className, t.MethodName, 'downloading');
                                     const logId = await this._metadataService.getTestLogId(result.testRunId);
                                     if (logId) {
                                         console.log(`[VisbalExt.TestClassExplorer] Processing log for test: ${t.ApexClass?.Name || 'Unknown'}`);
@@ -520,6 +524,8 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                                     if (!mainClassMap.has(t.ApexClass.Name)) {
                                         mainClassMap.set(t.ApexClass.Name, true);
                                     }
+
+                                    //update the "Running Task" treeview status
                                     console.log('[VisbalExt.TestClassExplorerView] _runTest -- Test:', t);
                                     if (t.Outcome === 'Pass') {
                                         this._testRunResultsView.updateMethodStatus(className, t.MethodName, 'success');

@@ -1,12 +1,12 @@
 import * as vscode from 'vscode';
 
 class TestItem extends vscode.TreeItem {
-    private _status: 'running' | 'success' | 'failed' | 'pending';
+    private _status: 'running' | 'success' | 'failed' | 'pending' | 'downloading';
 
     constructor(
         public readonly label: string,
         public readonly collapsibleState: vscode.TreeItemCollapsibleState,
-        status: 'running' | 'success' | 'failed' | 'pending' = 'pending',
+        status: 'running' | 'success' | 'failed' | 'pending' | 'downloading' = 'pending',
         public readonly children: TestItem[] = []
     ) {
         super(label, collapsibleState);
@@ -14,16 +14,20 @@ class TestItem extends vscode.TreeItem {
         this.updateStatus(status);
     }
 
-    get status(): 'running' | 'success' | 'failed' | 'pending' {
+    get status(): 'running' | 'success' | 'failed' | 'pending' | 'downloading' {
         return this._status;
     }
 
-    updateStatus(status: 'running' | 'success' | 'failed' | 'pending') {
+    updateStatus(status: 'running' | 'success' | 'failed' | 'pending' | 'downloading') {
         this._status = status;
         switch (status) {
             case 'running':
                 this.iconPath = new vscode.ThemeIcon('sync~spin');
                 this.description = 'Running...';
+                break;
+            case 'downloading':
+                this.iconPath = new vscode.ThemeIcon('cloud-download');
+                this.description = 'Downloading log...';
                 break;
             case 'success':
                 this.iconPath = new vscode.ThemeIcon('pass-filled');
@@ -143,7 +147,7 @@ export class TestRunResultsProvider implements vscode.TreeDataProvider<TestItem>
         }
     }
 
-    updateMethodStatus(className: string, methodName: string, status: 'running' | 'success' | 'failed') {
+    updateMethodStatus(className: string, methodName: string, status: 'running' | 'success' | 'failed' | 'downloading') {
         const startTime = Date.now();
         console.log(`[VisbalExt.TestRunResultsProvider] updateMethodStatus -- Updating method status: ${className}.${methodName} -> ${status} at ${new Date(startTime).toISOString()}`);
         
@@ -180,7 +184,7 @@ export class TestRunResultsProvider implements vscode.TreeDataProvider<TestItem>
         }
     }
 
-    updateClassStatus(className: string, status: 'running' | 'success' | 'failed') {
+    updateClassStatus(className: string, status: 'running' | 'success' | 'failed' | 'downloading') {
         const startTime = Date.now();
         console.log(`[VisbalExt.TestRunResultsProvider] updateClassStatus -- Updating class status: ${className} -> ${status} at ${new Date(startTime).toISOString()}`);
         
@@ -240,11 +244,11 @@ export class TestRunResultsView {
         this.provider.addTestRun(className, methods);
     }
 
-    updateMethodStatus(className: string, methodName: string, status: 'running' | 'success' | 'failed') {
+    updateMethodStatus(className: string, methodName: string, status: 'running' | 'success' | 'failed' | 'downloading') {
         this.provider.updateMethodStatus(className, methodName, status);
     }
 
-    updateClassStatus(className: string, status: 'running' | 'success' | 'failed') {
+    updateClassStatus(className: string, status: 'running' | 'success' | 'failed' | 'downloading') {
         this.provider.updateClassStatus(className, status);
     }
 
