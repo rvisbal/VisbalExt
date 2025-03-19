@@ -52,6 +52,7 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
     constructor(private readonly _context: vscode.ExtensionContext) {
         this._extensionUri = _context.extensionUri;
         console.log('[VisbalExt.VisbalLogView] constructor -- Initializing VisbalLogView');
+       
         this._checkDownloadedLogs();
         
         // Load cached logs if available
@@ -63,7 +64,10 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
             this._logs = cachedLogs;
             this._lastFetchTime = lastFetchTime;
         }
+        console.log('[VisbalExt.VisbalLogView] constructor -- _refreshOrgList');
         this._metadataService = new MetadataService();
+        this._refreshOrgList();
+
     }
 
     /**
@@ -2688,7 +2692,7 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
             this._showLoading('Fetching org list...');
 
             const orgs = await this._metadataService.listOrgs();
-            
+            console.log('[VisbalExt.VisbalLogView] _refreshOrgList -- orgs:', orgs);
             // Send the org list to the webview
             this._view?.webview.postMessage({
                 command: 'updateOrgList',
@@ -2714,7 +2718,8 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
             await this._metadataService.setDefaultOrg(username);
             
             // Refresh the org list to show the updated default
-            await this._refreshOrgList();
+            console.log('[VisbalExt.VisbalLogView] _setDefaultOrg -- _refreshOrgList');
+           // await this._refreshOrgList();
             
             this._showSuccess(`Successfully set ${username} as the default org`);
         } catch (error: any) {

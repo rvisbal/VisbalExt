@@ -27,6 +27,29 @@ export interface TestMethod {
 export class MetadataService {
     constructor() {}
 
+    private async executeCliCommandAnonymous(command: string): Promise<string> {
+        try {
+            console.log(`[VisbalExt.MetadataService] Executing CLI command: ${command}`);
+            
+            // Execute the command directly without bash -c wrapper
+            console.log(`[VisbalExt.MetadataService] Executing final command: ${command}`);
+            const { stdout, stderr } = await execAsync(command);
+            
+            if (stderr) {
+                console.warn(`[MetadataService] Command produced stderr: ${stderr}`);
+                // Only throw if it seems like a real error, as some commands output warnings to stderr
+                if (stderr.includes('Error:') || stderr.includes('error:')) {
+                    throw new Error(stderr);
+                }
+            }
+            
+            console.log(`[VisbalExt.MetadataService] Command executed successfully`);
+            return stdout;
+        } catch (error: any) {
+            console.error(`[VisbalExt.MetadataService] Command execution failed:`, error);
+            throw error;
+        }
+    }
     /**
      * Executes a CLI command and returns the result
      */
@@ -46,6 +69,71 @@ export class MetadataService {
                         const parsedInfo = JSON.parse(orgInfo);
                         const targetOrg = parsedInfo.result && parsedInfo.result[0] ? parsedInfo.result[0].value : null;
                         
+                        if (targetOrg) {
+                            console.log(`[VisbalExt.MetadataService] Using target org: ${targetOrg}`);
+                            
+                            // Add the target org to the command if it doesn't already have one
+                            if (!command.includes('-o') && !command.includes('--target-org')) {
+                                command = `${command.replace(' --json', '')} --target-org ${targetOrg} --json`;
+                            }
+                        } else {
+                            throw new Error('No default org set. Please use "sf org set default" to set a default org.');
+                        }
+                    } catch (parseError) {
+                        console.error('[VisbalExt.MetadataService] Failed to parse org info:', parseError);
+                        throw new Error('Failed to parse org info. Please ensure Salesforce CLI is properly installed.');
+                    }
+                } else {
+                    throw new Error('No default org set. Please use "sf org set default" to set a default org.');
+                }
+            } catch (orgError: any) {
+                console.warn('[MetadataService] Failed to get target org:', orgError);
+                
+                // Check if Salesforce CLI is installed
+                try {
+                    await execAsync('sf --version');
+                } catch (cliError) {
+                    throw new Error('Salesforce CLI (sf) is not installed or not in PATH. Please install it from https://developer.salesforce.com/tools/sfdxcli');
+                }
+                
+                throw new Error('No default org set. Please use "sf org set default" to set a default org.');
+            }
+            
+            // Execute the command directly without bash -c wrapper
+            console.log(`[VisbalExt.MetadataService] Executing final command: ${command}`);
+            const { stdout, stderr } = await execAsync(command);
+            
+            if (stderr) {
+                console.warn(`[MetadataService] Command produced stderr: ${stderr}`);
+                // Only throw if it seems like a real error, as some commands output warnings to stderr
+                if (stderr.includes('Error:') || stderr.includes('error:')) {
+                    throw new Error(stderr);
+                }
+            }
+            
+            console.log(`[VisbalExt.MetadataService] Command executed successfully`);
+            return stdout;
+        } catch (error: any) {
+            console.error(`[VisbalExt.MetadataService] Command execution failed:`, error);
+            throw error;
+        }
+    }
+
+
+    private async executeCliCommandTargetOrg(command: string, targetOrg: string): Promise<string> {
+        try {
+            console.log(`[VisbalExt.MetadataService] Executing CLI command: ${command}`);
+            
+            // Get the default org username - don't use bash on Windows
+            try {
+                const sfCommand = 'sf config get target-org --json';
+                console.log(`[VisbalExt.MetadataService] Checking target org with: ${sfCommand}`);
+                
+                const { stdout: orgInfo } = await execAsync(sfCommand);
+                
+                if (orgInfo && orgInfo.trim()) {
+                    try {
+
                         if (targetOrg) {
                             console.log(`[VisbalExt.MetadataService] Using target org: ${targetOrg}`);
                             
@@ -735,8 +823,9 @@ export class MetadataService {
         try {
             console.log('[VisbalExt.MetadataService] listOrgs -- Fetching org list');
             const command = 'sf org list --all --json';
-            const resultStr = await this.executeCliCommand(command);
+            const resultStr = await this.executeCliCommandAnonymous(command);
             const result = JSON.parse(resultStr);
+            console.log('[VisbalExt.MetadataService] listOrgs -- result:', result);
             
             if (!result.result) {
                 throw new Error('Failed to retrieve org list: Unexpected response format');
@@ -797,7 +886,7 @@ export class MetadataService {
                     }));
             }
 
-            console.log('[VisbalExt.MetadataService] listOrgs -- Successfully organized org list');
+            console.log('[VisbalExt.MetadataService] listOrgs -- Successfully organized org list', organizedOrgs);
             return organizedOrgs;
         } catch (error: any) {
             console.error('[VisbalExt.MetadataService] listOrgs -- Error:', error);

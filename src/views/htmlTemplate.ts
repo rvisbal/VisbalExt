@@ -2757,7 +2757,7 @@ export function getHtmlForWebview(extensionUri: vscode.Uri, webview: vscode.Webv
       
       // Initialize by requesting logs
       document.addEventListener('DOMContentLoaded', () => {
-        console.log('[VisbalExt.VisbalLogView] initialize -- DOM content loaded -- Manual refresh required');
+        console.log('[VisbalExt.VisbalLogView] DOMContentLoaded initialize -- DOM content loaded -- Manual refresh required');
         // Removed automatic log fetching to prevent unnecessary API calls
         // vscode.postMessage({ command: 'fetchLogs' });
         // showLoading();
@@ -2796,6 +2796,7 @@ export function getHtmlForWebview(extensionUri: vscode.Uri, webview: vscode.Webv
       
       // Add handler for org list updates
       window.addEventListener('message', event => {
+        console.log('[VisbalExt.VisbalLogView] updateOrgList -- Updating org list event.data:', event.data);
         const message = event.data;
         
         if (message.command === 'updateOrgList') {
@@ -2843,11 +2844,7 @@ export function getHtmlForWebview(extensionUri: vscode.Uri, webview: vscode.Webv
         }
       });
       
-      // Request initial org list
-      document.addEventListener('DOMContentLoaded', () => {
-        console.log('[VisbalExt.VisbalLogView] initialize -- DOM content loaded -- Requesting initial org list');
-        vscode.postMessage({ command: 'refreshOrgList' });
-      });
+
     </script>
   </body>
   </html>`;
