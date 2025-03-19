@@ -43,6 +43,7 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
     private _extensionUri: vscode.Uri;
     private _downloadedLogs: Set<string> = new Set<string>();
     private _isLoading: boolean = false;
+    private _hasIntitialized: boolean = false;
     private _downloadedLogPaths: Map<string, string> = new Map<string, string>();
     private _logs: any[] = [];
     private _lastFetchTime: number = 0;
@@ -53,8 +54,7 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
         this._extensionUri = _context.extensionUri;
         console.log('[VisbalExt.VisbalLogView] constructor -- Initializing VisbalLogView');
        
-        this._checkDownloadedLogs();
-        
+    
         // Load cached logs if available
         const cachedLogs = this._context.globalState.get<any[]>('visbalCachedLogs', []);
         const lastFetchTime = this._context.globalState.get<number>('visbalLastFetchTime', 0);
@@ -64,10 +64,18 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
             this._logs = cachedLogs;
             this._lastFetchTime = lastFetchTime;
         }
-        console.log('[VisbalExt.VisbalLogView] constructor -- _refreshOrgList');
-        this._metadataService = new MetadataService();
-        this._refreshOrgList();
+        this.init();
 
+    }
+
+    public init() {
+        if (!this._hasIntitialized) {
+            this._hasIntitialized = true;
+            this._checkDownloadedLogs();
+            console.log('[VisbalExt.VisbalLogView] constructor -- _refreshOrgList');
+            this._metadataService = new MetadataService();
+            this._refreshOrgList();
+        }
     }
 
     /**
@@ -2719,7 +2727,7 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
             
             // Refresh the org list to show the updated default
             console.log('[VisbalExt.VisbalLogView] _setDefaultOrg -- _refreshOrgList');
-           // await this._refreshOrgList();
+            await this._refreshOrgList();
             
             this._showSuccess(`Successfully set ${username} as the default org`);
         } catch (error: any) {

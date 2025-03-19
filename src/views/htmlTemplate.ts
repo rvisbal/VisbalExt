@@ -2758,9 +2758,9 @@ export function getHtmlForWebview(extensionUri: vscode.Uri, webview: vscode.Webv
       // Initialize by requesting logs
       document.addEventListener('DOMContentLoaded', () => {
         console.log('[VisbalExt.VisbalLogView] DOMContentLoaded initialize -- DOM content loaded -- Manual refresh required');
-        // Removed automatic log fetching to prevent unnecessary API calls
-        // vscode.postMessage({ command: 'fetchLogs' });
-        // showLoading();
+        // Request initial org list
+        vscode.postMessage({ command: 'refreshOrgList' });
+        orgSelector.innerHTML = '<option value="">Loading orgs...</option>';
         
         // Update the message to inform users they need to click refresh
         const noLogsRow = document.querySelector('#logs-table-body tr');
@@ -2796,18 +2796,18 @@ export function getHtmlForWebview(extensionUri: vscode.Uri, webview: vscode.Webv
       
       // Add handler for org list updates
       window.addEventListener('message', event => {
-        console.log('[VisbalExt.VisbalLogView] updateOrgList -- Updating org list event.data:', event.data);
         const message = event.data;
+        console.log('[VisbalExt.VisbalLogView] Received message:', message.command, message);
         
         if (message.command === 'updateOrgList') {
-          console.log('[VisbalExt.VisbalLogView] updateOrgList -- Updating org list');
+          console.log('[VisbalExt.VisbalLogView] updateOrgList -- Updating org list with data:', message.orgs);
           const orgs = message.orgs || {};
           
           // Clear existing options
           orgSelector.innerHTML = '';
           
           // Helper function to add section if it has items
-          const addSection = (items: any[], sectionName: string) => {
+          const addSection = (items, sectionName) => {
             if (items && items.length > 0) {
               const optgroup = document.createElement('optgroup');
               optgroup.label = sectionName;
@@ -2815,7 +2815,12 @@ export function getHtmlForWebview(extensionUri: vscode.Uri, webview: vscode.Webv
               items.forEach(org => {
                 const option = document.createElement('option');
                 option.value = org.username;
-                option.textContent = \`\${org.alias || org.username} (\${org.isDefault ? 'Default' : org.instanceUrl})\`;
+                option.textContent = org.alias || org.username;
+                if (org.isDefault) {
+                  option.textContent += ' (Default)';
+                } else {
+                  option.textContent += ' (' + org.instanceUrl + ')';
+                }
                 option.selected = org.isDefault;
                 optgroup.appendChild(option);
               });
@@ -2825,7 +2830,7 @@ export function getHtmlForWebview(extensionUri: vscode.Uri, webview: vscode.Webv
             }
             return false;
           };
-
+          
           let hasAnyOrgs = false;
           
           // Add each section if it has items
@@ -2841,6 +2846,8 @@ export function getHtmlForWebview(extensionUri: vscode.Uri, webview: vscode.Webv
             option.textContent = 'No orgs found';
             orgSelector.appendChild(option);
           }
+          
+          console.log('[VisbalExt.VisbalLogView] updateOrgList -- Org list updated, hasAnyOrgs:', hasAnyOrgs);
         }
       });
       
