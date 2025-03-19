@@ -1743,9 +1743,6 @@ export function getHtmlForWebview(extensionUri: vscode.Uri, webview: vscode.Webv
               <select id="org-selector" class="org-selector" title="Select Salesforce Org">
                 <option value="">Loading orgs...</option>
               </select>
-              <button id="refresh-orgs-button" class="icon-button" title="Refresh Org List">
-                <span>🔄</span>
-              </button>
           </div>
           <div class="button-group">
             <button id="open-org-button" title="Open Org">
@@ -2771,16 +2768,6 @@ export function getHtmlForWebview(extensionUri: vscode.Uri, webview: vscode.Webv
       
       // Org selector functionality
       const orgSelector = document.getElementById('org-selector');
-      const refreshOrgsButton = document.getElementById('refresh-orgs-button');
-      
-      // Refresh orgs list
-      refreshOrgsButton.addEventListener('click', () => {
-        console.log('[VisbalExt.VisbalLogView] handleRefreshOrgs -- Refresh orgs button clicked');
-        vscode.postMessage({
-          command: 'refreshOrgList'
-        });
-        orgSelector.innerHTML = '<option value="">Loading orgs...</option>';
-      });
       
       // Handle org selection
       orgSelector.addEventListener('change', () => {
@@ -2819,7 +2806,7 @@ export function getHtmlForWebview(extensionUri: vscode.Uri, webview: vscode.Webv
                 if (org.isDefault) {
                   option.textContent += ' (Default)';
                 } else {
-                  option.textContent += ' (' + org.instanceUrl + ')';
+                  //option.textContent += ' (' + org.username + ')';
                 }
                 option.selected = org.isDefault;
                 optgroup.appendChild(option);
