@@ -16,12 +16,12 @@ export class StorageService {
         }
 
         // Set up storage in .sf folder within the project
-        this.storagePath = path.join(workspaceFolder.uri.fsPath, '.sf');
+        this.storagePath = path.join(workspaceFolder.uri.fsPath, '.visbal', 'cache');
         this.testClassesFile = path.join(this.storagePath, 'testClasses.json');
 
-        // Ensure .sf directory exists
+        // Ensure .visbal/cache directory exists
         if (!fs.existsSync(this.storagePath)) {
-            console.log('[VisbalExt.StorageService] Creating .sf directory');
+            console.log('[VisbalExt.StorageService] Creating .visbal/cache directory');
             fs.mkdirSync(this.storagePath, { recursive: true });
         }
 

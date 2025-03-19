@@ -260,8 +260,8 @@ export class OrgUtils {
 
             // Determine target directory
             const logsDir = vscode.workspace.workspaceFolders?.[0]
-                ? path.join(vscode.workspace.workspaceFolders[0].uri.fsPath, '.sfdx', 'tools', 'debug', 'logs')
-                : path.join(os.homedir(), '.sfdx', 'tools', 'debug', 'logs');
+                ? path.join(vscode.workspace.workspaceFolders[0].uri.fsPath, '.visbal', 'logs')
+                : path.join(os.homedir(), '.visbal', 'logs');
 
             // Ensure directory exists
             await fs.promises.mkdir(logsDir, { recursive: true });

@@ -935,12 +935,12 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
             if (vscode.workspace.workspaceFolders && vscode.workspace.workspaceFolders.length > 0) {
                 // Use workspace folder if available
                 const workspaceFolder = vscode.workspace.workspaceFolders[0].uri.fsPath;
-                logsDir = path.join(workspaceFolder, '.sfdx', 'tools', 'debug', 'logs');
+                logsDir = path.join(workspaceFolder, '.visbal', 'logs');
                 console.log(`[VisbalExt.VisbalLogView] Using workspace logs directory: ${logsDir}`);
             } else {
                 // Fall back to home directory
-                const sfdxDir = path.join(os.homedir(), '.sfdx');
-                logsDir = path.join(sfdxDir, 'tools', 'debug', 'logs');
+                const visbalDir = path.join(os.homedir(), '.visbal');
+                logsDir = path.join(visbalDir, 'logs');
                 console.log(`[VisbalExt.VisbalLogView] Using home logs directory: ${logsDir}`);
             }
             
@@ -1816,11 +1816,11 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
             
             // Check if we have a workspace folder
             if (vscode.workspace.workspaceFolders && vscode.workspace.workspaceFolders.length > 0) {
-                // Use the .sfdx/tools/debug/logs directory in the workspace
-                targetDir = path.join(vscode.workspace.workspaceFolders[0].uri.fsPath, '.sfdx', 'tools', 'debug', 'logs');
+                // Use the .visbal/logs directory in the workspace
+                targetDir = path.join(vscode.workspace.workspaceFolders[0].uri.fsPath, '.visbal', 'logs');
             } else {
                 // Use the user's home directory
-                targetDir = path.join(os.homedir(), '.sfdx', 'tools', 'debug', 'logs');
+                targetDir = path.join(os.homedir(), '.visbal', 'logs');
             }
             
             // Create the directory if it doesn't exist

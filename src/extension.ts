@@ -128,8 +128,8 @@ export function activate(context: vscode.ExtensionContext) {
             return;
           }
 
-          // Check if log file already exists in .sf/tools/debug/logs/
-          const logDir = join(vscode.workspace.rootPath || '', '.sf', 'tools', 'debug', 'logs');
+          // Check if log file already exists in .visbal/logs/
+          const logDir = join(vscode.workspace.rootPath || '', '.visbal', 'logs');
           const files = await vscode.workspace.findFiles(`**/${logId}*.log`);
           
           if (files.length > 0) {
