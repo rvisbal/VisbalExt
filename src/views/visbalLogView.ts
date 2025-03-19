@@ -87,9 +87,15 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
 
         // Handle messages from the webview
         webviewView.webview.onDidReceiveMessage(async (message) => {
-            console.log(`[VisbalExt.VisbalLogView] resolveWebviewView -- Received message: ${message.command}`);
+            console.log('[VisbalExt.VisbalLogView] Received message:', message);
             
             switch (message.command) {
+                case 'refreshOrgList':
+                    await this._refreshOrgList();
+                    break;
+                case 'setDefaultOrg':
+                    await this._setDefaultOrg(message.orgUsername);
+                    break;
                 case 'fetchLogs':
                     console.log('[VisbalExt.VisbalLogView] resolveWebviewView -- Fetching logs from command');
                     await this._fetchLogs(true);
@@ -2668,5 +2674,87 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
 
     private _showErrorMessage(message: string): void {
         vscode.window.showErrorMessage(message);
+    }
+
+    /**
+     * Refreshes the list of Salesforce orgs
+     */
+    private async _refreshOrgList(): Promise<void> {
+        try {
+            console.log('[VisbalExt.VisbalLogView] _refreshOrgList -- Refreshing org list');
+
+            const queryCommand = 'sf org list --all --json';
+            this._showLoading('Fetching org list...');
+            const queryResult = await this._executeCommand(queryCommand);
+            const parsedResult = JSON.parse(queryResult);
+            console.log('[VisbalExt.VisbalLogView] _refreshOrgList -- parsedResult:',parsedResult); 
+            // Send the org list to the webview
+            this._view?.webview.postMessage({
+                command: 'updateOrgList',
+                orgs: parsedResult.result.records
+            });
+
+          
+        } catch (error: any) {
+            console.error('[VisbalExt.VisbalLogView] Error refreshing org list:', error);
+            this._showError(`Error fetching org list: ${error.message}`);
+        } finally {
+            this._hideLoading();
+        }
+    }
+
+    /**
+     * Sets the default Salesforce org
+     * @param username The username of the org to set as default
+     */
+    private async _setDefaultOrg(username: string): Promise<void> {
+        try {
+            console.log('[VisbalExt.VisbalLogView] Setting default org:', username);
+            this._showLoading('Setting default org...');
+
+            // Set the default org
+            await vscode.commands.executeCommand('sf:org:set:default', username);
+            
+            // Refresh the org list to show the updated default
+            await this._refreshOrgList();
+            
+            this._showSuccess(`Successfully set ${username} as the default org`);
+        } catch (error: any) {
+            console.error('[VisbalExt.VisbalLogView] Error setting default org:', error);
+            this._showError(`Error setting default org: ${error.message}`);
+        } finally {
+            this._hideLoading();
+        }
+    }
+
+    private _showLoading(message: string): void {
+        this._isLoading = true;
+        this._view?.webview.postMessage({
+            command: 'loading',
+            isLoading: true,
+            message: message
+        });
+    }
+
+    private _hideLoading(): void {
+        this._isLoading = false;
+        this._view?.webview.postMessage({
+            command: 'loading',
+            isLoading: false
+        });
+    }
+
+    private _showError(message: string): void {
+        this._view?.webview.postMessage({
+            command: 'error',
+            error: message
+        });
+    }
+
+    private _showSuccess(message: string): void {
+        this._view?.webview.postMessage({
+            command: 'info',
+            message: message
+        });
     }
 }

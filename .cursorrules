@@ -55,7 +55,7 @@ logging: When adding logging:
 - Include appropriate log levels and categories
 - Add timestamps for important operations
 - Log both success and error cases
-- Use consistent message format: '[VisbalExt.Component] Action -- Details'
+- Use consistent message format: '[VisbalExt.Component] methodName -- Action -- Details'
 
 # Status Bar Rules
 statusbar: When updating status bar:
