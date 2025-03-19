@@ -6,7 +6,9 @@ import { TestClass } from '../types/testClass';
 import { join } from 'path';
 import { readFileSync, writeFileSync } from 'fs';
 import { existsSync, mkdirSync } from 'fs';
-import { VisbalLogView } from './visbalLogView';
+import { OrgUtils } from '../utils/orgUtils';
+
+
 import { TestRunResultsView } from './testRunResultsView';
 import { TestResultsView } from './testResultsView';
 
@@ -60,7 +62,7 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
     private _storageService: StorageService;
     private _testController: vscode.TestController;
     private _testItems: Map<string, vscode.TestItem>;
-    private _visbalLogView: VisbalLogView;
+    private _orgUtils = OrgUtils;
     private _testRunResultsView: TestRunResultsView;
     private _testResultsView: TestResultsView;
 
@@ -77,7 +79,6 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
         this._storageService = new StorageService(_context);
         this._testController = vscode.tests.createTestController('testClassExplorerView', 'Test Class Explorer');
         this._testItems = new Map();
-        this._visbalLogView = new VisbalLogView(this._context);
         this._testRunResultsView = testRunResultsView;
         this._testResultsView = testResultsView;
     }
@@ -351,12 +352,12 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                             // Download and open log for the first test only to avoid multiple windows
                             if (mainClassMap.size === 0) {
                                 console.log(`[VisbalExt.TestClassExplorer] Downloading and opening log: ${logId}`);
-                                await this._visbalLogView.downloadLog(logId);
-                                await this._visbalLogView.openLog(logId);
+                                await this._orgUtils.downloadLog(logId);
+                                await this._orgUtils.openLog(logId, this._extensionUri);
                             } else {
                                 // For subsequent tests, just download in background
                                 console.log(`[VisbalExt.TestClassExplorer] Downloading additional log: ${logId}`);
-                                this._visbalLogView.downloadLog(logId);
+                                this._orgUtils.downloadLog(logId);
                             }
                         } else {
                             console.warn(`[VisbalExt.TestClassExplorer] No log ID found for test: ${t.ApexClass?.Name || 'Unknown'}`);
@@ -479,7 +480,7 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                                                 this._testRunResultsView.updateMethodStatus(testClassName, test.MethodName, 'downloading', logId);
                                                 
                                                 // Download log in background
-                                                this._visbalLogView.downloadLog(logId).catch(error => {
+                                                this._orgUtils.downloadLog(logId).catch(error => {
                                                     console.error(`[VisbalExt.TestClassExplorer] Error downloading log: ${error}`);
                                                 });
                                             }
@@ -550,7 +551,7 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
 											this._testRunResultsView.updateMethodStatus(className, t.MethodName, 'downloading', logId);
 											
 											// Download log in background
-											this._visbalLogView.downloadLog(logId).catch(error => {
+											this._orgUtils.downloadLog(logId).catch(error => {
 												console.error(`[VisbalExt.TestClassExplorer] runSelectedTests.sequentially  Error downloading log: ${error}`);
 											});
 										}
@@ -634,7 +635,7 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                     this._testRunResultsView.updateMethodStatus(className, methodName, 'downloading');
                     
                     // Download log in background
-                    this._visbalLogView.downloadLog(logId).catch(error => {
+                    this._orgUtils.downloadLog(logId).catch(error => {
                         console.error(`[VisbalExt.TestClassExplorer] Error downloading log: ${error}`);
                     });
                 }
