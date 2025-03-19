@@ -141,9 +141,10 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
             
             if (!forceRefresh) {
                 // Try to get from storage first
-                testClasses = this._storageService.getTestClasses();
+                testClasses = await this._storageService.getTestClasses();
+                console.log('[VisbalExt.TestClassExplorerView] _fetchTestClasses Using stored test classes:', testClasses);
                 if (testClasses.length > 0) {
-                    console.log('[VisbalExt.TestClassExplorerView] Using stored test classes');
+                    console.log('[VisbalExt.TestClassExplorerView] _fetchTestClasses Using stored test classes');
                     this._statusBarService.hide();
                     if (this._view) {
                         this._view.webview.postMessage({
@@ -157,7 +158,7 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
 
             // Fetch from Salesforce if not in storage or force refresh
             const apexClasses = await this._metadataService.getTestClasses();
-            console.log('[VisbalExt.TestClassExplorerView] [FETCH] Received test classes:', apexClasses?.length || 0, 'classes');
+            console.log('[VisbalExt.TestClassExplorerView] _fetchTestClasses Received test classes:', apexClasses?.length || 0, 'classes');
             
             // Filter and transform ApexClass to TestClass
             testClasses = apexClasses
@@ -177,12 +178,12 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                 })) || [];
 
             // Save to storage
-            this._storageService.saveTestClasses(testClasses);
-            console.log('[VisbalExt.TestClassExplorerView] Test classes cached');
+            await this._storageService.saveTestClasses(testClasses);
+            console.log('[VisbalExt.TestClassExplorerView] _fetchTestClasses Test classes cached:', testClasses);
 
             // Add test classes to VSCode Test Explorer
             if (testClasses) {
-                console.log('[VisbalExt.TestClassExplorerView] Adding test classes to Test Explorer');
+                console.log('[VisbalExt.TestClassExplorerView] Adding test classes to Test Explorer ', testClasses);
                 for (const testClass of testClasses) {
                     await this._addTestToExplorer(testClass);
                 }
@@ -252,13 +253,13 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
             this._statusBarService.showMessage(`$(sync~spin) Fetching test methods for ${className}...`);
             
             // Try to get from storage first
-            let testMethods = this._storageService.getTestMethodsForClass(className);
+            let testMethods = await this._storageService.getTestMethodsForClass(className);
             
             if (testMethods.length === 0) {
                 // If not in storage, fetch from Salesforce
                 testMethods = await this._metadataService.getTestMethodsForClass(className);
                 // Save to storage
-                this._storageService.saveTestMethodsForClass(className, testMethods);
+                await this._storageService.saveTestMethodsForClass(className, testMethods);
             }
             
             // Send the test methods to the webview

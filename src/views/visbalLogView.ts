@@ -11,29 +11,13 @@ import { statusBarService } from '../services/statusBarService';
 import { readFile, unlink } from 'fs/promises';
 import { MetadataService } from '../services/metadataService';
 import { OrgUtils } from '../utils/orgUtils';
+import { CacheService } from '../services/cacheService';
+import { SalesforceLog } from '../types/salesforceLog';
 
 const execAsync = promisify(exec);
 
 // Maximum buffer size for CLI commands (100MB)
 const MAX_BUFFER_SIZE = 100 * 1024 * 1024;
-
-/**
- * Interface for Salesforce Debug Log
- */
-interface SalesforceLog {
-    id: string;
-    logUser: {
-        name: string;
-    };
-    application: string;
-    operation: string;
-    request: string;
-    status: string;
-    logLength: number;
-    lastModifiedDate: string;
-    downloaded: boolean;
-    localFilePath?: string;
-}
 
 /**
  * VisbalLogView class for displaying logs in the panel area
@@ -46,17 +30,36 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
     private _isLoading: boolean = false;
     private _hasIntitialized: boolean = false;
     private _downloadedLogPaths: Map<string, string> = new Map<string, string>();
-    private _logs: any[] = [];
+    private _logs: SalesforceLog[] = [];
     private _lastFetchTime: number = 0;
     private _cacheExpiryMs: number = 5 * 60 * 1000; // 5 minutes cache expiry
     private _metadataService: MetadataService;
+    private _cacheService: CacheService;
 
     constructor(private readonly _context: vscode.ExtensionContext) {
         this._extensionUri = _context.extensionUri;
         this._metadataService = new MetadataService();
+        this._cacheService = new CacheService(_context);
         
-        // Initialize OrgUtils with downloaded logs data
-        OrgUtils.setDownloadedLogsData(this._downloadedLogs, this._downloadedLogPaths);
+        // Initialize from cache
+        this._initializeFromCache();
+    }
+
+    private async _initializeFromCache(): Promise<void> {
+        try {
+            // Load cached logs
+            this._logs = await this._cacheService.getCachedLogs();
+            this._lastFetchTime = await this._cacheService.getLastFetchTime();
+            this._downloadedLogs = await this._cacheService.getDownloadedLogs();
+            this._downloadedLogPaths = await this._cacheService.getDownloadedLogPaths();
+
+            // Initialize OrgUtils with downloaded logs data
+            OrgUtils.setDownloadedLogsData(this._downloadedLogs, this._downloadedLogPaths);
+
+            console.log(`[VisbalExt.VisbalLogView] Initialized from cache: ${this._logs.length} logs, ${this._downloadedLogs.size} downloaded`);
+        } catch (error) {
+            console.error('[VisbalExt.VisbalLogView] Error initializing from cache:', error);
+        }
     }
 
     public init() {
@@ -297,9 +300,8 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
                     // Update the last fetch time
                     this._lastFetchTime = Date.now();
                     
-                    // Save to global state
-                    this._context.globalState.update('visbalCachedLogs', this._logs);
-                    this._context.globalState.update('visbalLastFetchTime', this._lastFetchTime);
+                    // Save to cache
+                    await this._cacheService.saveCachedLogs(this._logs);
                     
                     // Validate logs
                     const validatedLogs = transformedLogs.filter((log: any) => {
@@ -359,9 +361,8 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
                         // Update the last fetch time
                         this._lastFetchTime = Date.now();
                         
-                        // Save to global state
-                        this._context.globalState.update('visbalCachedLogs', this._logs);
-                        this._context.globalState.update('visbalLastFetchTime', this._lastFetchTime);
+                        // Save to cache
+                        await this._cacheService.saveCachedLogs(this._logs);
                         
                         // Validate logs
                         const validatedLogs = transformedLogs.filter((log: any) => {
@@ -436,9 +437,8 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
             // Update the last fetch time
             this._lastFetchTime = Date.now();
             
-            // Save to global state
-            this._context.globalState.update('visbalCachedLogs', this._logs);
-            this._context.globalState.update('visbalLastFetchTime', this._lastFetchTime);
+            // Save to cache
+            await this._cacheService.saveCachedLogs(this._logs);
             
             // Update download status
             console.log('[VisbalExt.VisbalLogView] _fetchLogsSoql -- Updating download status for logs');
@@ -977,7 +977,7 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
             // Clear the downloaded logs tracking
             this._downloadedLogs.clear();
             this._downloadedLogPaths.clear();
-            this._saveDownloadedLogs();
+            await this._cacheService.saveDownloadedLogs(this._downloadedLogs, this._downloadedLogPaths);
 
             // Update the UI
             this._updateWebviewContent();
@@ -1087,8 +1087,7 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
             // Clear the cached logs
             this._logs = [];
             this._lastFetchTime = 0;
-            this._context.globalState.update('visbalCachedLogs', []);
-            this._context.globalState.update('visbalLastFetchTime', 0);
+            await this._cacheService.saveCachedLogs([]);
 
             // Notify the webview
             this._view?.webview.postMessage({ 
@@ -1201,7 +1200,7 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
             this._logs = this._logs.filter((log: any) => !logIds.includes(log.id));
             
             // Update the cache
-            this._context.globalState.update('visbalCachedLogs', this._logs);
+            await this._cacheService.saveCachedLogs(this._logs);
 
             // Notify the webview
             this._view?.webview.postMessage({ 
@@ -2046,14 +2045,13 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
     /**
      * Saves the list of downloaded logs to extension storage
      */
-    private _saveDownloadedLogs(): void {
-        console.log(`[VisbalExt.VisbalLogView] _saveDownloadedLogs -- Saving ${this._downloadedLogs.size} downloaded logs to extension storage`);
-        this._context.globalState.update('visbalDownloadedLogs', Array.from(this._downloadedLogs));
-        
-        // Save the paths of downloaded logs
-        const downloadedLogPaths = Object.fromEntries(this._downloadedLogPaths.entries());
-        this._context.globalState.update('visbalDownloadedLogPaths', downloadedLogPaths);
-        console.log(`[VisbalExt.VisbalLogView] _saveDownloadedLogs -- Saved ${this._downloadedLogPaths.size} log file paths`);
+    private async _saveDownloadedLogs(): Promise<void> {
+        try {
+            await this._cacheService.saveDownloadedLogs(this._downloadedLogs, this._downloadedLogPaths);
+            console.log(`[VisbalExt.VisbalLogView] Saved ${this._downloadedLogs.size} downloaded logs to cache`);
+        } catch (error) {
+            console.error('[VisbalExt.VisbalLogView] Error saving downloaded logs:', error);
+        }
     }
 
     /**
