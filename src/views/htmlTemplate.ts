@@ -1714,26 +1714,26 @@ export function getHtmlForWebview(extensionUri: vscode.Uri, webview: vscode.Webv
         <div class="actions-section">
           <div class="button-group">
             <button id="open-org-button" title="Open Org">
-              <span>🌐</span> Open
+              <span>🌐</span>
             </button>
-            <button id="refresh-button" title="Refresh Logs">
-              <span>🔄</span> Refresh
+            <button id="refresh-button" title="Refresh Logs files using sfdx">
+              <span>🔄</span>
             </button>
             <button id="soql-button" title="Refresh with SOQL">
               <span>🔄</span> SOQL
             </button>
           </div>
-          <button class="text-button warning-button" id="clear-local-button" title="Clear Downloaded Log Files">
+          <button class="text-button warning-button" id="clear-local-button" title="Clear Downloaded Log Files on local machine">
             <span>🗑️</span> Local
           </button>
           <button class="text-button danger-button" id="delete-selected-button" title="Delete Selected Logs" disabled>
             <span>🗑️</span> Selected
           </button>
           <button class="text-button danger-button" id="delete-server-button" title="Delete Logs from Server">
-            <span>🗑️</span> Server Logs
+            <span>🗑️</span>
           </button>
           <button class="text-button danger-button" id="delete-rest-api-button" title="Delete Logs using REST API">
-            <span>🗑️</span> via REST API
+            <span>🗑️</span> Tooling API
           </button>
         </div>
       </div>
