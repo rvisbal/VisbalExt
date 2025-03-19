@@ -726,4 +726,42 @@ export class MetadataService {
             throw new Error(`Failed to delete log: ${error.message}`);
         }
     }
+
+    /**
+     * Lists all available Salesforce orgs
+     * @returns Promise containing the list of orgs
+     */
+    public async listOrgs(): Promise<any[]> {
+        try {
+            console.log('[VisbalExt.MetadataService] listOrgs -- Fetching org list');
+            const command = 'sf org list --all --json';
+            const resultStr = await this.executeCliCommand(command);
+            const result = JSON.parse(resultStr);
+            
+            if (result.result && result.result.records) {
+                console.log('[VisbalExt.MetadataService] listOrgs -- Successfully retrieved org list');
+                return result.result;
+            } else {
+                throw new Error('Failed to retrieve org list: Unexpected response format');
+            }
+        } catch (error: any) {
+            console.error('[VisbalExt.MetadataService] listOrgs -- Error:', error);
+            throw new Error(`Failed to retrieve org list: ${error.message}`);
+        }
+    }
+
+    /**
+     * Sets the default Salesforce org
+     * @param username The username of the org to set as default
+     */
+    public async setDefaultOrg(username: string): Promise<void> {
+        try {
+            console.log('[VisbalExt.MetadataService] setDefaultOrg -- Setting default org:', username);
+            await vscode.commands.executeCommand('sf:org:set:default', username);
+            console.log('[VisbalExt.MetadataService] setDefaultOrg -- Successfully set default org');
+        } catch (error: any) {
+            console.error('[VisbalExt.MetadataService] setDefaultOrg -- Error:', error);
+            throw new Error(`Failed to set default org: ${error.message}`);
+        }
+    }
 } 

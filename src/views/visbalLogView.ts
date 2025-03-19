@@ -9,6 +9,7 @@ import { promisify } from 'util';
 import { LogDetailView } from './logDetailView';
 import { statusBarService } from '../services/statusBarService';
 import { readFile, unlink } from 'fs/promises';
+import { MetadataService } from '../services/metadataService';
 
 const execAsync = promisify(exec);
 
@@ -46,6 +47,7 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
     private _logs: any[] = [];
     private _lastFetchTime: number = 0;
     private _cacheExpiryMs: number = 5 * 60 * 1000; // 5 minutes cache expiry
+    private _metadataService: MetadataService;
 
     constructor(private readonly _context: vscode.ExtensionContext) {
         this._extensionUri = _context.extensionUri;
@@ -61,6 +63,7 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
             this._logs = cachedLogs;
             this._lastFetchTime = lastFetchTime;
         }
+        this._metadataService = new MetadataService();
     }
 
     /**
@@ -2682,21 +2685,17 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
     private async _refreshOrgList(): Promise<void> {
         try {
             console.log('[VisbalExt.VisbalLogView] _refreshOrgList -- Refreshing org list');
-
-            const queryCommand = 'sf org list --all --json';
             this._showLoading('Fetching org list...');
-            const queryResult = await this._executeCommand(queryCommand);
-            const parsedResult = JSON.parse(queryResult);
-            console.log('[VisbalExt.VisbalLogView] _refreshOrgList -- parsedResult:',parsedResult); 
+
+            const orgs = await this._metadataService.listOrgs();
+            
             // Send the org list to the webview
             this._view?.webview.postMessage({
                 command: 'updateOrgList',
-                orgs: parsedResult.result.records
+                orgs: orgs
             });
-
-          
         } catch (error: any) {
-            console.error('[VisbalExt.VisbalLogView] Error refreshing org list:', error);
+            console.error('[VisbalExt.VisbalLogView] _refreshOrgList -- Error:', error);
             this._showError(`Error fetching org list: ${error.message}`);
         } finally {
             this._hideLoading();
@@ -2709,18 +2708,17 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
      */
     private async _setDefaultOrg(username: string): Promise<void> {
         try {
-            console.log('[VisbalExt.VisbalLogView] Setting default org:', username);
+            console.log('[VisbalExt.VisbalLogView] _setDefaultOrg -- Setting default org:', username);
             this._showLoading('Setting default org...');
 
-            // Set the default org
-            await vscode.commands.executeCommand('sf:org:set:default', username);
+            await this._metadataService.setDefaultOrg(username);
             
             // Refresh the org list to show the updated default
             await this._refreshOrgList();
             
             this._showSuccess(`Successfully set ${username} as the default org`);
         } catch (error: any) {
-            console.error('[VisbalExt.VisbalLogView] Error setting default org:', error);
+            console.error('[VisbalExt.VisbalLogView] _setDefaultOrg -- Error:', error);
             this._showError(`Error setting default org: ${error.message}`);
         } finally {
             this._hideLoading();
