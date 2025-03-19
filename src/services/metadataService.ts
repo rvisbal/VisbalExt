@@ -728,22 +728,77 @@ export class MetadataService {
     }
 
     /**
-     * Lists all available Salesforce orgs
-     * @returns Promise containing the list of orgs
+     * Lists all available Salesforce orgs grouped by type
+     * @returns Promise containing the organized list of orgs
      */
-    public async listOrgs(): Promise<any[]> {
+    public async listOrgs(): Promise<any> {
         try {
             console.log('[VisbalExt.MetadataService] listOrgs -- Fetching org list');
             const command = 'sf org list --all --json';
             const resultStr = await this.executeCliCommand(command);
             const result = JSON.parse(resultStr);
             
-            if (result.result && result.result.records) {
-                console.log('[VisbalExt.MetadataService] listOrgs -- Successfully retrieved org list');
-                return result.result;
-            } else {
+            if (!result.result) {
                 throw new Error('Failed to retrieve org list: Unexpected response format');
             }
+
+            // Filter and organize orgs by type
+            const organizedOrgs = {
+                devHubs: [],
+                nonScratchOrgs: [],
+                sandboxes: [],
+                scratchOrgs: [],
+                other: []
+            };
+
+            // Process each org
+            if (result.result.devHubs) {
+                organizedOrgs.devHubs = result.result.devHubs
+                    .filter((org: any) => org.connectedStatus === 'Connected')
+                    .map((org: any) => ({
+                        ...org,
+                        type: 'devHub'
+                    }));
+            }
+
+            if (result.result.nonScratchOrgs) {
+                organizedOrgs.nonScratchOrgs = result.result.nonScratchOrgs
+                    .filter((org: any) => org.connectedStatus === 'Connected')
+                    .map((org: any) => ({
+                        ...org,
+                        type: 'nonScratchOrg'
+                    }));
+            }
+
+            if (result.result.sandboxes) {
+                organizedOrgs.sandboxes = result.result.sandboxes
+                    .filter((org: any) => org.connectedStatus === 'Connected')
+                    .map((org: any) => ({
+                        ...org,
+                        type: 'sandbox'
+                    }));
+            }
+
+            if (result.result.scratchOrgs) {
+                organizedOrgs.scratchOrgs = result.result.scratchOrgs
+                    .filter((org: any) => !org.isExpired && org.status === 'Active')
+                    .map((org: any) => ({
+                        ...org,
+                        type: 'scratchOrg'
+                    }));
+            }
+
+            if (result.result.other) {
+                organizedOrgs.other = result.result.other
+                    .filter((org: any) => org.connectedStatus === 'Connected')
+                    .map((org: any) => ({
+                        ...org,
+                        type: 'other'
+                    }));
+            }
+
+            console.log('[VisbalExt.MetadataService] listOrgs -- Successfully organized org list');
+            return organizedOrgs;
         } catch (error: any) {
             console.error('[VisbalExt.MetadataService] listOrgs -- Error:', error);
             throw new Error(`Failed to retrieve org list: ${error.message}`);

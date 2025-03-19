@@ -143,6 +143,7 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                 testClasses = this._storageService.getTestClasses();
                 if (testClasses.length > 0) {
                     console.log('[VisbalExt.TestClassExplorerView] Using stored test classes');
+                    this._statusBarService.hide();
                     if (this._view) {
                         this._view.webview.postMessage({
                             command: 'testClassesLoaded',

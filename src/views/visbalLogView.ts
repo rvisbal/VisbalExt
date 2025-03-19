@@ -90,7 +90,7 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
 
         // Handle messages from the webview
         webviewView.webview.onDidReceiveMessage(async (message) => {
-            console.log('[VisbalExt.VisbalLogView] Received message:', message);
+            console.log('[VisbalExt.VisbalLogView] resolveWebviewView -- Received message:', message);
             
             switch (message.command) {
                 case 'refreshOrgList':

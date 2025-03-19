@@ -2800,31 +2800,52 @@ export function getHtmlForWebview(extensionUri: vscode.Uri, webview: vscode.Webv
         
         if (message.command === 'updateOrgList') {
           console.log('[VisbalExt.VisbalLogView] updateOrgList -- Updating org list');
-          const orgs = message.orgs || [];
+          const orgs = message.orgs || {};
           
           // Clear existing options
           orgSelector.innerHTML = '';
           
-          if (orgs.length === 0) {
+          // Helper function to add section if it has items
+          const addSection = (items: any[], sectionName: string) => {
+            if (items && items.length > 0) {
+              const optgroup = document.createElement('optgroup');
+              optgroup.label = sectionName;
+              
+              items.forEach(org => {
+                const option = document.createElement('option');
+                option.value = org.username;
+                option.textContent = \`\${org.alias || org.username} (\${org.isDefault ? 'Default' : org.instanceUrl})\`;
+                option.selected = org.isDefault;
+                optgroup.appendChild(option);
+              });
+              
+              orgSelector.appendChild(optgroup);
+              return true;
+            }
+            return false;
+          };
+
+          let hasAnyOrgs = false;
+          
+          // Add each section if it has items
+          hasAnyOrgs = addSection(orgs.devHubs, 'Dev Hubs') || hasAnyOrgs;
+          hasAnyOrgs = addSection(orgs.nonScratchOrgs, 'Non-Scratch Orgs') || hasAnyOrgs;
+          hasAnyOrgs = addSection(orgs.sandboxes, 'Sandboxes') || hasAnyOrgs;
+          hasAnyOrgs = addSection(orgs.scratchOrgs, 'Scratch Orgs') || hasAnyOrgs;
+          hasAnyOrgs = addSection(orgs.other, 'Other') || hasAnyOrgs;
+          
+          if (!hasAnyOrgs) {
             const option = document.createElement('option');
             option.value = '';
             option.textContent = 'No orgs found';
             orgSelector.appendChild(option);
-          } else {
-            // Add orgs to selector
-            orgs.forEach(org => {
-              const option = document.createElement('option');
-              option.value = org.username;
-              option.textContent = \`\${org.alias || org.username} (\${org.isDefault ? 'Default' : org.instanceUrl})\`;
-              option.selected = org.isDefault;
-              orgSelector.appendChild(option);
-            });
           }
         }
       });
       
       // Request initial org list
       document.addEventListener('DOMContentLoaded', () => {
+        console.log('[VisbalExt.VisbalLogView] initialize -- DOM content loaded -- Requesting initial org list');
         vscode.postMessage({ command: 'refreshOrgList' });
       });
     </script>
