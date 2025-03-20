@@ -2772,8 +2772,18 @@ export function getHtmlForWebview(extensionUri: vscode.Uri, webview: vscode.Webv
       // Handle org selection
       orgSelector.addEventListener('change', () => {
         const selectedOrg = orgSelector.value;
+        if (selectedOrg === '__refresh__') {
+          // Reset selection to previously selected value
+          orgSelector.value = orgSelector.getAttribute('data-last-selection') || '';
+          // Request org list refresh
+          vscode.postMessage({ command: 'refreshOrgList' });
+          return;
+        }
+        
         if (selectedOrg) {
           console.log('[VisbalExt.VisbalLogView] handleOrgSelection -- Org selected -- Details:', selectedOrg);
+          // Store the selection
+          orgSelector.setAttribute('data-last-selection', selectedOrg);
           vscode.postMessage({
             command: 'setSelectedOrg',
             alias: selectedOrg
@@ -2792,6 +2802,20 @@ export function getHtmlForWebview(extensionUri: vscode.Uri, webview: vscode.Webv
           
           // Clear existing options
           orgSelector.innerHTML = '';
+
+          // Add refresh option at the top
+          const refreshOption = document.createElement('option');
+          refreshOption.value = '__refresh__';
+          refreshOption.textContent = '↻ Refresh Org List';
+          refreshOption.style.fontStyle = 'italic';
+          refreshOption.style.backgroundColor = 'var(--vscode-dropdown-background)';
+          orgSelector.appendChild(refreshOption);
+
+          // Add a separator
+          const separator = document.createElement('option');
+          separator.disabled = true;
+          separator.textContent = '──────────────';
+          orgSelector.appendChild(separator);
           
           // Helper function to add section if it has items
           const addSection = (items, sectionName) => {
