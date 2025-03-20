@@ -13,6 +13,7 @@ import { MetadataService } from '../services/metadataService';
 import { OrgUtils } from '../utils/orgUtils';
 import { CacheService } from '../services/cacheService';
 import { SalesforceLog } from '../types/salesforceLog';
+import { SfdxService } from '../services/sfdxService';
 
 const execAsync = promisify(exec);
 
@@ -35,11 +36,13 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
     private _cacheExpiryMs: number = 5 * 60 * 1000; // 5 minutes cache expiry
     private _metadataService: MetadataService;
     private _cacheService: CacheService;
+    private _sfdxService: SfdxService;
 
     constructor(private readonly _context: vscode.ExtensionContext) {
         this._extensionUri = _context.extensionUri;
         this._metadataService = new MetadataService();
         this._cacheService = new CacheService(_context);
+        this._sfdxService = new SfdxService();
         
         // Initialize from cache
         this._initializeFromCache();
