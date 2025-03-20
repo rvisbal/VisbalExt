@@ -10,6 +10,7 @@ interface LogCache {
         lastFetchTime: number;
         downloadedLogs: string[];
         downloadedLogPaths: { [logId: string]: string };
+        selectedOrg?: { alias: string; timestamp: string };
     };
 }
 
@@ -117,6 +118,44 @@ export class CacheService {
             console.log(`[VisbalExt.CacheService] Logs cached for org ${orgAlias}`);
         } catch (error) {
             console.error('[VisbalExt.CacheService] Error caching logs:', error);
+            throw error;
+        }
+    }
+
+    public async getCachedOrg(): Promise<{ alias: string; timestamp: string } | null> {
+        try {
+            const orgAlias = await this.getCurrentOrgAlias();
+            console.log('[VisbalExt.CacheService] getCachedOrg -- orgAlias:', orgAlias);
+            const cache = this.readCache();
+            return cache[orgAlias]?.selectedOrg || null;
+        } catch (error) {
+            console.error('[VisbalExt.CacheService] Error reading cached org:', error);
+            return null;
+        }
+    }
+
+    public async saveCachedOrg(selectedOrg: { alias: string; timestamp: string }): Promise<void> {
+        try {
+            const orgAlias = await this.getCurrentOrgAlias();
+            console.log('[VisbalExt.CacheService] getCasaveCachedOrgchedOrg -- orgAlias:', orgAlias);
+            const cache = this.readCache();
+            
+            if (!cache[orgAlias]) {
+                cache[orgAlias] = {
+                    logs: [],
+                    lastFetchTime: 0,
+                    downloadedLogs: [],
+                    downloadedLogPaths: {}
+                };
+            }
+            
+            cache[orgAlias].selectedOrg = selectedOrg;
+            cache[orgAlias].lastFetchTime = Date.now();
+
+            this.writeCache(cache);
+            console.log(`[VisbalExt.CacheService] Selected org cached: ${selectedOrg.alias}`);
+        } catch (error) {
+            console.error('[VisbalExt.CacheService] Error caching selected org:', error);
             throw error;
         }
     }

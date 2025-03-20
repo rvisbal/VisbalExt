@@ -158,7 +158,7 @@ export class OrgUtils {
             console.log(`[VisbalExt.OrgUtils] setSelectedOrg -- Setting selected org: ${alias}`);
             const cacheService = new CacheService(this._context);
             const selectedOrg: SelectedOrg = { alias, timestamp: new Date().toISOString() };
-            await cacheService.saveCachedLogs([selectedOrg as any]);
+            await cacheService.saveCachedOrg(selectedOrg);
             console.log('[VisbalExt.OrgUtils] setSelectedOrg -- Successfully set selected org');
         }
         catch (error: any) {
@@ -171,10 +171,9 @@ export class OrgUtils {
         try {
             console.log('[VisbalExt.OrgUtils] getSelectedOrg -- Fetching selected org');
             const cacheService = new CacheService(this._context);
-            const logs = await cacheService.getCachedLogs();
-            const selectedOrg = logs[0] as unknown as SelectedOrg;
+            const selectedOrg = await cacheService.getCachedOrg();
             console.log('[VisbalExt.OrgUtils] getSelectedOrg -- Retrieved org:', selectedOrg);
-            return selectedOrg || null;
+            return selectedOrg;
         }
         catch (error: any) {
             console.error('[VisbalExt.OrgUtils] getSelectedOrg -- Error getting selected org:', error);
@@ -199,9 +198,9 @@ export class OrgUtils {
     public static async openSelectedOrg(): Promise<void> {
         try {
             console.log('[VisbalExt.OrgUtils] openSelectedOrg -- Opening selected org');
-            const alias = await this.getSelectedOrg();
-            console.log('[VisbalExt.OrgUtils] openSelectedOrg -- Retrieved alias:', alias);
-            await execAsync(`sf org open --alias ${alias}`);
+            const selectedOrg = await this.getSelectedOrg();
+            console.log('[VisbalExt.OrgUtils] openSelectedOrg -- Retrieved selectedOrg:', selectedOrg);
+            await execAsync(`sf org open --target-org ${selectedOrg?.alias}`);
             console.log('[VisbalExt.OrgUtils] openSelectedOrg -- Successfully opened selected org');
         } catch (error: any) {
             console.error('[VisbalExt.OrgUtils] openSelectedOrg -- Error opening selected org:', error);
