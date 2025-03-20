@@ -2769,6 +2769,135 @@ export function getHtmlForWebview(extensionUri: vscode.Uri, webview: vscode.Webv
       // Org selector functionality
       const orgSelector = document.getElementById('org-selector');
       
+      // Cache handling functions
+      const CACHE_KEY = 'visbal-org-cache';
+      
+      async function saveOrgCache(orgs) {
+        try {
+          vscode.postMessage({
+            command: 'saveOrgCache',
+            data: {
+              orgs,
+              timestamp: new Date().getTime()
+            }
+          });
+        } catch (error) {
+          console.error('[VisbalExt.VisbalLogView] Failed to save org cache:', error);
+        }
+      }
+
+      async function loadOrgCache() {
+        try {
+          vscode.postMessage({
+            command: 'loadOrgCache'
+          });
+        } catch (error) {
+          console.error('[VisbalExt.VisbalLogView] Failed to load org cache:', error);
+          return null;
+        }
+      }
+
+      // Function to update org list UI
+      function updateOrgListUI(orgs, fromCache = false) {
+        console.log('[VisbalExt.VisbalLogView] Updating org list UI with data:', orgs);
+        
+        // Clear existing options
+        orgSelector.innerHTML = '';
+
+        // Add refresh option at the top
+        const refreshOption = document.createElement('option');
+        refreshOption.value = '__refresh__';
+        refreshOption.textContent = fromCache ? '↻ Refresh Org List (Cached)' : '↻ Refresh Org List';
+        refreshOption.style.fontStyle = 'italic';
+        refreshOption.style.backgroundColor = 'var(--vscode-dropdown-background)';
+        orgSelector.appendChild(refreshOption);
+
+        // Add a separator
+        const separator = document.createElement('option');
+        separator.disabled = true;
+        separator.textContent = '──────────────';
+        orgSelector.appendChild(separator);
+
+        // Helper function to add section if it has items
+        const addSection = (items, sectionName) => {
+          if (items && items.length > 0) {
+            const optgroup = document.createElement('optgroup');
+            optgroup.label = sectionName;
+            
+            items.forEach(org => {
+              const option = document.createElement('option');
+              option.value = org.alias;
+              option.textContent = org.alias || org.username;
+              if (org.isDefault) {
+                option.textContent += ' (Default)';
+              }
+              option.selected = org.isDefault;
+              optgroup.appendChild(option);
+            });
+            
+            orgSelector.appendChild(optgroup);
+            return true;
+          }
+          return false;
+        };
+
+        let hasAnyOrgs = false;
+        hasAnyOrgs = addSection(orgs.devHubs, 'Dev Hubs') || hasAnyOrgs;
+        hasAnyOrgs = addSection(orgs.nonScratchOrgs, 'Non-Scratch Orgs') || hasAnyOrgs;
+        hasAnyOrgs = addSection(orgs.sandboxes, 'Sandboxes') || hasAnyOrgs;
+        hasAnyOrgs = addSection(orgs.scratchOrgs, 'Scratch Orgs') || hasAnyOrgs;
+        hasAnyOrgs = addSection(orgs.other, 'Other') || hasAnyOrgs;
+
+        if (!hasAnyOrgs) {
+          const option = document.createElement('option');
+          option.value = '';
+          option.textContent = 'No orgs found';
+          orgSelector.appendChild(option);
+        }
+
+        // If this was a fresh fetch (not from cache), update the cache
+        if (!fromCache) {
+          saveOrgCache(orgs);
+        }
+      }
+
+      // Initialize by loading cache or requesting fresh data
+      document.addEventListener('DOMContentLoaded', () => {
+        console.log('[VisbalExt.VisbalLogView] DOMContentLoaded initialize');
+        orgSelector.innerHTML = '<option value="">Loading orgs...</option>';
+        
+        // Try to load from cache first
+        loadOrgCache();
+      });
+
+      // Handle messages from the extension
+      window.addEventListener('message', event => {
+        const message = event.data;
+        console.log('[VisbalExt.VisbalLogView] Received message:', message.command, message);
+
+        switch (message.command) {
+          case 'updateOrgList':
+            updateOrgListUI(message.orgs || {}, false);
+            break;
+          case 'orgCacheLoaded':
+            if (message.cache) {
+              // Check if cache is older than 1 hour
+              const cacheAge = new Date().getTime() - message.cache.timestamp;
+              if (cacheAge < 3600000) { // 1 hour in milliseconds
+                updateOrgListUI(message.cache.orgs, true);
+              } else {
+                // Cache is too old, request fresh data
+                vscode.postMessage({ command: 'refreshOrgList' });
+              }
+            } else {
+              // No cache available, request fresh data
+              vscode.postMessage({ command: 'refreshOrgList' });
+            }
+            break;
+          // ... existing message handlers ...
+        }
+      });
+
       // Handle org selection
       orgSelector.addEventListener('change', () => {
         const selectedOrg = orgSelector.value;

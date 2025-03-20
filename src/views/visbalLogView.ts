@@ -14,6 +14,7 @@ import { OrgUtils } from '../utils/orgUtils';
 import { CacheService } from '../services/cacheService';
 import { SalesforceLog } from '../types/salesforceLog';
 import { SfdxService } from '../services/sfdxService';
+import { OrgListCacheService } from '../services/orgListCacheService';
 
 const execAsync = promisify(exec);
 
@@ -37,12 +38,14 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
     private _metadataService: MetadataService;
     private _cacheService: CacheService;
     private _sfdxService: SfdxService;
+    private _orgListCacheService: OrgListCacheService;
 
     constructor(private readonly _context: vscode.ExtensionContext) {
         this._extensionUri = _context.extensionUri;
         this._metadataService = new MetadataService();
         this._cacheService = new CacheService(_context);
         this._sfdxService = new SfdxService();
+        this._orgListCacheService = new OrgListCacheService(_context);
         
         // Initialize from cache
         this._initializeFromCache();
@@ -71,7 +74,7 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
             this._checkDownloadedLogs();
             console.log('[VisbalExt.VisbalLogView] constructor -- _refreshOrgList');
             this._metadataService = new MetadataService();
-            this._refreshOrgList();
+            this._loadOrgList();
         }
     }
 
@@ -2362,6 +2365,38 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
         vscode.window.showErrorMessage(message);
     }
 
+
+    private async _loadOrgList(): Promise<void> {
+        try {
+            console.log('[VisbalExt.VisbalLogView] _loadOrgList -- Loading org list');
+            
+            // Try to get from cache first
+            const cachedData = await this._orgListCacheService.getCachedOrgList();
+            let orgs;
+
+            if (cachedData) {
+                console.log('[VisbalExt.VisbalLogView] _loadOrgList -- Using cached org list');
+                orgs = cachedData.orgs;
+            } else {
+                console.log('[VisbalExt.VisbalLogView] _loadOrgList -- Fetching fresh org list');
+                orgs = await OrgUtils.listOrgs();
+                // Save to cache
+                await this._orgListCacheService.saveOrgList(orgs);
+            }
+
+            // Send the categorized orgs to the webview
+            this._view?.webview.postMessage({
+                command: 'updateOrgList',
+                orgs: orgs,
+                fromCache: !!cachedData
+            });
+
+        } catch (error: any) {
+            console.error('[VisbalExt.VisbalLogView] _loadOrgList -- Error loading org list:', error);
+            this._showError(`Failed to load org list: ${error.message}`);
+        }
+    }
+
     /**
      * Refreshes the list of Salesforce orgs
      */
@@ -2370,10 +2405,14 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
             console.log('[VisbalExt.VisbalLogView] _refreshOrgList -- Refreshing org list');
             const orgs = await OrgUtils.listOrgs();
             
+            // Save to cache
+            await this._orgListCacheService.saveOrgList(orgs);
+            
             // Send the categorized orgs to the webview
             this._view?.webview.postMessage({
                 command: 'updateOrgList',
-                orgs: orgs
+                orgs: orgs,
+                fromCache: false
             });
             
             console.log('[VisbalExt.VisbalLogView] _refreshOrgList -- Successfully sent org list to webview');
