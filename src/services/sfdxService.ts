@@ -1,4 +1,5 @@
-import { execAsync } from '../utils/execUtils';
+//import { execAsync } from '../utils/execUtils';
+import { promisify } from 'util';
 import { OrgUtils } from '../utils/orgUtils';
 import { ApexClass, SalesforceLog } from '../types/salesforceTypes';
 import * as fs from 'fs';
@@ -6,6 +7,9 @@ import { readFile, unlink } from 'fs/promises';
 import * as path from 'path';
 import * as os from 'os';
 import * as vscode from 'vscode';
+import { exec } from 'child_process';
+
+const execAsync = promisify(exec);
 
 // Maximum buffer size for CLI commands (100MB)
 const MAX_BUFFER_SIZE = 100 * 1024 * 1024;
@@ -14,7 +18,25 @@ export class SfdxService {
     constructor() {}
 
     //#region Core Functionality
-    private async executeCommand(command: string, options: any = {}): Promise<string> {
+	private async _executeCommand(command: string): Promise<string> {
+        return new Promise<string>((resolve, reject) => {
+            exec(command, { maxBuffer: 1024 * 1024 * 10 }, (error, stdout, stderr) => {
+                if (error) {
+                    console.error(`[VisbalExt.VisbalLogView] _executeCommand Error executing command: ${command}`, error);
+                    reject(error);
+                    return;
+                }
+                
+                if (stderr && stderr.length > 0) {
+                    console.warn(`[VisbalExt.VisbalLogView] _executeCommand Command produced stderr: ${command}`, stderr);
+                }
+                
+                resolve(stdout);
+            });
+        });
+    }
+	
+    private async _executeCommand2(command: string, options: any = {}): Promise<string> {
         try {
             const { stdout } = await execAsync(command, { maxBuffer: MAX_BUFFER_SIZE, ...options });
             return stdout.toString();
@@ -42,17 +64,14 @@ export class SfdxService {
                 }
                 command += ' --json';
                 
-                console.log('[VisbalExt.SfdxService] Getting user ID with new CLI format');
-                const userIdResult = await this.executeCommand(command);
+                console.log('[VisbalExt.SfdxService] getCurrentUserId command:', command);
+                const userIdResult = await this._executeCommand(command);
                 console.log(`[VisbalExt.SfdxService] User ID result: ${userIdResult}`);
                 const userIdJson = JSON.parse(userIdResult);
                 userId = userIdJson.result.id;
                 console.log(`[VisbalExt.SfdxService] Current user ID: ${userId}`);
             } catch (error) {
-                console.error('[VisbalExt.SfdxService] Error getting user ID with new CLI format:', error);
-                
-                // Try with old CLI format
-                console.log('[VisbalExt.SfdxService] Trying with old CLI format');
+                console.error('[VisbalExt.SfdxService] getCurrentUserId Error getting user ID with new CLI format:', error);
                 let command = 'sfdx force:user:display';
                 
                 const selectedOrg = await OrgUtils.getSelectedOrg();
@@ -61,16 +80,16 @@ export class SfdxService {
                 }
                 command += ' --json';
                 
-                const userIdResult = await this.executeCommand(command);
-                console.log(`[VisbalExt.SfdxService] User ID result (old format): ${userIdResult}`);
+                const userIdResult = await this._executeCommand(command);
+                console.log(`[VisbalExt.SfdxService] getCurrentUserId User ID result (old format): ${userIdResult}`);
                 const userIdJson = JSON.parse(userIdResult);
                 userId = userIdJson.result.id;
-                console.log(`[VisbalExt.SfdxService] Current user ID (old format): ${userId}`);
+                console.log(`[VisbalExt.SfdxService] getCurrentUserId Current user ID (old format): ${userId}`);
             }
 
             return userId;
         } catch (error) {
-            console.error('[VisbalExt.SfdxService] Error getting user ID:', error);
+            console.error('[VisbalExt.SfdxService] getCurrentUserId Error getting user ID:', error);
             throw error;
         }
     }
@@ -82,7 +101,7 @@ export class SfdxService {
             console.log('[VisbalExt.SfdxService] getCurrentOrgAlias -- Getting current org alias');
             const command = 'sf org display --json';
             console.log('[VisbalExt.SfdxService] getCurrentOrgAlias -- command:', command);
-            const orgInfo = await this.executeCommand(command);
+            const orgInfo = await this._executeCommand(command);
             console.log('[VisbalExt.SfdxService] getCurrentOrgAlias -- orgInfo:', orgInfo);
             const result = JSON.parse(orgInfo);
             if (result.status === 0 && result.result) {
@@ -110,7 +129,7 @@ export class SfdxService {
             console.log('[VisbalExt.SfdxService] listOrgs -- Fetching org list');
             const command = 'sf org list --all --json';
             console.log('[VisbalExt.SfdxService] getCurrentOrgAlias -- command:', command);
-            const resultStr = await this.executeCommand(command);
+            const resultStr = await this._executeCommand(command);
             const result = JSON.parse(resultStr);
             console.log('[VisbalExt.SfdxService] listOrgs -- result:', result);
             
@@ -181,20 +200,7 @@ export class SfdxService {
         }
     }
 
-    /**
-     * Sets the default Salesforce org
-     * @param username The username of the org to set as default
-     */
-    public async setDefaultOrg(username: string): Promise<void> {
-        try {
-            console.log('[VisbalExt.SfdxService] setDefaultOrg -- Setting default org:', username);
-            await vscode.commands.executeCommand('sf:org:set:default', username);
-            console.log('[VisbalExt.SfdxService] setDefaultOrg -- Successfully set default org');
-        } catch (error: any) {
-            console.error('[VisbalExt.SfdxService] setDefaultOrg -- Error:', error);
-            throw new Error(`Failed to set default org: ${error.message}`);
-        }
-    }
+    
     //#endregion
 
     //#region Debug Levels and Trace Flags
@@ -217,7 +223,7 @@ export class SfdxService {
                 command += ' --json';
                 
                 console.log(`[VisbalExt.SfdxService] Updating debug level with command: ${command}`);
-                await this.executeCommand(command);
+                await this._executeCommand(command);
             } catch (error) {
                 console.error('[VisbalExt.SfdxService] Error updating debug level with new CLI format:', error);
                 
@@ -231,7 +237,7 @@ export class SfdxService {
                 command += ' --json';
                 
                 console.log(`[VisbalExt.SfdxService] Updating debug level with command (old format): ${command}`);
-                await this.executeCommand(command);
+                await this._executeCommand(command);
             }
         } catch (error) {
             console.error('[VisbalExt.SfdxService] Error updating debug level:', error);
@@ -256,7 +262,7 @@ export class SfdxService {
             }
             command += ' --json';
             
-            const result = await this.executeCommand(command);
+            const result = await this._executeCommand(command);
             const parsedResult = JSON.parse(result);
             
             if (parsedResult.status === 0 && parsedResult.result && parsedResult.result.id) {
@@ -306,14 +312,14 @@ export class SfdxService {
             // Try with new CLI format first
             try {
                 console.log(`[VisbalExt.SfdxService] Deleting trace flag with command: ${command}`);
-                await this.executeCommand(command);
+                await this._executeCommand(command);
             } catch (error) {
                 console.error('[VisbalExt.SfdxService] Error deleting trace flag with new CLI format:', error);
                 
                 // Try with old CLI format
                 command = `sfdx force:data:record:delete --sobjecttype TraceFlag --sobjectid ${traceFlagId} --usetoolingapi --json`;
                 console.log(`[VisbalExt.SfdxService] Deleting trace flag with command (old format): ${command}`);
-                await this.executeCommand(command);
+                await this._executeCommand(command);
             }
         } catch (error) {
             console.error('[VisbalExt.SfdxService] Error deleting trace flag:', error);
@@ -343,7 +349,7 @@ export class SfdxService {
                 command += ' --json';
                 
                 console.log(`[VisbalExt.SfdxService] Creating trace flag with command: ${command}`);
-                const result = await this.executeCommand(command);
+                const result = await this._executeCommand(command);
                 const json = JSON.parse(result);
                 return json.result.id;
             } catch (error) {
@@ -359,7 +365,7 @@ export class SfdxService {
                 command += ' --json';
                 
                 console.log(`[VisbalExt.SfdxService] Creating trace flag with command (old format): ${command}`);
-                const result = await this.executeCommand(command);
+                const result = await this._executeCommand(command);
                 const json = JSON.parse(result);
                 return json.result.id;
             }
@@ -390,7 +396,7 @@ export class SfdxService {
                 const tempFile = path.join(os.tmpdir(), `${logId}.log`);
                 const command = `sf apex log get --log-id ${logId} > "${tempFile}" --target-org ${selectedOrg.alias}`;
                 console.log('[VisbalExt.SfdxService] getLogContent -- command:', command);
-                await this.executeCommand(command);
+                await this._executeCommand(command);
                 const content = await readFile(tempFile, 'utf8');
                 await unlink(tempFile);
                 return content;
@@ -404,7 +410,7 @@ export class SfdxService {
                         throw new Error('No org selected');
                     }
                     
-                    const result = await this.executeCommand(`sf apex log get --log-id ${logId} --json --target-org ${selectedOrg.alias}`);
+                    const result = await this._executeCommand(`sf apex log get --log-id ${logId} --json --target-org ${selectedOrg.alias}`);
                     const parsedResult = JSON.parse(result);
                     if (parsedResult.result?.log) {
                         return parsedResult.result.log;
@@ -448,7 +454,7 @@ export class SfdxService {
             }
             command += ' --json';
             
-            const result = await this.executeCommand(command);
+            const result = await this._executeCommand(command);
             return result;
         } catch (error) {
             console.error('[VisbalExt.SfdxService] Failed to list Apex logs:', error);
@@ -468,7 +474,7 @@ export class SfdxService {
                 throw new Error('No org selected');
             }
             
-            await this.executeCommand(
+            await this._executeCommand(
                 `sf data delete record --sobject ApexLog --record-id ${logId} --json --target-org ${selectedOrg.alias}`
             );
         } catch (error) {
@@ -493,7 +499,7 @@ export class SfdxService {
             }
             
             const idList = logIds.join(',');
-            await this.executeCommand(
+            await this._executeCommand(
                 `sf data delete bulk --sobject ApexLog --ids ${idList} --json --target-org ${selectedOrg.alias}`
             );
         } catch (error) {
@@ -520,7 +526,7 @@ export class SfdxService {
             let sfInstalled = false;
             try {
                 console.log('[VisbalExt.SfdxService] Checking if SF CLI is installed');
-                const sfVersionOutput = await this.executeCommand('sf version');
+                const sfVersionOutput = await this._executeCommand('sf version');
                 console.log(`[VisbalExt.SfdxService] SF CLI version: ${sfVersionOutput.trim()}`);
                 sfInstalled = true;
             } catch (err) {
@@ -542,7 +548,7 @@ export class SfdxService {
             try {
                 const command = `sf data query --query "${soqlQuery}" --target-org ${selectedOrg.alias} --json`;
                 console.log(`[VisbalExt.SfdxService] Executing: ${command}`);
-                const queryData = await this.executeCommand(command);
+                const queryData = await this._executeCommand(command);
                 console.log('[VisbalExt.SfdxService] Successfully executed SOQL query with new CLI format');
                 queryResult = JSON.parse(queryData);
             } catch (error) {
@@ -551,7 +557,7 @@ export class SfdxService {
                 try {
                     const command = `sfdx force:data:soql:query -q "${soqlQuery}" --target-org ${selectedOrg.alias} --json`;
                     console.log(`[VisbalExt.SfdxService] Executing: ${command}`);
-                    const queryData = await this.executeCommand(command);
+                    const queryData = await this._executeCommand(command);
                     console.log('[VisbalExt.SfdxService] Successfully executed SOQL query with old CLI format');
                     queryResult = JSON.parse(queryData);
                 } catch (innerError) {
@@ -636,7 +642,7 @@ export class SfdxService {
                     const selectedOrg = await OrgUtils.getSelectedOrg();  
                     const command = `sf apex get log -i ${logId} > "${tempFilePath}" --target-org ${selectedOrg?.alias}`;
                     console.log(`[VisbalExt.SfdxService] Executing direct output command: ${command}`);
-                    await this.executeCommand(command);
+                    await this._executeCommand(command);
                     
                     // Check if the file was created and has content
                     if (fs.existsSync(tempFilePath) && fs.statSync(tempFilePath).size > 0) {
@@ -659,7 +665,7 @@ export class SfdxService {
                     try {
                         const command = `sfdx force:apex:log:get --logid ${logId} > "${tempFilePath}"`;
                         console.log(`[VisbalExt.SfdxService] Executing direct output command with old format: ${command}`);
-                        await this.executeCommand(command);
+                        await this._executeCommand(command);
                         
                         // Check if the file was created and has content
                         if (fs.existsSync(tempFilePath) && fs.statSync(tempFilePath).size > 0) {
@@ -692,7 +698,7 @@ export class SfdxService {
                 const selectedOrg = await OrgUtils.getSelectedOrg();
                 const command = `sf apex get log -i ${logId} --json --target-org ${selectedOrg?.alias}`;
                 console.log(`[VisbalExt.SfdxService] Executing: ${command}`);
-                const logData = await this.executeCommand(command);
+                const logData = await this._executeCommand(command);
                 console.log('[VisbalExt.SfdxService] Successfully fetched log content with new CLI format');
                 log = JSON.parse(logData);
                 
@@ -749,7 +755,7 @@ export class SfdxService {
                 try {
                     const command = `sfdx force:apex:log:get --logid ${logId} --json`;
                     console.log(`[VisbalExt.SfdxService] Executing: ${command}`);
-                    const logData = await this.executeCommand(command);
+                    const logData = await this._executeCommand(command);
                     console.log('[VisbalExt.SfdxService] Successfully fetched log content with old CLI format');
                     log = JSON.parse(logData);
                     
@@ -770,7 +776,7 @@ export class SfdxService {
                     try {
                         console.log('[VisbalExt.SfdxService] Trying direct CLI output without JSON');
                         const selectedOrg = await OrgUtils.getSelectedOrg();
-                        const directOutput = await this.executeCommand(`sf apex get log -i ${logId} --target-org ${selectedOrg?.alias}`);
+                        const directOutput = await this._executeCommand(`sf apex get log -i ${logId} --target-org ${selectedOrg?.alias}`);
                         console.log('[VisbalExt.SfdxService] Successfully fetched log content with direct CLI output');
                         if (directOutput && directOutput.trim().length > 0) {
                             return directOutput;
@@ -780,7 +786,7 @@ export class SfdxService {
                     } catch (directError) {
                         try {
                             console.log('[VisbalExt.SfdxService] Trying direct CLI output with old format');
-                            const oldDirectOutput = await this.executeCommand(`sfdx force:apex:log:get --logid ${logId}`);
+                            const oldDirectOutput = await this._executeCommand(`sfdx force:apex:log:get --logid ${logId}`);
                             console.log('[VisbalExt.SfdxService] Successfully fetched log content with direct CLI output (old format)');
                             if (oldDirectOutput && oldDirectOutput.trim().length > 0) {
                                 return oldDirectOutput;
@@ -832,7 +838,7 @@ export class SfdxService {
                     const selectedOrg = await OrgUtils.getSelectedOrg();
                     const deleteCmd = `sf data delete record --sobject ApexLog --record-ids ${idList} --use-tooling-api --target-org ${selectedOrg?.alias} --json`;
                     console.log(`[VisbalExt.SfdxService] Deleting batch of logs with new CLI format: ${deleteCmd}`);
-                    await this.executeCommand(deleteCmd);
+                    await this._executeCommand(deleteCmd);
                     
                     deletedCount += batch.length;
                     console.log(`[VisbalExt.SfdxService] Deleted batch of ${batch.length} logs with new CLI format, total: ${deletedCount}`);
@@ -849,7 +855,7 @@ export class SfdxService {
                             try {
                                 const oldDeleteCmd = `sfdx force:data:record:delete --sobjecttype ApexLog --sobjectid ${logId} --json`;
                                 console.log(`[VisbalExt.SfdxService] Deleting log with old CLI format: ${oldDeleteCmd}`);
-                                await this.executeCommand(oldDeleteCmd);
+                                await this._executeCommand(oldDeleteCmd);
                                 batchDeletedCount++;
                                 console.log(`[VisbalExt.SfdxService] Deleted log ${logId} with old CLI format`);
                             } catch (singleError) {
@@ -936,7 +942,7 @@ export class SfdxService {
                 : `sf apex run test --class-names ${testClass} --json`;
             
             console.log(`[VisbalExt.SfdxService] Executing command: ${command}`);
-            const output = await this.executeCommand(command);
+            const output = await this._executeCommand(command);
             const result = JSON.parse(output).result;
             
             const endTime = Date.now();
@@ -970,7 +976,7 @@ export class SfdxService {
             }
             command += ' --json';
             console.log(`[VisbalExt.SfdxService] Executing command: ${command}`);
-            const result = await this.executeCommand(command);
+            const result = await this._executeCommand(command);
             const parsedResult = JSON.parse(result);
             
             const endTime = Date.now();
@@ -1002,7 +1008,7 @@ export class SfdxService {
             command += ' --json';
             
             console.log(`[VisbalExt.SfdxService] Executing command: ${command}`);
-            const result = await this.executeCommand(command);
+            const result = await this._executeCommand(command);
             const parsedResult = JSON.parse(result);
             
             if (!parsedResult.result) {
@@ -1045,7 +1051,7 @@ export class SfdxService {
             command += ' --json';
             console.log(`[VisbalExt.SfdxService] Executing command: ${command}`);
 
-            const testRunDetailsResult = await this.executeCommand(command);
+            const testRunDetailsResult = await this._executeCommand(command);
             const testRunDetails = JSON.parse(testRunDetailsResult);
 
             if (!testRunDetails?.result?.summary?.testStartTime) {
@@ -1056,7 +1062,7 @@ export class SfdxService {
             // Get all logs and filter by timestamp
             const logListCommand = `sf apex list log --json`;
             console.log('[VisbalExt.SfdxService] getTestLogId -- logListCommand:', logListCommand);
-            const logListResult = await this.executeCommand(logListCommand);
+            const logListResult = await this._executeCommand(logListCommand);
             const logList = JSON.parse(logListResult);
 
             if (!logList?.result || !logList.result[0]?.Id) {
@@ -1089,7 +1095,7 @@ export class SfdxService {
             command += ' --json';
             console.log(`[VisbalExt.SfdxService] Executing command: ${command}`);
 
-            const testResult = await this.executeCommand(command);
+            const testResult = await this._executeCommand(command);
             const parsedTestResult = JSON.parse(testResult);
             
             if (!parsedTestResult.result?.tests?.[0]) {
@@ -1098,7 +1104,7 @@ export class SfdxService {
 
             // Get the test run logs
             try {
-                const logResult = await this.executeCommand(`sf apex list log --json`);
+                const logResult = await this._executeCommand(`sf apex list log --json`);
                 const parsedLog = JSON.parse(logResult);
                 
                 // Find the most recent log for this test run
@@ -1112,7 +1118,7 @@ export class SfdxService {
                 if (testLogs.length > 0) {
                     const latestLog = testLogs[0];
                     // Fetch the actual log content
-                    const logContent = await this.executeCommand(`sf apex get log --log-id ${latestLog.Id} --json`);
+                    const logContent = await this._executeCommand(`sf apex get log --log-id ${latestLog.Id} --json`);
                     const parsedLogContent = JSON.parse(logContent);
 
                     if (parsedLogContent.result) {
@@ -1179,7 +1185,7 @@ export class SfdxService {
                 command += ' --use-tooling-api';
             }
             command += ' --json';
-            const resultStr = await this.executeCommand(command);
+            const resultStr = await this._executeCommand(command);
             const result = JSON.parse(resultStr);
             
             if (result.status === 0 && result.result) {
@@ -1215,7 +1221,7 @@ export class SfdxService {
                 command += ` --target-org ${selectedOrg.alias}`;
             }
             command += ' --json';
-            const resultStr = await this.executeCommand(command);
+            const resultStr = await this._executeCommand(command);
             const result = JSON.parse(resultStr);
             
             // Clean up the temporary file
@@ -1267,7 +1273,7 @@ export class SfdxService {
                 // Try with old CLI format
                 const command = 'sfdx force:data:soql:query --query "SELECT Id FROM ApexLog" --usetoolingapi --json';
                 console.log(`[VisbalExt.SfdxService] queryApexLogIds -- Executing command (old format): ${command}`);
-                const queryResult = await this.executeCommand(command);
+                const queryResult = await this._executeCommand(command);
                 const queryData = JSON.parse(queryResult);
                 
                 if (queryData.result && queryData.result.records) {
