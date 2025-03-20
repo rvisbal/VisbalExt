@@ -196,6 +196,19 @@ export class OrgUtils {
         }
     }
 
+    public static async openSelectedOrg(): Promise<void> {
+        try {
+            console.log('[VisbalExt.OrgUtils] openSelectedOrg -- Opening selected org');
+            const alias = await this.getSelectedOrg();
+            console.log('[VisbalExt.OrgUtils] openSelectedOrg -- Retrieved alias:', alias);
+            await execAsync(`sf org open --alias ${alias}`);
+            console.log('[VisbalExt.OrgUtils] openSelectedOrg -- Successfully opened selected org');
+        } catch (error: any) {
+            console.error('[VisbalExt.OrgUtils] openSelectedOrg -- Error opening selected org:', error);
+            throw new Error(`Failed to open selected org: ${error.message}`);
+        }
+    }
+    
     /**
      * Execute a CLI command
      * @param command Command to execute

@@ -374,8 +374,8 @@ export function getLogListTemplate(): string {
 				
 				// Event listeners
                 openOrgButton.addEventListener('click', () => {
-                    debug('Refresh button clicked');
-                    vscode.postMessage({ command: 'openDefaultOrg' });
+                    debug('openOrgButton button clicked');
+                    vscode.postMessage({ command: 'openSelectedOrg' });
                     showLoading();
                 });
                 
@@ -2413,9 +2413,9 @@ export function getHtmlForWebview(extensionUri: vscode.Uri, webview: vscode.Webv
         console.log('[VisbalExt.VisbalLogView] open org button clicked');
         hideError();
         vscode.postMessage({
-          command: 'openDefaultOrg'
+          command: 'openSelectedOrg'
         });
-        showLoading('Open default Org...');
+        showLoading('Open selected Org...');
       });
 	  
       // Refresh button

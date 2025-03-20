@@ -105,7 +105,7 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
                 case 'setDefaultOrg':
                     await this._setDefaultOrg(message.orgUsername);
                     break;
-                    case 'setSelectedOrg':
+                case 'setSelectedOrg':
                         await this._setSelectedOrg(message.alias);
                         break;
                 case 'fetchLogs':
@@ -139,6 +139,10 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
                 case 'openDefaultOrg':
                     console.log('[VisbalExt.VisbalLogView] resolveWebviewView -- Opening default org');
                     this.openDefaultOrg();
+                    break;
+               case 'openSelectedOrg':
+                    console.log('[VisbalExt.VisbalLogView] resolveWebviewView -- Opening selected org');
+                    this.openSelectedOrg();
                     break;
                 case 'deleteSelectedLogs':
                     console.log(`[VisbalExt.VisbalLogView] resolveWebviewView -- Deleting selected logs: ${message.logIds.length} logs `, message.logIds);
@@ -2102,6 +2106,26 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
             this._hideLoading();
         }
     }
+
+    public async openSelectedOrg(): Promise<void> {
+        try {
+            
+            const alias = await OrgUtils.getSelectedOrg();
+            console.log('[VisbalExt.VisbalLogView] openSelectedOrg -- Opening selected org');
+            this._showLoading(`Opening ${alias} org...`);
+            
+            await OrgUtils.openSelectedOrg();
+            
+            this._showSuccess('Default org opened in browser');
+            console.log('[VisbalExt.VisbalLogView] openSelectedOrg -- Successfully opened selected org');
+        } catch (error: any) {
+            console.error('[VisbalExt.VisbalLogView] openSelectedOrg -- Error opening selected org:', error);
+            this._showError(`Failed to open selected org: ${error.message}`);
+        } finally {
+            this._hideLoading();
+        }
+    }
+    
 
     private async _getLogContent(logId: string): Promise<string> {
         try {
