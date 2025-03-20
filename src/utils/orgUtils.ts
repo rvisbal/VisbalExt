@@ -12,6 +12,10 @@ export interface SalesforceOrg {
     instanceUrl: string;
     isDefault: boolean;
     type: 'devHub' | 'sandbox' | 'scratchOrg' | 'nonScratchOrg' | 'other';
+    clientId?: string;
+    clientSecret?: string;
+    redirectUri?: string;
+    expirationDate?: string;
 }
 
 export interface OrgGroups {
@@ -45,47 +49,22 @@ export class OrgUtils {
         this._downloadedLogPaths = downloadedLogPaths;
     }
 
-    /**
-     * Fetches and categorizes all Salesforce orgs
-     * @returns Promise<OrgGroups> Object containing categorized orgs
-     */
-    public static async listOrgs(): Promise<OrgGroups> {
-        try {
-            console.log('[VisbalExt.OrgUtils] listOrgs -- Fetching org list');
-            const result = await execAsync('sf org list --json --all');
-            console.log('[VisbalExt.OrgUtils] listOrgs -- Raw result:', result.stdout);
-            
-            const parsedResult = JSON.parse(result.stdout);
-            if (!parsedResult || !parsedResult.result || !parsedResult.result.other) {
-                console.error('[VisbalExt.OrgUtils] listOrgs -- Invalid response format:', parsedResult);
-                throw new Error('Invalid response format from sf org list command');
-            }
 
-            const orgs = parsedResult.result.other;
-            if (!Array.isArray(orgs)) {
-                console.error('[VisbalExt.OrgUtils] listOrgs -- Orgs is not an array:', orgs);
-                throw new Error('Invalid orgs format from sf org list command');
-            }
-
-            console.log('[VisbalExt.OrgUtils] listOrgs -- Parsed orgs:', orgs);
-
-            const groups: OrgGroups = {
-                devHubs: [],
-                sandboxes: [],
-                scratchOrgs: [],
-                nonScratchOrgs: [],
-                other: []
-            };
-
+    public static getSectionArray(orgs: Set<object>): any[] {
+        if (Array.isArray(orgs)) {
+            const result = [];
+            const validStatuses = ['Active', 'Connected', 'Connected (Scratch Org)'];
             for (const org of orgs) {
                 if (!org || typeof org !== 'object') {
                     console.log('[VisbalExt.OrgUtils] listOrgs -- Skipping invalid org entry:', org);
                     continue;
                 }
-
+                
+                const validStatus = (org.status && validStatuses.includes(org.status));
+                const validconnectedStatus = (org.connectedStatus && validStatuses.includes(org.connectedStatus));
                 // Skip orgs that can't be connected to
-                if (org.connectedStatus?.includes('Unable to refresh session')) {
-                    console.log('[VisbalExt.OrgUtils] listOrgs -- Skipping org with refresh issues:', org.username);
+                if (!validStatus && !validconnectedStatus) {
+                    console.log(`[VisbalExt.OrgUtils] listOrgs -- SKIP: ${org.alias} status:${org.status} connectedStatus:${org.connectedStatus}`, org);
                     continue;
                 }
 
@@ -94,28 +73,46 @@ export class OrgUtils {
                     alias: org.alias,
                     instanceUrl: org.instanceUrl || 'Unknown',
                     isDefault: org.isDefaultUsername || false,
-                    type: 'other'
+                    type: org.isDevHub ? 'devHub' : org.isSandbox ? 'sandbox' : org.isScratch ? 'scratchOrg' : org.isNonScratch ? 'nonScratchOrg' : 'other',
+                    clientId: org.clientId || 'Unknown',
+                    clientSecret: org.clientSecret || 'Unknown',
+                    redirectUri: org.redirectUri || 'Unknown',
+                    expirationDate: org.expirationDate || 'Unknown',
                 };
-
-                // Categorize the org
-                if (org.isDevHub) {
-                    orgInfo.type = 'devHub';
-                    groups.devHubs.push(orgInfo);
-                } else if (org.isScratch) {
-                    if (!org.isExpired && org.status === 'Active') {
-                        orgInfo.type = 'scratchOrg';
-                        groups.scratchOrgs.push(orgInfo);
-                    }
-                } else if (org.instanceUrl?.includes('.sandbox.')) {
-                    orgInfo.type = 'sandbox';
-                    groups.sandboxes.push(orgInfo);
-                } else if (!org.isScratch && !org.isDevHub) {
-                    orgInfo.type = 'nonScratchOrg';
-                    groups.nonScratchOrgs.push(orgInfo);
-                } else {
-                    groups.other.push(orgInfo);
-                }
+                result.push(orgInfo);
             }
+            return result;
+        }
+        else {
+            return [];
+        }
+    }
+
+    /**
+     * Fetches and categorizes all Salesforce orgs
+     * @returns Promise<OrgGroups> Object containing categorized orgs
+     */
+    public static async listOrgs(): Promise<OrgGroups> {
+        try {
+            console.log('[VisbalExt.OrgUtils] listOrgs -- Fetching org list');
+            const command = 'sf org list --json --all';
+            const result = await execAsync(command);
+            //console.log('[VisbalExt.OrgUtils] listOrgs -- Raw result:', result.stdout);
+            
+            const parsedResult = JSON.parse(result.stdout);
+            
+
+            console.log('[VisbalExt.OrgUtils] listOrgs -- Parsed orgs:', parsedResult);
+
+            const groups: OrgGroups = {
+                devHubs: this.getSectionArray(parsedResult.result.devHubs),
+                sandboxes: this.getSectionArray(parsedResult.result.sandboxes),
+                scratchOrgs: this.getSectionArray(parsedResult.result.scratchOrgs),
+                nonScratchOrgs: this.getSectionArray(parsedResult.result.nonScratchOrgs),
+                other: this.getSectionArray(parsedResult.result.other)
+            };
+
+            
 
             console.log('[VisbalExt.OrgUtils] listOrgs -- Successfully categorized orgs:', {
                 devHubs: groups.devHubs.length,
@@ -124,7 +121,7 @@ export class OrgUtils {
                 nonScratchOrgs: groups.nonScratchOrgs.length,
                 other: groups.other.length
             });
-
+            console.log('[VisbalExt.OrgUtils] listOrgs -- Returning groups:', groups);
             return groups;
         } catch (error: any) {
             console.error('[VisbalExt.OrgUtils] listOrgs -- Error fetching org list:', error);
