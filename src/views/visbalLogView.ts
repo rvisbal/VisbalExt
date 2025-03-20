@@ -39,6 +39,7 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
     private _cacheService: CacheService;
     private _sfdxService: SfdxService;
     private _orgListCacheService: OrgListCacheService;
+    
 
     constructor(private readonly _context: vscode.ExtensionContext) {
         this._extensionUri = _context.extensionUri;
@@ -280,8 +281,8 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
 
             console.log('[VisbalExt.VisbalLogView] Fetching logs with new CLI format...');
             try {
-                const selectedOrg = await OrgUtils.getSelectedOrg();
-                const result = await this._executeCommand('sf apex list log --target-org ${selectedOrg?.alias} --json');
+
+                const result = await this._sfdxService.listApexLogs();
                 const jsonResult = JSON.parse(result);
                 
                 if (jsonResult && jsonResult.result && Array.isArray(jsonResult.result)) {

@@ -77,6 +77,30 @@ export class SfdxService {
     //#endregion
 
     //#region Organization Management
+    public async getCurrentOrgAlias(): Promise<string> {
+        try {
+            console.log('[VisbalExt.SfdxService] getCurrentOrgAlias -- Getting current org alias');
+            const command = 'sf org display --json';
+            console.log('[VisbalExt.SfdxService] getCurrentOrgAlias -- command:', command);
+            const orgInfo = await this.executeCommand(command);
+            console.log('[VisbalExt.SfdxService] getCurrentOrgAlias -- orgInfo:', orgInfo);
+            const result = JSON.parse(orgInfo);
+            if (result.status === 0 && result.result) {
+                // Use alias if available, otherwise use username
+                const alias = result.result.alias || result.result.username;
+                if (!alias) {
+                    throw new Error('No org alias or username found');
+                }
+               
+                return alias;
+            }
+            throw new Error('No default org set');
+        } catch (error) {
+            console.error('[VisbalExt.CacheService] Error getting current org alias:', error);
+            throw error;
+        }
+    }
+
     /**
      * Lists all available Salesforce orgs grouped by type
      * @returns Promise containing the organized list of orgs
@@ -85,6 +109,7 @@ export class SfdxService {
         try {
             console.log('[VisbalExt.SfdxService] listOrgs -- Fetching org list');
             const command = 'sf org list --all --json';
+            console.log('[VisbalExt.SfdxService] getCurrentOrgAlias -- command:', command);
             const resultStr = await this.executeCommand(command);
             const result = JSON.parse(resultStr);
             console.log('[VisbalExt.SfdxService] listOrgs -- result:', result);
@@ -422,7 +447,7 @@ export class SfdxService {
      * Lists all Apex logs
      * @returns Promise<SalesforceLog[]> Array of Salesforce logs
      */
-    public async listApexLogs(): Promise<SalesforceLog[]> {
+    public async listApexLogs(): Promise<string> {
         try {
             console.log('[VisbalExt.SfdxService] Listing Apex logs...');
             let command = 'sf apex list log';
@@ -434,23 +459,7 @@ export class SfdxService {
             command += ' --json';
             
             const result = await this.executeCommand(command);
-            const parsedResult = JSON.parse(result);
-            
-            if (!parsedResult.result) {
-                return [];
-            }
-
-            return parsedResult.result.map((log: any) => ({
-                id: log.Id,
-                logUser: log.LogUser || 'Unknown User',
-                application: log.Application || 'Unknown',
-                operation: log.Operation || 'Unknown',
-                request: log.Request || '',
-                status: log.Status || 'Unknown',
-                logLength: log.LogLength || 0,
-                lastModifiedDate: log.LastModifiedDate || '',
-                downloaded: false
-            }));
+            return result;
         } catch (error) {
             console.error('[VisbalExt.SfdxService] Failed to list Apex logs:', error);
             throw error;

@@ -7,6 +7,7 @@ import { readFile, unlink } from 'fs/promises';
 import { join } from 'path';
 import { existsSync, mkdirSync } from 'fs';
 import { readFileSync } from 'fs';
+import { SfdxService } from './sfdxService';
 
 const execAsync = promisify(exec);
 
@@ -25,7 +26,11 @@ export interface TestMethod {
 }
 
 export class MetadataService {
-    constructor() {}
+	private _sfdxService: SfdxService;
+	  
+    constructor() {
+		this._sfdxService = new SfdxService();
+	}
 
     private async executeCliCommandAnonymous(command: string): Promise<string> {
         try {
@@ -445,7 +450,7 @@ export class MetadataService {
     public async listApexLogs(): Promise<any[]> {
         try {
             console.log('[VisbalExt.MetadataService] Listing Apex logs...');
-            const output = await this.executeCliCommand('sf apex list log --json');
+            const output = await this._sfdxService.listApexLogs();
             const result = JSON.parse(output).result;
             console.log(`[VisbalExt.MetadataService] Found ${result.length} logs`);
             return result;

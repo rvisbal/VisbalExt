@@ -3,6 +3,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { SalesforceLog } from '../types/salesforceLog';
 import { execAsync } from '../utils/execUtils';
+import { SfdxService } from './sfdxService';
 
 interface LogCache {
     [orgAlias: string]: {
@@ -18,8 +19,10 @@ export class CacheService {
     private cachePath: string;
     private logCacheFile: string;
     private currentOrgAlias: string | undefined;
+    private _sfdxService: SfdxService;
 
     constructor(context: vscode.ExtensionContext) {
+        this._sfdxService = new SfdxService();
         // Get the workspace folder path
         const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
         if (!workspaceFolder) {
@@ -44,23 +47,8 @@ export class CacheService {
     }
 
     private async getCurrentOrgAlias(): Promise<string> {
-        try {
-            const { stdout: orgInfo } = await execAsync('sf org display --json');
-            const result = JSON.parse(orgInfo);
-            if (result.status === 0 && result.result) {
-                // Use alias if available, otherwise use username
-                const alias = result.result.alias || result.result.username;
-                if (!alias) {
-                    throw new Error('No org alias or username found');
-                }
-                this.currentOrgAlias = alias;
-                return alias;
-            }
-            throw new Error('No default org set');
-        } catch (error) {
-            console.error('[VisbalExt.CacheService] Error getting current org alias:', error);
-            throw error;
-        }
+        this.currentOrgAlias = await this._sfdxService.getCurrentOrgAlias();
+        return this.currentOrgAlias ;
     }
 
     private readCache(): LogCache {
