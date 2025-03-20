@@ -243,26 +243,7 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
                 // Do not fetch logs automatically - let the user click Refresh
             }
         }, 500); // Add a small delay to ensure the webview is fully loaded
-
-        // Do not fetch logs when the view becomes visible - remove this event handler
-        // webviewView.onDidChangeVisibility(() => {
-        //     if (webviewView.visible) {
-        //         console.log('[VisbalExt.VisbalLogView] resolveWebviewView -- View became visible, checking for cached logs');
-        //         
-        //         // If we have cached logs that aren't too old, send them to the webview
-        //         const now = Date.now();
-        //         const cacheAge = now - this._lastFetchTime;
-        //         
-        //         if (this._logs.length > 0) {
-        //             console.log(`[VisbalExt.VisbalLogView] resolveWebviewView -- Using cached logs (${this._logs.length} logs, ${Math.round(cacheAge / 1000)}s old)`);
-        //             this._sendLogsToWebview(this._logs);
-        //         } else {
-        //             console.log('[VisbalExt.VisbalLogView] resolveWebviewView -- No cached logs available, fetching new logs');
-        //             this._fetchLogs();
-        //         }
-        //     }
-        // });
-    }
+	}
 
 
     /**
@@ -351,68 +332,7 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
                 console.error('[VisbalExt.VisbalLogView] Error fetching logs with new CLI format:', error);
                 console.log('[VisbalExt.VisbalLogView] Falling back to old CLI format...');
                 
-                try {
-                    const result = await this._executeCommand('sfdx force:apex:log:list --json');
-                    const jsonResult = JSON.parse(result);
-                    
-                    if (jsonResult && jsonResult.result && Array.isArray(jsonResult.result)) {
-                        console.log(`[VisbalExt.VisbalLogView] Found ${jsonResult.result.length} logs with old CLI format`);
-                        
-                        // Transform logs to the expected format
-                        const transformedLogs = jsonResult.result.map((log: any) => {
-                            // Log the raw log entry for debugging
-                            console.log(`[VisbalExt.VisbalLogView] Raw log entry (old format): ${JSON.stringify(log)}`);
-                            
-                            return {
-                                id: log.Id || log.id,
-                                logUser: {
-                                    name: log.LogUser?.Name || log.LogUserName || 'Unknown User'
-                                },
-                                application: log.Application || log.application || 'Unknown',
-                                operation: log.Operation || log.operation || 'Unknown',
-                                request: log.Request || log.request || '',
-                                status: log.Status || log.status || 'Unknown',
-                                logLength: log.LogLength || log.logLength || 0,
-                                lastModifiedDate: log.LastModifiedDate || log.lastModifiedDate || '',
-                                startTime: log.StartTime || log.startTime || log.LastModifiedDate || log.lastModifiedDate || '',
-                                downloaded: false // Will be updated later
-                            };
-                        });
-                        
-                        // Store the transformed logs
-                        this._logs = transformedLogs;
-                        
-                        // Update the last fetch time
-                        this._lastFetchTime = Date.now();
-                        
-                        // Save to cache
-                        await this._cacheService.saveCachedLogs(this._logs);
-                        
-                        // Validate logs
-                        const validatedLogs = transformedLogs.filter((log: any) => {
-                            if (!log || typeof log !== 'object' || !log.id) {
-                                console.error('[VisbalExt.VisbalLogView] Invalid log entry after transformation (old format):', log);
-                                return false;
-                            }
-                            return true;
-                        });
-                        
-                        console.log(`[VisbalExt.VisbalLogView] Validated ${validatedLogs.length} of ${transformedLogs.length} logs`);
-                        
-                        // Send logs to webview with downloaded status
-                        this._sendLogsToWebview(validatedLogs);
-                        
-                        // Show success message in status bar
-                        statusBarService.showSuccess(`Fetched ${validatedLogs.length} logs`);
-                    } else {
-                        console.error('[VisbalExt.VisbalLogView] Invalid response format from old CLI:', jsonResult);
-                        throw new Error('Invalid response format from old CLI');
-                    }
-                } catch (oldCliError) {
-                    console.error('[VisbalExt.VisbalLogView] Error fetching logs with old CLI format:', oldCliError);
-                    throw new Error('Failed to fetch logs with both CLI formats');
-                }
-            }
+			}
         } catch (error: any) {
             console.error('[VisbalExt.VisbalLogView] _fetchLogs -- Error:', error);
             statusBarService.showError(`Error fetching logs: ${error.message}`);
@@ -789,12 +709,10 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
                     
                     // Try with new CLI format first
                     try {
-                        const debugLevelCmd = `sf data create record --sobject DebugLevel --values "DeveloperName=${debugLevelName} MasterLabel=${debugLevelName} ApexCode=FINEST ApexProfiling=FINEST Callout=FINEST Database=FINEST System=FINEST Validation=FINEST Visualforce=FINEST Workflow=FINEST" --use-tooling-api --json`;
-                        console.log(`[VisbalExt.VisbalLogView] Creating debug level with command: ${debugLevelCmd}`);
-                        const debugLevelResult = await this._executeCommand(debugLevelCmd);
-                        console.log(`[VisbalExt.VisbalLogView] Debug level creation result: ${debugLevelResult}`);
-                        const debugLevelJson = JSON.parse(debugLevelResult);
-                        debugLevelId = debugLevelJson.result.id;
+                        const debugvalues = `DeveloperName=${debugLevelName} MasterLabel=${debugLevelName} ApexCode=FINEST ApexProfiling=FINEST Callout=FINEST Database=FINEST System=FINEST Validation=FINEST Visualforce=FINEST Workflow=FINEST`;
+                        console.log(`[VisbalExt.VisbalLogView] Creating debug level with command: ${debugvalues}`);
+
+                        debugLevelId = await this._sfdxService.createDebugLevel(debugvalues);
                         console.log(`[VisbalExt.VisbalLogView] Created debug level with ID: ${debugLevelId}`);
                     } catch (error: any) {
                         console.error('[VisbalExt.VisbalLogView] Error creating debug level with new CLI format:', error);
@@ -858,13 +776,16 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
                 
                 // Try with new CLI format first
                 try {
-                    const selectedOrg = await OrgUtils.getSelectedOrg();
-                    const traceFlagCmd = `sf data create record --sobject TraceFlag --values "TracedEntityId=${userId} LogType=DEVELOPER_LOG DebugLevelId=${debugLevelId} StartDate=${formattedStartDate} ExpirationDate=${formattedExpirationDate}" --use-tooling-api --target-org ${selectedOrg?.alias} --json`;
-                    console.log(`[VisbalExt.VisbalLogView] Creating trace flag with command: ${traceFlagCmd}`);
-                    const traceFlagResult = await this._executeCommand(traceFlagCmd);
-                    console.log(`[VisbalExt.VisbalLogView] Trace flag creation result: ${traceFlagResult}`);
-                    const traceFlagJson = JSON.parse(traceFlagResult);
-                    console.log(`[VisbalExt.VisbalLogView] Created trace flag with ID: ${traceFlagJson.result.id}`);
+
+
+					const debugvalues = `TracedEntityId=${userId} LogType=DEVELOPER_LOG DebugLevelId=${debugLevelId} StartDate=${formattedStartDate} ExpirationDate=${formattedExpirationDate}`;
+                         console.log(`[VisbalExt.VisbalLogView] Creating debug level with command: ${debugvalues}`);
+
+                        debugLevelId = await this._sfdxService.createTraceFlag(debugvalues);
+						
+						
+                   
+                    console.log(`[VisbalExt.VisbalLogView] Created trace flag with ID: ${debugLevelId}`);
                 } catch (error: any) {
                     console.error('[VisbalExt.VisbalLogView] Error creating trace flag with new CLI format:', error);
                     
@@ -1409,7 +1330,7 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
             }
 
             // Create or update debug level
-            let debugLevelId = existingDebugLevelId;
+			let debugLevelId = existingDebugLevelId;
             
             if (existingDebugLevelId) {
                 // Update existing debug level
@@ -1460,15 +1381,11 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
                 try {
                     // Try with new CLI format first
                     try {
-                        const selectedOrg = await OrgUtils.getSelectedOrg();
-                        const createDebugLevelCommand = `sf data create record --sobject DebugLevel --values "DeveloperName=${debugLevelName} MasterLabel=${debugLevelName} ${debugLevelFields}" --use-tooling-api --target-org ${selectedOrg?.alias} --json`;
-                        console.log(`[VisbalExt.VisbalLogView] Creating debug level with command: ${createDebugLevelCommand}`);
-                        
-                        const createDebugLevelResult = await this._executeCommand(createDebugLevelCommand);
-                        console.log(`[VisbalExt.VisbalLogView] Create debug level result: ${createDebugLevelResult}`);
-                        
-                        const createDebugLevelJson = JSON.parse(createDebugLevelResult);
-                        debugLevelId = createDebugLevelJson.result.id;
+						 const debugvalues = `DeveloperName=${debugLevelName} MasterLabel=${debugLevelName} ${debugLevelFields}`;
+                         console.log(`[VisbalExt.VisbalLogView] Creating debug level with command: ${debugvalues}`);
+
+                        debugLevelId = await this._sfdxService.createDebugLevel(debugvalues);
+		
                         console.log(`[VisbalExt.VisbalLogView] Created debug level with ID: ${debugLevelId}`);
                     } catch (error) {
                         console.error('[VisbalExt.VisbalLogView] Error creating debug level with new CLI format:', error);
@@ -2161,14 +2078,12 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
 
     private async _createDebugLevel(debugLevelName: string): Promise<string> {
         try {
-            const selectedOrg = await OrgUtils.getSelectedOrg();
-            const debugLevelCmd = `sf data create record --sobject DebugLevel --values "DeveloperName=${debugLevelName} MasterLabel=${debugLevelName} ApexCode=FINEST ApexProfiling=FINEST Callout=FINEST Database=FINEST System=FINEST Validation=FINEST Visualforce=FINEST Workflow=FINEST" --use-tooling-api --target-org ${selectedOrg?.alias} --   json`;
-            const result = await this._executeCommand(debugLevelCmd);
-            const parsedResult = JSON.parse(result);
-            if (parsedResult.status === 0 && parsedResult.result && parsedResult.result.id) {
-                return parsedResult.result.id;
-            }
-            throw new Error('Failed to create debug level');
+			const debugvalues = `DeveloperName=${debugLevelName} MasterLabel=${debugLevelName} ApexCode=FINEST ApexProfiling=FINEST Callout=FINEST Database=FINEST System=FINEST Validation=FINEST Visualforce=FINEST Workflow=FINEST`;
+            console.log(`[VisbalExt.VisbalLogView] Creating debug level with command: ${debugvalues}`);
+
+            const debugLevelId = await this._sfdxService.createDebugLevel(debugvalues);
+			
+            return debugLevelId;
         } catch (error) {
             console.error('[VisbalExt.VisbalLogView] Error creating debug level:', error);
             throw error;

@@ -246,9 +246,9 @@ export class SfdxService {
      * @returns The ID of the created debug level
      * @throws Error if unable to create debug level
      */
-    public async createDebugLevel(debugLevelName: string, debugLevelFields: string): Promise<string> {
+    public async createDebugLevel(debugValues: string): Promise<string> {
         try {
-            let command = `sf data create record --sobject DebugLevel --values "DeveloperName=${debugLevelName} MasterLabel=${debugLevelName} ${debugLevelFields}" --use-tooling-api`;
+            let command = `sf data create record --sobject DebugLevel --values "${debugValues}" --use-tooling-api`;
             
             const selectedOrg = await OrgUtils.getSelectedOrg();
             if (selectedOrg?.alias) {
@@ -330,11 +330,11 @@ export class SfdxService {
      * @returns The ID of the created trace flag
      * @throws Error if unable to create trace flag
      */
-    public async createTraceFlag(userId: string, debugLevelId: string, startDate: string, expirationDate: string): Promise<string> {
+    public async createTraceFlag(debugValues: string): Promise<string> {
         try {
             // Try with new CLI format first
             try {
-                let command = `sf data create record --sobject TraceFlag --values "DebugLevelId=${debugLevelId} LogType=DEVELOPER_LOG TracedEntityId=${userId} StartDate=${startDate} ExpirationDate=${expirationDate}" --use-tooling-api`;
+                let command = `sf data create record --sobject TraceFlag --values "${debugValues}" --use-tooling-api`;
                 
                 const selectedOrg = await OrgUtils.getSelectedOrg();
                 if (selectedOrg?.alias) {
@@ -350,7 +350,7 @@ export class SfdxService {
                 console.error('[VisbalExt.SfdxService] Error creating trace flag with new CLI format:', error);
                 
                 // Try with old CLI format
-                let command = `sfdx force:data:record:create --sobjecttype TraceFlag --values "DebugLevelId=${debugLevelId} LogType=DEVELOPER_LOG TracedEntityId=${userId} StartDate=${startDate} ExpirationDate=${expirationDate}" --usetoolingapi`;
+                let command = `sfdx force:data:record:create --sobjecttype TraceFlag --values "${debugValues}" --usetoolingapi`;
                 
                 const selectedOrg = await OrgUtils.getSelectedOrg();
                 if (selectedOrg?.alias) {
