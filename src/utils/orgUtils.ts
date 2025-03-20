@@ -5,6 +5,7 @@ import * as os from 'os';
 import { execAsync, MAX_BUFFER_SIZE } from './execUtils';
 import { LogDetailView } from '../views/logDetailView';
 import { statusBarService } from '../services/statusBarService';
+import { CacheService } from '../services/cacheService';
 
 export interface SalesforceOrg {
     username: string;
@@ -26,17 +27,25 @@ export interface OrgGroups {
     other: SalesforceOrg[];
 }
 
+export interface SelectedOrg {
+    alias: string;
+    timestamp: string;
+}
+
 export class OrgUtils {
     private static _downloadedLogs: Set<string> = new Set<string>();
     private static _downloadedLogPaths: Map<string, string> = new Map<string, string>();
     private static _logs: any[] = [];
+    private static _context: vscode.ExtensionContext;
 
     /**
      * Initialize the OrgUtils class with necessary data
      * @param logs Array of log objects
+     * @param context VSCode extension context
      */
-    public static initialize(logs: any[]): void {
+    public static initialize(logs: any[], context: vscode.ExtensionContext): void {
         this._logs = logs;
+        this._context = context;
     }
 
     /**
@@ -64,7 +73,7 @@ export class OrgUtils {
                 const validconnectedStatus = (org.connectedStatus && validStatuses.includes(org.connectedStatus));
                 // Skip orgs that can't be connected to
                 if (!validStatus && !validconnectedStatus) {
-                    console.log(`[VisbalExt.OrgUtils] listOrgs -- SKIP: ${org.alias} status:${org.status} connectedStatus:${org.connectedStatus}`, org);
+                    console.log(`[VisbalExt.OrgUtils] listOrgs -- SKIP: ${org.alias} status:${org.status} connectedStatus:${org.connectedStatus}`);
                     continue;
                 }
 
@@ -141,6 +150,35 @@ export class OrgUtils {
         } catch (error: any) {
             console.error('[VisbalExt.OrgUtils] setDefaultOrg -- Error setting default org:', error);
             throw new Error(`Failed to set default org: ${error.message}`);
+        }
+    }
+
+    public static async setSelectedOrg(alias: string): Promise<void> {
+        try {
+            console.log(`[VisbalExt.OrgUtils] setSelectedOrg -- Setting selected org: ${alias}`);
+            const cacheService = new CacheService(this._context);
+            const selectedOrg: SelectedOrg = { alias, timestamp: new Date().toISOString() };
+            await cacheService.saveCachedLogs([selectedOrg as any]);
+            console.log('[VisbalExt.OrgUtils] setSelectedOrg -- Successfully set selected org');
+        }
+        catch (error: any) {
+            console.error('[VisbalExt.OrgUtils] setSelectedOrg -- Error setting selected org:', error);
+            throw new Error(`Failed to set selected org: ${error.message}`);
+        }
+    }
+
+    public static async getSelectedOrg(): Promise<SelectedOrg | null> {
+        try {
+            console.log('[VisbalExt.OrgUtils] getSelectedOrg -- Fetching selected org');
+            const cacheService = new CacheService(this._context);
+            const logs = await cacheService.getCachedLogs();
+            const selectedOrg = logs[0] as unknown as SelectedOrg;
+            console.log('[VisbalExt.OrgUtils] getSelectedOrg -- Retrieved org:', selectedOrg);
+            return selectedOrg || null;
+        }
+        catch (error: any) {
+            console.error('[VisbalExt.OrgUtils] getSelectedOrg -- Error getting selected org:', error);
+            return null;
         }
     }
 

@@ -105,6 +105,9 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
                 case 'setDefaultOrg':
                     await this._setDefaultOrg(message.orgUsername);
                     break;
+                    case 'setSelectedOrg':
+                        await this._setSelectedOrg(message.alias);
+                        break;
                 case 'fetchLogs':
                     console.log('[VisbalExt.VisbalLogView] resolveWebviewView -- Fetching logs from command');
                     await this._fetchLogs(true);
@@ -296,6 +299,7 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
                     
                     // Store the transformed logs
                     this._logs = transformedLogs;
+                    OrgUtils.initialize(this._logs, this._context);
                     
                     // Update the last fetch time
                     this._lastFetchTime = Date.now();
@@ -433,6 +437,7 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
             
             // Store the logs
             this._logs = logs;
+            OrgUtils.initialize(this._logs, this._context);
             
             // Update the last fetch time
             this._lastFetchTime = Date.now();
@@ -1254,11 +1259,11 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
             // Check if config matches any of our presets
             const presets: Record<string, Record<string, string>> = {
                 default: {
-                    apexCode: 'DEBUG',
+                    apexCode: 'FINE',
                     apexProfiling: 'INFO',
                     callout: 'INFO',
                     dataAccess: 'INFO',
-                    database: 'INFO',
+                    database: 'FINE',
                     nba: 'INFO',
                     system: 'DEBUG',
                     validation: 'INFO',
@@ -2362,6 +2367,22 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
         }
     }
 
+    private async _setSelectedOrg(username: string): Promise<void> {
+        try {
+            console.log(`[VisbalExt.VisbalLogView] _setSelectedOrg -- Setting selected org: ${username}`);
+            this._showLoading('Setting selected org...');
+            
+            await OrgUtils.setSelectedOrg(username);
+        }
+        catch (error: any) {
+            console.error('[VisbalExt.VisbalLogView] _setSelectedOrg -- Error setting selected org:', error);
+            this._showError(`Failed to set selected org: ${error.message}`);
+        } finally {
+            this._hideLoading();
+        }
+    }
+    
+
     private _showLoading(message: string): void {
         this._isLoading = true;
         this._view?.webview.postMessage({
@@ -2424,7 +2445,7 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
             this._view?.webview.postMessage({ command: 'downloading', logId, isDownloading: true });
 
             // Update OrgUtils with current logs data
-            OrgUtils.initialize(this._logs);
+            OrgUtils.initialize(this._logs, this._context);
             await OrgUtils.downloadLog(logId);
 
             // Update UI

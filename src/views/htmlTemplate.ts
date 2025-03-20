@@ -2775,8 +2775,8 @@ export function getHtmlForWebview(extensionUri: vscode.Uri, webview: vscode.Webv
         if (selectedOrg) {
           console.log('[VisbalExt.VisbalLogView] handleOrgSelection -- Org selected -- Details:', selectedOrg);
           vscode.postMessage({
-            command: 'setDefaultOrg',
-            orgUsername: selectedOrg
+            command: 'setSelectedOrg',
+            alias: selectedOrg
           });
         }
       });
@@ -2801,7 +2801,7 @@ export function getHtmlForWebview(extensionUri: vscode.Uri, webview: vscode.Webv
               
               items.forEach(org => {
                 const option = document.createElement('option');
-                option.value = org.username;
+                option.value = org.alias;
                 option.textContent = org.alias || org.username;
                 if (org.isDefault) {
                   option.textContent += ' (Default)';
