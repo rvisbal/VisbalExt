@@ -223,18 +223,7 @@ export class MetadataService {
             console.log('[VisbalExt.MetadataService] Listing Apex classes...');
             // Use SOQL query to get Apex classes with TracHier namespace
             const soqlQuery = "SELECT Id, Name, NamespacePrefix FROM ApexClass WHERE NamespacePrefix IN ('TracHier', 'TracRTC') ORDER BY Name";
-            const command = `sf data query --query "${soqlQuery}" --json`;
-            
-            console.log(`[VisbalExt.MetadataService] Executing SOQL query: ${soqlQuery}`);
-            const output = await this.executeCliCommand(command);
-            const parsedOutput = JSON.parse(output);
-            
-            if (!parsedOutput.result || !parsedOutput.result.records) {
-                console.log('[VisbalExt.MetadataService] No classes found or unexpected response format');
-                return [];
-            }
-            
-            const records = parsedOutput.result.records;
+            const records =  await this._sfdxService.executeSoqlQuery(soqlQuery);
             console.log(`[VisbalExt.MetadataService] Found ${records.length} classes in TracHier, TracRTC  namespace`);
             
             return records.map((cls: any) => ({
@@ -258,17 +247,9 @@ export class MetadataService {
             console.log(`[VisbalExt.MetadataService] getApexClassBody -- Getting body for class: ${className}`);
             // Use SOQL query to get the class body
             const soqlQuery = `SELECT Id, Name, Body FROM ApexClass WHERE Name = '${className}' LIMIT 1`;
-            const command = `sf data query --query "${soqlQuery}" --json`;
+			const records =  await this._sfdxService.executeSoqlQuery(soqlQuery);
             
-            console.log(`[VisbalExt.MetadataService] getApexClassBody -- Executing SOQL query: ${soqlQuery}`);
-            const output = await this.executeCliCommand(command);
-            const parsedOutput = JSON.parse(output);
-            
-            if (!parsedOutput.result || !parsedOutput.result.records || parsedOutput.result.records.length === 0) {
-                throw new Error(`Class ${className} not found`);
-            }
-            
-            const classRecord = parsedOutput.result.records[0];
+            const classRecord = records[0];
             console.log('[VisbalExt.MetadataService] getApexClassBody -- Successfully retrieved class body');
             return classRecord.Body;
         } catch (error: any) {

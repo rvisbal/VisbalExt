@@ -277,19 +277,9 @@ export class SfdxService {
     public async getTraceFlag(userId: string): Promise<any> {
         try {
             const query = `SELECT Id, DebugLevelId FROM TraceFlag WHERE TracedEntityId = '${userId}' AND LogType = 'DEVELOPER_LOG'`;
-            let command = `sf data query --query "${query}" --use-tooling-api`;
-            
-            const selectedOrg = await OrgUtils.getSelectedOrg();
-            if (selectedOrg?.alias) {
-                command += ` --target-org ${selectedOrg.alias}`;
-            }
-            command += ' --json';
-            
-            const traceFlagResult = await this.executeCommand(command);
-            const parsedResult = JSON.parse(traceFlagResult);
-            
-            if (parsedResult.result?.records?.length > 0) {
-                return parsedResult.result.records[0];
+			const records =  await this.executeSoqlQuery(query, false, true);
+            if (records?.length > 0) {
+                return records[0];
             }
             return null;
         } catch (error) {
@@ -896,23 +886,8 @@ export class SfdxService {
             console.log('[VisbalExt.SfdxService] Listing Apex classes...');
             // Use SOQL query to get Apex classes with TracHier namespace
             const soqlQuery = "SELECT Id, Name, NamespacePrefix FROM ApexClass WHERE NamespacePrefix IN ('TracHier', 'TracRTC') ORDER BY Name";
-            let command = `sf data query --query "${soqlQuery}" `;
-            const selectedOrg = await OrgUtils.getSelectedOrg();
-            if (selectedOrg?.alias) {
-                //command += ` --target-org ${selectedOrg.alias}`;
-            }
-            command += ' --json';
-            
-            console.log(`[VisbalExt.SfdxService] Executing SOQL query: ${soqlQuery}`);
-            const output = await this.executeCommand(command);
-            const parsedOutput = JSON.parse(output);
-            
-            if (!parsedOutput.result || !parsedOutput.result.records) {
-                console.log('[VisbalExt.SfdxService] No classes found or unexpected response format');
-                return [];
-            }
-            
-            const records = parsedOutput.result.records;
+			const records =  await this.executeSoqlQuery(soqlQuery, true);
+			
             console.log(`[VisbalExt.SfdxService] Found ${records.length} classes in TracHier, TracRTC  namespace`);
             
             return records.map((cls: any) => ({
@@ -936,22 +911,9 @@ export class SfdxService {
             console.log(`[VisbalExt.SfdxService] getApexClassBody -- Getting body for class: ${className}`);
             // Use SOQL query to get the class body
             const soqlQuery = `SELECT Id, Name, Body FROM ApexClass WHERE Name = '${className}' LIMIT 1`;
-            let command = `sf data query --query "${soqlQuery}" `;
-            const selectedOrg = await OrgUtils.getSelectedOrg();
-            if (selectedOrg?.alias) {
-                //command += ` --target-org ${selectedOrg.alias}`;
-            }
-            command += ' --json';
+            const records =  await this.executeSoqlQuery(soqlQuery, true);
             
-            console.log(`[VisbalExt.SfdxService] getApexClassBody -- Executing SOQL query: ${soqlQuery}`);
-            const output = await this.executeCommand(command);
-            const parsedOutput = JSON.parse(output);
-            
-            if (!parsedOutput.result || !parsedOutput.result.records || parsedOutput.result.records.length === 0) {
-                throw new Error(`Class ${className} not found`);
-            }
-            
-            const classRecord = parsedOutput.result.records[0];
+            const classRecord = records[0];
             console.log('[VisbalExt.SfdxService] getApexClassBody -- Successfully retrieved class body');
             return classRecord.Body;
         } catch (error: any) {
@@ -1203,15 +1165,18 @@ export class SfdxService {
     /**
      * Executes a SOQL query
      */
-    public async executeSoqlQuery(query: string): Promise<any[]> {
+    public async executeSoqlQuery(query: string, useDefaultOrg: boolean = false, useToolingApi: boolean = false): Promise<any[]> {
         try {
             console.log('[VisbalExt.SfdxService] Executing SOQL query:', query);
             
             // Execute the query using the Salesforce CLI
             let command = `sf data query --query "${query}" --json`;
             const selectedOrg = await OrgUtils.getSelectedOrg();
-            if (selectedOrg?.alias) {
+            if (!useDefaultOrg && selectedOrg?.alias) {
                 command += ` --target-org ${selectedOrg.alias}`;
+            }
+            if (useToolingApi) {
+                command += ' --use-tooling-api';
             }
             command += ' --json';
             const resultStr = await this.executeCommand(command);
@@ -1289,20 +1254,12 @@ export class SfdxService {
             
             // Try with new CLI format first
             try {
-                let command = 'sf data query --query "SELECT Id FROM ApexLog" --use-tooling-api';
+				const query = 'SELECT Id FROM ApexLog';
+				let records =  await this.executeSoqlQuery(query, false, true);
+				
                 
-                const selectedOrg = await OrgUtils.getSelectedOrg();
-                if (selectedOrg?.alias) {
-                    command += ` --target-org ${selectedOrg.alias}`;
-                }
-                command += ' --json';
-                
-                console.log(`[VisbalExt.SfdxService] queryApexLogIds -- Executing command: ${command}`);
-                const queryResult = await this.executeCommand(command);
-                const queryData = JSON.parse(queryResult);
-                
-                if (queryData.result && queryData.result.records) {
-                    return queryData.result.records.map((record: any) => record.Id);
+                if (records) {
+                    return records.map((record: any) => record.Id);
                 }
             } catch (error) {
                 console.error('[VisbalExt.SfdxService] Error querying ApexLog IDs with new CLI format:', error);

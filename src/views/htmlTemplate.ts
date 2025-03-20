@@ -2756,7 +2756,7 @@ export function getHtmlForWebview(extensionUri: vscode.Uri, webview: vscode.Webv
       document.addEventListener('DOMContentLoaded', () => {
         console.log('[VisbalExt.VisbalLogView] DOMContentLoaded initialize -- DOM content loaded -- Manual refresh required');
         // Request initial org list
-        vscode.postMessage({ command: 'refreshOrgList' });
+        vscode.postMessage({ command: 'loadOrgList' });
         orgSelector.innerHTML = '<option value="">Loading orgs...</option>';
         
         // Update the message to inform users they need to click refresh
