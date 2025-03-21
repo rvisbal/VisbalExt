@@ -39,6 +39,7 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
     private _cacheService: CacheService;
     private _sfdxService: SfdxService;
     private _orgListCacheService: OrgListCacheService;
+    private _isRefreshing: boolean = false;
     
 
     constructor(private readonly _context: vscode.ExtensionContext) {
@@ -2099,24 +2100,51 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
      * Refreshes the list of Salesforce orgs
      */
     private async _refreshOrgList(): Promise<void> {
+        if (this._isRefreshing) {
+            console.log('[VisbalExt.VisbalLogView] _refreshOrgList -- Refresh already in progress');
+            this._view?.webview.postMessage({
+                command: 'info',
+                message: 'Organization list refresh already in progress...'
+            });
+            return;
+        }
+
         try {
+            this._isRefreshing = true;
             console.log('[VisbalExt.VisbalLogView] _refreshOrgList -- Refreshing org list');
+            
+            this._view?.webview.postMessage({
+                command: 'loading',
+                isLoading: true,
+                message: 'Refreshing organization list...'
+            });
+
             const orgs = await OrgUtils.listOrgs();
             console.log('[VisbalExt.VisbalLogView] _refreshOrgList -- orgs Save to the cache');
             // Save to cache
             await this._orgListCacheService.saveOrgList(orgs);
             
+            const selectedOrg = await OrgUtils.getSelectedOrg();
+            console.log('[VisbalExt.VisbalLogView] _loadOrgList -- Selected org:', selectedOrg);
+
             // Send the categorized orgs to the webview
             this._view?.webview.postMessage({
                 command: 'updateOrgList',
                 orgs: orgs,
-                fromCache: false
+                fromCache: false,
+                selectedOrg: selectedOrg?.alias
             });
             
             console.log('[VisbalExt.VisbalLogView] _refreshOrgList -- Successfully sent org list to webview');
         } catch (error: any) {
             console.error('[VisbalExt.VisbalLogView] _refreshOrgList -- Error refreshing org list:', error);
             this._showError(`Failed to refresh org list: ${error.message}`);
+        } finally {
+            this._isRefreshing = false;
+            this._view?.webview.postMessage({
+                command: 'loading',
+                isLoading: false
+            });
         }
     }
 
