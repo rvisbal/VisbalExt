@@ -2067,7 +2067,7 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
             let orgs;
 
             if (cachedData) {
-                console.log('[VisbalExt.VisbalLogView] _loadOrgList -- Using cached org list');
+                console.log('[VisbalExt.VisbalLogView] _loadOrgList -- Using cached org list', cachedData);
                 orgs = cachedData.orgs;
             } else {
                 console.log('[VisbalExt.VisbalLogView] _loadOrgList -- Fetching fresh org list');
@@ -2080,6 +2080,8 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
             const selectedOrg = await OrgUtils.getSelectedOrg();
             console.log('[VisbalExt.VisbalLogView] _loadOrgList -- Selected org:', selectedOrg);
 
+            console.log('[VisbalExt.VisbalLogView] _loadOrgList -- orgs:', orgs);
+            console.log('[VisbalExt.VisbalLogView] _loadOrgList -- cachedData:', cachedData);
             // Send the categorized orgs to the webview
             this._view?.webview.postMessage({
                 command: 'updateOrgList',

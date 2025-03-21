@@ -570,28 +570,27 @@ export class SoqlPanelView implements vscode.WebviewViewProvider {
 
 
 
-	                // Handle org selection
-	                orgDropdown.addEventListener('change', () => {
-	                    const selectedOrg = orgDropdown.value;
-	                    if (selectedOrg === '__refresh__') {
-	                        // Reset selection to previously selected value
-	                        orgDropdown.value = orgDropdown.getAttribute('data-last-selection') || '';
-	                        // Request org list refresh
-	                        vscode.postMessage({ command: 'refreshOrgList' });
-	                        return;
-	                    }
-	                    
-	                    if (selectedOrg) {
-	                        console.log('[VisbalExt.htmlTemplate] handleOrgSelection -- Org selected -- Details:', selectedOrg);
-	                        // Store the selection
-	                        orgDropdown.setAttribute('data-last-selection', selectedOrg);
-	                        vscode.postMessage({
-	                        command: 'setSelectedOrg',
-	                        alias: selectedOrg
-	                        });
-	                    }
-	                });
-                })();
+                // Handle org selection
+                orgDropdown.addEventListener('change', () => {
+                    const selectedOrg = orgDropdown.value;
+                    if (selectedOrg === '__refresh__') {
+                        // Reset selection to previously selected value
+                        orgDropdown.value = orgDropdown.getAttribute('data-last-selection') || '';
+                        // Request org list refresh
+                        vscode.postMessage({ command: 'refreshOrgList' });
+                        return;
+                    }
+                    
+                    if (selectedOrg) {
+                        console.log('[VisbalExt.htmlTemplate] handleOrgSelection -- Org selected -- Details:', selectedOrg);
+                        // Store the selection
+                        orgDropdown.setAttribute('data-last-selection', selectedOrg);
+                        vscode.postMessage({
+                        command: 'setSelectedOrg',
+                        alias: selectedOrg
+                        });
+                    }
+                });
             </script>
         </body>
         </html>`;
