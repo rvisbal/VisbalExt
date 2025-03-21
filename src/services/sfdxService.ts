@@ -382,7 +382,7 @@ export class SfdxService {
      * @param logId The ID of the log to fetch
      * @returns Promise<string> The log content
      */
-    public async getLogContent(logId: string): Promise<string> {
+    public async getLogContentAndSave(logId: string): Promise<string> {
         try {
             console.log('[VisbalExt.SfdxService] getLogContent -- logId:', logId);
             
@@ -458,6 +458,30 @@ export class SfdxService {
             return result;
         } catch (error) {
             console.error('[VisbalExt.SfdxService] Failed to list Apex logs:', error);
+            throw error;
+        }
+    }
+	
+	
+	/**
+     * Lists all Apex logs
+     * @returns Promise<SalesforceLog[]> Array of Salesforce logs
+     */
+    public async getLogContent(logId: string, useDefaultOrg: boolean = false): Promise<string> {
+        try {
+            console.log('[VisbalExt.SfdxService] getLogContent...');
+            let command = `sf apex get log -i ${logId}`;
+            
+            const selectedOrg = await OrgUtils.getSelectedOrg();
+            if (!useDefaultOrg && selectedOrg?.alias) {
+                command += ` --target-org ${selectedOrg.alias}`;
+            }
+            command += ' --json';
+            console.log('[VisbalExt.SfdxService] getLogContent -- command:', command);
+            const result = await this._executeCommand(command);
+            return result;
+        } catch (error) {
+            console.error('[VisbalExt.SfdxService] Failed to getLogContent:', error);
             throw error;
         }
     }

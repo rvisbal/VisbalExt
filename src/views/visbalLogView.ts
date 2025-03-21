@@ -1,12 +1,10 @@
 import * as vscode from 'vscode';
-import { getLogListTemplate, getHtmlForWebview } from './htmlTemplate';
-import { styles } from './styles';
+import { getHtmlForWebview } from './htmlForWebView';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
 import { exec } from 'child_process';
 import { promisify } from 'util';
-import { LogDetailView } from './logDetailView';
 import { statusBarService } from '../services/statusBarService';
 import { readFile, unlink } from 'fs/promises';
 import { MetadataService } from '../services/metadataService';
@@ -2246,6 +2244,7 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
 
     public async downloadLog(logId: string): Promise<void> {
         try {
+            console.log('[VisbalExt.VisbalLogView] downloadLog -- logId:', logId);
             this._isLoading = true;
             this._view?.webview.postMessage({ command: 'downloading', logId, isDownloading: true });
 

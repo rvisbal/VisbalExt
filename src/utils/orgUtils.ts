@@ -6,6 +6,7 @@ import { execAsync, MAX_BUFFER_SIZE } from './execUtils';
 import { LogDetailView } from '../views/logDetailView';
 import { statusBarService } from '../services/statusBarService';
 import { CacheService } from '../services/cacheService';
+import { SfdxService } from '../services/sfdxService';
 
 export interface SalesforceOrg {
     username: string;
@@ -37,6 +38,7 @@ export class OrgUtils {
     private static _downloadedLogPaths: Map<string, string> = new Map<string, string>();
     private static _logs: any[] = [];
     private static _context: vscode.ExtensionContext;
+    private static _sfdxService: SfdxService;
 
     /**
      * Initialize the OrgUtils class with necessary data
@@ -46,6 +48,7 @@ export class OrgUtils {
     public static initialize(logs: any[], context: vscode.ExtensionContext): void {
         this._logs = logs;
         this._context = context;
+        this._sfdxService = new SfdxService();
     }
 
     /**
@@ -233,27 +236,14 @@ export class OrgUtils {
 
         // Try new CLI format first
         try {
-            const result = await this._executeCommand(`sf apex get log -i ${logId} --json`);
+            const result = await this._sfdxService.getLogContent(logId);
+            console.log('[VisbalExt.OrgUtils] _fetchLogContent -- Result:', result);
             const jsonResult = JSON.parse(result);
             if (jsonResult?.result?.log) {
                 return jsonResult.result.log;
             }
         } catch (e) {
             error = e as Error;
-        }
-
-        // Try old CLI format as fallback
-        try {
-            const result = await this._executeCommand(`sfdx force:apex:log:get --logid ${logId} --json`);
-            const jsonResult = JSON.parse(result);
-            if (jsonResult?.result?.log) {
-                return jsonResult.result.log;
-            }
-        } catch (e) {
-            if (error) {
-                throw error; // Throw the first error if both methods fail
-            }
-            throw e;
         }
 
         throw new Error('Failed to fetch log content');
