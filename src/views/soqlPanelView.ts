@@ -352,6 +352,27 @@ export class SoqlPanelView implements vscode.WebviewViewProvider {
                 }
             </style>
             <style>
+             .loading-container {
+                    display: none;
+                    align-items: center;
+                    justify-content: center;
+                    padding: 20px;
+                    color: var(--vscode-foreground);
+                }
+                .loading-spinner {
+                    width: 18px;
+                    height: 18px;
+                    border: 2px solid var(--vscode-foreground);
+                    border-radius: 50%;
+                    border-top-color: transparent;
+                    animation: spin 1s linear infinite;
+                    margin-right: 8px;
+                }
+                @keyframes spin {
+                    to {transform: rotate(360deg);}
+                }
+            </style>
+            <style>
             .toolbar {
                     padding: 3px 3px;
                     display: flex;
@@ -420,6 +441,10 @@ export class SoqlPanelView implements vscode.WebviewViewProvider {
             <div class="query-section">
                 <textarea id="soqlInput" placeholder="Enter SOQL query..." rows="4">SELECT FIELDS(ALL) FROM Account ORDER BY CreatedDate DESC Limit 200</textarea>
             </div>
+            <div class="loading-container" id="loadingContainer">
+                <div class="loading-spinner"></div>
+                <span>Executing query...</span>
+            </div>
             <div class="results-container">
                 <table>
                     <thead id="soqlResultsHeader"></thead>
@@ -434,6 +459,7 @@ export class SoqlPanelView implements vscode.WebviewViewProvider {
                     const statusBar = document.getElementById('statusBar');
                     const soqlResultsHeader = document.getElementById('soqlResultsHeader');
                     const soqlResultsBody = document.getElementById('soqlResultsBody');
+                    const loadingContainer = document.getElementById('loadingContainer');
 					
 					//#region LISTBOX
                     // Dropdown functionality
@@ -475,7 +501,10 @@ export class SoqlPanelView implements vscode.WebviewViewProvider {
                             statusBar.textContent = 'Please enter a query';
                             return;
                         }
-                        statusBar.textContent = 'Running...';
+                        // Show loading state
+                        startLoading('Executing apex...');
+                       
+                        
                         vscode.postMessage({
                             command: 'executeSoqlQuery',
                             query: query
@@ -486,9 +515,11 @@ export class SoqlPanelView implements vscode.WebviewViewProvider {
                         const message = event.data;
                         switch (message.command) {
                             case 'soqlResultsLoaded':
+                                stopLoading();
                                 handleSoqlResults(message.results);
                                 break;
                             case 'error':
+                                stopLoading();
                                 statusBar.textContent = message.message;
                                 soqlResultsHeader.innerHTML = '';
                                 soqlResultsBody.innerHTML = '';
@@ -503,6 +534,21 @@ export class SoqlPanelView implements vscode.WebviewViewProvider {
                                 break;
                         }
                     });
+
+
+                    function startLoading(m) {
+						 loadingContainer.style.display = 'flex';
+                        soqlResultsHeader.innerHTML = '';
+                        soqlResultsBody.innerHTML = '';
+                        statusBar.textContent = m;
+                        runSoqlButton.disabled = true;
+					}
+
+                    function stopLoading() {
+						// Hide loading state
+						loadingContainer.style.display = 'none';
+						runSoqlButton.disabled = false;
+					}
 
                     function handleSoqlResults(results) {
                         if (!results || !results.records || results.records.length === 0) {

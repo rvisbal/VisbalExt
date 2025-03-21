@@ -405,6 +405,27 @@ export class SamplePanelView implements vscode.WebviewViewProvider {
                     line-height: 16px;
                 }
             </style>
+			 <style>
+             .loading-container {
+                    display: none;
+                    align-items: center;
+                    justify-content: center;
+                    padding: 20px;
+                    color: var(--vscode-foreground);
+                }
+                .loading-spinner {
+                    width: 18px;
+                    height: 18px;
+                    border: 2px solid var(--vscode-foreground);
+                    border-radius: 50%;
+                    border-top-color: transparent;
+                    animation: spin 1s linear infinite;
+                    margin-right: 8px;
+                }
+                @keyframes spin {
+                    to {transform: rotate(360deg);}
+                }
+            </style>
              <style>
                 .toolbar {
                         padding: 3px 3px;
@@ -424,7 +445,7 @@ export class SamplePanelView implements vscode.WebviewViewProvider {
                         gap: 4px;
                         margin-left: auto;
                     }
-            </style>
+            </>
 			<style>
                 // Add styles after the existing button styles
 		        .org-selector-container {
@@ -494,6 +515,10 @@ export class SamplePanelView implements vscode.WebviewViewProvider {
                             <div class="char-count">0 / 1000 characters</div>
                         </div>
                     </div>
+					<div class="loading-container" id="loadingContainer">
+						<div class="loading-spinner"></div>
+						<span>Executing apex...</span>
+					</div>
                 </div>
                 <div id="resultsContent" class="content">
                     <div id="outputContainer" class="output-container">
@@ -511,7 +536,7 @@ export class SamplePanelView implements vscode.WebviewViewProvider {
                     const outputContainer = document.getElementById('outputContainer');
                     const tabs = document.querySelectorAll('.tab');
                     const contents = document.querySelectorAll('.content');
-					
+					const loadingContainer = document.getElementById('loadingContainer');
 					
 					//#region LISTBOX
                     // Dropdown functionality
@@ -599,9 +624,11 @@ export class SamplePanelView implements vscode.WebviewViewProvider {
                                 outputContainer.className = 'output-container';
                                 outputContainer.innerHTML = '<div class="loading">Executing Apex code...</div>';
                                 switchToResultsTab();
+                                   
                                 break;
                                 
                             case 'executionResult':
+								stopLoading();
                                 executeButton.disabled = false;
                                 let output = '';
                                 
@@ -633,18 +660,41 @@ export class SamplePanelView implements vscode.WebviewViewProvider {
 
                                 break;
                             case 'refreshComplete':
+							    stopLoading();
                                 refreshButton.innerHTML = '↻ Refresh Org List (Cached)';
                                 refreshButton.disabled = false;
                                 break;
                             case 'error':
+								stopLoading();
                                 statusBar.textContent = message.message;
                                 console.error('[VisbalExt.htmlTemplate] Error:', message.message);
                                 break;
                         }
                     });
+					
+					
+					function startLoading(m) {
+						 loadingContainer.style.display = 'flex';
+               
+                        statusBar.textContent = m;
+                        executeButton.disabled = true;
+					}
+					
+					function stopLoading() {
+						// Hide loading state
+						loadingContainer.style.display = 'none';
+						executeButton.disabled = false;
+					}
                     
                     // Execute Apex code
                     window.executeApex = function() {
+						// Show loading state
+                        startLoading('Executing apex...');
+               
+						
+                        executeButton.disabled = true;
+                        
+						
                         const code = textarea.value;
                         vscode.postMessage({
                             command: 'executeApex',
