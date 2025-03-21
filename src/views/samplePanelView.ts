@@ -317,7 +317,7 @@ export class SamplePanelView implements vscode.WebviewViewProvider {
                     color: var(--vscode-input-foreground);
                     border: 1px solid var(--vscode-input-border);
                     padding: 8px;
-                    font-family: var(--vscode-editor-font-family);
+                    font-family: monospace;
                     font-size: var(--vscode-editor-font-size);
                     resize: none;
                     flex: 1;

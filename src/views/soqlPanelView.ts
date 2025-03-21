@@ -230,28 +230,24 @@ export class SoqlPanelView implements vscode.WebviewViewProvider {
                     color: var(--vscode-foreground);
                 }
                 .toolbar {
-                    padding: 5px;
+                    padding: 5px 8px;
                     display: flex;
-                    gap: 5px;
                     align-items: center;
                     background: var(--vscode-editor-background);
                     border-bottom: 1px solid var(--vscode-panel-border);
                     height: 28px;
                     width: 100%;
                     box-sizing: border-box;
-                    justify-content: space-between;
                 }
                 .toolbar-left {
                     display: flex;
                     align-items: center;
-                    min-width: 150px;
                 }
                 .toolbar-right {
                     display: flex;
                     align-items: center;
-                    gap: 5px;
-                    flex: 1;
-                    justify-content: flex-end;
+                    gap: 4px;
+                    margin-left: auto;
                 }
                
                 .refresh-button {
@@ -280,12 +276,14 @@ export class SoqlPanelView implements vscode.WebviewViewProvider {
                     flex-direction: column;
                     width: 100%;
                     padding: 0;
+                    margin-top: 8px;
                 }
                 #soqlInput {
                     width: 100%;
                     box-sizing: border-box;
                     padding: 8px;
                     font-size: var(--vscode-editor-font-size);
+                    font-family: monospace;
                     background: var(--vscode-input-background);
                     color: var(--vscode-input-foreground);
                     border: none;
@@ -331,7 +329,7 @@ export class SoqlPanelView implements vscode.WebviewViewProvider {
                     background: var(--vscode-editor-background);
                     border-bottom: 1px solid var(--vscode-panel-border);
                     font-size: 12px;
-                    font-family: var(--vscode-font-family);
+                    font-family: monospace;
                 }
                 table {
                     width: 100%;
@@ -373,17 +371,16 @@ export class SoqlPanelView implements vscode.WebviewViewProvider {
 		          display: flex;
 		          align-items: center;
 		          gap: 4px;
-		          margin: 0 8px;
 		        }
 		        
 		        .org-selector {
-		          padding: 4px 8px;
-		          border-radius: 4px;
+		          padding: 2px 6px;
 		          border: 1px solid var(--vscode-dropdown-border);
 		          background-color: var(--vscode-dropdown-background);
 		          color: var(--vscode-dropdown-foreground);
 		          font-size: 12px;
-		          min-width: 200px;
+		          width: 180px;
+		          height: 24px;
 		          cursor: pointer;
 		        }
 		        
@@ -399,27 +396,19 @@ export class SoqlPanelView implements vscode.WebviewViewProvider {
         </head>
         <body>
             <div class="toolbar">
-                <div class="toolbar-left"> <div id="soqlStatus"></div>
-                    
+                <div class="toolbar-left">
+                    <div id="soqlStatus"></div>
                 </div>
                 <div class="toolbar-right">
-                    <div class="dropdown">
-                        <div class="org-selector-container">
-                            <select id="org-selector" class="org-selector" title="Select Salesforce Org">
-                            <option value="">Loading orgs...</option>
-                            </select>
-                        </div>
-                        <div class="dropdown-content" id="orgDropdown">
-                            <!-- Org items will be populated here -->
-                        </div>
-                    </div>
+                    <select id="org-selector" class="org-selector" title="Select Salesforce Org">
+                        <option value="">Loading orgs...</option>
+                    </select>
                     <button id="runSoqlButton" title="Run Query">
                         Execute Query
                         <svg width="16" height="16" viewBox="0 0 16 16">
                             <path fill="currentColor" d="M3.5 3v10l9-5-9-5z"/>
                         </svg>
                     </button>
-                   
                 </div>
             </div>
             <div class="query-section">
