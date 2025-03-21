@@ -73,6 +73,7 @@ export class SoqlPanelView implements vscode.WebviewViewProvider {
         });
     }
 
+	//#region LISTBOX
     private async _loadOrgList(): Promise<void> {
         try {
             console.log('[VisbalExt.soqlPanel] _loadOrgList -- Loading org list');
@@ -180,7 +181,7 @@ export class SoqlPanelView implements vscode.WebviewViewProvider {
             //this._hideLoading();
         }
     }
-    
+    //#endregion LISTBOX
 
 
     private _getWebviewContent() {
@@ -333,6 +334,35 @@ export class SoqlPanelView implements vscode.WebviewViewProvider {
                     background-color: var(--vscode-list-hoverBackground);
                 }
             </style>
+            <style>
+                // Add styles after the existing button styles
+		        .org-selector-container {
+		          display: flex;
+		          align-items: center;
+		          gap: 4px;
+		          margin: 0 8px;
+		        }
+		        
+		        .org-selector {
+		          padding: 4px 8px;
+		          border-radius: 4px;
+		          border: 1px solid var(--vscode-dropdown-border);
+		          background-color: var(--vscode-dropdown-background);
+		          color: var(--vscode-dropdown-foreground);
+		          font-size: 12px;
+		          min-width: 200px;
+		          cursor: pointer;
+		        }
+		        
+		        .org-selector:hover {
+		          border-color: var(--vscode-focusBorder);
+		        }
+		        
+		        .org-selector:focus {
+		          outline: none;
+		          border-color: var(--vscode-focusBorder);
+		        }
+            </style>
         </head>
         <body>
             <div class="toolbar">
@@ -375,7 +405,8 @@ export class SoqlPanelView implements vscode.WebviewViewProvider {
                     const soqlStatus = document.getElementById('soqlStatus');
                     const soqlResultsHeader = document.getElementById('soqlResultsHeader');
                     const soqlResultsBody = document.getElementById('soqlResultsBody');
-
+					
+					//#region LISTBOX
                     // Dropdown functionality
                     const orgDropdown = document.getElementById('org-selector');
 
@@ -406,6 +437,7 @@ export class SoqlPanelView implements vscode.WebviewViewProvider {
                             });
                         }
                     });
+                    //#endregion LISTBOX
         
 
                     runSoqlButton.addEventListener('click', () => {
@@ -494,7 +526,9 @@ export class SoqlPanelView implements vscode.WebviewViewProvider {
                             return null;
                         }
                     }
-                    //#endregion
+                    //#endregion CACHE
+                    
+                     //#region LISTBOX
 
                     function updateOrgListUI(orgs, fromCache = false, selectedOrg = null) {
                        // _updateOrgListUI(orgDropdown, orgs, fromCache , selectedOrg);
@@ -591,6 +625,8 @@ export class SoqlPanelView implements vscode.WebviewViewProvider {
 	                        });
 	                    }
 	                });
+	                //#endregion LISTBOX
+	                
                 })();
             </script>
         </body>
