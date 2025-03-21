@@ -83,11 +83,22 @@ export class SamplePanelView implements vscode.WebviewViewProvider {
 
         try {
 			const selectedOrg = await OrgUtils.getSelectedOrg();
+            if (!selectedOrg?.alias) {
+                this._view?.webview.postMessage({
+                    command: 'error',
+                    success: false,
+                    message: 'Please select a Salesforce org first'
+                });
+                return;
+            }
+
             console.log(`[VisbalExt.SamplePanelView] Executing on ${selectedOrg?.alias} org Apex code:`, code);
             const m = `Apex started on : ${selectedOrg?.alias}`
             // Show loading state
             this._view?.webview.postMessage({
-                command: m
+                command: 'executionResult',
+                success: false,
+                message: m
             });
 
             const result = await this._sfdxService.executeAnonymousApex(code);
@@ -360,6 +371,14 @@ export class SamplePanelView implements vscode.WebviewViewProvider {
                     opacity: 0.5;
                     cursor: not-allowed;
                 }
+
+                #statusBar {
+                    padding: 2px 5px;
+                    font-style: italic;
+                    color: var(--vscode-descriptionForeground);
+                    font-size: 11px;
+                }
+
                 .output-container {
                     background: var(--vscode-input-background);
                     border: 1px solid var(--vscode-input-border);
@@ -385,6 +404,26 @@ export class SamplePanelView implements vscode.WebviewViewProvider {
                     font-size: 16px;
                     line-height: 16px;
                 }
+            </style>
+             <style>
+                .toolbar {
+                        padding: 3px 3px;
+                        display: flex;
+                        align-items: center;
+                        background: var(--vscode-editor-background);
+                        height: 20px;
+                        width: 100%;
+                    }
+                    .toolbar-left {
+                        display: flex;
+                        align-items: center;
+                    }
+                    .toolbar-right {
+                        display: flex;
+                        align-items: center;
+                        gap: 4px;
+                        margin-left: auto;
+                    }
             </style>
 			<style>
                 // Add styles after the existing button styles
@@ -425,27 +464,29 @@ export class SamplePanelView implements vscode.WebviewViewProvider {
                 <div id="editorContent" class="content active">
                     <div class="editor-container">
                         <div class="editor-header">
-                            <label class="textarea-label" for="sampleTextarea">Enter your Apex code:</label>
-							 <div class="dropdown">
-								<div class="org-selector-container">
-									<select id="org-selector" class="org-selector" title="Select Salesforce Org">
-									<option value="">Loading orgs...</option>
-									</select>
-								</div>
-								<div class="dropdown-content" id="orgDropdown">
-									<!-- Org items will be populated here -->
-								</div>
-							</div>
-                            <button id="executeButton" onclick="executeApex()" title="Execute Apex Code">
-                                Execute Code
-                                 <svg width="16" height="16" viewBox="0 0 16 16">
-                                    <path fill="currentColor" d="M3.5 3v10l9-5-9-5z"/>
-                                </svg>
-                            </button>
+                            <div class="toolbar">
+                                <div class="toolbar-left">
+                                    <div id="statusBar"></div>
+                                </div>
+                                <div class="toolbar-right">
+                                    <select id="org-selector" class="org-selector" title="Select Salesforce Org">
+                                        <option value="">Loading orgs...</option>
+                                        </select>
+                                    <button id="executeButton" onclick="executeApex()" title="Execute Apex Code">
+                                        Execute Code
+                                        <svg width="16" height="16" viewBox="0 0 16 16">
+                                            <path fill="currentColor" d="M3.5 3v10l9-5-9-5z"/>
+                                        </svg>
+                                    </button>
+                                </div>
+                            </div>
                         </div>
+                  
+                            
+				
                         <div class="textarea-container">
                             <textarea 
-                                id="sampleTextarea" 
+                                id="apexTextarea" 
                                 placeholder="Type something here..."
                                 aria-label="Sample text input area"
                                 maxlength="1000"
@@ -463,7 +504,8 @@ export class SamplePanelView implements vscode.WebviewViewProvider {
             <script>
                 (function() {
                     const vscode = acquireVsCodeApi();
-                    const textarea = document.getElementById('sampleTextarea');
+                     const statusBar = document.getElementById('statusBar');
+                    const textarea = document.getElementById('apexTextarea');
                     const charCount = document.querySelector('.char-count');
                     const executeButton = document.getElementById('executeButton');
                     const outputContainer = document.getElementById('outputContainer');
@@ -583,7 +625,7 @@ export class SamplePanelView implements vscode.WebviewViewProvider {
                                         output += '\\nError:\\n' + message.message;
                                     }
                                 }
-                                
+                                statusBar.textContent = message.message;
                                 outputContainer.innerHTML = output;
                                 break;
 							case 'updateOrgList':
@@ -593,6 +635,10 @@ export class SamplePanelView implements vscode.WebviewViewProvider {
                             case 'refreshComplete':
                                 refreshButton.innerHTML = '↻ Refresh Org List (Cached)';
                                 refreshButton.disabled = false;
+                                break;
+                            case 'error':
+                                statusBar.textContent = message.message;
+                                console.error('[VisbalExt.htmlTemplate] Error:', message.message);
                                 break;
                         }
                     });

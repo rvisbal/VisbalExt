@@ -74,9 +74,17 @@ export class SoqlPanelView implements vscode.WebviewViewProvider {
         }
 
         try {
-			const selectedOrg = await OrgUtils.getSelectedOrg();
-            console.log(`[VisbalExt.soqlPanel] Executing on ${selectedOrg?.alias} org SOQL:`, soql);
-            const m = `SOQL started on : ${selectedOrg?.alias}`
+            const selectedOrg = await OrgUtils.getSelectedOrg();
+            if (!selectedOrg?.alias) {
+                this._view?.webview.postMessage({
+                    command: 'error',
+                    message: 'Please select a Salesforce org first'
+                });
+                return;
+            }
+
+            console.log(`[VisbalExt.soqlPanel] Executing on ${selectedOrg.alias} org SOQL:`, soql);
+            const m = `SOQL started on : ${selectedOrg.alias}`
             // Show loading state
             this._view?.webview.postMessage({
                 command: m
@@ -229,26 +237,7 @@ export class SoqlPanelView implements vscode.WebviewViewProvider {
                     background-color: var(--vscode-editor-background);
                     color: var(--vscode-foreground);
                 }
-                .toolbar {
-                    padding: 5px 8px;
-                    display: flex;
-                    align-items: center;
-                    background: var(--vscode-editor-background);
-                    border-bottom: 1px solid var(--vscode-panel-border);
-                    height: 28px;
-                    width: 100%;
-                    box-sizing: border-box;
-                }
-                .toolbar-left {
-                    display: flex;
-                    align-items: center;
-                }
-                .toolbar-right {
-                    display: flex;
-                    align-items: center;
-                    gap: 4px;
-                    margin-left: auto;
-                }
+                
                
                 .refresh-button {
                     padding: 6px 8px;
@@ -287,7 +276,6 @@ export class SoqlPanelView implements vscode.WebviewViewProvider {
                     background: var(--vscode-input-background);
                     color: var(--vscode-input-foreground);
                     border: none;
-                    border-bottom: 1px solid var(--vscode-panel-border);
                     resize: none;
                     min-height: 80px;
                     outline: none;
@@ -316,7 +304,7 @@ export class SoqlPanelView implements vscode.WebviewViewProvider {
                     opacity: 0.5;
                     cursor: not-allowed;
                 }
-                #soqlStatus {
+                #statusBar {
                     padding: 2px 5px;
                     font-style: italic;
                     color: var(--vscode-descriptionForeground);
@@ -327,7 +315,7 @@ export class SoqlPanelView implements vscode.WebviewViewProvider {
                     display: flex;
                     gap: 10px;
                     background: var(--vscode-editor-background);
-                    border-bottom: 1px solid var(--vscode-panel-border);
+
                     font-size: 12px;
                     font-family: monospace;
                 }
@@ -349,12 +337,10 @@ export class SoqlPanelView implements vscode.WebviewViewProvider {
                     text-align: left;
                     padding: 4px 8px;
                     background: var(--vscode-editor-background);
-                    border-bottom: 1px solid var(--vscode-panel-border);
                     white-space: nowrap;
                 }
                 td {
                     padding: 4px 8px;
-                    border-bottom: 1px solid var(--vscode-panel-border);
                     color: var(--vscode-foreground);
                     white-space: nowrap;
                 }
@@ -363,6 +349,26 @@ export class SoqlPanelView implements vscode.WebviewViewProvider {
                 }
                 tr:hover {
                     background-color: var(--vscode-list-hoverBackground);
+                }
+            </style>
+            <style>
+            .toolbar {
+                    padding: 3px 3px;
+                    display: flex;
+                    align-items: center;
+                    background: var(--vscode-editor-background);
+                    height: 20px;
+                    width: 100%;
+                }
+                .toolbar-left {
+                    display: flex;
+                    align-items: center;
+                }
+                .toolbar-right {
+                    display: flex;
+                    align-items: center;
+                    gap: 4px;
+                    margin-left: auto;
                 }
             </style>
             <style>
@@ -397,7 +403,7 @@ export class SoqlPanelView implements vscode.WebviewViewProvider {
         <body>
             <div class="toolbar">
                 <div class="toolbar-left">
-                    <div id="soqlStatus"></div>
+                    <div id="statusBar"></div>
                 </div>
                 <div class="toolbar-right">
                     <select id="org-selector" class="org-selector" title="Select Salesforce Org">
@@ -425,7 +431,7 @@ export class SoqlPanelView implements vscode.WebviewViewProvider {
                     const vscode = acquireVsCodeApi();
                     const soqlInput = document.getElementById('soqlInput');
                     const runSoqlButton = document.getElementById('runSoqlButton');
-                    const soqlStatus = document.getElementById('soqlStatus');
+                    const statusBar = document.getElementById('statusBar');
                     const soqlResultsHeader = document.getElementById('soqlResultsHeader');
                     const soqlResultsBody = document.getElementById('soqlResultsBody');
 					
@@ -466,10 +472,10 @@ export class SoqlPanelView implements vscode.WebviewViewProvider {
                     runSoqlButton.addEventListener('click', () => {
                         const query = soqlInput.value.trim();
                         if (!query) {
-                            soqlStatus.textContent = 'Please enter a query';
+                            statusBar.textContent = 'Please enter a query';
                             return;
                         }
-                        soqlStatus.textContent = 'Running...';
+                        statusBar.textContent = 'Running...';
                         vscode.postMessage({
                             command: 'executeSoqlQuery',
                             query: query
@@ -483,7 +489,7 @@ export class SoqlPanelView implements vscode.WebviewViewProvider {
                                 handleSoqlResults(message.results);
                                 break;
                             case 'error':
-                                soqlStatus.textContent = message.message;
+                                statusBar.textContent = message.message;
                                 soqlResultsHeader.innerHTML = '';
                                 soqlResultsBody.innerHTML = '';
                                 break;
@@ -500,7 +506,7 @@ export class SoqlPanelView implements vscode.WebviewViewProvider {
 
                     function handleSoqlResults(results) {
                         if (!results || !results.records || results.records.length === 0) {
-                            soqlStatus.textContent = 'No results';
+                            statusBar.textContent = 'No results';
                             soqlResultsHeader.innerHTML = '';
                             soqlResultsBody.innerHTML = '';
                             return;
@@ -517,7 +523,7 @@ export class SoqlPanelView implements vscode.WebviewViewProvider {
                             ).join('') + '</tr>'
                         ).join('');
 
-                        soqlStatus.textContent = results.records.length + ' rows';
+                        statusBar.textContent = results.records.length + ' rows';
                     }
 
                     //#region CACHE
