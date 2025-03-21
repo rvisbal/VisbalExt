@@ -52,6 +52,19 @@ export class SoqlPanelView implements vscode.WebviewViewProvider {
                 case 'selectOrg':
                     await this._selectOrg(message.orgId);
                     break;
+                case 'refreshOrgList':
+                    try {
+                        await this._loadOrgs();
+                        this._view?.webview.postMessage({
+                            command: 'refreshComplete'
+                        });
+                    } catch (error: any) {
+                        this._view?.webview.postMessage({
+                            command: 'error',
+                            message: `Error refreshing org list: ${error.message}`
+                        });
+                    }
+                    break;
             }
         });
     }
@@ -195,35 +208,85 @@ export class SoqlPanelView implements vscode.WebviewViewProvider {
                 .dropdown-content {
                     display: none;
                     position: absolute;
+                    top: 100%;
+                    left: 0;
                     background: var(--vscode-dropdown-background);
                     border: 1px solid var(--vscode-dropdown-border);
-                    min-width: 160px;
+                    min-width: 280px;
                     box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
                     z-index: 1;
+                    max-height: 400px;
+                    overflow-y: auto;
                 }
                 .dropdown-content.show {
                     display: block;
                 }
+                .org-group-header {
+                    padding: 6px 8px;
+                    font-weight: 600;
+                    background: var(--vscode-editor-background);
+                    color: var(--vscode-foreground);
+                    font-size: 11px;
+                    user-select: none;
+                }
                 .dropdown-item {
-                    padding: 4px 8px;
-                    color: var(--vscode-dropdown-foreground);
+                    padding: 4px 8px 4px 24px;
+                    color: var(--vscode-foreground);
                     cursor: pointer;
                     font-size: 11px;
+                    display: flex;
+                    align-items: center;
+                    user-select: none;
+                }
+                .dropdown-item.default {
+                    font-weight: bold;
                 }
                 .dropdown-item:hover {
                     background: var(--vscode-list-hoverBackground);
                 }
+                .refresh-button {
+                    padding: 6px 8px;
+                    color: var(--vscode-button-foreground);
+                    background: var(--vscode-button-prominentBackground);
+                    border: none;
+                    cursor: pointer;
+                    width: 100%;
+                    text-align: left;
+                    font-size: 11px;
+                    display: flex;
+                    align-items: center;
+                    gap: 4px;
+                    user-select: none;
+                }
+                .refresh-button:hover {
+                    background: var(--vscode-button-prominentHoverBackground);
+                }
+                .refresh-button:disabled {
+                    opacity: 0.5;
+                    cursor: not-allowed;
+                }
+                .query-section {
+                    display: flex;
+                    flex-direction: column;
+                    width: 100%;
+                    padding: 0;
+                }
                 #soqlInput {
-                    flex: 1;
-                    padding: 5px;
-                    font-family: var(--vscode-editor-font-family);
+                    width: 100%;
+                    box-sizing: border-box;
+                    padding: 8px;
                     font-size: var(--vscode-editor-font-size);
                     background: var(--vscode-input-background);
                     color: var(--vscode-input-foreground);
-                    border: 1px solid var(--vscode-input-border);
-                    resize: vertical;
-                    min-height: 100px;
-                    height: auto;
+                    border: none;
+                    border-bottom: 1px solid var(--vscode-panel-border);
+                    resize: none;
+                    min-height: 80px;
+                    outline: none;
+                }
+                #soqlInput:focus {
+                    outline: none;
+                    border-color: var(--vscode-focusBorder);
                 }
                 #runSoqlButton {
                     width: 24px;
@@ -246,11 +309,6 @@ export class SoqlPanelView implements vscode.WebviewViewProvider {
                     font-style: italic;
                     color: var(--vscode-descriptionForeground);
                     font-size: 11px;
-                }
-                .query-section {
-                    display: flex;
-                    flex-direction: column;
-                    align-items: center;
                 }
                 .results-container {
                      padding: 10px;
@@ -298,7 +356,10 @@ export class SoqlPanelView implements vscode.WebviewViewProvider {
         </head>
         <body>
             <div class="toolbar">
-                <div class="toolbar-left">
+                <div class="toolbar-left"> <div id="soqlStatus"></div>
+                    
+                </div>
+                <div class="toolbar-right">
                     <div class="dropdown">
                         <button class="dropdown-button" id="orgSelector">
                             <span id="selectedOrg">Loading orgs...</span>
@@ -308,14 +369,12 @@ export class SoqlPanelView implements vscode.WebviewViewProvider {
                             <!-- Org items will be populated here -->
                         </div>
                     </div>
-                </div>
-                <div class="toolbar-right">
                     <button id="runSoqlButton" title="Run Query">
                         <svg width="16" height="16" viewBox="0 0 16 16">
                             <path fill="currentColor" d="M3.5 3v10l9-5-9-5z"/>
                         </svg>
                     </button>
-                    <div id="soqlStatus"></div>
+                   
                 </div>
             </div>
             <div class="query-section">
@@ -380,6 +439,10 @@ export class SoqlPanelView implements vscode.WebviewViewProvider {
                             case 'updateOrgs':
                                 updateOrgList(message.orgs);
                                 break;
+                            case 'refreshComplete':
+                                refreshButton.innerHTML = '↻ Refresh Org List (Cached)';
+                                refreshButton.disabled = false;
+                                break;
                         }
                     });
 
@@ -407,20 +470,83 @@ export class SoqlPanelView implements vscode.WebviewViewProvider {
 
                     function updateOrgList(orgs) {
                         orgDropdown.innerHTML = '';
-                        orgs.forEach(org => {
-                            const item = document.createElement('div');
-                            item.className = 'dropdown-item';
-                            item.textContent = org.alias || org.username;
-                            item.addEventListener('click', () => {
-                                selectedOrg.textContent = org.alias || org.username;
-                                orgDropdown.classList.remove('show');
-                                vscode.postMessage({
-                                    command: 'selectOrg',
-                                    orgId: org.username
-                                });
+                        
+                        // Add refresh button at the top
+                        const refreshButton = document.createElement('button');
+                        refreshButton.className = 'refresh-button';
+                        refreshButton.innerHTML = '↻ Refresh Org List (Cached)';
+                        refreshButton.addEventListener('click', (e) => {
+                            e.stopPropagation();
+                            refreshButton.innerHTML = '↻ Refreshing...';
+                            refreshButton.disabled = true;
+                            vscode.postMessage({
+                                command: 'refreshOrgList'
                             });
-                            orgDropdown.appendChild(item);
                         });
+                        orgDropdown.appendChild(refreshButton);
+
+                        // Add divider after refresh button
+                        const topDivider = document.createElement('div');
+                        topDivider.style.borderBottom = '1px solid var(--vscode-panel-border)';
+                        topDivider.style.margin = '4px 0';
+                        orgDropdown.appendChild(topDivider);
+
+                        // Group organizations
+                        const groups = {
+                            'Dev Hubs': orgs.filter(org => org.type === 'devHub'),
+                            'Non-Scratch Orgs': orgs.filter(org => org.type === 'nonScratchOrg'),
+                            'Sandboxes': orgs.filter(org => org.type === 'sandbox'),
+                            'Scratch Orgs': orgs.filter(org => org.type === 'scratchOrg'),
+                            'Other': orgs.filter(org => org.type === 'other')
+                        };
+
+                        // Add each group
+                        Object.entries(groups).forEach(([groupName, groupOrgs]) => {
+                            if (groupOrgs.length > 0) {
+                                const header = document.createElement('div');
+                                header.className = 'org-group-header';
+                                header.textContent = groupName;
+                                orgDropdown.appendChild(header);
+
+                                groupOrgs.forEach(org => {
+                                    const item = document.createElement('div');
+                                    item.className = 'dropdown-item' + (org.isDefault ? ' default' : '');
+                                    item.textContent = org.alias || org.username;
+                                    if (org.isDefault) {
+                                        item.textContent += ' (Default)';
+                                    }
+                                    item.addEventListener('click', () => {
+                                        selectedOrg.textContent = org.alias || org.username;
+                                        orgDropdown.classList.remove('show');
+                                        vscode.postMessage({
+                                            command: 'selectOrg',
+                                            orgId: org.username
+                                        });
+                                    });
+                                    orgDropdown.appendChild(item);
+                                });
+                            }
+                        });
+
+                        // Add divider before bottom refresh button
+                        const bottomDivider = document.createElement('div');
+                        bottomDivider.style.borderBottom = '1px solid var(--vscode-panel-border)';
+                        bottomDivider.style.margin = '4px 0';
+                        orgDropdown.appendChild(bottomDivider);
+
+                        // Add refresh button at the bottom
+                        const bottomRefreshButton = refreshButton.cloneNode(true);
+                        bottomRefreshButton.addEventListener('click', (e) => {
+                            e.stopPropagation();
+                            refreshButton.innerHTML = '↻ Refreshing...';
+                            refreshButton.disabled = true;
+                            bottomRefreshButton.innerHTML = '↻ Refreshing...';
+                            bottomRefreshButton.disabled = true;
+                            vscode.postMessage({
+                                command: 'refreshOrgList'
+                            });
+                        });
+                        orgDropdown.appendChild(bottomRefreshButton);
                     }
                 })();
             </script>
