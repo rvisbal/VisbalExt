@@ -2075,11 +2075,16 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
                 await this._orgListCacheService.saveOrgList(orgs);
             }
 
+            // Get the selected org
+            const selectedOrg = await OrgUtils.getSelectedOrg();
+            console.log('[VisbalExt.VisbalLogView] _loadOrgList -- Selected org:', selectedOrg);
+
             // Send the categorized orgs to the webview
             this._view?.webview.postMessage({
                 command: 'updateOrgList',
                 orgs: orgs,
-                fromCache: !!cachedData
+                fromCache: !!cachedData,
+                selectedOrg: selectedOrg?.alias
             });
 
         } catch (error: any) {
@@ -2087,6 +2092,8 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
             this._showError(`Failed to load org list: ${error.message}`);
         }
     }
+
+    
 
     /**
      * Refreshes the list of Salesforce orgs

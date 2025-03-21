@@ -404,7 +404,7 @@ export function getLogListTemplate(): string {
                 // Handle messages from the extension
                 window.addEventListener('message', event => {
                     const message = event.data;
-                    console.log('[VisbalExt.VisbalLogView:WebView] Received message:', message.command, message);
+                    console.log('[VisbalExt.htmlTemplate:WebView] Received message:', message.command, message);
                     
                     switch (message.command) {
                         case 'updateLogs':
@@ -514,10 +514,10 @@ export function getLogListTemplate(): string {
                             break;
                             
                         case 'getLogDetails':
-                            console.log('[VisbalExt.VisbalLogView:WebView] Getting log details for:', message.logId);
+                            console.log('[VisbalExt.htmlTemplate:WebView] Getting log details for:', message.logId);
                             const logId = message.logId;
                             const logDetails = logs.find(log => log.id === logId);
-                            console.log('[VisbalExt.VisbalLogView:WebView] Found log details:', logDetails);
+                            console.log('[VisbalExt.htmlTemplate:WebView] Found log details:', logDetails);
                             
                             // Send the details back to the extension
                             vscode.postMessage({
@@ -567,9 +567,9 @@ export function getHtmlTemplate(
     rawLogTabHtml: string = '',
     categories: any[] = []
 ): string {
-    console.log('[VisbalExt.VisbalLogView:WebView] Generating HTML template for log detail view');
-    console.log('[VisbalExt.VisbalLogView:WebView] Log filename:', logFileName);
-    console.log('[VisbalExt.VisbalLogView:WebView] Current tab:', currentTab);
+    console.log('[VisbalExt.htmlTemplate:WebView] Generating HTML template for log detail view');
+    console.log('[VisbalExt.htmlTemplate:WebView] Log filename:', logFileName);
+    console.log('[VisbalExt.htmlTemplate:WebView] Current tab:', currentTab);
     
     return `<!DOCTYPE html>
     <html lang="en">
@@ -1016,7 +1016,7 @@ export function getHtmlTemplate(
         
         <script>
             (function() {
-                console.log('[VisbalExt.VisbalLogView] Log detail view initialized');
+                console.log('[VisbalExt.htmlTemplate] Log detail view initialized');
                 
                 // VSCode API
                 const vscode = acquireVsCodeApi();
@@ -1026,7 +1026,7 @@ export function getHtmlTemplate(
                 // Tab switching
                 document.querySelectorAll('.tab').forEach(tab => {
                     tab.addEventListener('click', () => {
-                        console.log('[VisbalExt.VisbalLogView:WebView] Tab clicked:', tab.dataset.tab);
+                        console.log('[VisbalExt.htmlTemplate:WebView] Tab clicked:', tab.dataset.tab);
                         
                         // Hide all tab contents
                         document.querySelectorAll('.tab-content').forEach(content => {
@@ -1055,7 +1055,7 @@ export function getHtmlTemplate(
                 
                 // Back button
                 document.getElementById('backButton').addEventListener('click', () => {
-                    console.log('[VisbalExt.VisbalLogView:WebView] Back button clicked');
+                    console.log('[VisbalExt.htmlTemplate:WebView] Back button clicked');
                     vscode.postMessage({
                         command: 'backToList'
                     });
@@ -1063,7 +1063,7 @@ export function getHtmlTemplate(
                 
                 // Download button
                 document.getElementById('downloadButton').addEventListener('click', () => {
-                    console.log('[VisbalExt.VisbalLogView:WebView] Download button clicked');
+                    console.log('[VisbalExt.htmlTemplate:WebView] Download button clicked');
                     vscode.postMessage({
                         command: 'downloadCurrentLog'
                     });
@@ -1072,7 +1072,7 @@ export function getHtmlTemplate(
                 // Filter tags
                 document.querySelectorAll('.filter-tag').forEach(tag => {
                     tag.addEventListener('click', () => {
-                        console.log('[VisbalExt.VisbalLogView:WebView] Filter tag clicked:', tag.textContent);
+                        console.log('[VisbalExt.htmlTemplate:WebView] Filter tag clicked:', tag.textContent);
                         
                         // Toggle active class
                         document.querySelectorAll('.filter-tag').forEach(t => {
@@ -1094,7 +1094,7 @@ export function getHtmlTemplate(
                 
                 searchButton.addEventListener('click', () => {
                     const searchTerm = searchInput.value.trim();
-                    console.log('[VisbalExt.VisbalLogView:WebView] Search button clicked, term:', searchTerm);
+                    console.log('[VisbalExt.htmlTemplate:WebView] Search button clicked, term:', searchTerm);
                     
                     if (searchTerm) {
                         vscode.postMessage({
@@ -1114,27 +1114,27 @@ export function getHtmlTemplate(
                 // Handle messages from the extension
                 window.addEventListener('message', event => {
                     const message = event.data;
-                    console.log('[VisbalExt.VisbalLogView:WebView] Received message:', message.command);
+                    console.log('[VisbalExt.htmlTemplate:WebView] Received message:', message.command);
                     
                     switch (message.command) {
                         case 'updateLogData':
-                            console.log('[VisbalExt.VisbalLogView:WebView] Updating log data');
+                            console.log('[VisbalExt.htmlTemplate:WebView] Updating log data');
                             // Handle log data update
                             break;
                             
                         case 'searchResults':
-                            console.log('[VisbalExt.VisbalLogView:WebView] Received search results');
+                            console.log('[VisbalExt.htmlTemplate:WebView] Received search results');
                             // Handle search results
                             break;
                             
                         case 'updateExecutionTab':
-                            console.log('[VisbalExt.VisbalLogView:WebView] Updating execution tab');
+                            console.log('[VisbalExt.htmlTemplate:WebView] Updating execution tab');
                             updateExecutionTab(message.executionData);
                             break;
                     }
                 });
                 
-                console.log('[VisbalExt.VisbalLogView:WebView] Log detail view script loaded');
+                console.log('[VisbalExt.htmlTemplate:WebView] Log detail view script loaded');
             })();
         </script>
     </body>
@@ -1952,7 +1952,7 @@ export function getHtmlForWebview(extensionUri: vscode.Uri, webview: vscode.Webv
       // Initialize preset dropdown
       debugPreset.addEventListener('change', () => {
         const selectedPreset = debugPreset.value;
-        console.log('[VisbalExt.VisbalLogView] Preset changed to:', selectedPreset);
+        console.log('[VisbalExt.htmlTemplate] Preset changed to:', selectedPreset);
         
         // Apply the preset values to the dropdowns
         applyPreset(selectedPreset);
@@ -1965,7 +1965,7 @@ export function getHtmlForWebview(extensionUri: vscode.Uri, webview: vscode.Webv
       // Apply debug configuration and turn on debug
       applyDebugConfigButton.addEventListener('click', () => {
         const config = getDebugConfig();
-        console.log('[VisbalExt.VisbalLogView] Applying debug configuration and turning on debug:', config);
+        console.log('[VisbalExt.htmlTemplate] Applying debug configuration and turning on debug:', config);
         
         vscode.postMessage({
           command: 'applyDebugConfig',
@@ -1979,7 +1979,7 @@ export function getHtmlForWebview(extensionUri: vscode.Uri, webview: vscode.Webv
       // Handle messages from the extension
       window.addEventListener('message', event => {
         const message = event.data;
-        console.log('[VisbalExt.VisbalLogView] Received message:', message);
+        console.log('[VisbalExt.htmlTemplate] Received message:', message);
         
         switch (message.command) {
           case 'updateLogs':
@@ -2056,7 +2056,7 @@ export function getHtmlForWebview(extensionUri: vscode.Uri, webview: vscode.Webv
             hideLoading();
             break;
           case 'currentDebugConfig':
-            console.log('[VisbalExt.VisbalLogView] Received current debug config:', message.config);
+            console.log('[VisbalExt.htmlTemplate] Received current debug config:', message.config);
             // Update the debug configuration UI with the received config
             if (message.config) {
               Object.keys(message.config).forEach(key => {
@@ -2190,7 +2190,7 @@ export function getHtmlForWebview(extensionUri: vscode.Uri, webview: vscode.Webv
       
       // Sort logs
       function sortLogs(column, direction) {
-        console.log('[VisbalExt.VisbalLogView] Sorting logs by ' + column + ' ' + direction);
+        console.log('[VisbalExt.htmlTemplate] Sorting logs by ' + column + ' ' + direction);
         
         // Update current sort
         currentSort = {
@@ -2249,7 +2249,7 @@ export function getHtmlForWebview(extensionUri: vscode.Uri, webview: vscode.Webv
       // Handle messages from the extension
       window.addEventListener('message', event => {
         const message = event.data;
-        console.log('[VisbalExt.VisbalLogView] Received message:', message);
+        console.log('[VisbalExt.htmlTemplate] Received message:', message);
         
         switch (message.command) {
           case 'updateLogs':
@@ -2326,7 +2326,7 @@ export function getHtmlForWebview(extensionUri: vscode.Uri, webview: vscode.Webv
             hideLoading();
             break;
           case 'currentDebugConfig':
-            console.log('[VisbalExt.VisbalLogView] Received current debug config:', message.config);
+            console.log('[VisbalExt.htmlTemplate] Received current debug config:', message.config);
             // Update the debug configuration UI with the received config
             if (message.config) {
               Object.keys(message.config).forEach(key => {
@@ -2410,7 +2410,7 @@ export function getHtmlForWebview(extensionUri: vscode.Uri, webview: vscode.Webv
       
 	  // Open Org button
       openOrgButton.addEventListener('click', () => {
-        console.log('[VisbalExt.VisbalLogView] open org button clicked');
+        console.log('[VisbalExt.htmlTemplate] open org button clicked');
         hideError();
         vscode.postMessage({
           command: 'openSelectedOrg'
@@ -2420,7 +2420,7 @@ export function getHtmlForWebview(extensionUri: vscode.Uri, webview: vscode.Webv
 	  
       // Refresh button
       refreshButton.addEventListener('click', () => {
-        console.log('[VisbalExt.VisbalLogView] handleRefresh -- Refresh button clicked');
+        console.log('[VisbalExt.htmlTemplate] handleRefresh -- Refresh button clicked');
         hideError();
         vscode.postMessage({
           command: 'fetchLogs'
@@ -2430,7 +2430,7 @@ export function getHtmlForWebview(extensionUri: vscode.Uri, webview: vscode.Webv
       
       // SOQL button
       soqlButton.addEventListener('click', () => {
-        console.log('[VisbalExt.VisbalLogView] handleSoql -- SOQL button clicked');
+        console.log('[VisbalExt.htmlTemplate] handleSoql -- SOQL button clicked');
         hideError();
         vscode.postMessage({
           command: 'fetchLogsSoql'
@@ -2440,7 +2440,7 @@ export function getHtmlForWebview(extensionUri: vscode.Uri, webview: vscode.Webv
       
       // Clear Local button
       clearLocalButton.addEventListener('click', () => {
-        console.log('[VisbalExt.VisbalLogView] handleClearLocal -- Clear local button clicked');
+        console.log('[VisbalExt.htmlTemplate] handleClearLocal -- Clear local button clicked');
         showConfirmModal(
           'Clear Local Log Files',
           'Are you sure you want to delete all downloaded log files from your local directory? This action cannot be undone.',
@@ -2456,7 +2456,7 @@ export function getHtmlForWebview(extensionUri: vscode.Uri, webview: vscode.Webv
       
       // Delete Server button
       deleteServerButton.addEventListener('click', () => {
-        console.log('[VisbalExt.VisbalLogView] handleDeleteServer -- Delete Server button clicked');
+        console.log('[VisbalExt.htmlTemplate] handleDeleteServer -- Delete Server button clicked');
         showConfirmModal(
           'Delete Server Logs',
           'Are you sure you want to delete all logs from the Salesforce server? This action cannot be undone.',
@@ -2472,7 +2472,7 @@ export function getHtmlForWebview(extensionUri: vscode.Uri, webview: vscode.Webv
       
       // Delete REST API button
       deleteRestApiButton.addEventListener('click', () => {
-        console.log('[VisbalExt.VisbalLogView] handleDeleteRestApi -- Delete REST API button clicked');
+        console.log('[VisbalExt.htmlTemplate] handleDeleteRestApi -- Delete REST API button clicked');
         showConfirmModal(
           'Delete Logs using REST API',
           'Are you sure you want to delete all logs using the Salesforce REST API? This action cannot be undone.',
@@ -2550,7 +2550,7 @@ export function getHtmlForWebview(extensionUri: vscode.Uri, webview: vscode.Webv
         
         logs.forEach(log => {
           if (!log || !log.id) {
-            console.error('[VisbalExt.VisbalLogView] Invalid log entry:', log);
+            console.error('[VisbalExt.htmlTemplate] Invalid log entry:', log);
             return;
           }
           
@@ -2616,7 +2616,7 @@ export function getHtmlForWebview(extensionUri: vscode.Uri, webview: vscode.Webv
         document.querySelectorAll('.download-icon').forEach(button => {
           button.addEventListener('click', () => {
             const logId = button.getAttribute('data-id');
-            console.log('[VisbalExt.VisbalLogView] handleDownloadStatus -- Download button clicked -- LogId:', logId);
+            console.log('[VisbalExt.htmlTemplate] handleDownloadStatus -- Download button clicked -- LogId:', logId);
             
             vscode.postMessage({
               command: 'downloadLog',
@@ -2631,7 +2631,7 @@ export function getHtmlForWebview(extensionUri: vscode.Uri, webview: vscode.Webv
         document.querySelectorAll('.open-icon').forEach(button => {
           button.addEventListener('click', () => {
             const logId = button.getAttribute('data-id');
-            console.log('[VisbalExt.VisbalLogView] handleOpenButton -- Open button clicked -- LogId:', logId);
+            console.log('[VisbalExt.htmlTemplate] handleOpenButton -- Open button clicked -- LogId:', logId);
             
             vscode.postMessage({
               command: 'openLog',
@@ -2647,7 +2647,7 @@ export function getHtmlForWebview(extensionUri: vscode.Uri, webview: vscode.Webv
         document.querySelectorAll('.view-icon').forEach(button => {
           button.addEventListener('click', () => {
             const logId = button.getAttribute('data-id');
-            console.log('[VisbalExt.VisbalLogView] handleViewButton -- View button clicked -- LogId:', logId);
+            console.log('[VisbalExt.htmlTemplate] handleViewButton -- View button clicked -- LogId:', logId);
             
             vscode.postMessage({
               command: 'viewLog',
@@ -2702,7 +2702,7 @@ export function getHtmlForWebview(extensionUri: vscode.Uri, webview: vscode.Webv
       // Select all checkbox
       const selectAllCheckbox = document.getElementById('select-all-checkbox');
       selectAllCheckbox.addEventListener('change', () => {
-        console.log('[VisbalExt.VisbalLogView] handleSelectAll -- Select all checkbox changed -- State:', selectAllCheckbox.checked);
+        console.log('[VisbalExt.htmlTemplate] handleSelectAll -- Select all checkbox changed -- State:', selectAllCheckbox.checked);
         
         // Get all visible checkboxes
         const visibleRows = Array.from(document.querySelectorAll('#logs-table-body tr'))
@@ -2732,7 +2732,7 @@ export function getHtmlForWebview(extensionUri: vscode.Uri, webview: vscode.Webv
       // Delete selected button
       const deleteSelectedButton = document.getElementById('delete-selected-button');
       deleteSelectedButton.addEventListener('click', () => {
-        console.log('[VisbalExt.VisbalLogView] handleDeleteSelected -- Delete selected button clicked -- Count:', selectedLogIds.size);
+        console.log('[VisbalExt.htmlTemplate] handleDeleteSelected -- Delete selected button clicked -- Count:', selectedLogIds.size);
         
         if (selectedLogIds.size === 0) {
           return;
@@ -2754,7 +2754,7 @@ export function getHtmlForWebview(extensionUri: vscode.Uri, webview: vscode.Webv
       
       // Initialize by requesting logs
       document.addEventListener('DOMContentLoaded', () => {
-        console.log('[VisbalExt.VisbalLogView] DOMContentLoaded initialize -- DOM content loaded -- Manual refresh required');
+        console.log('[VisbalExt.htmlTemplate] DOMContentLoaded initialize -- DOM content loaded -- Manual refresh required');
         // Request initial org list
         vscode.postMessage({ command: 'loadOrgList' });
         orgSelector.innerHTML = '<option value="">Loading orgs...</option>';
@@ -2782,7 +2782,7 @@ export function getHtmlForWebview(extensionUri: vscode.Uri, webview: vscode.Webv
             }
           });
         } catch (error) {
-          console.error('[VisbalExt.VisbalLogView] Failed to save org cache:', error);
+          console.error('[VisbalExt.htmlTemplate] Failed to save org cache:', error);
         }
       }
 
@@ -2792,14 +2792,14 @@ export function getHtmlForWebview(extensionUri: vscode.Uri, webview: vscode.Webv
             command: 'loadOrgCache'
           });
         } catch (error) {
-          console.error('[VisbalExt.VisbalLogView] Failed to load org cache:', error);
+          console.error('[VisbalExt.htmlTemplate] Failed to load org cache:', error);
           return null;
         }
       }
-
-      // Function to update org list UI
-      function updateOrgListUI(orgs, fromCache = false) {
-        console.log('[VisbalExt.VisbalLogView] Updating org list UI with data:', orgs);
+// Function to update org list UI
+      function updateOrgListUI(orgs, fromCache = false, selectedOrg = null) {
+        console.log('[VisbalExt.htmlTemplate] updateOrgListUI Updating org list UI with data:', orgs);
+        console.log('[VisbalExt.htmlTemplate] updateOrgListUI Selected org:', selectedOrg);
         
         // Clear existing options
         orgSelector.innerHTML = '';
@@ -2831,7 +2831,8 @@ export function getHtmlForWebview(extensionUri: vscode.Uri, webview: vscode.Webv
               if (org.isDefault) {
                 option.textContent += ' (Default)';
               }
-              option.selected = org.isDefault;
+              // Select the option if it matches the selected org
+              option.selected = selectedOrg && org.alias === selectedOrg;
               optgroup.appendChild(option);
             });
             
@@ -2859,11 +2860,17 @@ export function getHtmlForWebview(extensionUri: vscode.Uri, webview: vscode.Webv
         if (!fromCache) {
           saveOrgCache(orgs);
         }
+
+        // Store the selection
+        if (selectedOrg) {
+          orgSelector.setAttribute('data-last-selection', selectedOrg);
+        }
       }
+      
 
       // Initialize by loading cache or requesting fresh data
       document.addEventListener('DOMContentLoaded', () => {
-        console.log('[VisbalExt.VisbalLogView] DOMContentLoaded initialize');
+        console.log('[VisbalExt.htmlTemplate] DOMContentLoaded initialize');
         orgSelector.innerHTML = '<option value="">Loading orgs...</option>';
         
         // Try to load from cache first
@@ -2873,18 +2880,18 @@ export function getHtmlForWebview(extensionUri: vscode.Uri, webview: vscode.Webv
       // Handle messages from the extension
       window.addEventListener('message', event => {
         const message = event.data;
-        console.log('[VisbalExt.VisbalLogView] Received message:', message.command, message);
+        console.log('[VisbalExt.htmlTemplate] Handle messages from the extension | Received message:', message.command, message);
 
         switch (message.command) {
           case 'updateOrgList':
-            updateOrgListUI(message.orgs || {}, false);
+            updateOrgListUI(message.orgs || {}, message.fromCache, message.selectedOrg);
             break;
           case 'orgCacheLoaded':
             if (message.cache) {
               // Check if cache is older than 1 hour
               const cacheAge = new Date().getTime() - message.cache.timestamp;
               if (cacheAge < 3600000) { // 1 hour in milliseconds
-                updateOrgListUI(message.cache.orgs, true);
+                updateOrgListUI(message.cache.orgs, true, message.selectedOrg);
               } else {
                 // Cache is too old, request fresh data
                 vscode.postMessage({ command: 'refreshOrgList' });
@@ -2910,7 +2917,7 @@ export function getHtmlForWebview(extensionUri: vscode.Uri, webview: vscode.Webv
         }
         
         if (selectedOrg) {
-          console.log('[VisbalExt.VisbalLogView] handleOrgSelection -- Org selected -- Details:', selectedOrg);
+          console.log('[VisbalExt.htmlTemplate] handleOrgSelection -- Org selected -- Details:', selectedOrg);
           // Store the selection
           orgSelector.setAttribute('data-last-selection', selectedOrg);
           vscode.postMessage({
@@ -2923,71 +2930,11 @@ export function getHtmlForWebview(extensionUri: vscode.Uri, webview: vscode.Webv
       // Add handler for org list updates
       window.addEventListener('message', event => {
         const message = event.data;
-        console.log('[VisbalExt.VisbalLogView] Received message:', message.command, message);
+        console.log('[VisbalExt.htmlTemplate] Add handler for org list updates | Received message:', message.command, message);
         
         if (message.command === 'updateOrgList') {
-          console.log('[VisbalExt.VisbalLogView] updateOrgList -- Updating org list with data:', message.orgs);
-          const orgs = message.orgs || {};
-          
-          // Clear existing options
-          orgSelector.innerHTML = '';
-
-          // Add refresh option at the top
-          const refreshOption = document.createElement('option');
-          refreshOption.value = '__refresh__';
-          refreshOption.textContent = '↻ Refresh Org List';
-          refreshOption.style.fontStyle = 'italic';
-          refreshOption.style.backgroundColor = 'var(--vscode-dropdown-background)';
-          orgSelector.appendChild(refreshOption);
-
-          // Add a separator
-          const separator = document.createElement('option');
-          separator.disabled = true;
-          separator.textContent = '──────────────';
-          orgSelector.appendChild(separator);
-          
-          // Helper function to add section if it has items
-          const addSection = (items, sectionName) => {
-            if (items && items.length > 0) {
-              const optgroup = document.createElement('optgroup');
-              optgroup.label = sectionName;
-              
-              items.forEach(org => {
-                const option = document.createElement('option');
-                option.value = org.alias;
-                option.textContent = org.alias || org.username;
-                if (org.isDefault) {
-                  option.textContent += ' (Default)';
-                } else {
-                  //option.textContent += ' (' + org.username + ')';
-                }
-                option.selected = org.isDefault;
-                optgroup.appendChild(option);
-              });
-              
-              orgSelector.appendChild(optgroup);
-              return true;
-            }
-            return false;
-          };
-          
-          let hasAnyOrgs = false;
-          
-          // Add each section if it has items
-          hasAnyOrgs = addSection(orgs.devHubs, 'Dev Hubs') || hasAnyOrgs;
-          hasAnyOrgs = addSection(orgs.nonScratchOrgs, 'Non-Scratch Orgs') || hasAnyOrgs;
-          hasAnyOrgs = addSection(orgs.sandboxes, 'Sandboxes') || hasAnyOrgs;
-          hasAnyOrgs = addSection(orgs.scratchOrgs, 'Scratch Orgs') || hasAnyOrgs;
-          hasAnyOrgs = addSection(orgs.other, 'Other') || hasAnyOrgs;
-          
-          if (!hasAnyOrgs) {
-            const option = document.createElement('option');
-            option.value = '';
-            option.textContent = 'No orgs found';
-            orgSelector.appendChild(option);
-          }
-          
-          console.log('[VisbalExt.VisbalLogView] updateOrgList -- Org list updated, hasAnyOrgs:', hasAnyOrgs);
+          //updateOrgListUI(orgs, fromCache = false, message.selectedOrg = null     
+          console.log('[VisbalExt.htmlTemplate] updateOrgList -- Org list updated, hasAnyOrgs:', hasAnyOrgs);
         }
       });
       
