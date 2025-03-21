@@ -74,12 +74,13 @@ export class SoqlPanelView implements vscode.WebviewViewProvider {
         }
 
         try {
+            const selectedOrg = await OrgUtils.getSelectedOrg();
         	this._view?.webview.postMessage({
                 command: 'startLoading',
-                message: 'Executing SOQL...'
+                message: `Executing SOQL ${selectedOrg?.alias}...`
             });
             
-            const selectedOrg = await OrgUtils.getSelectedOrg();
+           
             if (!selectedOrg?.alias) {
                 this._view?.webview.postMessage({
                     command: 'error',
@@ -88,7 +89,7 @@ export class SoqlPanelView implements vscode.WebviewViewProvider {
                 return;
             }
 
-            console.log(`[VisbalExt.soqlPanel] Executing on ${selectedOrg.alias} org SOQL:`, soql);
+            console.log(`[VisbalExt.soqlPanel] Executing on ${selectedOrg?.alias} org SOQL:`, soql);
             const m = `SOQL started on : ${selectedOrg.alias}`
             // Show loading state
             this._view?.webview.postMessage({

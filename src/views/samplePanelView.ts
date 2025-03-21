@@ -82,12 +82,13 @@ export class SamplePanelView implements vscode.WebviewViewProvider {
         }
 
         try {
+            const selectedOrg = await OrgUtils.getSelectedOrg();
 			this._view?.webview.postMessage({
                 command: 'startLoading',
-                message: 'Executing Apex...'
+                message: `Executing Apexon ${selectedOrg?.alias} ...`
             });
 			
-			const selectedOrg = await OrgUtils.getSelectedOrg();
+			
             if (!selectedOrg?.alias) {
                 this._view?.webview.postMessage({
                     command: 'error',
