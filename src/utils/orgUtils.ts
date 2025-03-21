@@ -240,9 +240,9 @@ export class OrgUtils {
             console.log('[VisbalExt.OrgUtils] _fetchLogContent -- Result:', result);
             const jsonResult = JSON.parse(result);
             console.log('[VisbalExt.OrgUtils] _fetchLogContent -- jsonResult:', jsonResult);
-            if (jsonResult?.result?.log) {
+            if (jsonResult?.result) {
                 console.log('[VisbalExt.OrgUtils] _fetchLogContent -- retunrretuning');
-                return jsonResult.result.log;
+                return jsonResult.result[0].log;
             }
         } catch (e) {
             console.log('[VisbalExt.OrgUtils] _fetchLogContent -- Error:', e);

@@ -1173,7 +1173,7 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
             // Check if config matches any of our presets
             const presets: Record<string, Record<string, string>> = {
                 default: {
-                    apexCode: 'DEBUG',
+                    apexCode: 'FINE',
                     apexProfiling: 'INFO',
                     callout: 'INFO',
                     dataAccess: 'INFO',
