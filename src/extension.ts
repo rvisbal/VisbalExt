@@ -206,7 +206,7 @@ export function activate(context: vscode.ExtensionContext) {
 
   if (isModuleEnabled('soqlQuery')) {
     // Create and register SOQL Panel
-    soqlPanel = new SoqlPanelView(metadataService);
+    soqlPanel = new SoqlPanelView(context);
     context.subscriptions.push(
       vscode.window.registerWebviewViewProvider(
         'visbal-soql',

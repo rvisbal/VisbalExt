@@ -7,38 +7,35 @@ import { readFile, unlink } from 'fs/promises';
 import * as path from 'path';
 import * as os from 'os';
 import * as vscode from 'vscode';
-import { exec } from 'child_process';
+import * as child_process from 'child_process';
 
-const execAsync = promisify(exec);
+const execPromise = promisify(child_process.exec);
 
 // Maximum buffer size for CLI commands (100MB)
 const MAX_BUFFER_SIZE = 100 * 1024 * 1024;
+
+interface ExecResult {
+    stdout: string;
+    stderr: string;
+}
 
 export class SfdxService {
     constructor() {}
 
     //#region Core Functionality
 	private async _executeCommand(command: string): Promise<string> {
-        return new Promise<string>((resolve, reject) => {
-            exec(command, { maxBuffer: 1024 * 1024 * 10 }, (error, stdout, stderr) => {
-                if (error) {
-                    console.error(`[VisbalExt.SfdxService] _executeCommand Error executing command: ${command}`, error);
-                    reject(error);
-                    return;
-                }
-                
-                if (stderr && stderr.length > 0) {
-                    console.warn(`[VisbalExt.SfdxService] _executeCommand Command produced stderr: ${command}`, stderr);
-                }
-                
-                resolve(stdout);
-            });
-        });
+        try {
+            const { stdout } = await execPromise(command, { maxBuffer: 1024 * 1024 * 10 });
+            return stdout;
+        } catch (error) {
+            console.error(`[VisbalExt.SfdxService] _executeCommand Error executing command: ${command}`, error);
+            throw error;
+        }
     }
 	
     private async _executeCommand2(command: string, options: any = {}): Promise<string> {
         try {
-            const { stdout } = await execAsync(command, { maxBuffer: MAX_BUFFER_SIZE, ...options });
+            const { stdout } = await execPromise(command, { maxBuffer: MAX_BUFFER_SIZE, ...options });
             return stdout.toString();
         } catch (error: any) {
             console.error('[VisbalExt.SfdxService] Error executing command:', error);
@@ -424,7 +421,7 @@ export class SfdxService {
                         throw new Error('No org selected');
                     }
                     
-                    const { stdout } = await execAsync(
+                    const { stdout } = await execPromise(
                         `sf apex log get --log-id ${logId} --target-org ${selectedOrg.alias}`,
                         { maxBuffer: MAX_BUFFER_SIZE }
                     );
@@ -1309,6 +1306,17 @@ export class SfdxService {
         } catch (error) {
             console.error('[VisbalExt.SfdxService] Error querying ApexLog IDs:', error);
             throw error;
+        }
+    }
+
+    public async executeCommand(command: string): Promise<string> {
+        try {
+            const { stdout } = await execPromise(command, { maxBuffer: 100 * 1024 * 1024 });
+            return stdout;
+        } catch (error) {
+            const errorMessage = error instanceof Error ? error.message : String(error);
+            console.error('Error executing SFDX command:', errorMessage);
+            throw new Error(`Failed to execute SFDX command: ${errorMessage}`);
         }
     }
 } 

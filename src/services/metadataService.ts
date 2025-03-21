@@ -26,7 +26,7 @@ export interface TestMethod {
 }
 
 export class MetadataService {
-	private _sfdxService: SfdxService;
+    private _sfdxService: SfdxService;
 	  
     constructor() {
 		this._sfdxService = new SfdxService();
@@ -805,78 +805,14 @@ export class MetadataService {
      * Lists all available Salesforce orgs grouped by type
      * @returns Promise containing the organized list of orgs
      */
-    public async listOrgs(): Promise<any> {
+    public async listOrgs(): Promise<any[]> {
         try {
-            console.log('[VisbalExt.MetadataService] listOrgs -- Fetching org list');
-            const command = 'sf org list --all --json';
-            const resultStr = await this.executeCliCommandAnonymous(command);
-            const result = JSON.parse(resultStr);
-            console.log('[VisbalExt.MetadataService] listOrgs -- result:', result);
-            
-            if (!result.result) {
-                throw new Error('Failed to retrieve org list: Unexpected response format');
-            }
-
-            // Filter and organize orgs by type
-            const organizedOrgs = {
-                devHubs: [],
-                nonScratchOrgs: [],
-                sandboxes: [],
-                scratchOrgs: [],
-                other: []
-            };
-
-            // Process each org
-            if (result.result.devHubs) {
-                organizedOrgs.devHubs = result.result.devHubs
-                    .filter((org: any) => org.connectedStatus === 'Connected')
-                    .map((org: any) => ({
-                        ...org,
-                        type: 'devHub'
-                    }));
-            }
-
-            if (result.result.nonScratchOrgs) {
-                organizedOrgs.nonScratchOrgs = result.result.nonScratchOrgs
-                    .filter((org: any) => org.connectedStatus === 'Connected')
-                    .map((org: any) => ({
-                        ...org,
-                        type: 'nonScratchOrg'
-                    }));
-            }
-
-            if (result.result.sandboxes) {
-                organizedOrgs.sandboxes = result.result.sandboxes
-                    .filter((org: any) => org.connectedStatus === 'Connected')
-                    .map((org: any) => ({
-                        ...org,
-                        type: 'sandbox'
-                    }));
-            }
-
-            if (result.result.scratchOrgs) {
-                organizedOrgs.scratchOrgs = result.result.scratchOrgs
-                    .filter((org: any) => !org.isExpired && org.status === 'Active')
-                    .map((org: any) => ({
-                        ...org,
-                        type: 'scratchOrg'
-                    }));
-            }
-
-            if (result.result.other) {
-                organizedOrgs.other = result.result.other
-                    .filter((org: any) => org.connectedStatus === 'Connected')
-                    .map((org: any) => ({
-                        ...org,
-                        type: 'other'
-                    }));
-            }
-
-            console.log('[VisbalExt.MetadataService] listOrgs -- Successfully organized org list', organizedOrgs);
-            return organizedOrgs;
+            const result = await this._sfdxService.executeCommand('sfdx force:org:list --json');
+            const data = JSON.parse(result);
+            return [...(data.result.nonScratchOrgs || []), ...(data.result.scratchOrgs || [])];
         } catch (error: any) {
-            console.error('[VisbalExt.MetadataService] listOrgs -- Error:', error);
-            throw new Error(`Failed to retrieve org list: ${error.message}`);
+            console.error('Error listing orgs:', error);
+            throw new Error(`Failed to list orgs: ${error.message}`);
         }
     }
 
@@ -884,13 +820,11 @@ export class MetadataService {
      * Sets the default Salesforce org
      * @param username The username of the org to set as default
      */
-    public async setDefaultOrg(username: string): Promise<void> {
+    public async setDefaultOrg(orgId: string): Promise<void> {
         try {
-            console.log('[VisbalExt.MetadataService] setDefaultOrg -- Setting default org:', username);
-            await vscode.commands.executeCommand('sf:org:set:default', username);
-            console.log('[VisbalExt.MetadataService] setDefaultOrg -- Successfully set default org');
+            await this._sfdxService.executeCommand(`sfdx force:config:set defaultusername=${orgId}`);
         } catch (error: any) {
-            console.error('[VisbalExt.MetadataService] setDefaultOrg -- Error:', error);
+            console.error('Error setting default org:', error);
             throw new Error(`Failed to set default org: ${error.message}`);
         }
     }
