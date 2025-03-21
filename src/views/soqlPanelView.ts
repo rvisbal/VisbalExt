@@ -41,7 +41,7 @@ export class SoqlPanelView implements vscode.WebviewViewProvider {
                     this.executeSOQL(message.query);
                     break;
                 case 'setSelectedOrg':
-                    await this._setSelectedOrg(message.orgId);
+                    await this._setSelectedOrg(message.alias);
                     break;
                 case 'loadOrgList':
                     await this._loadOrgList();
@@ -722,8 +722,8 @@ export class SoqlPanelView implements vscode.WebviewViewProvider {
 	                        // Store the selection
 	                        orgDropdown.setAttribute('data-last-selection', selectedOrg);
 	                        vscode.postMessage({
-	                        command: 'setSelectedOrg',
-	                        alias: selectedOrg
+                                command: 'setSelectedOrg',
+                                alias: selectedOrg
 	                        });
 	                    }
 	                });

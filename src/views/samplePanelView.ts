@@ -49,7 +49,7 @@ export class SamplePanelView implements vscode.WebviewViewProvider {
                     await this.executeApex(message.code);
                     break;
 				 case 'setSelectedOrg':
-                    await this._setSelectedOrg(message.orgId);
+                    await this._setSelectedOrg(message.alias);
                     break;
                 case 'loadOrgList':
                     await this._loadOrgList();
