@@ -1163,6 +1163,9 @@ export function getHtmlForWebview(extensionUri: vscode.Uri, webview: vscode.Webv
   const scriptUri = webview.asWebviewUri(
     vscode.Uri.joinPath(extensionUri, 'media', 'main.js')
   );
+  const debugPresetUtilsUri = webview.asWebviewUri(
+    vscode.Uri.joinPath(extensionUri, 'media', 'debugPresetUtils.js')
+  );
 
   // Use a nonce to only allow a specific script to be run.
   const nonce = getNonce();
@@ -2734,6 +2737,7 @@ export function getHtmlForWebview(extensionUri: vscode.Uri, webview: vscode.Webv
         }
       });
     </script>
+    <script type="module" src="${debugPresetUtilsUri}"></script>
   </body>
   </html>`;
 }

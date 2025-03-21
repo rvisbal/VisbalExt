@@ -1,0 +1,108 @@
+.container {
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+}
+
+.top-bar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px;
+    background-color: var(--vscode-editor-background);
+    border-bottom: 1px solid var(--vscode-panel-border);
+}
+
+.filter-section {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.filter-input {
+    width: 200px;
+    padding: 4px 8px;
+    border-radius: 4px;
+    border: 1px solid var(--vscode-input-border);
+    background-color: var(--vscode-input-background);
+    color: var(--vscode-input-foreground);
+}
+
+/* Button Styles */
+.icon-button {
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--vscode-button-foreground);
+    background-color: #4d4d4d;
+    border-radius: 4px;
+    width: 28px;
+    height: 28px;
+    margin: 0 2px;
+    transition: background-color 0.2s;
+}
+
+.icon-button:hover {
+    background-color: #666666;
+}
+
+.icon-button:active {
+    background-color: #333333;
+}
+
+.icon-button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    background-color: #4d4d4d;
+}
+
+/* Icon Styles */
+.download-icon, .open-icon, .view-icon {
+    color: white;
+}
+
+/* Table Styles */
+.logs-table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.logs-table th {
+    position: sticky;
+    top: 0;
+    background-color: var(--vscode-editor-background);
+    z-index: 1;
+    text-align: left;
+    padding: 8px;
+    border-bottom: 1px solid var(--vscode-panel-border);
+    cursor: pointer;
+}
+
+.logs-table td {
+    padding: 8px;
+    border-bottom: 1px solid var(--vscode-panel-border);
+}
+
+/* Debug Configuration Styles */
+.debug-config-bar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    padding: 6px 10px;
+    background-color: var(--vscode-editor-inactiveSelectionBackground);
+    border-bottom: 1px solid var(--vscode-panel-border);
+    gap: 8px;
+}
+
+.debug-config-options {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    flex: 1;
+}
+
+/* ... rest of your CSS ... */ 

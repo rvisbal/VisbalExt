@@ -238,5 +238,9 @@
   },
   "resolutions": {
     "@vscode/codicons": "^0.0.35"
-  }
+  },
+  "files": [
+    "out/**/*",
+    "media/**/*"
+  ]
 }
