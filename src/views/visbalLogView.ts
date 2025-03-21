@@ -2251,8 +2251,7 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
             // Update OrgUtils with current logs data
             OrgUtils.initialize(this._logs, this._context);
             await OrgUtils.downloadLog(logId);
-
-            // Update UI
+            console.log('[VisbalExt.VisbalLogView] downloadLog _updateWebviewContent', logId);
             this._updateWebviewContent();
         } catch (error) {
             // Error handling is done by OrgUtils

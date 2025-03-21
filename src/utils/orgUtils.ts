@@ -239,10 +239,13 @@ export class OrgUtils {
             const result = await this._sfdxService.getLogContent(logId);
             console.log('[VisbalExt.OrgUtils] _fetchLogContent -- Result:', result);
             const jsonResult = JSON.parse(result);
+            console.log('[VisbalExt.OrgUtils] _fetchLogContent -- jsonResult:', jsonResult);
             if (jsonResult?.result?.log) {
+                console.log('[VisbalExt.OrgUtils] _fetchLogContent -- retunrretuning');
                 return jsonResult.result.log;
             }
         } catch (e) {
+            console.log('[VisbalExt.OrgUtils] _fetchLogContent -- Error:', e);
             error = e as Error;
         }
 
@@ -299,6 +302,7 @@ export class OrgUtils {
             const logsDir = vscode.workspace.workspaceFolders?.[0]
                 ? path.join(vscode.workspace.workspaceFolders[0].uri.fsPath, '.visbal', 'logs')
                 : path.join(os.homedir(), '.visbal', 'logs');
+            console.log('[VisbalExt.OrgUtils] downloadLog -- logsDir:', logsDir);
 
             // Ensure directory exists
             await fs.promises.mkdir(logsDir, { recursive: true });
@@ -310,21 +314,29 @@ export class OrgUtils {
             const sanitizedStatus = status.replace(/[\/\\:*?"<>|]/g, '_');
             const logFilename = `${sanitizedLogId}_${sanitizedOperation}_${sanitizedStatus}_${size}_${timestamp}.log`;
             const targetFilePath = path.join(logsDir, logFilename);
+            console.log('[VisbalExt.OrgUtils] downloadLog -- targetFilePath:', targetFilePath);
 
             // Fetch and save log content
             const logContent = await this._fetchLogContent(logId);
+            console.log('[VisbalExt.OrgUtils] downloadLog -- finish fetch:');
             await fs.promises.writeFile(targetFilePath, logContent);
+            console.log('[VisbalExt.OrgUtils] downloadLog -- finish writing file:');
 
             // Update tracking
             this._downloadedLogs.add(logId);
             this._downloadedLogPaths.set(logId, targetFilePath);
+            console.log('[VisbalExt.OrgUtils] downloadLog -- _downloadedLogs:', this._downloadedLogs);
+            console.log('[VisbalExt.OrgUtils] downloadLog -- _downloadedLogPaths:', this._downloadedLogPaths);
 
-            statusBarService.showSuccess('Log downloaded successfully');
+
+            statusBarService.showSuccess('Log downloaded successfully');    
+            console.log('[VisbalExt.OrgUtils] downloadLog -- statusBarService.showSuccess');
 
             // Open the log file
             const document = await vscode.workspace.openTextDocument(targetFilePath);
             await vscode.window.showTextDocument(document);
         } catch (error: any) {
+            console.log('[VisbalExt.OrgUtils] downloadLog -- error:', error);
             statusBarService.showError(`Error downloading log: ${error.message}`);
             vscode.window.showErrorMessage(`Failed to download log: ${error.message}`);
             throw error;
