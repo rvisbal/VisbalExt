@@ -22,13 +22,13 @@ export class SfdxService {
         return new Promise<string>((resolve, reject) => {
             exec(command, { maxBuffer: 1024 * 1024 * 10 }, (error, stdout, stderr) => {
                 if (error) {
-                    console.error(`[VisbalExt.VisbalLogView] _executeCommand Error executing command: ${command}`, error);
+                    console.error(`[VisbalExt.SfdxService] _executeCommand Error executing command: ${command}`, error);
                     reject(error);
                     return;
                 }
                 
                 if (stderr && stderr.length > 0) {
-                    console.warn(`[VisbalExt.VisbalLogView] _executeCommand Command produced stderr: ${command}`, stderr);
+                    console.warn(`[VisbalExt.SfdxService] _executeCommand Command produced stderr: ${command}`, stderr);
                 }
                 
                 resolve(stdout);

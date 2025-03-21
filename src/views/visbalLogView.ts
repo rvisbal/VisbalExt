@@ -1165,8 +1165,10 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
             this._view?.webview.postMessage({
                 command: 'loading',
                 isLoading: true,
-                message: turnOnDebug ? 'Applying debug configuration and turning on debug...' : 'Applying debug configuration...'
+                message: turnOnDebug ? `Applying debug configuration on ${selectedOrg?.alias} and turning on debug...` : 'Applying debug configuration...'
             });
+            
+
             
             // Determine preset name for the debug level name
             let presetName = 'Custom';
