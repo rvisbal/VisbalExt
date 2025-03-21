@@ -2,11 +2,13 @@ import * as vscode from 'vscode';
 import { MetadataService } from '../services/metadataService';
 import { OrgListCacheService } from '../services/orgListCacheService';
 import { OrgUtils } from '../utils/orgUtils';
+import { SfdxService } from '../services/sfdxService';
 
 export class SoqlPanelView implements vscode.WebviewViewProvider {
     public static readonly viewType = 'visbalSoql';
     private _view?: vscode.WebviewView;
     private _metadataService: MetadataService;
+	private _sfdxService: SfdxService;
     private _orgListCacheService: OrgListCacheService;
     private _currentOrg?: string;
      private _isRefreshing: boolean = false;
@@ -14,6 +16,7 @@ export class SoqlPanelView implements vscode.WebviewViewProvider {
     constructor(private readonly _context: vscode.ExtensionContext) {
         this._metadataService = new MetadataService();
         this._orgListCacheService = new OrgListCacheService(_context);
+		 this._sfdxService = new SfdxService();
     }
 
     public resolveWebviewView(
@@ -35,20 +38,7 @@ export class SoqlPanelView implements vscode.WebviewViewProvider {
         webviewView.webview.onDidReceiveMessage(async (message) => {
             switch (message.command) {
                 case 'executeSoqlQuery':
-                    try {
-                        const results = await this._metadataService.executeSoqlQuery(message.query);
-                        this._view?.webview.postMessage({
-                            command: 'soqlResultsLoaded',
-                            results: {
-                                records: results
-                            }
-                        });
-                    } catch (error: any) {
-                        this._view?.webview.postMessage({
-                            command: 'error',
-                            message: `Error executing query: ${error.message}`
-                        });
-                    }
+                    this.executeSOQL(message.query);
                     break;
                 case 'selectOrg':
                     await this._setSelectedOrg(message.orgId);
@@ -71,6 +61,45 @@ export class SoqlPanelView implements vscode.WebviewViewProvider {
                     break;
             }
         });
+    }
+	
+	private async executeSOQL(soql: string) {
+        if (!soql.trim()) {
+            this._view?.webview.postMessage({
+                command: 'executionResult',
+                success: false,
+                message: 'Please enter some soql to execute'
+            });
+            return;
+        }
+
+        try {
+			const selectedOrg = await OrgUtils.getSelectedOrg();
+            console.log(`[VisbalExt.soqlPanel] Executing on ${selectedOrg?.alias} org SOQL:`, soql);
+            const m = `SOQL started on : ${selectedOrg?.alias}`
+            // Show loading state
+            this._view?.webview.postMessage({
+                command: m
+            });
+
+            const result = await this._sfdxService.executeSoqlQuery(soql);
+            console.log('[VisbalExt.soqlPanel] executeSOQL Execution result:', result);
+
+            this._view?.webview.postMessage({
+                            command: 'soqlResultsLoaded',
+                            results: {
+                                records: result
+                            }
+                        });
+						
+						
+        } catch (error: any) {
+            console.error('[VisbalExt.soqlPanel] executeSOQL Error executing SOQL:', error);
+            this._view?.webview.postMessage({
+                command: 'error',
+                message: `Error executing query: ${error.message}`
+            });
+        }
     }
 
 	//#region LISTBOX
@@ -269,21 +298,25 @@ export class SoqlPanelView implements vscode.WebviewViewProvider {
                     outline: none;
                     border-color: var(--vscode-focusBorder);
                 }
-                #runSoqlButton {
-                    width: 24px;
-                    height: 24px;
-                    display: flex;
-                    align-items: center;
-                    justify-content: center;
+				button {
                     background: var(--vscode-button-background);
                     color: var(--vscode-button-foreground);
                     border: none;
+                    padding: 4px 8px;
                     cursor: pointer;
                     border-radius: 2px;
-                    padding: 0;
+                    display: flex;
+                    align-items: center;
+                    gap: 4px;
+                    font-size: 12px;
+                    height: 24px;
                 }
-                #runSoqlButton:hover {
+                button:hover {
                     background: var(--vscode-button-hoverBackground);
+                }
+                button:disabled {
+                    opacity: 0.5;
+                    cursor: not-allowed;
                 }
                 #soqlStatus {
                     padding: 2px 5px;
@@ -381,6 +414,7 @@ export class SoqlPanelView implements vscode.WebviewViewProvider {
                         </div>
                     </div>
                     <button id="runSoqlButton" title="Run Query">
+                        Execute Query
                         <svg width="16" height="16" viewBox="0 0 16 16">
                             <path fill="currentColor" d="M3.5 3v10l9-5-9-5z"/>
                         </svg>

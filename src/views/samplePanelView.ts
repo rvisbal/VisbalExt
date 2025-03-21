@@ -1,14 +1,23 @@
 import * as vscode from 'vscode';
 import { MetadataService } from '../services/metadataService';
+import { OrgListCacheService } from '../services/orgListCacheService';
+import { OrgUtils } from '../utils/orgUtils';
+import { SfdxService } from '../services/sfdxService';
 
 export class SamplePanelView implements vscode.WebviewViewProvider {
     public static readonly viewType = 'visbal-sample';
     private _view?: vscode.WebviewView;
     private _metadataService: MetadataService;
+    private _sfdxService: SfdxService;
+	private _orgListCacheService: OrgListCacheService;
+    private _currentOrg?: string;
+     private _isRefreshing: boolean = false;
 
-    constructor() {
+    constructor(private readonly _context: vscode.ExtensionContext) {
         console.log('[VisbalExt.SamplePanelView] Initializing SamplePanelView');
         this._metadataService = new MetadataService();
+        this._orgListCacheService = new OrgListCacheService(_context);
+        this._sfdxService = new SfdxService();
     }
 
     public resolveWebviewView(
@@ -28,6 +37,9 @@ export class SamplePanelView implements vscode.WebviewViewProvider {
         // Set the HTML content
         webviewView.webview.html = this._getWebviewContent();
 
+         // Load orgs when view is initialized
+         this._loadOrgList();
+
         // Handle messages from the webview
         webviewView.webview.onDidReceiveMessage(async (message) => {
             console.log(`[VisbalExt.SamplePanelView] resolveWebviewView -- Received message: ${message.command}`);
@@ -35,6 +47,25 @@ export class SamplePanelView implements vscode.WebviewViewProvider {
             switch (message.command) {
                 case 'executeApex':
                     await this.executeApex(message.code);
+                    break;
+				 case 'selectOrg':
+                    await this._setSelectedOrg(message.orgId);
+                    break;
+                case 'loadOrgList':
+                    await this._loadOrgList();
+                    break;
+                case 'refreshOrgList':
+                    try {
+                        await this._refreshOrgList();
+                        this._view?.webview.postMessage({
+                            command: 'refreshComplete'
+                        });
+                    } catch (error: any) {
+                        this._view?.webview.postMessage({
+                            command: 'error',
+                            message: `Error refreshing org list: ${error.message}`
+                        });
+                    }
                     break;
             }
         });
@@ -51,14 +82,15 @@ export class SamplePanelView implements vscode.WebviewViewProvider {
         }
 
         try {
-            console.log('[VisbalExt.SamplePanelView] Executing Apex code:', code);
-            
+			const selectedOrg = await OrgUtils.getSelectedOrg();
+            console.log(`[VisbalExt.SamplePanelView] Executing on ${selectedOrg?.alias} org Apex code:`, code);
+            const m = `Apex started on : ${selectedOrg?.alias}`
             // Show loading state
             this._view?.webview.postMessage({
-                command: 'executionStarted'
+                command: m
             });
 
-            const result = await this._metadataService.executeAnonymousApex(code);
+            const result = await this._sfdxService.executeAnonymousApex(code);
             console.log('[VisbalExt.SamplePanelView] Execution result:', result);
 
             this._view?.webview.postMessage({
@@ -79,7 +111,118 @@ export class SamplePanelView implements vscode.WebviewViewProvider {
         }
     }
 
-    private _getWebviewContent(): string {
+    //#region LISTBOX
+    private async _loadOrgList(): Promise<void> {
+        try {
+            console.log('[VisbalExt.SamplePanelView] _loadOrgList -- Loading org list');
+            
+            // Try to get from cache first
+            const cachedData = await this._orgListCacheService.getCachedOrgList();
+            let orgs;
+
+            if (cachedData) {
+                console.log('[VisbalExt.SamplePanelView] _loadOrgList -- Using cached org list:', cachedData);
+                orgs = cachedData.orgs;
+            } else {
+                console.log('[VisbalExt.SamplePanelView] _loadOrgList -- Fetching fresh org list');
+                orgs = await OrgUtils.listOrgs();
+                // Save to cache
+                await this._orgListCacheService.saveOrgList(orgs);
+            }
+
+            // Get the selected org
+            const selectedOrg = await OrgUtils.getSelectedOrg();
+            console.log('[VisbalExt.SamplePanelView] _loadOrgList -- Selected org:', selectedOrg);
+
+            console.log('[VisbalExt.SamplePanelView] _loadOrgList -- orgs:', orgs);
+            console.log('[VisbalExt.SamplePanelView] _loadOrgList -- cachedData:', cachedData);
+
+            // Send the categorized orgs to the webview
+            this._view?.webview.postMessage({
+                command: 'updateOrgList',
+                orgs: orgs,
+                fromCache: !!cachedData,
+                selectedOrg: selectedOrg?.alias
+            });
+
+        } catch (error: any) {
+            console.error('[VisbalExt.SamplePanelView] _loadOrgList -- Error loading org list:', error);
+
+        }
+    }
+
+    
+
+    /**
+     * Refreshes the list of Salesforce orgs
+     */
+    private async _refreshOrgList(): Promise<void> {
+        if (this._isRefreshing) {
+            console.log('[VisbalExt.SamplePanelView] _refreshOrgList -- Refresh already in progress');
+            this._view?.webview.postMessage({
+                command: 'info',
+                message: 'Organization list refresh already in progress...'
+            });
+            return;
+        }
+
+        try {
+            this._isRefreshing = true;
+            console.log('[VisbalExt.SamplePanelView] _refreshOrgList -- Refreshing org list');
+            
+            this._view?.webview.postMessage({
+                command: 'loading',
+                isLoading: true,
+                message: 'Refreshing organization list...'
+            });
+
+            const orgs = await OrgUtils.listOrgs();
+            console.log('[VisbalExt.SamplePanelView] _refreshOrgList -- orgs Save to the cache');
+            // Save to cache
+            await this._orgListCacheService.saveOrgList(orgs);
+            
+            const selectedOrg = await OrgUtils.getSelectedOrg();
+            console.log('[VisbalExt.SamplePanelView] _loadOrgList -- Selected org:', selectedOrg);
+
+            // Send the categorized orgs to the webview
+            this._view?.webview.postMessage({
+                command: 'updateOrgList',
+                orgs: orgs,
+                fromCache: false,
+                selectedOrg: selectedOrg?.alias
+            });
+            
+            console.log('[VisbalExt.SamplePanelView] _refreshOrgList -- Successfully sent org list to webview');
+        } catch (error: any) {
+            console.error('[VisbalExt.SamplePanelView] _refreshOrgList -- Error refreshing org list:', error);
+          
+        } finally {
+            this._isRefreshing = false;
+            this._view?.webview.postMessage({
+                command: 'loading',
+                isLoading: false
+            });
+        }
+    }
+
+    private async _setSelectedOrg(username: string): Promise<void> {
+        try {
+            console.log(`[VisbalExt.SamplePanelView] _setSelectedOrg -- Setting selected org: ${username}`);
+            //this._showLoading(`Setting selected org to ${username}...`);
+            
+            await OrgUtils.setSelectedOrg(username);
+        }
+        catch (error: any) {
+            console.error('[VisbalExt.SamplePanelView] _setSelectedOrg -- Error setting selected org:', error);
+            //this._showError(`Failed to set selected org: ${error.message}`);
+        } finally {
+            //this._hideLoading();
+        }
+    }
+    //#endregion LISTBOX
+    
+	
+	private _getWebviewContent(): string {
         return `<!DOCTYPE html>
         <html lang="en">
         <head>
@@ -243,6 +386,35 @@ export class SamplePanelView implements vscode.WebviewViewProvider {
                     line-height: 16px;
                 }
             </style>
+			<style>
+                // Add styles after the existing button styles
+		        .org-selector-container {
+		          display: flex;
+		          align-items: center;
+		          gap: 4px;
+		          margin: 0 8px;
+		        }
+		        
+		        .org-selector {
+		          padding: 4px 8px;
+		          border-radius: 4px;
+		          border: 1px solid var(--vscode-dropdown-border);
+		          background-color: var(--vscode-dropdown-background);
+		          color: var(--vscode-dropdown-foreground);
+		          font-size: 12px;
+		          min-width: 200px;
+		          cursor: pointer;
+		        }
+		        
+		        .org-selector:hover {
+		          border-color: var(--vscode-focusBorder);
+		        }
+		        
+		        .org-selector:focus {
+		          outline: none;
+		          border-color: var(--vscode-focusBorder);
+		        }
+            </style>
         </head>
         <body>
             <div class="container">
@@ -254,8 +426,21 @@ export class SamplePanelView implements vscode.WebviewViewProvider {
                     <div class="editor-container">
                         <div class="editor-header">
                             <label class="textarea-label" for="sampleTextarea">Enter your Apex code:</label>
+							 <div class="dropdown">
+								<div class="org-selector-container">
+									<select id="org-selector" class="org-selector" title="Select Salesforce Org">
+									<option value="">Loading orgs...</option>
+									</select>
+								</div>
+								<div class="dropdown-content" id="orgDropdown">
+									<!-- Org items will be populated here -->
+								</div>
+							</div>
                             <button id="executeButton" onclick="executeApex()" title="Execute Apex Code">
-                                Execute Apex
+                                Execute Code
+                                 <svg width="16" height="16" viewBox="0 0 16 16">
+                                    <path fill="currentColor" d="M3.5 3v10l9-5-9-5z"/>
+                                </svg>
                             </button>
                         </div>
                         <div class="textarea-container">
@@ -284,6 +469,40 @@ export class SamplePanelView implements vscode.WebviewViewProvider {
                     const outputContainer = document.getElementById('outputContainer');
                     const tabs = document.querySelectorAll('.tab');
                     const contents = document.querySelectorAll('.content');
+					
+					
+					//#region LISTBOX
+                    // Dropdown functionality
+                    const orgDropdown = document.getElementById('org-selector');
+
+                    // Toggle dropdown
+                    orgDropdown.addEventListener('click', () => {
+                        orgDropdown.classList.toggle('show');
+                    });
+
+                    
+                    // Handle org selection
+                    orgDropdown.addEventListener('change', () => {
+                        const selectedOrg = orgDropdown.value;
+                        if (selectedOrg === '__refresh__') {
+                            // Reset selection to previously selected value
+                            orgDropdown.value = orgDropdown.getAttribute('data-last-selection') || '';
+                            // Request org list refresh
+                            vscode.postMessage({ command: 'refreshOrgList' });
+                            return;
+                        }
+                        
+                        if (selectedOrg) {
+                            console.log('[VisbalExt.htmlTemplate] handleOrgSelection -- Org selected -- Details:', selectedOrg);
+                            // Store the selection
+                            orgDropdown.setAttribute('data-last-selection', selectedOrg);
+                            vscode.postMessage({
+                                command: 'setSelectedOrg',
+                                alias: selectedOrg
+                            });
+                        }
+                    });
+                    //#endregion LISTBOX
                     
                     // Tab switching
                     tabs.forEach(tab => {
@@ -367,6 +586,14 @@ export class SamplePanelView implements vscode.WebviewViewProvider {
                                 
                                 outputContainer.innerHTML = output;
                                 break;
+							case 'updateOrgList':
+                                updateOrgListUI(message.orgs || {}, message.fromCache, message.selectedOrg);
+
+                                break;
+                            case 'refreshComplete':
+                                refreshButton.innerHTML = '↻ Refresh Org List (Cached)';
+                                refreshButton.disabled = false;
+                                break;
                         }
                     });
                     
@@ -378,6 +605,139 @@ export class SamplePanelView implements vscode.WebviewViewProvider {
                             code: code
                         });
                     };
+					
+					
+					
+					//#region CACHE
+                            
+                    // Cache handling functions
+                    const CACHE_KEY = 'visbal-org-cache';
+                    
+                    async function saveOrgCache(orgs) {
+                        try {
+                            vscode.postMessage({
+                            command: 'saveOrgCache',
+                            data: {
+                                orgs,
+                                timestamp: new Date().getTime()
+                            }
+                            });
+                        } catch (error) {
+                            console.error('[VisbalExt.htmlTemplate] Failed to save org cache:', error);
+                        }
+                    }
+            
+                    async function loadOrgCache() {
+                        try {
+                            vscode.postMessage({
+                            command: 'loadOrgCache'
+                            });
+                        } catch (error) {
+                            console.error('[VisbalExt.htmlTemplate] Failed to load org cache:', error);
+                            return null;
+                        }
+                    }
+                    //#endregion CACHE
+                    
+                     //#region LISTBOX
+
+                    function updateOrgListUI(orgs, fromCache = false, selectedOrg = null) {
+                       // _updateOrgListUI(orgDropdown, orgs, fromCache , selectedOrg);
+                        console.log('[VisbalExt.soqPanel] updateOrgListUI Updating org list UI with data:', orgs);
+                        console.log('[VisbalExt.soqPanel] updateOrgListUI Selected org:', selectedOrg);
+                        
+                        // Clear existing options
+                        orgDropdown.innerHTML = '';
+                        // Add refresh option at the top
+                        const refreshOption = document.createElement('option');
+                        refreshOption.value = '__refresh__';
+                        refreshOption.textContent = fromCache ? '↻ Refresh Org List (Cached)' : '↻ Refresh Org List';
+                        refreshOption.style.fontStyle = 'italic';
+                        refreshOption.style.backgroundColor = 'var(--vscode-dropdown-background)';
+                        orgDropdown.appendChild(refreshOption);
+                
+                        // Add a separator
+                        const separator = document.createElement('option');
+                        separator.disabled = true;
+                        separator.textContent = '──────────────';
+                        orgDropdown.appendChild(separator);
+                
+                        // Helper function to add section if it has items
+                        const addSection = (items, sectionName) => {
+                            if (items && items.length > 0) {
+                            const optgroup = document.createElement('optgroup');
+                            optgroup.label = sectionName;
+                            
+                            items.forEach(org => {
+                                const option = document.createElement('option');
+                                option.value = org.alias;
+                                option.textContent = org.alias || org.username;
+                                if (org.isDefault) {
+                                option.textContent += ' (Default)';
+                                }
+                                // Select the option if it matches the selected org
+                                option.selected = selectedOrg && org.alias === selectedOrg;
+                                optgroup.appendChild(option);
+                            });
+                            
+                            orgDropdown.appendChild(optgroup);
+                            return true;
+                            }
+                            return false;
+                        };
+                
+                        let hasAnyOrgs = false;
+                        hasAnyOrgs = addSection(orgs.devHubs, 'Dev Hubs') || hasAnyOrgs;
+                        hasAnyOrgs = addSection(orgs.nonScratchOrgs, 'Non-Scratch Orgs') || hasAnyOrgs;
+                        hasAnyOrgs = addSection(orgs.sandboxes, 'Sandboxes') || hasAnyOrgs;
+                        hasAnyOrgs = addSection(orgs.scratchOrgs, 'Scratch Orgs') || hasAnyOrgs;
+                        hasAnyOrgs = addSection(orgs.other, 'Other') || hasAnyOrgs;
+                
+                        if (!hasAnyOrgs) {
+                            const option = document.createElement('option');
+                            option.value = '';
+                            option.textContent = 'No orgs found';
+                            orgDropdown.appendChild(option);
+                        }
+                
+                        // If this was a fresh fetch (not from cache), update the cache
+                        if (!fromCache) {
+                            saveOrgCache(orgs);
+                        }
+                
+                        // Store the selection
+                        if (selectedOrg) {
+                            orgDropdown.setAttribute('data-last-selection', selectedOrg);
+                        }
+
+                    }
+                
+
+	                // Handle org selection
+	                orgDropdown.addEventListener('change', () => {
+	                    const selectedOrg = orgDropdown.value;
+	                    if (selectedOrg === '__refresh__') {
+	                        // Reset selection to previously selected value
+	                        orgDropdown.value = orgDropdown.getAttribute('data-last-selection') || '';
+	                        // Request org list refresh
+	                        vscode.postMessage({ command: 'refreshOrgList' });
+	                        return;
+	                    }
+	                    
+	                    if (selectedOrg) {
+	                        console.log('[VisbalExt.htmlTemplate] handleOrgSelection -- Org selected -- Details:', selectedOrg);
+	                        // Store the selection
+	                        orgDropdown.setAttribute('data-last-selection', selectedOrg);
+	                        vscode.postMessage({
+	                        command: 'setSelectedOrg',
+	                        alias: selectedOrg
+	                        });
+	                    }
+	                });
+	                //#endregion LISTBOX
+					
+					
+					
                 })();
             </script>
         </body>

@@ -222,7 +222,7 @@ export function activate(context: vscode.ExtensionContext) {
 
   if (isModuleEnabled('samplePanel')) {
     // Create and register Sample Panel
-    samplePanel = new SamplePanelView();
+    samplePanel = new SamplePanelView(context);
     context.subscriptions.push(
       vscode.window.registerWebviewViewProvider(
         'visbal-sample',
