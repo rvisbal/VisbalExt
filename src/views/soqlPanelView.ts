@@ -40,7 +40,7 @@ export class SoqlPanelView implements vscode.WebviewViewProvider {
                 case 'executeSoqlQuery':
                     this.executeSOQL(message.query);
                     break;
-                case 'selectOrg':
+                case 'setSelectedOrg':
                     await this._setSelectedOrg(message.orgId);
                     break;
                 case 'loadOrgList':
@@ -74,6 +74,11 @@ export class SoqlPanelView implements vscode.WebviewViewProvider {
         }
 
         try {
+        	this._view?.webview.postMessage({
+                command: 'startLoading',
+                message: 'Executing SOQL...'
+            });
+            
             const selectedOrg = await OrgUtils.getSelectedOrg();
             if (!selectedOrg?.alias) {
                 this._view?.webview.postMessage({
@@ -99,6 +104,10 @@ export class SoqlPanelView implements vscode.WebviewViewProvider {
                                 records: result
                             }
                         });
+                        
+             this._view?.webview.postMessage({
+                            command: 'stopLoading',
+                        });
 						
 						
         } catch (error: any) {
@@ -106,6 +115,11 @@ export class SoqlPanelView implements vscode.WebviewViewProvider {
             this._view?.webview.postMessage({
                 command: 'error',
                 message: `Error executing query: ${error.message}`
+            });
+        }
+        finally {
+            this._view?.webview.postMessage({
+                command: 'stopLoading'
             });
         }
     }
@@ -147,6 +161,10 @@ export class SoqlPanelView implements vscode.WebviewViewProvider {
         } catch (error: any) {
             console.error('[VisbalExt.soqlPanel] _loadOrgList -- Error loading org list:', error);
 
+        }  finally {
+            this._view?.webview.postMessage({
+                command: 'stopLoading'
+            });
         }
     }
 
@@ -170,8 +188,7 @@ export class SoqlPanelView implements vscode.WebviewViewProvider {
             console.log('[VisbalExt.soqlPanel] _refreshOrgList -- Refreshing org list');
             
             this._view?.webview.postMessage({
-                command: 'loading',
-                isLoading: true,
+                command: 'startLoading',
                 message: 'Refreshing organization list...'
             });
 
@@ -198,8 +215,7 @@ export class SoqlPanelView implements vscode.WebviewViewProvider {
         } finally {
             this._isRefreshing = false;
             this._view?.webview.postMessage({
-                command: 'loading',
-                isLoading: false
+                command: 'stopLoading'
             });
         }
     }
@@ -215,7 +231,9 @@ export class SoqlPanelView implements vscode.WebviewViewProvider {
             console.error('[VisbalExt.soqlPanel] _setSelectedOrg -- Error setting selected org:', error);
             //this._showError(`Failed to set selected org: ${error.message}`);
         } finally {
-            //this._hideLoading();
+            this._view?.webview.postMessage({
+                command: 'stopLoading'
+            });
         }
     }
     //#endregion LISTBOX
@@ -443,7 +461,7 @@ export class SoqlPanelView implements vscode.WebviewViewProvider {
             </div>
             <div class="loading-container" id="loadingContainer">
                 <div class="loading-spinner"></div>
-                <span>Executing query...</span>
+                <span>Loading...</span>
             </div>
             <div class="results-container">
                 <table>
@@ -475,6 +493,7 @@ export class SoqlPanelView implements vscode.WebviewViewProvider {
                     orgDropdown.addEventListener('change', () => {
                         const selectedOrg = orgDropdown.value;
                         if (selectedOrg === '__refresh__') {
+                            startLoading('Refreshing org list...');
                             // Reset selection to previously selected value
                             orgDropdown.value = orgDropdown.getAttribute('data-last-selection') || '';
                             // Request org list refresh
@@ -483,6 +502,7 @@ export class SoqlPanelView implements vscode.WebviewViewProvider {
                         }
                         
                         if (selectedOrg) {
+                            startLoading('Setting selected org...');
                             console.log('[VisbalExt.htmlTemplate] handleOrgSelection -- Org selected -- Details:', selectedOrg);
                             // Store the selection
                             orgDropdown.setAttribute('data-last-selection', selectedOrg);
@@ -502,7 +522,7 @@ export class SoqlPanelView implements vscode.WebviewViewProvider {
                             return;
                         }
                         // Show loading state
-                        startLoading('Executing apex...');
+                        startLoading('Executing soql...');
                        
                         
                         vscode.postMessage({
@@ -532,6 +552,12 @@ export class SoqlPanelView implements vscode.WebviewViewProvider {
                                 refreshButton.innerHTML = '↻ Refresh Org List (Cached)';
                                 refreshButton.disabled = false;
                                 break;
+                             case 'startLoading':
+                                startLoading(message.message);
+                                break;
+                             case 'stopLoading':
+                                stopLoading();
+                                break;
                         }
                     });
 
@@ -548,6 +574,7 @@ export class SoqlPanelView implements vscode.WebviewViewProvider {
 						// Hide loading state
 						loadingContainer.style.display = 'none';
 						runSoqlButton.disabled = false;
+                         statusBar.textContent = '';
 					}
 
                     function handleSoqlResults(results) {

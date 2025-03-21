@@ -48,7 +48,7 @@ export class SamplePanelView implements vscode.WebviewViewProvider {
                 case 'executeApex':
                     await this.executeApex(message.code);
                     break;
-				 case 'selectOrg':
+				 case 'setSelectedOrg':
                     await this._setSelectedOrg(message.orgId);
                     break;
                 case 'loadOrgList':
@@ -82,6 +82,11 @@ export class SamplePanelView implements vscode.WebviewViewProvider {
         }
 
         try {
+			this._view?.webview.postMessage({
+                command: 'startLoading',
+                message: 'Executing Apex...'
+            });
+			
 			const selectedOrg = await OrgUtils.getSelectedOrg();
             if (!selectedOrg?.alias) {
                 this._view?.webview.postMessage({
@@ -112,12 +117,20 @@ export class SamplePanelView implements vscode.WebviewViewProvider {
                 exceptionMessage: result.exceptionMessage,
                 exceptionStackTrace: result.exceptionStackTrace
             });
+			
+			
         } catch (error: any) {
             console.error('[VisbalExt.SamplePanelView] Error executing Apex:', error);
             this._view?.webview.postMessage({
-                command: 'executionResult',
+                command: 'error',
                 success: false,
                 message: `Error executing Apex: ${error.message}`
+            });
+        }
+		finally {
+            this._view?.webview.postMessage({
+                command: 'stopLoading',
+                isLoading: false
             });
         }
     }
@@ -160,6 +173,11 @@ export class SamplePanelView implements vscode.WebviewViewProvider {
             console.error('[VisbalExt.SamplePanelView] _loadOrgList -- Error loading org list:', error);
 
         }
+		finally {
+            this._view?.webview.postMessage({
+                command: 'stopLoading'
+            });
+        }
     }
 
     
@@ -182,8 +200,7 @@ export class SamplePanelView implements vscode.WebviewViewProvider {
             console.log('[VisbalExt.SamplePanelView] _refreshOrgList -- Refreshing org list');
             
             this._view?.webview.postMessage({
-                command: 'loading',
-                isLoading: true,
+                command: 'startLoading',
                 message: 'Refreshing organization list...'
             });
 
@@ -210,8 +227,7 @@ export class SamplePanelView implements vscode.WebviewViewProvider {
         } finally {
             this._isRefreshing = false;
             this._view?.webview.postMessage({
-                command: 'loading',
-                isLoading: false
+                command: 'stopLoading'
             });
         }
     }
@@ -226,8 +242,10 @@ export class SamplePanelView implements vscode.WebviewViewProvider {
         catch (error: any) {
             console.error('[VisbalExt.SamplePanelView] _setSelectedOrg -- Error setting selected org:', error);
             //this._showError(`Failed to set selected org: ${error.message}`);
-        } finally {
-            //this._hideLoading();
+        }  finally {
+            this._view?.webview.postMessage({
+                command: 'stopLoading'
+            });
         }
     }
     //#endregion LISTBOX
@@ -669,6 +687,12 @@ export class SamplePanelView implements vscode.WebviewViewProvider {
                                 statusBar.textContent = message.message;
                                 console.error('[VisbalExt.htmlTemplate] Error:', message.message);
                                 break;
+							case 'startLoading':
+                                startLoading(message.message);
+                                break;
+                             case 'stopLoading':
+                                stopLoading();
+                                break;
                         }
                     });
 					
@@ -683,6 +707,7 @@ export class SamplePanelView implements vscode.WebviewViewProvider {
 					function stopLoading() {
 						// Hide loading state
 						loadingContainer.style.display = 'none';
+                        statusBar.textContent = '';
 						executeButton.disabled = false;
 					}
                     
@@ -813,6 +838,7 @@ export class SamplePanelView implements vscode.WebviewViewProvider {
 	                orgDropdown.addEventListener('change', () => {
 	                    const selectedOrg = orgDropdown.value;
 	                    if (selectedOrg === '__refresh__') {
+                            startLoading('Refreshing org list...');
 	                        // Reset selection to previously selected value
 	                        orgDropdown.value = orgDropdown.getAttribute('data-last-selection') || '';
 	                        // Request org list refresh
@@ -821,12 +847,13 @@ export class SamplePanelView implements vscode.WebviewViewProvider {
 	                    }
 	                    
 	                    if (selectedOrg) {
+                            startLoading('Setting selected org...');
 	                        console.log('[VisbalExt.htmlTemplate] handleOrgSelection -- Org selected -- Details:', selectedOrg);
 	                        // Store the selection
 	                        orgDropdown.setAttribute('data-last-selection', selectedOrg);
 	                        vscode.postMessage({
-	                        command: 'setSelectedOrg',
-	                        alias: selectedOrg
+                                command: 'setSelectedOrg',
+                                alias: selectedOrg
 	                        });
 	                    }
 	                });
