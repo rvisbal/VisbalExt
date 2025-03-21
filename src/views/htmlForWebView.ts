@@ -30,6 +30,10 @@ export function getHtmlForWebview(extensionUri: vscode.Uri, webview: vscode.Webv
     const debugPresetUtilsUri = webview.asWebviewUri(
       vscode.Uri.joinPath(extensionUri, 'media', 'debugPresetUtils.js')
     );
+    const orgList = webview.asWebviewUri(
+      vscode.Uri.joinPath(extensionUri, 'media', 'orgList.js')
+    );
+    
   
   
     // Use a nonce to only allow a specific script to be run.
@@ -689,7 +693,7 @@ export function getHtmlForWebview(extensionUri: vscode.Uri, webview: vscode.Webv
           </table>
         </div>
       </div>
-  
+      <script src="${orgList}"></script>
       <script nonce="${nonce}">
         const vscode = acquireVsCodeApi();
         
@@ -1565,6 +1569,7 @@ export function getHtmlForWebview(extensionUri: vscode.Uri, webview: vscode.Webv
         }
   // Function to update org list UI
         function updateOrgListUI(orgs, fromCache = false, selectedOrg = null) {
+         // _updateOrgListUI(orgSelector, orgs, fromCache , selectedOrg);
           console.log('[VisbalExt.htmlTemplate] updateOrgListUI Updating org list UI with data:', orgs);
           console.log('[VisbalExt.htmlTemplate] updateOrgListUI Selected org:', selectedOrg);
           
@@ -1633,6 +1638,7 @@ export function getHtmlForWebview(extensionUri: vscode.Uri, webview: vscode.Webv
             orgSelector.setAttribute('data-last-selection', selectedOrg);
           }
         }
+  
         
   
         // Initialize by loading cache or requesting fresh data
@@ -1671,6 +1677,7 @@ export function getHtmlForWebview(extensionUri: vscode.Uri, webview: vscode.Webv
         
   
       </script>
+    
       <script type="module" src="${debugPresetUtilsUri}"></script>
     </body>
     </html>`;
