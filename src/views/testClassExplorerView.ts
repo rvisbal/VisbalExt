@@ -112,6 +112,9 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                         }
                     }
                     break;
+				case 'refreshTestMethods':
+                    await this._refreshTestMethods(data.testClass);
+                    break;
                 case 'fetchTestMethods':
                     await this._fetchTestMethods(data.className);
                     break;
@@ -254,6 +257,42 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
         this._testItems.set(testClass.name, classItem);
         console.log('[VisbalExt.TestClassExplorerView] [EXPLORER] Test items updated in controller');
     }
+	
+	 private async _refreshTestMethods(className: string) {
+		  console.log('[VisbalExt.TestClassExplorerView] _refreshTestMethods:', className);
+        try {
+            this._statusBarService.showMessage(`$(sync~spin) Refreshing test methods for ${className}...`);
+            
+			// If not in storage, fetch from Salesforce
+			const testMethods = await this._metadataService.getTestMethodsForClass(className);
+			 console.log('[VisbalExt.TestClassExplorerView] _refreshTestMethods testMethods:', testMethods);
+			// Save to storage
+			await this._storageService.saveTestMethodsForClass(className, testMethods);
+			 console.log('[VisbalExt.TestClassExplorerView] _refreshTestMethods saveTestMethodsForClass:');
+
+            // Send the test methods to the webview
+            if (this._view) {
+                this._view.webview.postMessage({
+                    command: 'testMethodsLoaded',
+                    className,
+                    testMethods
+                });
+            }
+            
+            this._statusBarService.hide();
+        } catch (error: any) {
+			console.error('[VisbalExt.TestClassExplorerView] _refreshTestMethods error:',error);
+            this._statusBarService.hide();
+            
+            if (this._view) {
+                this._view.webview.postMessage({
+                    command: 'error',
+                    message: `Error: ${error.message}`
+                });
+            }
+        }
+    }
+	
 
     private async _fetchTestMethods(className: string) {
         try {
@@ -863,6 +902,7 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                     padding: 0;
                     margin: 0;
                     width: 100%;
+					background-color: #404040;
                 }
 
                 .test-method-item {
@@ -1484,6 +1524,19 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                                 methodsList.appendChild(methodLi);
                         });
                     }
+					
+					
+					function refreshTestMethods(testClass) {
+                        console.log('[VisbalExt.TestClassExplorerView] -- refreshTestMethods -- Refreshing methods:', testClass);
+                        showLoading();
+                        hideError();
+                        hideNotification();
+
+                        vscode.postMessage({ 
+                            command: 'refreshTestMethods',
+                            testClass
+                        });
+                    }
                     
                     function runTest(testClass, testMethod) {
                         console.log('[VisbalExt.TestClassExplorerView] -- runTest -- Running test:', testClass, testMethod);
@@ -1712,6 +1765,7 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                                 renderTestClasses(message.testClasses);
                                 break;
                             case 'testMethodsLoaded':
+								hideLoading();
                                 console.log('[VisbalExt.TestClassExplorerView] Test methods loaded:', message.testMethods);
                                 renderTestMethods(message.className, message.testMethods);
                                 break;
