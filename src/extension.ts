@@ -128,8 +128,8 @@ export function activate(context: vscode.ExtensionContext) {
             return;
           }
 
-          // Check if log file already exists in .sf/tools/debug/logs/
-          const logDir = join(vscode.workspace.rootPath || '', '.sf', 'tools', 'debug', 'logs');
+          // Check if log file already exists in .visbal/logs/
+          const logDir = join(vscode.workspace.rootPath || '', '.visbal', 'logs');
           const files = await vscode.workspace.findFiles(`**/${logId}*.log`);
           
           if (files.length > 0) {
@@ -206,7 +206,7 @@ export function activate(context: vscode.ExtensionContext) {
 
   if (isModuleEnabled('soqlQuery')) {
     // Create and register SOQL Panel
-    soqlPanel = new SoqlPanelView(metadataService);
+    soqlPanel = new SoqlPanelView(context);
     context.subscriptions.push(
       vscode.window.registerWebviewViewProvider(
         'visbal-soql',
@@ -222,7 +222,7 @@ export function activate(context: vscode.ExtensionContext) {
 
   if (isModuleEnabled('samplePanel')) {
     // Create and register Sample Panel
-    samplePanel = new SamplePanelView();
+    samplePanel = new SamplePanelView(context);
     context.subscriptions.push(
       vscode.window.registerWebviewViewProvider(
         'visbal-sample',

@@ -7,6 +7,7 @@ import { readFile, unlink } from 'fs/promises';
 import { join } from 'path';
 import { existsSync, mkdirSync } from 'fs';
 import { readFileSync } from 'fs';
+import { SfdxService } from './sfdxService';
 
 const execAsync = promisify(exec);
 
@@ -25,8 +26,35 @@ export interface TestMethod {
 }
 
 export class MetadataService {
-    constructor() {}
+    private _sfdxService: SfdxService;
+	  
+    constructor() {
+		this._sfdxService = new SfdxService();
+	}
 
+    private async executeCliCommandAnonymous(command: string): Promise<string> {
+        try {
+            console.log(`[VisbalExt.MetadataService] Executing CLI command: ${command}`);
+            
+            // Execute the command directly without bash -c wrapper
+            console.log(`[VisbalExt.MetadataService] Executing final command: ${command}`);
+            const { stdout, stderr } = await execAsync(command);
+            
+            if (stderr) {
+                console.warn(`[MetadataService] Command produced stderr: ${stderr}`);
+                // Only throw if it seems like a real error, as some commands output warnings to stderr
+                if (stderr.includes('Error:') || stderr.includes('error:')) {
+                    throw new Error(stderr);
+                }
+            }
+            
+            console.log(`[VisbalExt.MetadataService] Command executed successfully`);
+            return stdout;
+        } catch (error: any) {
+            console.error(`[VisbalExt.MetadataService] Command execution failed:`, error);
+            throw error;
+        }
+    }
     /**
      * Executes a CLI command and returns the result
      */
@@ -46,6 +74,71 @@ export class MetadataService {
                         const parsedInfo = JSON.parse(orgInfo);
                         const targetOrg = parsedInfo.result && parsedInfo.result[0] ? parsedInfo.result[0].value : null;
                         
+                        if (targetOrg) {
+                            console.log(`[VisbalExt.MetadataService] Using target org: ${targetOrg}`);
+                            
+                            // Add the target org to the command if it doesn't already have one
+                            if (!command.includes('-o') && !command.includes('--target-org')) {
+                                command = `${command.replace(' --json', '')} --target-org ${targetOrg} --json`;
+                            }
+                        } else {
+                            throw new Error('No default org set. Please use "sf org set default" to set a default org.');
+                        }
+                    } catch (parseError) {
+                        console.error('[VisbalExt.MetadataService] Failed to parse org info:', parseError);
+                        throw new Error('Failed to parse org info. Please ensure Salesforce CLI is properly installed.');
+                    }
+                } else {
+                    throw new Error('No default org set. Please use "sf org set default" to set a default org.');
+                }
+            } catch (orgError: any) {
+                console.warn('[MetadataService] Failed to get target org:', orgError);
+                
+                // Check if Salesforce CLI is installed
+                try {
+                    await execAsync('sf --version');
+                } catch (cliError) {
+                    throw new Error('Salesforce CLI (sf) is not installed or not in PATH. Please install it from https://developer.salesforce.com/tools/sfdxcli');
+                }
+                
+                throw new Error('No default org set. Please use "sf org set default" to set a default org.');
+            }
+            
+            // Execute the command directly without bash -c wrapper
+            console.log(`[VisbalExt.MetadataService] Executing final command: ${command}`);
+            const { stdout, stderr } = await execAsync(command);
+            
+            if (stderr) {
+                console.warn(`[MetadataService] Command produced stderr: ${stderr}`);
+                // Only throw if it seems like a real error, as some commands output warnings to stderr
+                if (stderr.includes('Error:') || stderr.includes('error:')) {
+                    throw new Error(stderr);
+                }
+            }
+            
+            console.log(`[VisbalExt.MetadataService] Command executed successfully`);
+            return stdout;
+        } catch (error: any) {
+            console.error(`[VisbalExt.MetadataService] Command execution failed:`, error);
+            throw error;
+        }
+    }
+
+
+    private async executeCliCommandTargetOrg(command: string, targetOrg: string): Promise<string> {
+        try {
+            console.log(`[VisbalExt.MetadataService] Executing CLI command: ${command}`);
+            
+            // Get the default org username - don't use bash on Windows
+            try {
+                const sfCommand = 'sf config get target-org --json';
+                console.log(`[VisbalExt.MetadataService] Checking target org with: ${sfCommand}`);
+                
+                const { stdout: orgInfo } = await execAsync(sfCommand);
+                
+                if (orgInfo && orgInfo.trim()) {
+                    try {
+
                         if (targetOrg) {
                             console.log(`[VisbalExt.MetadataService] Using target org: ${targetOrg}`);
                             
@@ -130,18 +223,7 @@ export class MetadataService {
             console.log('[VisbalExt.MetadataService] Listing Apex classes...');
             // Use SOQL query to get Apex classes with TracHier namespace
             const soqlQuery = "SELECT Id, Name, NamespacePrefix FROM ApexClass WHERE NamespacePrefix IN ('TracHier', 'TracRTC') ORDER BY Name";
-            const command = `sf data query --query "${soqlQuery}" --json`;
-            
-            console.log(`[VisbalExt.MetadataService] Executing SOQL query: ${soqlQuery}`);
-            const output = await this.executeCliCommand(command);
-            const parsedOutput = JSON.parse(output);
-            
-            if (!parsedOutput.result || !parsedOutput.result.records) {
-                console.log('[VisbalExt.MetadataService] No classes found or unexpected response format');
-                return [];
-            }
-            
-            const records = parsedOutput.result.records;
+            const records =  await this._sfdxService.executeSoqlQuery(soqlQuery);
             console.log(`[VisbalExt.MetadataService] Found ${records.length} classes in TracHier, TracRTC  namespace`);
             
             return records.map((cls: any) => ({
@@ -165,17 +247,9 @@ export class MetadataService {
             console.log(`[VisbalExt.MetadataService] getApexClassBody -- Getting body for class: ${className}`);
             // Use SOQL query to get the class body
             const soqlQuery = `SELECT Id, Name, Body FROM ApexClass WHERE Name = '${className}' LIMIT 1`;
-            const command = `sf data query --query "${soqlQuery}" --json`;
+			const records =  await this._sfdxService.executeSoqlQuery(soqlQuery);
             
-            console.log(`[VisbalExt.MetadataService] getApexClassBody -- Executing SOQL query: ${soqlQuery}`);
-            const output = await this.executeCliCommand(command);
-            const parsedOutput = JSON.parse(output);
-            
-            if (!parsedOutput.result || !parsedOutput.result.records || parsedOutput.result.records.length === 0) {
-                throw new Error(`Class ${className} not found`);
-            }
-            
-            const classRecord = parsedOutput.result.records[0];
+            const classRecord = records[0];
             console.log('[VisbalExt.MetadataService] getApexClassBody -- Successfully retrieved class body');
             return classRecord.Body;
         } catch (error: any) {
@@ -357,7 +431,7 @@ export class MetadataService {
     public async listApexLogs(): Promise<any[]> {
         try {
             console.log('[VisbalExt.MetadataService] Listing Apex logs...');
-            const output = await this.executeCliCommand('sf apex list log --json');
+            const output = await this._sfdxService.listApexLogs();
             const result = JSON.parse(output).result;
             console.log(`[VisbalExt.MetadataService] Found ${result.length} logs`);
             return result;
@@ -724,6 +798,34 @@ export class MetadataService {
         } catch (error: any) {
             console.error('[VisbalExt.MetadataService] Error deleting log:', error);
             throw new Error(`Failed to delete log: ${error.message}`);
+        }
+    }
+
+    /**
+     * Lists all available Salesforce orgs grouped by type
+     * @returns Promise containing the organized list of orgs
+     */
+    public async listOrgs(): Promise<any[]> {
+        try {
+            const result = await this._sfdxService.executeCommand('sfdx force:org:list --json');
+            const data = JSON.parse(result);
+            return [...(data.result.nonScratchOrgs || []), ...(data.result.scratchOrgs || [])];
+        } catch (error: any) {
+            console.error('Error listing orgs:', error);
+            throw new Error(`Failed to list orgs: ${error.message}`);
+        }
+    }
+
+    /**
+     * Sets the default Salesforce org
+     * @param username The username of the org to set as default
+     */
+    public async setDefaultOrg(orgId: string): Promise<void> {
+        try {
+            await this._sfdxService.executeCommand(`sfdx force:config:set defaultusername=${orgId}`);
+        } catch (error: any) {
+            console.error('Error setting default org:', error);
+            throw new Error(`Failed to set default org: ${error.message}`);
         }
     }
 } 

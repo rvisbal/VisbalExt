@@ -6,7 +6,9 @@ import { TestClass } from '../types/testClass';
 import { join } from 'path';
 import { readFileSync, writeFileSync } from 'fs';
 import { existsSync, mkdirSync } from 'fs';
-import { VisbalLogView } from './visbalLogView';
+import { OrgUtils } from '../utils/orgUtils';
+
+
 import { TestRunResultsView } from './testRunResultsView';
 import { TestResultsView } from './testResultsView';
 
@@ -60,7 +62,7 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
     private _storageService: StorageService;
     private _testController: vscode.TestController;
     private _testItems: Map<string, vscode.TestItem>;
-    private _visbalLogView: VisbalLogView;
+    private _orgUtils = OrgUtils;
     private _testRunResultsView: TestRunResultsView;
     private _testResultsView: TestResultsView;
 
@@ -77,7 +79,6 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
         this._storageService = new StorageService(_context);
         this._testController = vscode.tests.createTestController('testClassExplorerView', 'Test Class Explorer');
         this._testItems = new Map();
-        this._visbalLogView = new VisbalLogView(this._context);
         this._testRunResultsView = testRunResultsView;
         this._testResultsView = testResultsView;
     }
@@ -103,6 +104,13 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
             switch (data.command) {
                 case 'fetchTestClasses':
                     await this._fetchTestClasses(data.forceRefresh);
+                    if (data.refreshMethods) {
+                        // Clear stored test methods for all classes
+                        const testClasses = await this._storageService.getTestClasses();
+                        for (const testClass of testClasses) {
+                            await this._storageService.clearTestMethodsForClass(testClass.name);
+                        }
+                    }
                     break;
                 case 'fetchTestMethods':
                     await this._fetchTestMethods(data.className);
@@ -140,9 +148,11 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
             
             if (!forceRefresh) {
                 // Try to get from storage first
-                testClasses = this._storageService.getTestClasses();
+                testClasses = await this._storageService.getTestClasses();
+                console.log('[VisbalExt.TestClassExplorerView] _fetchTestClasses Using stored test classes:', testClasses);
                 if (testClasses.length > 0) {
-                    console.log('[VisbalExt.TestClassExplorerView] Using stored test classes');
+                    console.log('[VisbalExt.TestClassExplorerView] _fetchTestClasses Using stored test classes');
+                    this._statusBarService.hide();
                     if (this._view) {
                         this._view.webview.postMessage({
                             command: 'testClassesLoaded',
@@ -155,7 +165,7 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
 
             // Fetch from Salesforce if not in storage or force refresh
             const apexClasses = await this._metadataService.getTestClasses();
-            console.log('[VisbalExt.TestClassExplorerView] [FETCH] Received test classes:', apexClasses?.length || 0, 'classes');
+            console.log('[VisbalExt.TestClassExplorerView] _fetchTestClasses Received test classes:', apexClasses?.length || 0, 'classes');
             
             // Filter and transform ApexClass to TestClass
             testClasses = apexClasses
@@ -175,12 +185,12 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                 })) || [];
 
             // Save to storage
-            this._storageService.saveTestClasses(testClasses);
-            console.log('[VisbalExt.TestClassExplorerView] Test classes cached');
+            await this._storageService.saveTestClasses(testClasses);
+            console.log('[VisbalExt.TestClassExplorerView] _fetchTestClasses Test classes cached:', testClasses);
 
             // Add test classes to VSCode Test Explorer
             if (testClasses) {
-                console.log('[VisbalExt.TestClassExplorerView] Adding test classes to Test Explorer');
+                console.log('[VisbalExt.TestClassExplorerView] Adding test classes to Test Explorer ', testClasses);
                 for (const testClass of testClasses) {
                     await this._addTestToExplorer(testClass);
                 }
@@ -250,13 +260,13 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
             this._statusBarService.showMessage(`$(sync~spin) Fetching test methods for ${className}...`);
             
             // Try to get from storage first
-            let testMethods = this._storageService.getTestMethodsForClass(className);
+            let testMethods = await this._storageService.getTestMethodsForClass(className);
             
             if (testMethods.length === 0) {
                 // If not in storage, fetch from Salesforce
                 testMethods = await this._metadataService.getTestMethodsForClass(className);
                 // Save to storage
-                this._storageService.saveTestMethodsForClass(className, testMethods);
+                await this._storageService.saveTestMethodsForClass(className, testMethods);
             }
             
             // Send the test methods to the webview
@@ -350,12 +360,12 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                             // Download and open log for the first test only to avoid multiple windows
                             if (mainClassMap.size === 0) {
                                 console.log(`[VisbalExt.TestClassExplorer] Downloading and opening log: ${logId}`);
-                                await this._visbalLogView.downloadLog(logId);
-                                await this._visbalLogView.openLog(logId);
+                                await this._orgUtils.downloadLog(logId);
+                                await this._orgUtils.openLog(logId, this._extensionUri);
                             } else {
                                 // For subsequent tests, just download in background
                                 console.log(`[VisbalExt.TestClassExplorer] Downloading additional log: ${logId}`);
-                                this._visbalLogView.downloadLog(logId);
+                                this._orgUtils.downloadLog(logId);
                             }
                         } else {
                             console.warn(`[VisbalExt.TestClassExplorer] No log ID found for test: ${t.ApexClass?.Name || 'Unknown'}`);
@@ -478,7 +488,7 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                                                 this._testRunResultsView.updateMethodStatus(testClassName, test.MethodName, 'downloading', logId);
                                                 
                                                 // Download log in background
-                                                this._visbalLogView.downloadLog(logId).catch(error => {
+                                                this._orgUtils.downloadLog(logId).catch(error => {
                                                     console.error(`[VisbalExt.TestClassExplorer] Error downloading log: ${error}`);
                                                 });
                                             }
@@ -549,7 +559,7 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
 											this._testRunResultsView.updateMethodStatus(className, t.MethodName, 'downloading', logId);
 											
 											// Download log in background
-											this._visbalLogView.downloadLog(logId).catch(error => {
+											this._orgUtils.downloadLog(logId).catch(error => {
 												console.error(`[VisbalExt.TestClassExplorer] runSelectedTests.sequentially  Error downloading log: ${error}`);
 											});
 										}
@@ -633,7 +643,7 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                     this._testRunResultsView.updateMethodStatus(className, methodName, 'downloading');
                     
                     // Download log in background
-                    this._visbalLogView.downloadLog(logId).catch(error => {
+                    this._orgUtils.downloadLog(logId).catch(error => {
                         console.error(`[VisbalExt.TestClassExplorer] Error downloading log: ${error}`);
                     });
                 }
@@ -856,7 +866,7 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                 }
 
                 .test-method-item {
-                    padding: 2px 5px 2px 20px;
+                    padding: 2px 5px 2px 10px;
                     cursor: pointer;
                     display: flex;
                     align-items: center;
@@ -868,12 +878,15 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                 }
 
                 .test-method-name {
-                    margin-left: 5px;
+                    margin-left: -5px;
                     flex: 1;
                     white-space: nowrap;
                     overflow: hidden;
                     text-overflow: ellipsis;
+                    padding-right: 8px;
                 }
+
+                
 
                 .button {
                     background-color: var(--vscode-button-background);
@@ -988,6 +1001,41 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                     border-radius: 2px;
                     font-size: 12px;
                 }
+
+                .context-menu {
+                    position: absolute;
+                    background: var(--vscode-menu-background);
+                    border: 1px solid var(--vscode-menu-border);
+                    box-shadow: 0 2px 8px var(--vscode-widget-shadow);
+                    border-radius: 3px;
+                    padding: 4px 0;
+                    min-width: 180px;
+                    z-index: 1000;
+                    display: none;
+                }
+
+                .context-menu.show {
+                    display: block;
+                }
+
+                .context-menu-item {
+                    display: flex;
+                    align-items: center;
+                    padding: 6px 12px;
+                    cursor: pointer;
+                    color: var(--vscode-menu-foreground);
+                    font-size: 13px;
+                    gap: 8px;
+                }
+
+                .context-menu-item:hover {
+                    background: var(--vscode-menu-selectionBackground);
+                    color: var(--vscode-menu-selectionForeground);
+                }
+
+                .context-menu-item .codicon {
+                    font-size: 14px;
+                }
             </style>
         </head>
         <body>
@@ -1007,11 +1055,21 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                             <button id="runSelectedButton" class="button" disabled>Run Selected</button>
                         </div>
                     </div>
-                    <button id="refreshButton" class="icon-button refresh" title="Refresh Test Classes">
+                    <button id="refreshButton" class="icon-button refresh" title="Refresh Options">
                         <svg width="16" height="16" viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg" fill="currentColor">
                             <path fill-rule="evenodd" clip-rule="evenodd" d="M4.681 3H2V2h3.5l.5.5V6H5V4a5 5 0 1 0 4.53-.761l.302-.954A6 6 0 1 1 4.681 3z"/>
                         </svg>
                     </button>
+                    <div id="refreshContextMenu" class="context-menu">
+                        <div class="context-menu-item" id="refreshClasses">
+                            <i class="codicon codicon-refresh"></i>
+                            Refresh Classes
+                        </div>
+                        <div class="context-menu-item" id="refreshClassesAndMethods">
+                            <i class="codicon codicon-sync"></i>
+                            Refresh Classes & Methods
+                        </div>
+                    </div>
                 </div>
                 <div id="loading" class="loading hidden">
                     <div class="spinner"></div>
@@ -1055,7 +1113,7 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                     
                     // Event listeners
                     refreshButton.addEventListener('click', () => {
-                        fetchTestClasses(true);
+                        fetchTestClasses(true, false);
                     });
                     
                     runSelectedButton.addEventListener('click', () => {
@@ -1063,14 +1121,15 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                     });
                     
                     // Functions
-                    function fetchTestClasses(forceRefresh = false) {
-                        console.log('[VisbalExt.TestClassExplorerView] Fetching test classes...');
+                    function fetchTestClasses(forceRefresh = false, refreshMethods = false) {
+                        console.log('[VisbalExt.TestClassExplorerView] Fetching test classes...', { forceRefresh, refreshMethods });
                         showLoading();
                         hideError();
                         hideNotification();
                         vscode.postMessage({ 
                             command: 'fetchTestClasses',
-                            forceRefresh: forceRefresh 
+                            forceRefresh: forceRefresh,
+                            refreshMethods: refreshMethods
                         });
                     }
                     
@@ -1744,6 +1803,38 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                         originalToggleMethodSelection(className, methodName, checkbox);
                         updateSelectAllCheckbox();
                     };
+
+                    // Add context menu handling
+                    const refreshContextMenu = document.getElementById('refreshContextMenu');
+                    const refreshClasses = document.getElementById('refreshClasses');
+                    const refreshClassesAndMethods = document.getElementById('refreshClassesAndMethods');
+
+                    // Show context menu on refresh button click
+                    refreshButton.addEventListener('click', (e) => {
+                        e.stopPropagation();
+                        const buttonRect = refreshButton.getBoundingClientRect();
+                        refreshContextMenu.style.top = buttonRect.bottom + 'px';
+                        refreshContextMenu.style.right = (window.innerWidth - buttonRect.right) + 'px';
+                        refreshContextMenu.classList.add('show');
+                    });
+
+                    // Hide context menu when clicking outside
+                    document.addEventListener('click', (e) => {
+                        if (!refreshContextMenu.contains(e.target)) {
+                            refreshContextMenu.classList.remove('show');
+                        }
+                    });
+
+                    // Handle menu item clicks
+                    refreshClasses.addEventListener('click', () => {
+                        fetchTestClasses(true, false);
+                        refreshContextMenu.classList.remove('show');
+                    });
+
+                    refreshClassesAndMethods.addEventListener('click', () => {
+                        fetchTestClasses(true, true);
+                        refreshContextMenu.classList.remove('show');
+                    });
                 })();
             </script>
         </body>

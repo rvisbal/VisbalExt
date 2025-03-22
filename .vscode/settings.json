@@ -12,6 +12,7 @@
     "salesforcedx-vscode-core.show-cli-success-msg": false,
     "salesforcedx-vscode-apex.java.home": null,
     "salesforcedx-vscode-apex.enable-semantic-errors": true,
+    "editor.inlineSuggest.enabled": false
     
     // Hide meta.xml files in the explorer
     "files.exclude": {

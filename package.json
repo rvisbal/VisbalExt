@@ -3,6 +3,7 @@
   "displayName": "Visbal Extension",
   "version": "0.1.0",
   "publisher": "visbal",
+  "icon": "media/icon.png",
   "description": "A Visual Studio Code extension for Salesforce development with enhanced test execution and log analysis capabilities",
   "author": {
     "name": "Visbal"
@@ -26,8 +27,8 @@
   },
   "scripts": {
     "clean": "if exist dist rd /s /q dist && if exist out rd /s /q out && if exist *.vsix del *.vsix",
-    "build": "tsc",
-    "watch": "tsc -w",
+    "build": "webpack --config webpack.config.js",
+    "watch": "webpack --watch --config webpack.config.js",
     "package": "vsce package",
     "lint": "eslint src --ext ts",
     "test": "node ./out/test/runTest.js",
@@ -225,18 +226,24 @@
     "@types/vscode": "^1.87.0",
     "@typescript-eslint/eslint-plugin": "^5.42.0",
     "@typescript-eslint/parser": "^5.42.0",
+    "@vscode/vsce": "^2.24.0",
     "eslint": "^8.26.0",
     "rimraf": "^5.0.5",
+    "sharp": "^0.33.5",
+    "ts-loader": "^9.5.2",
     "typescript": "^5.3.3",
-    "@vscode/vsce": "^2.24.0"
+    "webpack-cli": "^6.0.1"
   },
   "dependencies": {
     "@salesforce/core": "^5.3.9",
     "@vscode/codicons": "^0.0.35",
     "axios": "^1.6.7",
+    "follow-redirects": "^1.15.6",
+    "form-data": "^4.0.2",
     "jsforce": "^1.11.1"
   },
   "resolutions": {
-    "@vscode/codicons": "^0.0.35"
+    "@vscode/codicons": "^0.0.35",
+    "follow-redirects": "^1.15.6"
   }
 }

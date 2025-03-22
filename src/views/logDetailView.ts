@@ -476,6 +476,8 @@ export class LogDetailView {
                 { id: 'raw', label: 'Raw Log' }
             ];
             
+            
+            
             // Get custom content for tabs
             const executionTabContent = ExecutionTabHandler.getPlaceholderHtml();
             const rawLogTabContent = RawLogTabHandler.getPlaceholderHtml();
