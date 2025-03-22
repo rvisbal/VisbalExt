@@ -866,7 +866,7 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                 }
 
                 .test-method-item {
-                    padding: 2px 5px 2px 20px;
+                    padding: 2px 5px 2px 10px;
                     cursor: pointer;
                     display: flex;
                     align-items: center;
@@ -878,12 +878,15 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                 }
 
                 .test-method-name {
-                    margin-left: 5px;
+                    margin-left: -5px;
                     flex: 1;
                     white-space: nowrap;
                     overflow: hidden;
                     text-overflow: ellipsis;
+                    padding-right: 8px;
                 }
+
+                
 
                 .button {
                     background-color: var(--vscode-button-background);
