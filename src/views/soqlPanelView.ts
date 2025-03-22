@@ -255,6 +255,7 @@ export class SoqlPanelView implements vscode.WebviewViewProvider {
                     height: 100vh;
                     background-color: var(--vscode-editor-background);
                     color: var(--vscode-foreground);
+                    overflow: hidden; /* Prevent double scrollbars */
                 }
                 
                
@@ -284,7 +285,8 @@ export class SoqlPanelView implements vscode.WebviewViewProvider {
                     flex-direction: column;
                     width: 100%;
                     padding: 0;
-                    margin-top: 8px;
+                    margin: 8px 0;
+                    min-height: 80px; /* Fixed height for query section */
                 }
                 #soqlInput {
                     width: 100%;
@@ -296,7 +298,7 @@ export class SoqlPanelView implements vscode.WebviewViewProvider {
                     color: var(--vscode-input-foreground);
                     border: none;
                     resize: none;
-                    min-height: 80px;
+                    height: 80px; /* Fixed height */
                     outline: none;
                 }
                 #soqlInput:focus {
@@ -337,13 +339,14 @@ export class SoqlPanelView implements vscode.WebviewViewProvider {
                     font-size: 12px;
                     font-family: monospace;
                     position: relative;
-                    height: calc(100vh - 200px); /* Adjust height to leave space for query section */
-                    overflow: hidden; /* Hide overflow on container */
+                    flex: 1;
+                    min-height: 0; /* Important for flex child scrolling */
+                    overflow: hidden;
                 }
                 .table-container {
                     width: 100%;
                     height: 100%;
-                    overflow: auto; /* Enable both scrollbars */
+                    overflow: auto;
                     position: relative;
                 }
                 table {
