@@ -148,6 +148,22 @@ export class StorageService {
         await this.saveTestClasses(testClasses);
     }
 
+    public async clearTestMethodsForClass(className: string): Promise<void> {
+        try {
+            const testClasses = await this.getTestClasses();
+            const testClass = testClasses.find(tc => tc.name === className);
+            
+            if (testClass) {
+                testClass.methods = [];
+                await this.saveTestClasses(testClasses);
+                console.log(`[VisbalExt.StorageService] Test methods cleared for class ${className}`);
+            }
+        } catch (error) {
+            console.error(`[VisbalExt.StorageService] Error clearing test methods for class ${className}:`, error);
+            throw error;
+        }
+    }
+
     public async clearStorage(): Promise<void> {
         try {
             const orgAlias = await this.getCurrentOrgAlias();

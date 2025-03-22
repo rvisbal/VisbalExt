@@ -104,6 +104,13 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
             switch (data.command) {
                 case 'fetchTestClasses':
                     await this._fetchTestClasses(data.forceRefresh);
+                    if (data.refreshMethods) {
+                        // Clear stored test methods for all classes
+                        const testClasses = await this._storageService.getTestClasses();
+                        for (const testClass of testClasses) {
+                            await this._storageService.clearTestMethodsForClass(testClass.name);
+                        }
+                    }
                     break;
                 case 'fetchTestMethods':
                     await this._fetchTestMethods(data.className);
@@ -991,6 +998,41 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                     border-radius: 2px;
                     font-size: 12px;
                 }
+
+                .context-menu {
+                    position: absolute;
+                    background: var(--vscode-menu-background);
+                    border: 1px solid var(--vscode-menu-border);
+                    box-shadow: 0 2px 8px var(--vscode-widget-shadow);
+                    border-radius: 3px;
+                    padding: 4px 0;
+                    min-width: 180px;
+                    z-index: 1000;
+                    display: none;
+                }
+
+                .context-menu.show {
+                    display: block;
+                }
+
+                .context-menu-item {
+                    display: flex;
+                    align-items: center;
+                    padding: 6px 12px;
+                    cursor: pointer;
+                    color: var(--vscode-menu-foreground);
+                    font-size: 13px;
+                    gap: 8px;
+                }
+
+                .context-menu-item:hover {
+                    background: var(--vscode-menu-selectionBackground);
+                    color: var(--vscode-menu-selectionForeground);
+                }
+
+                .context-menu-item .codicon {
+                    font-size: 14px;
+                }
             </style>
         </head>
         <body>
@@ -1010,11 +1052,21 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                             <button id="runSelectedButton" class="button" disabled>Run Selected</button>
                         </div>
                     </div>
-                    <button id="refreshButton" class="icon-button refresh" title="Refresh Test Classes">
+                    <button id="refreshButton" class="icon-button refresh" title="Refresh Options">
                         <svg width="16" height="16" viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg" fill="currentColor">
                             <path fill-rule="evenodd" clip-rule="evenodd" d="M4.681 3H2V2h3.5l.5.5V6H5V4a5 5 0 1 0 4.53-.761l.302-.954A6 6 0 1 1 4.681 3z"/>
                         </svg>
                     </button>
+                    <div id="refreshContextMenu" class="context-menu">
+                        <div class="context-menu-item" id="refreshClasses">
+                            <i class="codicon codicon-refresh"></i>
+                            Refresh Classes
+                        </div>
+                        <div class="context-menu-item" id="refreshClassesAndMethods">
+                            <i class="codicon codicon-sync"></i>
+                            Refresh Classes & Methods
+                        </div>
+                    </div>
                 </div>
                 <div id="loading" class="loading hidden">
                     <div class="spinner"></div>
@@ -1058,7 +1110,7 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                     
                     // Event listeners
                     refreshButton.addEventListener('click', () => {
-                        fetchTestClasses(true);
+                        fetchTestClasses(true, false);
                     });
                     
                     runSelectedButton.addEventListener('click', () => {
@@ -1066,14 +1118,15 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                     });
                     
                     // Functions
-                    function fetchTestClasses(forceRefresh = false) {
-                        console.log('[VisbalExt.TestClassExplorerView] Fetching test classes...');
+                    function fetchTestClasses(forceRefresh = false, refreshMethods = false) {
+                        console.log('[VisbalExt.TestClassExplorerView] Fetching test classes...', { forceRefresh, refreshMethods });
                         showLoading();
                         hideError();
                         hideNotification();
                         vscode.postMessage({ 
                             command: 'fetchTestClasses',
-                            forceRefresh: forceRefresh 
+                            forceRefresh: forceRefresh,
+                            refreshMethods: refreshMethods
                         });
                     }
                     
@@ -1747,6 +1800,38 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                         originalToggleMethodSelection(className, methodName, checkbox);
                         updateSelectAllCheckbox();
                     };
+
+                    // Add context menu handling
+                    const refreshContextMenu = document.getElementById('refreshContextMenu');
+                    const refreshClasses = document.getElementById('refreshClasses');
+                    const refreshClassesAndMethods = document.getElementById('refreshClassesAndMethods');
+
+                    // Show context menu on refresh button click
+                    refreshButton.addEventListener('click', (e) => {
+                        e.stopPropagation();
+                        const buttonRect = refreshButton.getBoundingClientRect();
+                        refreshContextMenu.style.top = buttonRect.bottom + 'px';
+                        refreshContextMenu.style.right = (window.innerWidth - buttonRect.right) + 'px';
+                        refreshContextMenu.classList.add('show');
+                    });
+
+                    // Hide context menu when clicking outside
+                    document.addEventListener('click', (e) => {
+                        if (!refreshContextMenu.contains(e.target)) {
+                            refreshContextMenu.classList.remove('show');
+                        }
+                    });
+
+                    // Handle menu item clicks
+                    refreshClasses.addEventListener('click', () => {
+                        fetchTestClasses(true, false);
+                        refreshContextMenu.classList.remove('show');
+                    });
+
+                    refreshClassesAndMethods.addEventListener('click', () => {
+                        fetchTestClasses(true, true);
+                        refreshContextMenu.classList.remove('show');
+                    });
                 })();
             </script>
         </body>
