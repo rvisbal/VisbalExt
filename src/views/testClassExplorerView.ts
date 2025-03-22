@@ -1314,6 +1314,16 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                             nameSpan.className = 'test-class-name';
                             nameSpan.textContent = testClass.name || 'Unknown Class';
                             
+                            // Create refresh button with refresh icon
+                            const refreshClassButton = document.createElement('button');
+                            refreshClassButton.className = 'icon-button refresh';
+                            refreshClassButton.title = 'Refresh Test Methods';
+                            refreshClassButton.innerHTML = '<svg width="14" height="14" viewBox="0 0 14 14" xmlns="http://www.w3.org/2000/svg" fill="currentColor"><path fill-rule="evenodd" clip-rule="evenodd" d="M4.681 3H2V2h3.5l.5.5V6H5V4a5 5 0 1 0 4.53-.761l.302-.954A6 6 0 1 1 4.681 3z"/></svg>';
+                            refreshClassButton.onclick = function(e) {
+                                e.stopPropagation();
+                                refreshTestMethods(testClass.name);
+                            };
+
                             // Create run button with play icon
                             const runButton = document.createElement('button');
                             runButton.className = 'icon-button run';
@@ -1327,6 +1337,7 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                             li.appendChild(checkboxContainer);
                             li.appendChild(expandIcon);
                             li.appendChild(nameSpan);
+                             li.appendChild(refreshClassButton);
                             li.appendChild(runButton);
                             
                             // Create a container for test methods (initially hidden)
