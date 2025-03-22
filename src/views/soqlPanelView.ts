@@ -334,9 +334,17 @@ export class SoqlPanelView implements vscode.WebviewViewProvider {
                     display: flex;
                     gap: 10px;
                     background: var(--vscode-editor-background);
-
                     font-size: 12px;
                     font-family: monospace;
+                    position: relative;
+                    height: calc(100vh - 200px); /* Adjust height to leave space for query section */
+                    overflow: hidden; /* Hide overflow on container */
+                }
+                .table-container {
+                    width: 100%;
+                    height: 100%;
+                    overflow: auto; /* Enable both scrollbars */
+                    position: relative;
                 }
                 table {
                     width: 100%;
@@ -357,6 +365,8 @@ export class SoqlPanelView implements vscode.WebviewViewProvider {
                     padding: 4px 8px;
                     background: var(--vscode-editor-background);
                     white-space: nowrap;
+                    position: sticky;
+                    top: 0;
                 }
                 td {
                     padding: 4px 8px;
@@ -462,13 +472,15 @@ export class SoqlPanelView implements vscode.WebviewViewProvider {
             </div>
             <div class="loading-container" id="loadingContainer">
                 <div class="loading-spinner"></div>
-                <span>Loading...</span>
+                <span>Executing query...</span>
             </div>
             <div class="results-container">
-                <table>
-                    <thead id="soqlResultsHeader"></thead>
-                    <tbody id="soqlResultsBody"></tbody>
-                </table>
+                <div class="table-container">
+                    <table>
+                        <thead id="soqlResultsHeader"></thead>
+                        <tbody id="soqlResultsBody"></tbody>
+                    </table>
+                </div>
             </div>
             <script>
                 (function() {
