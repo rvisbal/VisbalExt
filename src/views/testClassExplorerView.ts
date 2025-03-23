@@ -1123,9 +1123,7 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                 </div>
                 <div class="split-container">
                     <div id="testClassesContainer" class="test-classes-container">
-                        <div id="noTestClasses" class="no-data">
-                            No test classes found. Click the refresh button to fetch test classes.
-                        </div>
+                        <div id="noTestClasses" class="no-data"></div>
                         <div id="testClassesList"></div>
                     </div>
                 </div>
@@ -1523,6 +1521,9 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                                 methodLi.appendChild(runMethodButton);
                                 methodsList.appendChild(methodLi);
                         });
+                        
+                        methodsList.style.display = 'block';
+						methodsList.classList.remove('hidden');
                     }
 					
 					
