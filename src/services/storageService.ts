@@ -45,7 +45,7 @@ export class StorageService {
     private async getCurrentOrgAlias(): Promise<string> {
         try {
             const { stdout: orgInfo } = await execAsync('sf org display --json');
-            console.log('[VisbalExt.StorageService] getCurrentOrgAlias orgInfo:', orgInfo);
+            //console.log('[VisbalExt.StorageService] getCurrentOrgAlias orgInfo:', orgInfo);
             const result = JSON.parse(orgInfo);
             console.log('[VisbalExt.StorageService] getCurrentOrgAlias result:', result);
             if (result.status === 0 && result.result) {
