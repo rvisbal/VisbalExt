@@ -70,7 +70,7 @@ export class OrgListCacheService {
 
             // Check if cache is older than 1 hour
             const cacheAge = Date.now() - cache.timestamp;
-            if (cacheAge > 3600000) { // 1 hour in milliseconds
+            if (cacheAge > (3600000 * 24)) { // 1 hour in milliseconds
                 console.log('[VisbalExt.OrgListCacheService] Cache is too old, returning null');
                 return null;
             }

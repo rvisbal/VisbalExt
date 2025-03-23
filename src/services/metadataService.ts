@@ -34,10 +34,10 @@ export class MetadataService {
 
     private async executeCliCommandAnonymous(command: string): Promise<string> {
         try {
-            console.log(`[VisbalExt.MetadataService] Executing CLI command: ${command}`);
+            console.log(`[VisbalExt.MetadataService] executeCliCommandAnonymous Executing CLI command: ${command}`);
             
             // Execute the command directly without bash -c wrapper
-            console.log(`[VisbalExt.MetadataService] Executing final command: ${command}`);
+            //console.log(`[VisbalExt.MetadataService] executeCliCommandAnonymous Executing final command: ${command}`);
             const { stdout, stderr } = await execAsync(command);
             
             if (stderr) {
@@ -48,10 +48,10 @@ export class MetadataService {
                 }
             }
             
-            console.log(`[VisbalExt.MetadataService] Command executed successfully`);
+            console.log(`[VisbalExt.MetadataService] executeCliCommandAnonymous Command executed successfully`);
             return stdout;
         } catch (error: any) {
-            console.error(`[VisbalExt.MetadataService] Command execution failed:`, error);
+            console.error(`[VisbalExt.MetadataService] executeCliCommandAnonymous Command execution failed:`, error);
             throw error;
         }
     }
@@ -386,25 +386,25 @@ export class MetadataService {
     public async runTests(testClass: string, testMethod?: string): Promise<any> {
         const startTime = Date.now();
         try {
-            console.log(`[VisbalExt.MetadataService] Starting test execution at ${new Date(startTime).toISOString()}`);
-            console.log(`[VisbalExt.MetadataService] Running tests for class: ${testClass}${testMethod ? `, method: ${testMethod}` : ''}`);
+            console.log(`[VisbalExt.MetadataService] runTests -- Starting test execution at ${new Date(startTime).toISOString()}`);
+            console.log(`[VisbalExt.MetadataService] runTests -- Running tests for class: ${testClass}${testMethod ? `, method: ${testMethod}` : ''}`);
             
             const command = testMethod
                 ? `sf apex run test --tests ${testClass}.${testMethod} --json`
                 : `sf apex run test --class-names ${testClass} --json`;
             
-            console.log(`[VisbalExt.MetadataService] Executing command: ${command}`);
+            console.log(`[VisbalExt.MetadataService] runTests -- Executing command: ${command}`);
             const output = await this.executeCliCommand(command);
             const result = JSON.parse(output).result;
-            
+            console.log('[VisbalExt.MetadataService] runTests -- output:', JSON.parse(output));
             const endTime = Date.now();
-            console.log(`[VisbalExt.MetadataService] Test execution completed in ${endTime - startTime}ms`);
-            console.log('[VisbalExt.MetadataService] Test run result:', result);
+            console.log(`[VisbalExt.MetadataService] runTests -- Test execution completed in ${endTime - startTime}ms`);
+            console.log('[VisbalExt.MetadataService] runTests -- Test run result:', result);
             
             return result;
         } catch (error: any) {
             const endTime = Date.now();
-            console.error(`[VisbalExt.MetadataService] Test execution failed after ${endTime - startTime}ms:`, error);
+            console.error(`[VisbalExt.MetadataService] runTests -- Test execution failed after ${endTime - startTime}ms:`, error);
             throw new Error(`Failed to run tests: ${error.message}`);
         }
     }
@@ -469,7 +469,7 @@ export class MetadataService {
             console.log('[VisbalExt.MetadataService] getTestLog -- Test log retrieved');
             return parsedResult.result?.log || '';
         } catch (error) {
-            console.error('[VisbalExt.MetadataService] Error getting test log:', error);
+            console.error('[VisbalExt.MetadataService] getTestLog -- Error getting test log:', error);
             throw error;
         }
     }
@@ -477,31 +477,31 @@ export class MetadataService {
     public async getTestRunResult(testRunId: string): Promise<any> {
         const startTime = Date.now();
         try {
-            console.log(`[VisbalExt.MetadataService] Getting test run result at ${new Date(startTime).toISOString()}`);
-            console.log('[VisbalExt.MetadataService] Test run ID:', testRunId);
+            console.log(`[VisbalExt.MetadataService] getTestRunResult -- Getting test run result at ${new Date(startTime).toISOString()}`);
+            console.log('[VisbalExt.MetadataService] getTestRunResult -- Test run ID:', testRunId);
             
             // Get the test run details
             const command = `sf apex get test --test-run-id ${testRunId} --json`;
-            console.log(`[VisbalExt.MetadataService] Executing command: ${command}`);
+            console.log(`[VisbalExt.MetadataService] getTestRunResult -- Executing command: ${command}`);
             const result = await this.executeCliCommand(command);
             const parsedResult = JSON.parse(result);
             
             const endTime = Date.now();
-            console.log(`[VisbalExt.MetadataService] Test run result retrieved in ${endTime - startTime}ms`);
-            console.log('[VisbalExt.MetadataService] Test run details:', parsedResult);
+            console.log(`[VisbalExt.MetadataService] getTestRunResult -- Test run result retrieved in ${endTime - startTime}ms`);
+            console.log('[VisbalExt.MetadataService] getTestRunResult -- Test run details:', parsedResult);
             
             // Return the result immediately - log fetching will be handled separately after test completion
             return parsedResult.result || null;
         } catch (error) {
             const endTime = Date.now();
-            console.error(`[VisbalExt.MetadataService] Error getting test run result after ${endTime - startTime}ms:`, error);
+            console.error(`[VisbalExt.MetadataService] getTestRunResult -- Error getting test run result after ${endTime - startTime}ms:`, error);
             throw error;
         }
     }
 
     public async getTestRunLog(testRunId: string): Promise<any> {
         try {
-            console.log('[VisbalExt.MetadataService] Fetching logs for completed test run:', testRunId);
+            console.log('[VisbalExt.MetadataService] getTestRunLog -- Fetching logs for completed test run:', testRunId);
             
             // First verify the test run has completed
             const testResult = await this.executeCliCommand(`sf apex get test --test-run-id ${testRunId} --json`);
@@ -683,15 +683,16 @@ export class MetadataService {
             console.log('[VisbalExt.MetadataService] getTestLogId -- testRunDetailsCommand:', testRunDetailsCommand);
             const testRunDetailsResult = await this._executeCommand2(testRunDetailsCommand);
 
-            console.log(`[VisbalExt.MetadataService] getTestLogId testRunDetailsResult.stdout`, testRunDetailsResult.stdout);    
+            //console.log(`[VisbalExt.MetadataService] getTestLogId testRunDetailsResult.stdout`, testRunDetailsResult.stdout);    
             const testRunDetails = JSON.parse(testRunDetailsResult.stdout);
+            console.log('[VisbalExt.MetadataService] getTestLogId -- testRunDetails:', testRunDetails);
             if (!testRunDetails?.result?.summary?.testStartTime) {
-                console.warn('[VisbalExt.MetadataService] No test start time found in test run details');
+                console.warn('[VisbalExt.MetadataService] getTestLogId -- No test start time found in test run details');
                 return '';
             }
 
             const testStartTime = new Date(testRunDetails.result.summary.testStartTime);
-            console.log('[VisbalExt.MetadataService] Test start time:', testStartTime);
+            console.log('[VisbalExt.MetadataService] getTestLogId -- Test start time:', testStartTime);
 
 
             // Get all logs and filter by timestamp
@@ -700,8 +701,8 @@ export class MetadataService {
             const logListResult = await this._executeCommand2(logListCommand);
             //console.log(`[VisbalExt.MetadataService] getTestLogId logListResult.stdout:`, logListResult.stdout);
             const logList = JSON.parse(logListResult.stdout);
-            if (!logList?.result) {
-                console.warn('[VisbalExt.MetadataService] No logs found');
+            if (!logList?.result || logList.result.length === 0) {
+                console.warn('[VisbalExt.MetadataService] getTestLogId -- No logs found');
                 return '';
             }
             console.log(`[VisbalExt.MetadataService] getTestLogId logList:`,logList);    

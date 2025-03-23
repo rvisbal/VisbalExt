@@ -20,6 +20,9 @@ interface ExecResult {
 }
 
 export class SfdxService {
+    private orgAliasCache: { alias: string; timestamp: number } | null = null;
+    private readonly CACHE_EXPIRATION = 5 * 60 * 1000; // 5 minutes in milliseconds
+
     constructor() {}
 
     //#region Core Functionality
@@ -95,12 +98,18 @@ export class SfdxService {
     //#region Organization Management
     public async getCurrentOrgAlias(): Promise<string> {
         try {
+            // Check cache first
+            if (this.orgAliasCache && (Date.now() - this.orgAliasCache.timestamp) < this.CACHE_EXPIRATION) {
+                console.log('[VisbalExt.SfdxService] getCurrentOrgAlias -- Returning cached alias:', this.orgAliasCache.alias);
+                return this.orgAliasCache.alias;
+            }
+
             console.log('[VisbalExt.SfdxService] getCurrentOrgAlias -- Getting current org alias');
             const command = 'sf org display --json';
             console.log('[VisbalExt.SfdxService] getCurrentOrgAlias -- command:', command);
             const orgInfo = await this._executeCommand(command);
-            console.log('[VisbalExt.SfdxService] getCurrentOrgAlias -- orgInfo:', orgInfo);
             const result = JSON.parse(orgInfo);
+            console.log('[VisbalExt.SfdxService] getCurrentOrgAlias -- result:', result);
             if (result.status === 0 && result.result) {
                 // Use alias if available, otherwise use username
                 const alias = result.result.alias || result.result.username;
@@ -108,6 +117,13 @@ export class SfdxService {
                     throw new Error('No org alias or username found');
                 }
                
+                // Update cache
+                this.orgAliasCache = {
+                    alias,
+                    timestamp: Date.now()
+                };
+                console.log('[VisbalExt.SfdxService] getCurrentOrgAlias -- Cached new alias:', alias);
+                
                 return alias;
             }
             throw new Error('No default org set');
