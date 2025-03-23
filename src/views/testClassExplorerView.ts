@@ -1113,7 +1113,7 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                 </div>
                 <div id="loading" class="loading hidden">
                     <div class="spinner"></div>
-                    <span>Loading test classes...</span>
+                    <span id="loadingMessage">Loading test classes...</span>
                 </div>
                 <div id="notificationContainer" class="notification-container hidden">
                     <div class="notification-message" id="notificationMessage"></div>
@@ -1135,6 +1135,7 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                     const runSelectedButton = document.getElementById('runSelectedButton');
                     const selectionCount = document.getElementById('selectionCount');
                     const loading = document.getElementById('loading');
+					const loadingMessage = document.getElementById('loadingMessage');
                     const errorContainer = document.getElementById('errorContainer');
                     const errorMessage = document.getElementById('errorMessage');
                     const notificationContainer = document.getElementById('notificationContainer');
@@ -1161,7 +1162,7 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                     // Functions
                     function fetchTestClasses(forceRefresh = false, refreshMethods = false) {
                         console.log('[VisbalExt.TestClassExplorerView] Fetching test classes...', { forceRefresh, refreshMethods });
-                        showLoading();
+                        showLoading('Loading test classes');
                         hideError();
                         hideNotification();
                         vscode.postMessage({ 
@@ -1171,12 +1172,14 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                         });
                     }
                     
-                    function showLoading() {
+                    function showLoading(m) {
                         loading.classList.remove('hidden');
+						loadingMessage.innerHTML = m;
                     }
                     
                     function hideLoading() {
                         loading.classList.add('hidden');
+						loadingMessage.innerHTML = '';
                     }
                     
                     function showError(message) {
@@ -1296,7 +1299,7 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                             return;
                         }
                         
-                        showLoading();
+                        showLoading('Runing selected test ' + testsToRun.classes.length);
                         hideError();
                         hideNotification();
                         
@@ -1521,15 +1524,21 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                                 methodLi.appendChild(runMethodButton);
                                 methodsList.appendChild(methodLi);
                         });
-                        
-                        methodsList.style.display = 'block';
-						methodsList.classList.remove('hidden');
+                        // Find the class item and its expand icon
+                        //const classItem = document.querySelector('.test-class-item[data-class-name="' + className + '"]');
+                        if (classItem) {
+                            const expandIcon = classItem.querySelector('.codicon');
+                            if (expandIcon) {
+                                expandIcon.className = 'codicon codicon-chevron-down';
+                            }
+                        }
+                        methodsList.classList.remove('hidden');
                     }
 					
 					
 					function refreshTestMethods(testClass) {
                         console.log('[VisbalExt.TestClassExplorerView] -- refreshTestMethods -- Refreshing methods:', testClass);
-                        showLoading();
+                        showLoading('Refreshing methods on class ' + testClass  );
                         hideError();
                         hideNotification();
 
@@ -1541,7 +1550,7 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                     
                     function runTest(testClass, testMethod) {
                         console.log('[VisbalExt.TestClassExplorerView] -- runTest -- Running test:', testClass, testMethod);
-                        showLoading();
+                        showLoading('running test  ' + testClass + '. ' + testMethod );
                         hideError();
                         hideNotification();
 
