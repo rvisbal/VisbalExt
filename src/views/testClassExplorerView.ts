@@ -579,6 +579,7 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
             } else {
                 //#region SEQUENTIAL MODE
                 // Run tests sequentially
+                const errorMap = new Map<string, string>();
                 console.log('[VisbalExt.TestClassExplorerView] _runSelectedTests.sequentially -- tests:', tests);
                 for (const { className, methodName } of tests.methods) {
 					try {
@@ -617,11 +618,12 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
 											if (t.Outcome === 'Pass') {
 												this._testRunResultsView.updateMethodStatus(className, t.MethodName, 'success', logId);
 											} else {
+                                                console.error(`[VisbalExt.TestClassExplorer] _runSelectedTests.sequentially updateMethodStatus.failed logId:${logId}`);
 												this._testRunResultsView.updateMethodStatus(className, t.methodName, 'failed', logId);
 												mainClassMap.set(t.ApexClass.Name, false);
 											}
 										} catch (error) {
-											console.error(`[VisbalExt.TestClassExplorer] _runSelectedTests.sequentially  ERROR ON ${className}.${methodName} : ${error}`);
+											console.error(`[VisbalExt.TestClassExplorer] _runSelectedTests.sequentially updateMethodStatus.failed ERROR ON ${className}.${methodName} : ${error}`);
 											this._testRunResultsView.updateMethodStatus(className, t.MethodName, 'failed');
 										}
 									}
@@ -636,7 +638,7 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
 								}
 							} catch (error: any) {
 								console.error(`[VisbalExt.TestClassExplorer] _runSelectedTests.sequentially  Error in test execution: ${error}`);
-								
+								errorMap.set(className, error.message);
 								// Check if this is an "already enqueued" error
 								if (error.message && (
 									error.message.includes('ALREADY_IN_PROCESS') || 
@@ -672,6 +674,7 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
 													// If we get here, we have results
 													for (const t of testRunResult.tests) {
 														if (t.MethodName === methodName) {
+                                                            console.error(`[VisbalExt.TestClassExplorer] _runSelectedTests.sequentially updateMethodStatus.t.Outcome: ${t.Outcome}`);
 															this._testRunResultsView.updateMethodStatus(
 																className,
 																methodName,
@@ -697,8 +700,10 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
 
 											await pollWithBackoff();
 										} catch (pollError: any) {
-											console.error(`[VisbalExt.TestClassExplorer] _runSelectedTests.sequentially failed pollError: ${pollError}`);
-											this._testRunResultsView.updateMethodStatus(className, methodName, 'failed');
+											console.error(`[VisbalExt.TestClassExplorer] _runSelectedTests.sequentially updateMethodStatus.failed pollError: ${pollError}`);
+                                            errorMap.set(className, pollError);
+
+											this._testRunResultsView.updateMethodStatus(className, methodName, 'failed', errorMap.get(className));
 											if (this._view) {
 												this._view.webview.postMessage({
 													command: 'error',
@@ -710,8 +715,8 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
 								}
 								
 								// For other errors or if polling fails, mark as failed
-                                console.error(`[VisbalExt.TestClassExplorer] _runSelectedTests.sequentially failed failed`);
-								this._testRunResultsView.updateMethodStatus(className, methodName, 'failed');
+                                console.error(`[VisbalExt.TestClassExplorer] _runSelectedTests.sequentially updateMethodStatus.failed`);
+								this._testRunResultsView.updateMethodStatus(className, methodName, 'failed', errorMap.get(className));
 								if (this._view) {
 									this._view.webview.postMessage({
 										command: 'error',

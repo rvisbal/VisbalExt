@@ -3,6 +3,7 @@ import * as vscode from 'vscode';
 export class TestItem extends vscode.TreeItem {
     private _status: 'running' | 'success' | 'failed' | 'pending' | 'downloading';
     private _logId?: string;
+    private _error?: string;
     private static downloadingLogs = new Set<string>();
 
     constructor(
@@ -50,6 +51,16 @@ export class TestItem extends vscode.TreeItem {
         }
     }
 
+    get error(): string | undefined {
+        return this._error;
+    }
+
+    set error(value: string | undefined) {
+        this._error = value;
+        if (value) {
+            this.tooltip = `Log ID: ${value}`;
+        }
+    }
     static isDownloading(logId: string): boolean {
         return TestItem.downloadingLogs.has(logId);
     }
@@ -177,7 +188,7 @@ export class TestRunResultsProvider implements vscode.TreeDataProvider<TestItem>
         }
     }
 
-    updateMethodStatus(className: string, methodName: string, status: 'running' | 'success' | 'failed' | 'downloading', logId?: string) {
+    updateMethodStatus(className: string, methodName: string, status: 'running' | 'success' | 'failed' | 'downloading', logId?: string, error?: string) {
         const startTime = Date.now();
         console.log(`[VisbalExt.TestRunResultsProvider] updateMethodStatus -- Updating method status: ${className}.${methodName} -> ${status} at ${new Date(startTime).toISOString()}`);
         
@@ -191,6 +202,10 @@ export class TestRunResultsProvider implements vscode.TreeDataProvider<TestItem>
                 // Update logId if provided
                 if (logId) {
                     methodItem.logId = logId;
+                }
+
+                if (error) {
+                    methodItem.error = error;
                 }
 
                 // Track this update
@@ -273,8 +288,8 @@ export class TestRunResultsView {
         this.provider.addTestRun(className, methods);
     }
 
-    updateMethodStatus(className: string, methodName: string, status: 'running' | 'success' | 'failed' | 'downloading', logId?: string) {
-        this.provider.updateMethodStatus(className, methodName, status, logId);
+    updateMethodStatus(className: string, methodName: string, status: 'running' | 'success' | 'failed' | 'downloading', logId?: string, error?: string) {
+        this.provider.updateMethodStatus(className, methodName, status, logId, error);
     }
 
     updateClassStatus(className: string, status: 'running' | 'success' | 'failed' | 'downloading') {
