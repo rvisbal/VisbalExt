@@ -621,7 +621,7 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
 												mainClassMap.set(t.ApexClass.Name, false);
 											}
 										} catch (error) {
-											console.error(`[VisbalExt.TestClassExplorer] _runSelectedTests.sequentially  Error processing test result: ${error}`);
+											console.error(`[VisbalExt.TestClassExplorer] _runSelectedTests.sequentially  ERROR ON ${className}.${methodName} : ${error}`);
 											this._testRunResultsView.updateMethodStatus(className, t.MethodName, 'failed');
 										}
 									}
@@ -697,7 +697,7 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
 
 											await pollWithBackoff();
 										} catch (pollError: any) {
-											console.error(`[VisbalExt.TestClassExplorer] _runSelectedTests.sequentially Error polling for test results: ${pollError}`);
+											console.error(`[VisbalExt.TestClassExplorer] _runSelectedTests.sequentially failed pollError: ${pollError}`);
 											this._testRunResultsView.updateMethodStatus(className, methodName, 'failed');
 											if (this._view) {
 												this._view.webview.postMessage({
@@ -710,6 +710,7 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
 								}
 								
 								// For other errors or if polling fails, mark as failed
+                                console.error(`[VisbalExt.TestClassExplorer] _runSelectedTests.sequentially failed failed`);
 								this._testRunResultsView.updateMethodStatus(className, methodName, 'failed');
 								if (this._view) {
 									this._view.webview.postMessage({
@@ -722,7 +723,7 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
 
 						// Execute the async function without waiting
 						handleTestAndLog().catch(error => {
-							console.error(`[VisbalExt.TestClassExplorer] _runSelectedTests.sequentially  Error in test execution ${className}.${methodName} : ${error}`);
+							console.error(`[VisbalExt.TestClassExplorer] _runSelectedTests.sequentially  Error in test execution ${className}.${methodName} ERROR`, error);
 							this._testRunResultsView.updateMethodStatus(className, methodName, 'failed');
 						});
 

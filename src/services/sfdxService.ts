@@ -31,7 +31,7 @@ export class SfdxService {
             const { stdout } = await execPromise(command, { maxBuffer: 1024 * 1024 * 10 });
             return stdout;
         } catch (error) {
-            console.error(`[VisbalExt.SfdxService] _executeCommand Error executing command: ${command}`, error);
+            //console.error(`[VisbalExt.SfdxService] _executeCommand Error executing command: ${command}`, error);
             throw error;
         }
     }
@@ -968,29 +968,41 @@ export class SfdxService {
     /**
      * Runs Apex tests
      */
-    public async runTests(testClass: string, testMethod?: string): Promise<any> {
+    public async runTests(testClass: string, testMethod?: string, useDefaultOrg: boolean = false): Promise<any> {
         const startTime = Date.now();
         try {
             console.log(`[VisbalExt.SfdxService] Starting test execution at ${new Date(startTime).toISOString()}`);
             console.log(`[VisbalExt.SfdxService] Running tests for class: ${testClass}${testMethod ? `, method: ${testMethod}` : ''}`);
             
-            const command = testMethod
+            let command = testMethod
                 ? `sf apex run test --tests ${testClass}.${testMethod} --json`
                 : `sf apex run test --class-names ${testClass} --json`;
             
-            console.log(`[VisbalExt.SfdxService] Executing command: ${command}`);
+            const selectedOrg = await OrgUtils.getSelectedOrg();
+            if (!useDefaultOrg && selectedOrg?.alias) {
+                command += ` --target-org ${selectedOrg.alias}`;
+            }
+            console.log(`[VisbalExt.SfdxService] runTests Executing command: ${command}`);
             const output = await this._executeCommand(command);
             const result = JSON.parse(output).result;
             
             const endTime = Date.now();
-            console.log(`[VisbalExt.SfdxService] Test execution completed in ${endTime - startTime}ms`);
-            console.log('[VisbalExt.SfdxService] Test run result:', result);
+            console.log(`[VisbalExt.SfdxService] runTests -- Test execution completed in ${endTime - startTime}ms`);
+            console.log('[VisbalExt.SfdxService] runTests -- Test run result:', result);
             
             return result;
         } catch (error: any) {
             const endTime = Date.now();
-            console.error(`[VisbalExt.SfdxService] Test execution failed after ${endTime - startTime}ms:`, error);
-            throw new Error(`Failed to run tests: ${error.message}`);
+            //
+            if (error.stdout) {
+                const parsedStdout = JSON.parse(error.stdout);
+                console.error(`[VisbalExt.MetadataService] runTests ERROR parsedStdout: `, parsedStdout);
+                throw new Error(`Failed to run tests: ${parsedStdout.message}`);
+            }
+            else {
+                console.error(`[VisbalExt.SfdxService] runTests -- Test execution failed after ${endTime - startTime}ms:`, error);
+                throw new Error(`Failed to run tests: ${error.message}`);
+            }
         }
     }
 

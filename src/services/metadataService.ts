@@ -102,7 +102,7 @@ export class MetadataService {
                     throw new Error('No default org set. Please use "sf org set default" to set a default org.');
                 }
             } catch (orgError: any) {
-                console.warn('[VisbalExt.MetadataService] executeCliCommand execAsync 1 Failed to get target org:', orgError);
+                //console.warn('[VisbalExt.MetadataService] executeCliCommand execAsync 1 Failed to get target org:', orgError);
                 //const orgError1 = JSON.parse(orgError);
                 //console.log('[VisbalExt.MetadataService] executeCliCommand execAsync 1 Failed orgError1:', orgError1);
                 //console.log('[VisbalExt.MetadataService] executeCliCommand execAsync 1 Failed orgError1.message:', orgError1.message);
@@ -114,7 +114,14 @@ export class MetadataService {
                     throw new Error('Salesforce CLI (sf) is not installed or not in PATH. Please install it from https://developer.salesforce.com/tools/sfdxcli');
                 }
                 
-                throw new Error(orgError.message);
+                if (orgError.stdout) {
+                    const parsedStdout = JSON.parse(orgError.stdout);
+                    console.error(`[VisbalExt.MetadataService] runTests ERROR parsedStdout: `, parsedStdout);
+                    throw new Error(`Failed to run tests: ${parsedStdout.message}`);
+                }
+                else {
+                    throw new Error(`Failed to run tests: ${orgError.message}`);
+                }
             }
             
             // Execute the command directly without bash -c wrapper
@@ -406,6 +413,8 @@ export class MetadataService {
      */
     public async runTests(testClass: string, testMethod?: string): Promise<any> {
         const startTime = Date.now();
+        return this._sfdxService.runTests(testClass, testMethod, true);
+        /*
         try {
             console.log(`[VisbalExt.MetadataService] runTests -- Starting test execution at ${new Date(startTime).toISOString()}`);
             console.log(`[VisbalExt.MetadataService] runTests -- Running tests for class: ${testClass}${testMethod ? `, method: ${testMethod}` : ''}`);
@@ -428,6 +437,7 @@ export class MetadataService {
             console.error(`[VisbalExt.MetadataService] runTests -- ERROR after ${endTime - startTime}ms:`, error);
             throw new Error(`Failed to run tests: ${error.message}`);
         }
+            */
     }
 
     /**
