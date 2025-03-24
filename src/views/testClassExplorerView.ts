@@ -100,7 +100,7 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
         webviewView.webview.html = this._getHtmlForWebview(webviewView.webview);
 
         webviewView.webview.onDidReceiveMessage(async (data) => {
-            console.log('[VisbalExt.TestClassExplorerView] webview -- Received message from webview:', data);
+            console.log('[VisbalExt.TestClassExplorerView] resolveWebviewView webview -- Received message from webview:', data);
             switch (data.command) {
                 case 'fetchTestClasses':
                     await this._fetchTestClasses(data.forceRefresh);
@@ -134,13 +134,13 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
         });
 
         // Initial fetch of test classes when view becomes visible
-        setTimeout(() => {
-            console.log('[VisbalExt.TestClassExplorerView] Initial fetch of test classes');
-            if (this._view && this._view.visible) {
+        //setTimeout(() => {
+        //    console.log('[VisbalExt.TestClassExplorerView] resolveWebviewView -- Initial fetch of test classes');
+        //    if (this._view && this._view.visible) {
                 // Use cached data if available
-                this._fetchTestClasses(false);
-            }
-        }, 1000);
+        //        this._fetchTestClasses(false);
+        //    }
+        //}, 1000);
     }
 
     private async _fetchTestClasses(forceRefresh: boolean = false) {
@@ -370,15 +370,15 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
 
                 // Use the shared test results view instance
                 if (testRunResult?.summary) {
-                    console.log('[VisbalExt.TestClassExplorerView] Updating test results view with summary:', testRunResult.summary);
+                    console.log('[VisbalExt.TestClassExplorerView] _runTest -- Updating test results view with summary:', testRunResult.summary);
                     this._testResultsView.updateSummary(testRunResult.summary);
                 } else {
-                    console.warn('[VisbalExt.TestClassExplorerView] No summary data available in test run result');
+                    console.warn('[VisbalExt.TestClassExplorerView] _runTest -- No summary data available in test run result');
                 }
 
                 // Update test results in webview
                 if (this._view) {
-                    console.log('[VisbalExt.TestClassExplorerView] Sending test results to webview');
+                    console.log('[VisbalExt.TestClassExplorerView] _runTest -- Sending test results to webview');
                     this._view.webview.postMessage({
                         command: 'testResultsLoaded',
                         results: testRunResult
@@ -393,20 +393,20 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                         const logId = await this._metadataService.getTestLogId(result.testRunId);
                         if (logId) {
                             this._testRunResultsView.updateMethodStatus(testClass, t.MethodName, 'downloading', logId);
-                            console.log(`[VisbalExt.TestClassExplorer] Processing log for test: ${t.ApexClass?.Name || 'Unknown'}`);
+                            console.log(`[VisbalExt.TestClassExplorer] _runTest Processing log for test: ${t.ApexClass?.Name || 'Unknown'}`);
                             
                             // Download and open log for the first test only to avoid multiple windows
                             if (mainClassMap.size === 0) {
-                                console.log(`[VisbalExt.TestClassExplorer] Downloading and opening log: ${logId}`);
+                                console.log(`[VisbalExt.TestClassExplorer] _runTest -- Downloading and opening log: ${logId}`);
                                 await this._orgUtils.downloadLog(logId);
                                 await this._orgUtils.openLog(logId, this._extensionUri);
                             } else {
                                 // For subsequent tests, just download in background
-                                console.log(`[VisbalExt.TestClassExplorer] Downloading additional log: ${logId}`);
+                                console.log(`[VisbalExt.TestClassExplorer] _runTest -- Downloading additional log: ${logId}`);
                                 this._orgUtils.downloadLog(logId);
                             }
                         } else {
-                            console.warn(`[VisbalExt.TestClassExplorer] No log ID found for test: ${t.ApexClass?.Name || 'Unknown'}`);
+                            console.warn(`[VisbalExt.TestClassExplorer] _runTest -- No log ID found for test: ${t.ApexClass?.Name || 'Unknown'}`);
                         }
                         
                         //UPDATE THE STATUS OF THE METHOD
@@ -422,7 +422,7 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                             mainClassMap.set(t.ApexClass.Name, false);
                         }
                     } catch (error) {
-                        console.error(`[VisbalExt.TestClassExplorer] Error processing test log: ${error}`);
+                        console.error(`[VisbalExt.TestClassExplorer] _runTest -- Error processing test log: ${error}`);
                     }
                 }
 
@@ -659,25 +659,52 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
 									if (testRunIdMatch && testRunIdMatch[1]) {
 										const testRunId = testRunIdMatch[1];
 										try {
-											// Poll for test results
-											const testRunResult = await this._metadataService.getTestRunResult(testRunId);
-											const logId = await this._metadataService.getTestLogId(testRunId);
-											
-											// Process the results as normal
-											for (const t of testRunResult.tests) {
-												if (t.MethodName === methodName) {
-													this._testRunResultsView.updateMethodStatus(
-														className,
-														methodName,
-														t.Outcome === 'Pass' ? 'success' : 'failed',
-														logId
-													);
-													break;
+											// Poll for test results with exponential backoff
+											let retryCount = 0;
+											const maxRetries = 5;
+											const baseDelay = 2000; // Start with 2 second delay
+
+											const pollWithBackoff = async () => {
+												try {
+													const testRunResult = await this._metadataService.getTestRunResult(testRunId);
+													const logId = await this._metadataService.getTestLogId(testRunId);
+													
+													// If we get here, we have results
+													for (const t of testRunResult.tests) {
+														if (t.MethodName === methodName) {
+															this._testRunResultsView.updateMethodStatus(
+																className,
+																methodName,
+																t.Outcome === 'Pass' ? 'success' : 'failed',
+																logId
+															);
+															break;
+														}
+													}
+													return;
+												} catch (error) {
+													retryCount++;
+													if (retryCount < maxRetries) {
+														// Exponential backoff with jitter
+														const delay = baseDelay * Math.pow(2, retryCount) * (0.5 + Math.random());
+														console.log(`[VisbalExt.TestClassExplorer] Retry ${retryCount}/${maxRetries} after ${delay}ms`);
+														await new Promise(resolve => setTimeout(resolve, delay));
+														return pollWithBackoff();
+													}
+													throw error;
 												}
+											};
+
+											await pollWithBackoff();
+										} catch (pollError: any) {
+											console.error(`[VisbalExt.TestClassExplorer] _runSelectedTests.sequentially Error polling for test results: ${pollError}`);
+											this._testRunResultsView.updateMethodStatus(className, methodName, 'failed');
+											if (this._view) {
+												this._view.webview.postMessage({
+													command: 'error',
+													message: `Error polling test results for ${className}.${methodName}: ${pollError.message}`
+												});
 											}
-											return;
-										} catch (pollError) {
-											console.error(`[VisbalExt.TestClassExplorer] _runSelectedTests.sequentially  Error polling for test results: ${pollError}`);
 										}
 									}
 								}
@@ -695,7 +722,7 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
 
 						// Execute the async function without waiting
 						handleTestAndLog().catch(error => {
-							console.error(`[VisbalExt.TestClassExplorer] _runSelectedTests.sequentially  Error in test execution: ${error}`);
+							console.error(`[VisbalExt.TestClassExplorer] _runSelectedTests.sequentially  Error in test execution ${className}.${methodName} : ${error}`);
 							this._testRunResultsView.updateMethodStatus(className, methodName, 'failed');
 						});
 
