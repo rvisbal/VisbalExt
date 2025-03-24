@@ -670,11 +670,11 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
 												try {
 													const testRunResult = await this._metadataService.getTestRunResult(testRunId);
 													const logId = await this._metadataService.getTestLogId(testRunId);
-													
+                                                    console.log('[VisbalExt.TestClassExplorerView] _runSelectedTests.sequentially POLL ${className}.${methodName} testRunId:${testRunId} logId:${logId} testRunResult:', testRunResult);
 													// If we get here, we have results
 													for (const t of testRunResult.tests) {
 														if (t.MethodName === methodName) {
-                                                            console.error(`[VisbalExt.TestClassExplorer] _runSelectedTests.sequentially updateMethodStatus.t.Outcome: ${t.Outcome}`);
+                                                            console.error(`[VisbalExt.TestClassExplorer] _runSelectedTests.sequentially POLL updateMethodStatus.t.Outcome: ${t.Outcome}`);
 															this._testRunResultsView.updateMethodStatus(
 																className,
 																methodName,
@@ -690,7 +690,7 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
 													if (retryCount < maxRetries) {
 														// Exponential backoff with jitter
 														const delay = baseDelay * Math.pow(2, retryCount) * (0.5 + Math.random());
-														console.log(`[VisbalExt.TestClassExplorer] Retry ${retryCount}/${maxRetries} after ${delay}ms`);
+														console.log(`[VisbalExt.TestClassExplorer] _runSelectedTests POLL Retry ${retryCount}/${maxRetries} after ${delay}ms`);
 														await new Promise(resolve => setTimeout(resolve, delay));
 														return pollWithBackoff();
 													}
@@ -700,7 +700,7 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
 
 											await pollWithBackoff();
 										} catch (pollError: any) {
-											console.error(`[VisbalExt.TestClassExplorer] _runSelectedTests.sequentially updateMethodStatus.failed pollError: ${pollError}`);
+											console.error(`[VisbalExt.TestClassExplorer] _runSelectedTests.sequentially POLL updateMethodStatus.failed pollError: ${pollError}`);
                                             errorMap.set(className, pollError);
 
 											this._testRunResultsView.updateMethodStatus(className, methodName, 'failed', errorMap.get(className));

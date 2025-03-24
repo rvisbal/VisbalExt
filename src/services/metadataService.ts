@@ -413,7 +413,7 @@ export class MetadataService {
      */
     public async runTests(testClass: string, testMethod?: string): Promise<any> {
         const startTime = Date.now();
-        return this._sfdxService.runTests(testClass, testMethod, true);
+        return this._sfdxService.runTests(testClass, testMethod, false);
         /*
         try {
             console.log(`[VisbalExt.MetadataService] runTests -- Starting test execution at ${new Date(startTime).toISOString()}`);
