@@ -64,30 +64,18 @@ export class MetadataService {
             
             // Get the default org username - don't use bash on Windows
             try {
-                const sfCommand = 'sf config get target-org --json';
-                console.log(`[VisbalExt.MetadataService] executeCliCommand execAsync 1 command: ${command}`);
+                //const sfCommand = 'sf config get target-org --json';
+                //console.log(`[VisbalExt.MetadataService] executeCliCommand execAsync 1 command: ${command}`);
                 
-                const { stdout: orgInfo, stderr } = await execAsync(command);
-                console.log(`[VisbalExt.MetadataService] executeCliCommand execAsync 1 orgInfo: `, orgInfo);
+                const { stdout: result, stderr } = await execAsync(command);
+                console.log(`[VisbalExt.MetadataService] executeCliCommand execAsync 1 result: `, result);result
                 if (stderr) {
                     console.warn(`[VisbalExt.MetadataService] executeCliCommand execAsync 1 stderr: `, stderr);
                 }
                 
-                if (orgInfo && orgInfo.trim()) {
+                if (result && result.trim()) {
                     try {
-                        const parsedInfo = JSON.parse(orgInfo);
-                        const targetOrg = parsedInfo.result && parsedInfo.result[0] ? parsedInfo.result[0].value : null;
-                        
-                        if (targetOrg) {
-                            console.log(`[VisbalExt.MetadataService] executeCliCommand execAsync 1 Using target org: ${targetOrg}`);
-                            
-                            // Add the target org to the command if it doesn't already have one
-                            if (!command.includes('-o') && !command.includes('--target-org')) {
-                                command = `${command.replace(' --json', '')} --target-org ${targetOrg} --json`;
-                            }
-                        } else {
-                            throw new Error('No default org set. Please use "sf org set default" to set a default org.');
-                        }
+                        return result;                   
                     } catch (parseError: any) {
                         console.error('[VisbalExt.MetadataService] executeCliCommand execAsync 1 parseError:', parseError);
                         console.log('[VisbalExt.MetadataService] executeCliCommand execAsync 1 parseError.message:', parseError.message);
@@ -99,7 +87,7 @@ export class MetadataService {
                         //throw new Error('Failed to parse org info. Please ensure Salesforce CLI is properly installed.');
                     }
                 } else {
-                    throw new Error('No default org set. Please use "sf org set default" to set a default org.');
+                    throw new Error('Executing executeCliCommand failed');
                 }
             } catch (orgError: any) {
                 //console.warn('[VisbalExt.MetadataService] executeCliCommand execAsync 1 Failed to get target org:', orgError);
@@ -513,13 +501,13 @@ export class MetadataService {
             
             // Get the test run details
             const command = `sf apex get test --test-run-id ${testRunId} --json`;
-            console.log(`[VisbalExt.MetadataService] getTestRunResult -- Executing command: ${command}`);
+            console.log(`[VisbalExt.MetadataService] getTestRunResult -- executeCliCommand: ${command}`);
             const result = await this.executeCliCommand(command);
             const parsedResult = JSON.parse(result);
+            console.log('[VisbalExt.MetadataService] getTestRunResult -- Test run details:', parsedResult);
             
             const endTime = Date.now();
             console.log(`[VisbalExt.MetadataService] getTestRunResult -- Test run result retrieved in ${endTime - startTime}ms`);
-            console.log('[VisbalExt.MetadataService] getTestRunResult -- Test run details:', parsedResult);
             
             // Return the result immediately - log fetching will be handled separately after test completion
             return parsedResult.result || null;
