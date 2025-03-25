@@ -45,7 +45,7 @@ interface TestSummary {
     username?: string;
 }
 
-export class TestResultsView implements vscode.WebviewViewProvider {
+export class TestSummaryView implements vscode.WebviewViewProvider {
     public static readonly viewType = 'visbal-test-summary';
     private _view?: vscode.WebviewView;
 
@@ -68,7 +68,7 @@ export class TestResultsView implements vscode.WebviewViewProvider {
     }
 
     public updateSummary(summary: TestSummary, tests: TestResult[]) {
-        console.log('[VisbalExt.TestResultsView] updateSummary -- summary:', summary);
+        console.log('[VisbalExt.TestSummaryView] updateSummary -- summary:', summary);
         if (this._view) {
             this._view.webview.html = this._getWebviewContent(summary, tests);
             this._view.show?.(true); // Reveal the view

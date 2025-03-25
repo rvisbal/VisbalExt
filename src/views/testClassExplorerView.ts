@@ -11,7 +11,7 @@ import { OrgUtils } from '../utils/orgUtils';
 
 
 import { TestRunResultsView } from './testRunResultsView';
-import { TestResultsView } from './testResultsView';
+import { TestSummaryView } from './testSummaryView';
 
 interface TestRunSuccess {
     methodName: string;
@@ -65,7 +65,7 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
     private _testItems: Map<string, vscode.TestItem>;
     private _orgUtils = OrgUtils;
     private _testRunResultsView: TestRunResultsView;
-    private _testResultsView: TestResultsView;
+    private _testSummaryView: TestSummaryView;
     private _sfdxService: SfdxService;
 
     constructor(
@@ -73,7 +73,7 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
         statusBarService: StatusBarService,
         private readonly _context: vscode.ExtensionContext,
         testRunResultsView: TestRunResultsView,
-        testResultsView: TestResultsView
+        testSummaryView: TestSummaryView
     ) {
         this._extensionUri = extensionUri;
         this._statusBarService = statusBarService;
@@ -82,7 +82,7 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
         this._testController = vscode.tests.createTestController('testClassExplorerView', 'Test Class Explorer');
         this._testItems = new Map();
         this._testRunResultsView = testRunResultsView;
-        this._testResultsView = testResultsView;
+        this._testSummaryView = testSummaryView;
         this._sfdxService = new SfdxService();
     }
 
@@ -374,7 +374,7 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                 // Use the shared test results view instance
                 if (testRunResult?.summary) {
                     console.log('[VisbalExt.TestClassExplorerView] _runTest -- Updating test results view with summary:', testRunResult.summary);
-                    this._testResultsView.updateSummary(testRunResult.summary, testRunResult.tests);
+                    this._testSummaryView.updateSummary(testRunResult.summary, testRunResult.tests);
                 } else {
                     console.warn('[VisbalExt.TestClassExplorerView] _runTest -- No summary data available in test run result');
                 }
