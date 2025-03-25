@@ -3,6 +3,7 @@ import * as vscode from 'vscode';
 export class TestItem extends vscode.TreeItem {
     private _status: 'running' | 'success' | 'failed' | 'pending' | 'downloading';
     private _logId?: string;
+    private _error?: string;
     private static downloadingLogs = new Set<string>();
 
     constructor(
@@ -50,6 +51,16 @@ export class TestItem extends vscode.TreeItem {
         }
     }
 
+    get error(): string | undefined {
+        return this._error;
+    }
+
+    set error(value: string | undefined) {
+        this._error = value;
+        if (value) {
+            this.tooltip = `Log ID: ${value}`;
+        }
+    }
     static isDownloading(logId: string): boolean {
         return TestItem.downloadingLogs.has(logId);
     }
@@ -105,10 +116,10 @@ export class TestRunResultsProvider implements vscode.TreeDataProvider<TestItem>
     private _onDidChangeTreeData: vscode.EventEmitter<TestItem | undefined | null | void> = new vscode.EventEmitter<TestItem | undefined | null | void>();
     readonly onDidChangeTreeData: vscode.Event<TestItem | undefined | null | void> = this._onDidChangeTreeData.event;
 
-    private testRuns: Map<string, TestItem> = new Map();
+    private testRuns = new Map<string, TestItem>();
     private refreshTimer: NodeJS.Timeout | undefined;
     private pendingUpdates: Set<string> = new Set(); // Track pending updates
-    private _view: vscode.TreeView<TestItem> | undefined;
+    private _view?: vscode.TreeView<TestItem>;
 
     constructor() {
         console.log('[VisbalExt.TestRunResultsProvider] Initializing provider');
@@ -177,7 +188,7 @@ export class TestRunResultsProvider implements vscode.TreeDataProvider<TestItem>
         }
     }
 
-    updateMethodStatus(className: string, methodName: string, status: 'running' | 'success' | 'failed' | 'downloading', logId?: string) {
+    updateMethodStatus(className: string, methodName: string, status: 'running' | 'success' | 'failed' | 'downloading', logId?: string, error?: string) {
         const startTime = Date.now();
         console.log(`[VisbalExt.TestRunResultsProvider] updateMethodStatus -- Updating method status: ${className}.${methodName} -> ${status} at ${new Date(startTime).toISOString()}`);
         
@@ -193,18 +204,22 @@ export class TestRunResultsProvider implements vscode.TreeDataProvider<TestItem>
                     methodItem.logId = logId;
                 }
 
+                if (error) {
+                    methodItem.error = error;
+                }
+
                 // Track this update
                 this.pendingUpdates.add(`${className}.${methodName}`);
                 
                 // Auto-update class status if all methods are complete
                 if (classItem.areAllChildrenComplete()) {
                     const newStatus = classItem.hasFailedChildren() ? 'failed' : 'success';
-                    console.log(`[VisbalExt.TestRunResultsProvider] Auto-updating class status to ${newStatus}`);
+                    console.log(`[VisbalExt.TestRunResultsProvider] updateMethodStatus Auto-updating class status to ${newStatus}`);
                     classItem.updateStatus(newStatus);
                 }
                 
                 const endTime = Date.now();
-                console.log(`[VisbalExt.TestRunResultsProvider] Method status updated in ${endTime - startTime}ms, scheduling refresh`);
+                console.log(`[VisbalExt.TestRunResultsProvider] updateMethodStatus Method status updated in ${endTime - startTime}ms, scheduling refresh`);
                 this.scheduleRefresh();
 
                 // Reveal the updated method
@@ -212,10 +227,10 @@ export class TestRunResultsProvider implements vscode.TreeDataProvider<TestItem>
                     this._view.reveal(methodItem, { focus: true, select: true });
                 }
             } else {
-                console.warn(`[VisbalExt.TestRunResultsProvider] Method ${methodName} not found in class ${className}`);
+                console.warn(`[VisbalExt.TestRunResultsProvider] updateMethodStatus Method ${methodName} not found in class ${className}`);
             }
         } else {
-            console.warn(`[VisbalExt.TestRunResultsProvider] Class ${className} not found in test runs`);
+            console.warn(`[VisbalExt.TestRunResultsProvider] updateMethodStatus Class ${className} not found in test runs`);
         }
     }
 
@@ -225,14 +240,14 @@ export class TestRunResultsProvider implements vscode.TreeDataProvider<TestItem>
         
         const classItem = this.testRuns.get(className);
         if (classItem) {
-            console.log(`[VisbalExt.TestRunResultsProvider] Found class item, updating status`);
+            console.log(`[VisbalExt.TestRunResultsProvider] updateClassStatus Found class item, updating status`);
             classItem.updateStatus(status);
             
             // Track this update
             this.pendingUpdates.add(className);
             
             const endTime = Date.now();
-            console.log(`[VisbalExt.TestRunResultsProvider] Class status updated in ${endTime - startTime}ms, scheduling refresh`);
+            console.log(`[VisbalExt.TestRunResultsProvider] updateClassStatus Class status updated in ${endTime - startTime}ms, scheduling refresh`);
             this.scheduleRefresh();
 
             // Reveal the updated class
@@ -240,13 +255,17 @@ export class TestRunResultsProvider implements vscode.TreeDataProvider<TestItem>
                 this._view.reveal(classItem, { focus: true, select: true });
             }
         } else {
-            console.warn(`[VisbalExt.TestRunResultsProvider] Class ${className} not found in test runs`);
+            console.warn(`[VisbalExt.TestRunResultsProvider] updateClassStatus Class ${className} not found in test runs`);
         }
     }
 
     clear() {
         this.testRuns.clear();
         this._onDidChangeTreeData.fire();
+    }
+
+    public getTestRuns(): Map<string, TestItem> {
+        return this.testRuns;
     }
 }
 
@@ -262,7 +281,6 @@ export class TestRunResultsView {
             canSelectMany: false
         });
         this.provider.setTreeView(this.treeView);
-        context.subscriptions.push(this.treeView);
     }
 
     getProvider(): TestRunResultsProvider {
@@ -273,8 +291,8 @@ export class TestRunResultsView {
         this.provider.addTestRun(className, methods);
     }
 
-    updateMethodStatus(className: string, methodName: string, status: 'running' | 'success' | 'failed' | 'downloading', logId?: string) {
-        this.provider.updateMethodStatus(className, methodName, status, logId);
+    updateMethodStatus(className: string, methodName: string, status: 'running' | 'success' | 'failed' | 'downloading', logId?: string, error?: string) {
+        this.provider.updateMethodStatus(className, methodName, status, logId, error);
     }
 
     updateClassStatus(className: string, status: 'running' | 'success' | 'failed' | 'downloading') {
@@ -283,5 +301,53 @@ export class TestRunResultsView {
 
     clear() {
         this.provider.clear();
+    }
+
+    // Update rerunAllTests method
+    public async rerunAllTests() {
+        const testRuns = this.provider.getTestRuns();
+        if (testRuns.size === 0) {
+            vscode.window.showInformationMessage('No tests to rerun');
+            return;
+        }
+
+        // Show loading message
+        const loadingMessage = vscode.window.setStatusBarMessage('$(sync~spin) Rerunning tests...');
+
+        try {
+            // Convert the Map entries to an array for easier processing
+            const tests = Array.from(testRuns.entries());
+
+            if (tests.length === 1) {
+                // Single test class scenario
+                const [className, classItem] = tests[0];
+                if (classItem.children.length === 1) {
+                    // Single method in a single class
+                    const methodName = classItem.children[0].label;
+                    await vscode.commands.executeCommand('visbal-ext.testClassExplorerView.runTest', {
+                        testClass: className,
+                        testMethod: methodName
+                    });
+                } else {
+                    // Multiple methods in a single class
+                    await vscode.commands.executeCommand('visbal-ext.testClassExplorerView.runTest', {
+                        testClass: className
+                    });
+                }
+            } else {
+                // Multiple test classes scenario
+                const testClasses = {
+                    classes: tests.map(([className]) => className),
+                    methods: [],
+                    runMode: 'sequential'
+                };
+                await vscode.commands.executeCommand('visbal-ext.testClassExplorerView.runSelectedTests', testClasses);
+            }
+        } catch (error) {
+            vscode.window.showErrorMessage(`Failed to rerun tests: ${error instanceof Error ? error.message : String(error)}`);
+        } finally {
+            // Clear the loading message
+            loadingMessage.dispose();
+        }
     }
 } 

@@ -4,6 +4,7 @@ import * as path from 'path';
 import { TestClass } from '../types/testClass';
 import { TestMethod } from './metadataService';
 import { execAsync } from '../utils/execUtils';
+import { SfdxService } from './sfdxService';
 
 interface OrgTestClasses {
     testClasses: TestClass[];
@@ -17,8 +18,10 @@ export class StorageService {
     private storagePath: string;
     private testClassesFile: string;
     private currentOrgAlias: string | undefined;
+    private _sfdxService: SfdxService;
 
     constructor(context: vscode.ExtensionContext) {
+        this._sfdxService = new SfdxService();
         // Get the workspace folder path
         const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
         if (!workspaceFolder) {
@@ -43,26 +46,8 @@ export class StorageService {
     }
 
     private async getCurrentOrgAlias(): Promise<string> {
-        try {
-            const { stdout: orgInfo } = await execAsync('sf org display --json');
-            console.log('[VisbalExt.StorageService] getCurrentOrgAlias orgInfo:', orgInfo);
-            const result = JSON.parse(orgInfo);
-            console.log('[VisbalExt.StorageService] getCurrentOrgAlias result:', result);
-            if (result.status === 0 && result.result) {
-                // Use alias if available, otherwise use username
-                const alias = result.result.alias || result.result.username;
-                if (!alias) {
-                    throw new Error('No org alias or username found');
-                }
-                this.currentOrgAlias = alias;
-                console.log('[VisbalExt.StorageService] getCurrentOrgAlias RETURN alias:', alias);
-                return alias;
-            }
-            throw new Error('No default org set');
-        } catch (error) {
-            console.error('[VisbalExt.StorageService] getCurrentOrgAliasError getting current org alias:', error);
-            throw error;
-        }
+        this.currentOrgAlias = await this._sfdxService.getCurrentOrgAlias();
+        return this.currentOrgAlias ;
     }
 
     private readCache(): TestClassesCache {
