@@ -374,7 +374,7 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                 // Use the shared test results view instance
                 if (testRunResult?.summary) {
                     console.log('[VisbalExt.TestClassExplorerView] _runTest -- Updating test results view with summary:', testRunResult.summary);
-                    this._testResultsView.updateSummary(testRunResult.summary);
+                    this._testResultsView.updateSummary(testRunResult.summary, testRunResult.tests);
                 } else {
                     console.warn('[VisbalExt.TestClassExplorerView] _runTest -- No summary data available in test run result');
                 }
@@ -421,7 +421,8 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                             this._testRunResultsView.updateMethodStatus(testClass, t.MethodName, 'success');
                         }
                         else {
-                            this._testRunResultsView.updateMethodStatus(testClass, t.methodName, 'failed');
+                            console.log('[VisbalExt.TestClassExplorerView] _runTest -- Test failed:',t.Outcome);
+                            this._testRunResultsView.updateMethodStatus(testClass, t.MethodName, 'failed');
                             mainClassMap.set(t.ApexClass.Name, false);
                         }
                     } catch (error) {
@@ -429,7 +430,7 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                     }
                 }
 
-                  for (const [className, isSuccess] of mainClassMap.entries()) {
+                for (const [className, isSuccess] of mainClassMap.entries()) {
                     if (isSuccess) {
                         this._testRunResultsView.updateClassStatus(className, 'success');
                     }

@@ -40,6 +40,8 @@ export class OrgUtils {
     private static _context: vscode.ExtensionContext;
     private static _sfdxService: SfdxService;
 
+
+
     /**
      * Initialize the OrgUtils class with necessary data
      * @param logs Array of log objects
@@ -48,7 +50,6 @@ export class OrgUtils {
     public static initialize(logs: any[], context: vscode.ExtensionContext): void {
         this._logs = logs;
         this._context = context;
-        this._sfdxService = new SfdxService();
     }
 
     /**
@@ -233,6 +234,7 @@ export class OrgUtils {
     private static async _fetchLogContent(logId: string): Promise<string> {
         let logContent: string | null = null;
         let error: Error | null = null;
+        this._sfdxService = new SfdxService();
 
         // Try new CLI format first
         try {

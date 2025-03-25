@@ -8,8 +8,22 @@ interface TestMethod {
 }
 
 interface TestResult {
-    className: string;
-    methods: TestMethod[];
+    // PascalCase versions (from Salesforce API)
+    MethodName?: string;
+    Outcome?: string;
+    Message?: string;
+    StackTrace?: string;
+    Duration?: string;
+    // camelCase versions (from internal usage)
+    methodName?: string;
+    outcome?: string;
+    message?: string;
+    // Other properties
+    className?: string;
+    methods?: TestMethod[];
+    FullName?: string;
+    TestRunId?: string;
+    TestRunResultId?: string;
 }
 
 interface TestSummary {
@@ -53,10 +67,10 @@ export class TestResultsView implements vscode.WebviewViewProvider {
         webviewView.webview.html = this._getInitialContent();
     }
 
-    public updateSummary(summary: TestSummary) {
+    public updateSummary(summary: TestSummary, tests: TestResult[]) {
         console.log('[VisbalExt.TestResultsView] updateSummary -- summary:', summary);
         if (this._view) {
-            this._view.webview.html = this._getWebviewContent(summary);
+            this._view.webview.html = this._getWebviewContent(summary, tests);
             this._view.show?.(true); // Reveal the view
         }
     }
@@ -86,7 +100,7 @@ export class TestResultsView implements vscode.WebviewViewProvider {
         </html>`;
     }
 
-    private _getWebviewContent(summary: TestSummary): string {
+    private _getWebviewContent(summary: TestSummary, tests: TestResult[]): string {
         return `<!DOCTYPE html>
         <html lang="en">
         <head>
@@ -183,6 +197,18 @@ export class TestResultsView implements vscode.WebviewViewProvider {
                     <span class="label">Username:</span>
                     <span class="value">${summary.username || 'N/A'}</span>
                 </div>
+            </div>
+            <div class="test-results-container">
+                ${tests.map(test => `
+                    <div class="test-result">
+                        <span class="label">Class:</span>    
+                        <span class="value">${test.FullName }</span>
+                        <span class="label">Message:</span>
+                        <span class="value">${test.Message}</span>
+                        <span class="label">StackTrace:</span>
+                        <span class="value">${test.StackTrace}</span>
+                    </div>
+                `).join('')}
             </div>
         </body>
         </html>`;
