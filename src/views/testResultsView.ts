@@ -171,7 +171,6 @@ export class TestResultsView implements vscode.WebviewViewProvider {
             </style>
         </head>
         <body>
-            <div class="header">Test Run Summary</div>
             <div class="summary-container">
                 <div class="summary-item">
                     <span class="label">Outcome:</span>
@@ -213,19 +212,11 @@ export class TestResultsView implements vscode.WebviewViewProvider {
                     <span class="label">Test Run ID:</span>
                     <span class="value">${summary.testRunId || 'N/A'}</span>
                 </div>
-                <div class="summary-item">
-                    <span class="label">Hostname:</span>
-                    <span class="value">${summary.hostname || 'N/A'}</span>
-                </div>
-                <div class="summary-item">
-                    <span class="label">Org ID:</span>
-                    <span class="value">${summary.orgId || 'N/A'}</span>
-                </div>
-                <div class="summary-item">
+                <div class="summary-item" title="${summary.orgId}">
                     <span class="label">User ID:</span>
                     <span class="value">${summary.userId || 'N/A'}</span>
                 </div>
-                <div class="summary-item">
+                <div class="summary-item" title="${summary.hostname}">
                     <span class="label">Username:</span>
                     <span class="value">${summary.username || 'N/A'}</span>
                 </div>
