@@ -468,6 +468,9 @@ export class SoqlPanelView implements vscode.WebviewViewProvider {
                             <path fill="currentColor" d="M3.5 3v10l9-5-9-5z"/>
                         </svg>
                     </button>
+                    <button id="copyAsCsvButton" title="Copy as CSV" style="margin-left: 4px;" disabled>
+                        Copy CSV
+                    </button>
                 </div>
             </div>
             <div class="query-section">
@@ -490,6 +493,7 @@ export class SoqlPanelView implements vscode.WebviewViewProvider {
                     const vscode = acquireVsCodeApi();
                     const soqlInput = document.getElementById('soqlInput');
                     const runSoqlButton = document.getElementById('runSoqlButton');
+                    const copyAsCsvButton = document.getElementById('copyAsCsvButton');
                     const statusBar = document.getElementById('statusBar');
                     const soqlResultsHeader = document.getElementById('soqlResultsHeader');
                     const soqlResultsBody = document.getElementById('soqlResultsBody');
@@ -547,6 +551,26 @@ export class SoqlPanelView implements vscode.WebviewViewProvider {
                         });
                     });
 
+                    copyAsCsvButton.addEventListener('click', () => {
+                        const headers = Array.from(soqlResultsHeader.querySelectorAll('th')).map(th => th.textContent);
+                        const rows = Array.from(soqlResultsBody.querySelectorAll('tr')).map(row => 
+                            Array.from(row.querySelectorAll('td')).map(td => td.textContent)
+                        );
+                        
+                        const csvContent = [
+                            headers.join(','),
+                            ...rows.map(row => row.join(','))
+                        ].join('\\n');
+                        
+                        navigator.clipboard.writeText(csvContent).then(() => {
+                            const originalText = statusBar.textContent;
+                            statusBar.textContent = 'Results copied to clipboard as CSV';
+                            setTimeout(() => {
+                                statusBar.textContent = originalText;
+                            }, 2000);
+                        });
+                    });
+
                     window.addEventListener('message', event => {
                         const message = event.data;
                         switch (message.command) {
@@ -559,6 +583,7 @@ export class SoqlPanelView implements vscode.WebviewViewProvider {
                                 statusBar.textContent = message.message;
                                 soqlResultsHeader.innerHTML = '';
                                 soqlResultsBody.innerHTML = '';
+                                copyAsCsvButton.disabled = true;
                                 break;
                             case 'updateOrgList':
                                 updateOrgListUI(message.orgs || {}, message.fromCache, message.selectedOrg);
@@ -598,6 +623,7 @@ export class SoqlPanelView implements vscode.WebviewViewProvider {
                             statusBar.textContent = 'No results';
                             soqlResultsHeader.innerHTML = '';
                             soqlResultsBody.innerHTML = '';
+                            copyAsCsvButton.disabled = true;
                             return;
                         }
 
@@ -613,6 +639,7 @@ export class SoqlPanelView implements vscode.WebviewViewProvider {
                         ).join('');
 
                         statusBar.textContent = results.records.length + ' rows';
+                        copyAsCsvButton.disabled = false;
                     }
 
                     //#region CACHE
