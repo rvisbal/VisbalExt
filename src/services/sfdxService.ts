@@ -28,8 +28,12 @@ export class SfdxService {
     //#region Core Functionality
 	private async _executeCommand(command: string): Promise<string> {
         try {
-            console.log(`[VisbalExt.SfdxService] _executeCommand BEGIN  : ${command}`);
+            console.log(`[VisbalExt.SfdxService] _executeCommand BEGIN... : ${command}`);
             const { stdout: result, stderr } = await execPromise(command, { maxBuffer: 1024 * 1024 * 10 });
+            console.log(`[VisbalExt.SfdxService] _executeCommand result: `, result);
+            console.log(`[VisbalExt.SfdxService] _executeCommand stderr: `, stderr);
+            return result;
+            /*
             if (stderr) {
                 console.warn(`[MetadataService] _executeCommand Command produced stderr: ${stderr}`);
                 // Only throw if it seems like a real error, as some commands output warnings to stderr
@@ -53,9 +57,16 @@ export class SfdxService {
             } else {
                 throw new Error('Executing executeCliCommand failed');
             }
-        } catch (error) {
+                */
+        } catch (error: any) {
             console.error(`[VisbalExt.SfdxService] _executeCommand Error ERROR: ${command}`, error);
-            throw error;
+            console.log(`[VisbalExt.SfdxService] _executeCommand Error stdout: `, error.stdout);
+            if (error.stdout) {
+                return error.stdout;
+            } 
+            else {
+                throw new Error(`Failed _executeCommand`);
+            }
         }
     }
 	
