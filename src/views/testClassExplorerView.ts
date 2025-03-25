@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import { StatusBarService } from '../services/statusBarService';
 import { MetadataService, TestMethod } from '../services/metadataService';
+import { SfdxService } from '../services/sfdxService';
 import { StorageService } from '../services/storageService';
 import { TestClass } from '../types/testClass';
 import { join } from 'path';
@@ -65,6 +66,7 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
     private _orgUtils = OrgUtils;
     private _testRunResultsView: TestRunResultsView;
     private _testResultsView: TestResultsView;
+    private _sfdxService: SfdxService;
 
     constructor(
         extensionUri: vscode.Uri,
@@ -81,6 +83,7 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
         this._testItems = new Map();
         this._testRunResultsView = testRunResultsView;
         this._testResultsView = testResultsView;
+        this._sfdxService = new SfdxService();
     }
 
     public resolveWebviewView(
@@ -359,12 +362,12 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
             this._statusBarService.showMessage(`$(sync~spin) Running tests in ${testClass}...`);
 
             console.log('[VisbalExt.TestClassExplorerView] _runTest -- Calling MetadataService.runTests');
-            const result = await this._metadataService.runTests(testClass, testMethod);
+            const result = await this._sfdxService.runTests(testClass, testMethod);
             console.log('[VisbalExt.TestClassExplorerView] _runTest -- Test execution completed. Result:', result);
 
             if (result && result.testRunId) {
-                console.log('[VisbalExt.TestClassExplorerView] _runTestFetching test run details for:', result.testRunId);
-                const testRunResult = await this._metadataService.getTestRunResult(result.testRunId);
+                console.log('[VisbalExt.TestClassExplorerView] _runTest test run details for:', result.testRunId);
+                const testRunResult = await this._sfdxService.getTestRunResult(result.testRunId);
                 console.log('[VisbalExt.TestClassExplorerView] _runTest -- testRunResult:', testRunResult);
                 console.log('[VisbalExt.TestClassExplorerView] _runTest -- testRunResult.summary:', testRunResult.summary);
 
@@ -512,8 +515,8 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                                 if (result && result.testRunId) {
                                     try {
                                         const [testRunResult, logId] = await Promise.all([
-                                            this._metadataService.getTestRunResult(result.testRunId),
-                                            this._metadataService.getTestLogId(result.testRunId)
+                                            this._sfdxService.getTestRunResult(result.testRunId),
+                                            this._sfdxService.getTestLogId(result.testRunId)
                                         ]);
                                         console.log('[VisbalExt.TestClassExplorerView] _runSelectedTests.parallel -- testRunResult:', testRunResult);
                                         console.log('[VisbalExt.TestClassExplorerView] _runSelectedTests.parallel -- logId:', logId);
@@ -589,12 +592,12 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
 						// Create an async function to handle test execution and log downloading in parallel
 						const handleTestAndLog = async () => {
 							try {
-								const result = await this._metadataService.runTests(className, methodName);
+								const result = await this._sfdxService.runTests(className, methodName);
                                 console.log('[VisbalExt.TestClassExplorerView] _runSelectedTests.sequentially -- result:', result);
 								if (result && result.testRunId) {
 									const [testRunResult, logId] = await Promise.all([
-										this._metadataService.getTestRunResult(result.testRunId),
-										this._metadataService.getTestLogId(result.testRunId)
+										this._sfdxService.getTestRunResult(result.testRunId),
+										this._sfdxService.getTestLogId(result.testRunId)
 									]);
                                     console.log('[VisbalExt.TestClassExplorerView] _runSelectedTests.sequentially -- testRunResult:', testRunResult);
                                     console.log('[VisbalExt.TestClassExplorerView] _runSelectedTests.sequentially -- logId:', logId);
@@ -668,8 +671,8 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
 
 											const pollWithBackoff = async () => {
 												try {
-													const testRunResult = await this._metadataService.getTestRunResult(testRunId);
-													const logId = await this._metadataService.getTestLogId(testRunId);
+													const testRunResult = await this._sfdxService.getTestRunResult(testRunId);
+													const logId = await this._sfdxService.getTestLogId(testRunId);
                                                     console.log('[VisbalExt.TestClassExplorerView] _runSelectedTests.sequentially POLL ${className}.${methodName} testRunId:${testRunId} logId:${logId} testRunResult:', testRunResult);
 													// If we get here, we have results
 													for (const t of testRunResult.tests) {
@@ -768,11 +771,11 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
         try {
             console.log(`[VisbalExt.TestClassExplorerView] Executing test: ${className}.${methodName}`);
             
-            const result = await this._metadataService.runTests(className, methodName);
+            const result = await this._sfdxService.runTests(className, methodName);
             if (result && result.testRunId) {
                 const [testRunResult, logId] = await Promise.all([
-                    this._metadataService.getTestRunResult(result.testRunId),
-                    this._metadataService.getTestLogId(result.testRunId)
+                    this._sfdxService.getTestRunResult(result.testRunId),
+                    this._sfdxService.getTestLogId(result.testRunId)
                 ]);
 
                 if (logId) {

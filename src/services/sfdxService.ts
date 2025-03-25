@@ -21,17 +21,40 @@ interface ExecResult {
 
 export class SfdxService {
     private orgAliasCache: { alias: string; timestamp: number } | null = null;
-    private readonly CACHE_EXPIRATION = 5 * 60 * 1000; // 5 minutes in milliseconds
+    private readonly CACHE_EXPIRATION = 15 * 60 * 1000; // 5 minutes in milliseconds
 
     constructor() {}
 
     //#region Core Functionality
 	private async _executeCommand(command: string): Promise<string> {
         try {
-            const { stdout } = await execPromise(command, { maxBuffer: 1024 * 1024 * 10 });
-            return stdout;
+            console.log(`[VisbalExt.SfdxService] _executeCommand BEGIN  : ${command}`);
+            const { stdout: result, stderr } = await execPromise(command, { maxBuffer: 1024 * 1024 * 10 });
+            if (stderr) {
+                console.warn(`[MetadataService] _executeCommand Command produced stderr: ${stderr}`);
+                // Only throw if it seems like a real error, as some commands output warnings to stderr
+                if (stderr.includes('Error:') || stderr.includes('error:')) {
+                    throw new Error(stderr);
+                }
+            }
+            if (result && result.trim()) {
+                try {
+                    return result;                   
+                } catch (parseError: any) {
+                    console.error('[VisbalExt.MetadataService] executeCliCommand execAsync 1 parseError:', parseError);
+                    console.log('[VisbalExt.MetadataService] executeCliCommand execAsync 1 parseError.message:', parseError.message);
+                    console.log('[VisbalExt.MetadataService] executeCliCommand execAsync 1 parseError.stack:', parseError.stack);     
+                  
+                    throw new Error(parseError.message);
+                    //const parseError1 = JSON.parse(parseError);
+                    //console.error('[VisbalExt.MetadataService] executeCliCommand parseError1:', parseError1);
+                    //throw new Error('Failed to parse org info. Please ensure Salesforce CLI is properly installed.');
+                }
+            } else {
+                throw new Error('Executing executeCliCommand failed');
+            }
         } catch (error) {
-            //console.error(`[VisbalExt.SfdxService] _executeCommand Error executing command: ${command}`, error);
+            console.error(`[VisbalExt.SfdxService] _executeCommand Error ERROR: ${command}`, error);
             throw error;
         }
     }
@@ -66,10 +89,10 @@ export class SfdxService {
                 
                 console.log('[VisbalExt.SfdxService] getCurrentUserId command:', command);
                 const userIdResult = await this._executeCommand(command);
-                console.log(`[VisbalExt.SfdxService] User ID result: ${userIdResult}`);
+                console.log(`[VisbalExt.SfdxService] getCurrentUserId User ID result: ${userIdResult}`);
                 const userIdJson = JSON.parse(userIdResult);
                 userId = userIdJson.result.id;
-                console.log(`[VisbalExt.SfdxService] Current user ID: ${userId}`);
+                console.log(`[VisbalExt.SfdxService] getCurrentUserId Current user ID: ${userId}`);
             } catch (error) {
                 console.error('[VisbalExt.SfdxService] getCurrentUserId Error getting user ID with new CLI format:', error);
                 let command = 'sfdx force:user:display';
@@ -98,13 +121,17 @@ export class SfdxService {
     //#region Organization Management
     public async getCurrentOrgAlias(): Promise<string> {
         try {
+            console.log('[VisbalExt.SfdxService] getCurrentOrgAlias -- BEGIN', this.orgAliasCache);
             // Check cache first
             if (this.orgAliasCache && (Date.now() - this.orgAliasCache.timestamp) < this.CACHE_EXPIRATION) {
                 console.log('[VisbalExt.SfdxService] getCurrentOrgAlias -- Returning cached alias:', this.orgAliasCache.alias);
                 return this.orgAliasCache.alias;
             }
+            else if (this.orgAliasCache) {
+                console.log(`[VisbalExt.SfdxService] getCurrentOrgAlias --${(Date.now() - this.orgAliasCache.timestamp)} this.CACHE_EXPIRATION:${this.CACHE_EXPIRATION} this.orgAliasCache`, this.orgAliasCache);
+            }
 
-            console.log('[VisbalExt.SfdxService] getCurrentOrgAlias -- Getting current org alias');
+            console.log('[VisbalExt.SfdxService] getCurrentOrgAlias -- NOT CACHED Getting current org alias');
             const command = 'sf org display --json';
             console.log('[VisbalExt.SfdxService] getCurrentOrgAlias -- command:', command);
             const orgInfo = await this._executeCommand(command);
@@ -113,6 +140,7 @@ export class SfdxService {
             if (result.status === 0 && result.result) {
                 // Use alias if available, otherwise use username
                 const alias = result.result.alias || result.result.username;
+                console.log('[VisbalExt.SfdxService] getCurrentOrgAlias -- alias:', alias);
                 if (!alias) {
                     throw new Error('No org alias or username found');
                 }
@@ -122,13 +150,13 @@ export class SfdxService {
                     alias,
                     timestamp: Date.now()
                 };
-                console.log('[VisbalExt.SfdxService] getCurrentOrgAlias -- Cached new alias:', alias);
+                console.log('[VisbalExt.SfdxService] getCurrentOrgAlias -- CACHED & RETURN alias:', alias);
                 
                 return alias;
             }
             throw new Error('No default org set');
         } catch (error) {
-            console.error('[VisbalExt.CacheService] Error getting current org alias:', error);
+            console.error('[VisbalExt.SfdxService] getCurrentOrgAlias Error getting current org alias:', error);
             throw error;
         }
     }
@@ -971,24 +999,25 @@ export class SfdxService {
     public async runTests(testClass: string, testMethod?: string, useDefaultOrg: boolean = false): Promise<any> {
         const startTime = Date.now();
         try {
-            console.log(`[VisbalExt.SfdxService] Starting test execution at ${new Date(startTime).toISOString()}`);
-            console.log(`[VisbalExt.SfdxService] Running tests for class: ${testClass}${testMethod ? `, method: ${testMethod}` : ''}`);
+            console.log(`[VisbalExt.SfdxService] runTests -- START at ${new Date(startTime).toISOString()}`);
+            console.log(`[VisbalExt.SfdxService] runTests -- RUNNIND class: ${testClass}${testMethod ? `, method: ${testMethod}` : ''}`);
             
             let command = testMethod
                 ? `sf apex run test --tests ${testClass}.${testMethod} --json`
                 : `sf apex run test --class-names ${testClass} --json`;
             
             const selectedOrg = await OrgUtils.getSelectedOrg();
+            console.log(`[VisbalExt.SfdxService] runTests -- Selected org:`, selectedOrg);
             if (!useDefaultOrg && selectedOrg?.alias) {
                 command += ` --target-org ${selectedOrg.alias}`;
             }
-            console.log(`[VisbalExt.SfdxService] runTests Executing command: ${command}`);
+            console.log(`[VisbalExt.SfdxService] runTests -- _executeCommand: ${command}`);
             const output = await this._executeCommand(command);
             const result = JSON.parse(output).result;
             
             const endTime = Date.now();
-            console.log(`[VisbalExt.SfdxService] runTests -- Test execution completed in ${endTime - startTime}ms`);
-            console.log('[VisbalExt.SfdxService] runTests -- Test run result:', result);
+            console.log(`[VisbalExt.SfdxService] runTests -- TIME COMPLETED: ${endTime - startTime}ms`);
+            console.log('[VisbalExt.SfdxService] runTests -- RETURN RESULT:', result);
             
             return result;
         } catch (error: any) {
@@ -1014,28 +1043,28 @@ export class SfdxService {
     public async getTestRunResult(testRunId: string): Promise<any> {
         const startTime = Date.now();
         try {
-            console.log(`[VisbalExt.SfdxService] Getting test run result at ${new Date(startTime).toISOString()}`);
-            console.log('[VisbalExt.SfdxService] Test run ID:', testRunId);
+            console.log(`[VisbalExt.SfdxService] getTestRunResult Getting test run result at ${new Date(startTime).toISOString()}`);
+            console.log('[VisbalExt.SfdxService] getTestRunResult Test run ID:', testRunId);
             
             // Get the test run details
             let command = `sf apex get test --test-run-id ${testRunId}`;
             const selectedOrg = await OrgUtils.getSelectedOrg();
             if (selectedOrg?.alias) {
-                //command += ` --target-org ${selectedOrg.alias}`;
+                command += ` --target-org ${selectedOrg.alias}`;
             }
             command += ' --json';
-            console.log(`[VisbalExt.SfdxService] Executing command: ${command}`);
+            console.log(`[VisbalExt.SfdxService] getTestRunResult Executing command: ${command}`);
             const result = await this._executeCommand(command);
             const parsedResult = JSON.parse(result);
             
             const endTime = Date.now();
-            console.log(`[VisbalExt.SfdxService] Test run result retrieved in ${endTime - startTime}ms`);
-            console.log('[VisbalExt.SfdxService] Test run details:', parsedResult);
+            console.log(`[VisbalExt.SfdxService] getTestRunResult TIME in ${endTime - startTime}ms`);
+            console.log('[VisbalExt.SfdxService] getTestRunResult RETURN RESULT:', parsedResult);
             
             return parsedResult.result || null;
         } catch (error) {
             const endTime = Date.now();
-            console.error(`[VisbalExt.SfdxService] Error getting test run result after ${endTime - startTime}ms:`, error);
+            console.error(`[VisbalExt.SfdxService] getTestRunResult Error getting test run result after ${endTime - startTime}ms:`, error);
             throw error;
         }
     }
@@ -1061,7 +1090,7 @@ export class SfdxService {
             const parsedResult = JSON.parse(result);
             
             if (!parsedResult.result) {
-                console.warn('[VisbalExt.SfdxService] No test log content found');
+                console.warn('[VisbalExt.SfdxService] getTestLog No test log content found');
                 return '';
             }
 
@@ -1073,10 +1102,10 @@ export class SfdxService {
                              parsedResult.result.tests?.[0]?.outcome ||
                              '';
 
-            console.log('[VisbalExt.SfdxService] Successfully retrieved test log content');
+            console.log('[VisbalExt.SfdxService] getTestLog Successfully retrieved test log content');
             return logContent;
         } catch (error) {
-            console.error('[VisbalExt.SfdxService] Error getting test log:', error);
+            console.error('[VisbalExt.SfdxService] getTestLog Error getting test log:', error);
             // Return empty string instead of throwing to maintain consistent return type
             return '';
         }
@@ -1095,16 +1124,16 @@ export class SfdxService {
             let command = `sf apex get test --test-run-id ${apexId} `;
             const selectedOrg = await OrgUtils.getSelectedOrg();
             if (selectedOrg?.alias) {
-                //command += ` --target-org ${selectedOrg.alias}`;
+                command += ` --target-org ${selectedOrg.alias}`;
             }
             command += ' --json';
-            console.log(`[VisbalExt.SfdxService] Executing command: ${command}`);
+            console.log(`[VisbalExt.SfdxService] getTestLogId Executing command: ${command}`);
 
             const testRunDetailsResult = await this._executeCommand(command);
             const testRunDetails = JSON.parse(testRunDetailsResult);
 
             if (!testRunDetails?.result?.summary?.testStartTime) {
-                console.warn('[VisbalExt.SfdxService] No test start time found in test run details');
+                console.warn('[VisbalExt.SfdxService] getTestLogId No test start time found in test run details');
                 return '';
             }
 
@@ -1115,7 +1144,7 @@ export class SfdxService {
             const logList = JSON.parse(logListResult);
 
             if (!logList?.result || !logList.result[0]?.Id) {
-                console.warn('[VisbalExt.SfdxService] No logs found');
+                console.warn('[VisbalExt.SfdxService] getTestLogId No logs found');
                 return '';
             }
 
@@ -1133,16 +1162,16 @@ export class SfdxService {
      */
     public async getTestRunLog(testRunId: string): Promise<any> {
         try {
-            console.log('[VisbalExt.SfdxService] Fetching logs for completed test run:', testRunId);
+            console.log('[VisbalExt.SfdxService] getTestRunLog Fetching logs for completed test run:', testRunId);
             
             // First verify the test run has completed
             let command = `sf apex get test --test-run-id ${testRunId} `;
             const selectedOrg = await OrgUtils.getSelectedOrg();
             if (selectedOrg?.alias) {
-                //command += ` --target-org ${selectedOrg.alias}`;
+                command += ` --target-org ${selectedOrg.alias}`;
             }
             command += ' --json';
-            console.log(`[VisbalExt.SfdxService] Executing command: ${command}`);
+            console.log(`[VisbalExt.SfdxService] getTestRunLog Executing command: ${command}`);
 
             const testResult = await this._executeCommand(command);
             const parsedTestResult = JSON.parse(testResult);
@@ -1201,16 +1230,16 @@ export class SfdxService {
                         }
                     }
                 } else {
-                    console.warn('[VisbalExt.SfdxService] No matching logs found for test run');
+                    console.warn('[VisbalExt.SfdxService] getTestRunLog No matching logs found for test run');
                 }
             } catch (logError) {
-                console.error('[VisbalExt.SfdxService] Error fetching test run log:', logError);
+                console.error('[VisbalExt.SfdxService] getTestRunLog Error fetching test run log:', logError);
                 throw logError;
             }
 
             return null;
         } catch (error) {
-            console.error('[VisbalExt.SfdxService] Error getting test run log:', error);
+            console.error('[VisbalExt.SfdxService] getTestRunLog Error getting test run log:', error);
             throw error;
         }
     }

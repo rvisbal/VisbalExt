@@ -214,12 +214,12 @@ export class TestRunResultsProvider implements vscode.TreeDataProvider<TestItem>
                 // Auto-update class status if all methods are complete
                 if (classItem.areAllChildrenComplete()) {
                     const newStatus = classItem.hasFailedChildren() ? 'failed' : 'success';
-                    console.log(`[VisbalExt.TestRunResultsProvider] Auto-updating class status to ${newStatus}`);
+                    console.log(`[VisbalExt.TestRunResultsProvider] updateMethodStatus Auto-updating class status to ${newStatus}`);
                     classItem.updateStatus(newStatus);
                 }
                 
                 const endTime = Date.now();
-                console.log(`[VisbalExt.TestRunResultsProvider] Method status updated in ${endTime - startTime}ms, scheduling refresh`);
+                console.log(`[VisbalExt.TestRunResultsProvider] updateMethodStatus Method status updated in ${endTime - startTime}ms, scheduling refresh`);
                 this.scheduleRefresh();
 
                 // Reveal the updated method
@@ -227,10 +227,10 @@ export class TestRunResultsProvider implements vscode.TreeDataProvider<TestItem>
                     this._view.reveal(methodItem, { focus: true, select: true });
                 }
             } else {
-                console.warn(`[VisbalExt.TestRunResultsProvider] Method ${methodName} not found in class ${className}`);
+                console.warn(`[VisbalExt.TestRunResultsProvider] updateMethodStatus Method ${methodName} not found in class ${className}`);
             }
         } else {
-            console.warn(`[VisbalExt.TestRunResultsProvider] Class ${className} not found in test runs`);
+            console.warn(`[VisbalExt.TestRunResultsProvider] updateMethodStatus Class ${className} not found in test runs`);
         }
     }
 
@@ -240,14 +240,14 @@ export class TestRunResultsProvider implements vscode.TreeDataProvider<TestItem>
         
         const classItem = this.testRuns.get(className);
         if (classItem) {
-            console.log(`[VisbalExt.TestRunResultsProvider] Found class item, updating status`);
+            console.log(`[VisbalExt.TestRunResultsProvider] updateClassStatus Found class item, updating status`);
             classItem.updateStatus(status);
             
             // Track this update
             this.pendingUpdates.add(className);
             
             const endTime = Date.now();
-            console.log(`[VisbalExt.TestRunResultsProvider] Class status updated in ${endTime - startTime}ms, scheduling refresh`);
+            console.log(`[VisbalExt.TestRunResultsProvider] updateClassStatus Class status updated in ${endTime - startTime}ms, scheduling refresh`);
             this.scheduleRefresh();
 
             // Reveal the updated class
@@ -255,7 +255,7 @@ export class TestRunResultsProvider implements vscode.TreeDataProvider<TestItem>
                 this._view.reveal(classItem, { focus: true, select: true });
             }
         } else {
-            console.warn(`[VisbalExt.TestRunResultsProvider] Class ${className} not found in test runs`);
+            console.warn(`[VisbalExt.TestRunResultsProvider] updateClassStatus Class ${className} not found in test runs`);
         }
     }
 
