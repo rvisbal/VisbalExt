@@ -72,6 +72,17 @@ export function activate(context: vscode.ExtensionContext) {
     outputChannel.appendLine('[VisbalExt.Extension] Initializing TestRunResultsView');
     testRunResultsView = new TestRunResultsView(context);
 
+    // Register rerun all tests command
+    context.subscriptions.push(
+      vscode.commands.registerCommand('visbal-ext.rerunAllTests', () => {
+        if (testRunResultsView) {
+          testRunResultsView.rerunAllTests();
+        } else {
+          vscode.window.showErrorMessage('Test run results view is not initialized');
+        }
+      })
+    );
+
     // Initialize test results view
     console.log('[VisbalExt.Extension] Initializing TestResultsView');
     outputChannel.appendLine('[VisbalExt.Extension] Initializing TestResultsView');

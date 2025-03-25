@@ -178,12 +178,22 @@
         "title": "Show Log Summary",
         "category": "Visbal",
         "icon": "$(preview)"
+      },
+      {
+        "command": "visbal-ext.rerunAllTests",
+        "title": "Rerun All Tests",
+        "icon": "$(refresh)"
       }
     ],
     "menus": {
       "view/title": [
         {
           "command": "visbal.clearConsole",
+          "group": "navigation"
+        },
+        {
+          "command": "visbal-ext.rerunAllTests",
+          "when": "view == testRunResults",
           "group": "navigation"
         }
       ],

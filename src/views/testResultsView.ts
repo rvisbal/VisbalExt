@@ -136,6 +136,38 @@ export class TestResultsView implements vscode.WebviewViewProvider {
                     padding-bottom: 5px;
                     border-bottom: 1px solid var(--vscode-panel-border);
                 }
+                .test-result {
+                    margin: 15px 0;
+                    padding: 10px;
+                    border: 1px solid var(--vscode-panel-border);
+                    border-radius: 4px;
+                }
+                .test-result .label {
+                    display: block;
+                    margin-bottom: 5px;
+                    font-weight: bold;
+                }
+                .test-result .value {
+                    display: block;
+                    margin-bottom: 10px;
+                    white-space: pre-wrap;
+                    font-family: var(--vscode-editor-font-family);
+                }
+                .stack-trace {
+                    margin-top: 10px;
+                    padding: 10px;
+                    background-color: var(--vscode-editor-background);
+                    border-radius: 4px;
+                    font-family: var(--vscode-editor-font-family);
+                    white-space: pre-wrap;
+                    max-height: 200px;
+                    overflow-y: auto;
+                    border: 1px solid var(--vscode-panel-border);
+                }
+                .error-message {
+                    color: var(--vscode-testing-message-error-foreground);
+                    margin-bottom: 10px;
+                }
             </style>
         </head>
         <body>
@@ -199,16 +231,40 @@ export class TestResultsView implements vscode.WebviewViewProvider {
                 </div>
             </div>
             <div class="test-results-container">
-                ${tests.map(test => `
+                ${tests.map(test => {
+                    // Format the error message and stack trace
+                    let formattedMessage = '';
+                    let formattedStackTrace = '';
+                    if (test.Message || test.StackTrace) {
+                        const parts = (test.Message + '\nStackTrace:' + test.StackTrace).split('StackTrace:');
+                        if (parts.length === 2) {
+                            formattedMessage = parts[0].trim().replace(/^System\.[^:]+:/, '').trim();
+                            formattedStackTrace = parts[1]
+                                .split('\n')
+                                .map(line => line.trim())
+                                .filter(line => line.length > 0)
+                                .map(line => '    ' + line)
+                                .join('\n');
+                        } else {
+                            formattedMessage = test.Message || '';
+                            formattedStackTrace = test.StackTrace || '';
+                        }
+                    }
+
+                    return `
                     <div class="test-result">
-                        <span class="label">Class:</span>    
-                        <span class="value">${test.FullName }</span>
-                        <span class="label">Message:</span>
-                        <span class="value">${test.Message}</span>
-                        <span class="label">StackTrace:</span>
-                        <span class="value">${test.StackTrace}</span>
+                        <span class="label">Class:</span>
+                        <span class="value">${test.FullName}</span>
+                        ${formattedMessage ? `
+                            <span class="label">Error Message:</span>
+                            <div class="error-message">${formattedMessage}</div>
+                        ` : ''}
+                        ${formattedStackTrace ? `
+                            <span class="label">Stack Trace:</span>
+                            <div class="stack-trace">${formattedStackTrace}</div>
+                        ` : ''}
                     </div>
-                `).join('')}
+                `}).join('')}
             </div>
         </body>
         </html>`;

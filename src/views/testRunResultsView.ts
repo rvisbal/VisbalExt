@@ -116,10 +116,10 @@ export class TestRunResultsProvider implements vscode.TreeDataProvider<TestItem>
     private _onDidChangeTreeData: vscode.EventEmitter<TestItem | undefined | null | void> = new vscode.EventEmitter<TestItem | undefined | null | void>();
     readonly onDidChangeTreeData: vscode.Event<TestItem | undefined | null | void> = this._onDidChangeTreeData.event;
 
-    private testRuns: Map<string, TestItem> = new Map();
+    private testRuns = new Map<string, TestItem>();
     private refreshTimer: NodeJS.Timeout | undefined;
     private pendingUpdates: Set<string> = new Set(); // Track pending updates
-    private _view: vscode.TreeView<TestItem> | undefined;
+    private _view?: vscode.TreeView<TestItem>;
 
     constructor() {
         console.log('[VisbalExt.TestRunResultsProvider] Initializing provider');
@@ -263,6 +263,10 @@ export class TestRunResultsProvider implements vscode.TreeDataProvider<TestItem>
         this.testRuns.clear();
         this._onDidChangeTreeData.fire();
     }
+
+    public getTestRuns(): Map<string, TestItem> {
+        return this.testRuns;
+    }
 }
 
 export class TestRunResultsView {
@@ -298,5 +302,19 @@ export class TestRunResultsView {
 
     clear() {
         this.provider.clear();
+    }
+
+    // Add rerunAllTests method
+    public rerunAllTests() {
+        const testRuns = this.provider.getTestRuns();
+        if (testRuns.size === 0) {
+            vscode.window.showInformationMessage('No tests to rerun');
+            return;
+        }
+
+        // Trigger rerun for each test class
+        for (const [className, classItem] of testRuns) {
+            vscode.commands.executeCommand('visbal-ext.rerunTest', classItem);
+        }
     }
 } 
