@@ -67,10 +67,15 @@ export class TestSummaryView implements vscode.WebviewViewProvider {
         webviewView.webview.html = this._getInitialContent();
     }
 
-    public updateSummary(summary: TestSummary, tests: TestResult[]) {
+    public updateSummary(summary: TestSummary | TestSummary[], tests: TestResult[]) {
         console.log('[VisbalExt.TestSummaryView] updateSummary -- summary:', summary);
         if (this._view) {
-            this._view.webview.html = this._getWebviewContent(summary, tests);
+            // Check if we have multiple summaries
+            if (Array.isArray(summary)) {
+                this._view.webview.html = this._getWebviewContentForMultipleTests(summary, tests);
+            } else {
+                this._view.webview.html = this._getWebviewContent(summary, tests);
+            }
             this._view.show?.(true); // Reveal the view
         }
     }
@@ -96,6 +101,185 @@ export class TestSummaryView implements vscode.WebviewViewProvider {
         </head>
         <body>
             <div class="message">No test results available</div>
+        </body>
+        </html>`;
+    }
+
+    private _getWebviewContentForMultipleTests(summaries: TestSummary[], tests: TestResult[]): string {
+        // Calculate aggregate summary
+        const aggregateSummary = {
+            testsRan: summaries.reduce((total, s) => total + (s.testsRan || 0), 0),
+            passing: summaries.reduce((total, s) => total + (s.passing || 0), 0),
+            failing: summaries.reduce((total, s) => total + (s.failing || 0), 0),
+            skipped: summaries.reduce((total, s) => total + (s.skipped || 0), 0),
+            testTotalTime: summaries.reduce((total, s) => total + parseFloat(s.testTotalTime || '0'), 0).toFixed(2),
+            outcome: summaries.some(s => s.outcome === 'Failed') ? 'Failed' : 'Passed',
+        };
+
+        // Calculate pass/fail rates
+        const totalTests = aggregateSummary.testsRan;
+        const passRate = totalTests > 0 ? ((aggregateSummary.passing / totalTests) * 100).toFixed(1) + '%' : '0%';
+        const failRate = totalTests > 0 ? ((aggregateSummary.failing / totalTests) * 100).toFixed(1) + '%' : '0%';
+
+        return `<!DOCTYPE html>
+        <html lang="en">
+        <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <style>
+                body {
+                    font-family: var(--vscode-font-family);
+                    padding: 10px;
+                    color: var(--vscode-foreground);
+                }
+                .summary-container {
+                    margin-bottom: 20px;
+                    padding: 15px;
+                    background-color: var(--vscode-editor-background);
+                    border: 1px solid var(--vscode-panel-border);
+                    border-radius: 4px;
+                }
+                .summary-header {
+                    font-size: 1.2em;
+                    margin-bottom: 15px;
+                    padding-bottom: 5px;
+                    border-bottom: 1px solid var(--vscode-panel-border);
+                    color: var(--vscode-panelTitle-activeForeground);
+                }
+                .summary-item {
+                    margin: 5px 0;
+                    display: flex;
+                    justify-content: space-between;
+                    align-items: center;
+                }
+                .label {
+                    color: var(--vscode-descriptionForeground);
+                    margin-right: 10px;
+                }
+                .value {
+                    color: var(--vscode-foreground);
+                }
+                .success {
+                    color: var(--vscode-testing-iconPassed);
+                }
+                .failure {
+                    color: var(--vscode-testing-iconFailed);
+                }
+                .test-results-grid {
+                    display: grid;
+                    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+                    gap: 15px;
+                    margin-top: 20px;
+                }
+                .test-result {
+                    padding: 10px;
+                    border: 1px solid var(--vscode-panel-border);
+                    border-radius: 4px;
+                    background-color: var(--vscode-editor-background);
+                }
+                .test-result .header {
+                    font-weight: bold;
+                    margin-bottom: 10px;
+                    padding-bottom: 5px;
+                    border-bottom: 1px solid var(--vscode-panel-border);
+                }
+                .test-result .content {
+                    margin-left: 10px;
+                }
+                .error-message {
+                    color: var(--vscode-testing-message-error-foreground);
+                    margin: 5px 0;
+                    padding: 5px;
+                    background-color: var(--vscode-testing-message-error-background);
+                    border-radius: 3px;
+                }
+                .stack-trace {
+                    margin-top: 10px;
+                    padding: 10px;
+                    background-color: var(--vscode-editor-background);
+                    border-radius: 4px;
+                    font-family: var(--vscode-editor-font-family);
+                    white-space: pre-wrap;
+                    max-height: 150px;
+                    overflow-y: auto;
+                    font-size: 0.9em;
+                    border: 1px solid var(--vscode-panel-border);
+                }
+                .progress-bar {
+                    height: 4px;
+                    background-color: var(--vscode-progressBar-background);
+                    margin: 10px 0;
+                    border-radius: 2px;
+                }
+                .progress-bar .fill {
+                    height: 100%;
+                    background-color: var(--vscode-testing-iconPassed);
+                    border-radius: 2px;
+                    transition: width 0.3s ease;
+                }
+            </style>
+        </head>
+        <body>
+            <div class="summary-container">
+                <div class="summary-header">Aggregate Test Results</div>
+                <div class="summary-item">
+                    <span class="label">Overall Status:</span>
+                    <span class="value ${aggregateSummary.outcome === 'Passed' ? 'success' : 'failure'}">${aggregateSummary.outcome}</span>
+                </div>
+                <div class="progress-bar">
+                    <div class="fill" style="width: ${passRate};"></div>
+                </div>
+                <div class="summary-item">
+                    <span class="label">Total Tests Run:</span>
+                    <span class="value">${aggregateSummary.testsRan}</span>
+                </div>
+                <div class="summary-item">
+                    <span class="label">Passing:</span>
+                    <span class="value success">${aggregateSummary.passing} (${passRate})</span>
+                </div>
+                <div class="summary-item">
+                    <span class="label">Failing:</span>
+                    <span class="value failure">${aggregateSummary.failing} (${failRate})</span>
+                </div>
+                <div class="summary-item">
+                    <span class="label">Skipped:</span>
+                    <span class="value">${aggregateSummary.skipped}</span>
+                </div>
+                <div class="summary-item">
+                    <span class="label">Total Time:</span>
+                    <span class="value">${aggregateSummary.testTotalTime}s</span>
+                </div>
+            </div>
+
+            <div class="test-results-grid">
+                ${tests.filter(test => test.Message || test.StackTrace).map(test => {
+                    const formattedMessage = test.Message?.trim().replace(/^System\.[^:]+:/, '').trim() || '';
+                    const formattedStackTrace = test.StackTrace?.split('\n')
+                        .map(line => line.trim())
+                        .filter(line => line.length > 0)
+                        .map(line => '    ' + line)
+                        .join('\n') || '';
+
+                    return `
+                    <div class="test-result">
+                        <div class="header ${test.Outcome?.toLowerCase() === 'pass' ? 'success' : 'failure'}">
+                            ${test.FullName || 'Unknown Test'}
+                        </div>
+                        <div class="content">
+                            <div class="summary-item">
+                                <span class="label">Status:</span>
+                                <span class="value ${test.Outcome?.toLowerCase() === 'pass' ? 'success' : 'failure'}">${test.Outcome || 'Unknown'}</span>
+                            </div>
+                            ${formattedMessage ? `
+                                <div class="error-message">${formattedMessage}</div>
+                            ` : ''}
+                            ${formattedStackTrace ? `
+                                <div class="stack-trace">${formattedStackTrace}</div>
+                            ` : ''}
+                        </div>
+                    </div>
+                `}).join('')}
+            </div>
         </body>
         </html>`;
     }

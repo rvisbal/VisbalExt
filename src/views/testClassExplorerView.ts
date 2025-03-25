@@ -740,7 +740,11 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
 						console.error(`[VisbalExt.TestClassExplorer] _runSelectedTests.sequentially  Error running test method ${className}.${methodName}: ${error}`);
 						this._testRunResultsView.updateMethodStatus(className, methodName, 'failed');
 					}
+
+                   
 				}
+
+               
                 //#endregion SEQUENTIAL MODE
             }
             
