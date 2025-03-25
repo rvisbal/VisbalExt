@@ -491,8 +491,8 @@ export function getHtmlForWebview(extensionUri: vscode.Uri, webview: vscode.Webv
                 <option value="ERROR">ERROR</option>
                 <option value="WARN">WARN</option>
                 <option value="INFO">INFO</option>
-                <option value="DEBUG" selected>DEBUG</option>
-                <option value="FINE">FINE</option>
+                <option value="DEBUG" >DEBUG</option>
+                <option value="FINE" selected>FINE</option>
                 <option value="FINER">FINER</option>
                 <option value="FINEST">FINEST</option>
               </select>
@@ -521,8 +521,8 @@ export function getHtmlForWebview(extensionUri: vscode.Uri, webview: vscode.Webv
               <select id="debug-data-access" class="debug-select">
                 <option value="NONE">NONE</option>
                 <option value="WARN">WARN</option>
-                <option value="INFO" selected>INFO</option>
-                <option value="FINE">FINE</option>
+                <option value="INFO" >INFO</option>
+                <option value="FINE" selected>FINE</option>
                 <option value="FINEST">FINEST</option>
               </select>
             </div>
@@ -531,8 +531,8 @@ export function getHtmlForWebview(extensionUri: vscode.Uri, webview: vscode.Webv
               <select id="debug-database" class="debug-select">
                 <option value="NONE">NONE</option>
                 <option value="WARN">WARN</option>
-                <option value="INFO" selected>INFO</option>
-                <option value="FINE">FINE</option>
+                <option value="INFO" >INFO</option>
+                <option value="FINE" selected>FINE</option>
                 <option value="FINEST">FINEST</option>
               </select>
             </div>
@@ -739,7 +739,7 @@ export function getHtmlForWebview(extensionUri: vscode.Uri, webview: vscode.Webv
         // Debug presets
         const debugPresets = {
           default: {
-            apexCode: 'DEBUG',
+            apexCode: 'FINE',
             apexProfiling: 'INFO',
             callout: 'INFO',
             dataAccess: 'INFO',

@@ -1308,11 +1308,11 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
 
             // Create debug level values
             const debugLevelValues: Record<string, string> = {
-                ApexCode: config.apexCode || 'DEBUG',
+                ApexCode: config.apexCode || 'FINE',
                 ApexProfiling: config.apexProfiling || 'INFO',
                 Callout: config.callout || 'INFO',
-                Database: config.database || 'INFO',
-                System: config.system || 'DEBUG',
+                Database: config.database || 'FINE',
+                System: config.system || 'FINE',
                 Validation: config.validation || 'INFO',
                 Visualforce: config.visualforce || 'INFO',
                 Workflow: config.workflow || 'INFO'
