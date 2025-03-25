@@ -30,8 +30,8 @@ export class SfdxService {
         try {
             console.log(`[VisbalExt.SfdxService] _executeCommand BEGIN... : ${command}`);
             const { stdout: result, stderr } = await execPromise(command, { maxBuffer: 1024 * 1024 * 10 });
-            console.log(`[VisbalExt.SfdxService] _executeCommand result: `, result);
-            console.log(`[VisbalExt.SfdxService] _executeCommand stderr: `, stderr);
+            //console.log(`[VisbalExt.SfdxService] _executeCommand result: `, result);
+            //console.log(`[VisbalExt.SfdxService] _executeCommand stderr: `, stderr);
             return result;
             /*
             if (stderr) {

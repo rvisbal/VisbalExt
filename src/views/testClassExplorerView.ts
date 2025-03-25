@@ -503,15 +503,17 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                 //#region PARALLEL MODE
                 // Run all tests in parallel and process results as they complete
                 const mainClassMap = new Map<string, Boolean>();
+                const allTestResults: any[] = [];
                 const results: TestRunResult[] = [];
 
                 // Create promises for all tests but process them as they complete
+                const testPromises = [];
                 for (const [className, methodNames] of classesWithMethods.entries()) {
                     for (const methodName of methodNames) {
                         this._testRunResultsView.updateMethodStatus(className, methodName, 'running');
                         
                         // Execute test and process its result immediately
-                        this._executeTest(className, methodName)
+                        const testPromise = this._executeTest(className, methodName)
                             .then(async (result) => {
                                 if (result && result.testRunId) {
                                     try {
@@ -521,6 +523,12 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                                         ]);
                                         console.log('[VisbalExt.TestClassExplorerView] _runSelectedTests.parallel -- testRunResult:', testRunResult);
                                         console.log('[VisbalExt.TestClassExplorerView] _runSelectedTests.parallel -- logId:', logId);
+
+                                        // Store the test result for summary
+                                        if (testRunResult && testRunResult.summary) {
+                                            allTestResults.push(testRunResult);
+                                        }
+
                                         // Process each test in the result
                                         for (const test of testRunResult.tests) {
                                             const testClassName = test.ApexClass?.Name;
@@ -557,16 +565,11 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                                             );
                                         }
 
-                                        // Add to results array for final summary
-                                        results.push(testRunResult);
-
                                         // Update the webview with current results
-                                        if (this._view) {
-                                            const combinedResult = this._combineTestResults(results);
-                                            this._view.webview.postMessage({
-                                                command: 'testResultsLoaded',
-                                                results: combinedResult
-                                            });
+                                        if (this._view && allTestResults.length > 0) {
+                                            const combinedSummary = allTestResults.map(result => result.summary);
+                                            const allTests = allTestResults.reduce((acc, result) => acc.concat(result.tests), []);
+                                            this._testSummaryView.updateSummary(combinedSummary, allTests);
                                         }
                                     } catch (error) {
                                         console.error(`[VisbalExt.TestClassExplorer] Error processing test result: ${error}`);
@@ -577,13 +580,28 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                                 console.error(`[VisbalExt.TestClassExplorer] Error executing test ${className}.${methodName}: ${error}`);
                                 this._testRunResultsView.updateMethodStatus(className, methodName, 'failed');
                             });
+
+                        testPromises.push(testPromise);
                     }
+                }
+
+                // Wait for all tests to complete
+                await Promise.all(testPromises);
+
+                // Final update with all results
+                if (allTestResults.length > 0) {
+                    const combinedSummary = allTestResults.map(result => result.summary);
+                    const allTests = allTestResults.reduce((acc, result) => acc.concat(result.tests), []);
+                    this._testSummaryView.updateSummary(combinedSummary, allTests);
+                } else {
+                    console.warn('[VisbalExt.TestClassExplorerView] _runSelectedTests.parallel -- No test results available');
                 }
                 //#endregion PARALLEL MODE
             } else {
                 //#region SEQUENTIAL MODE
                 // Run tests sequentially
                 const errorMap = new Map<string, string>();
+                const allTestResults: any[] = [];  // Store all test results
                 console.log('[VisbalExt.TestClassExplorerView] _runSelectedTests.sequentially -- tests:', tests);
                 for (const { className, methodName } of tests.methods) {
 					try {
@@ -602,6 +620,12 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
 									]);
                                     console.log('[VisbalExt.TestClassExplorerView] _runSelectedTests.sequentially -- testRunResult:', testRunResult);
                                     console.log('[VisbalExt.TestClassExplorerView] _runSelectedTests.sequentially -- logId:', logId);
+
+                                    // Store the test result for summary
+                                    if (testRunResult && testRunResult.summary) {
+                                        allTestResults.push(testRunResult);
+                                    }
+
 									const mainClassMap = new Map<string, Boolean>();
 									for (const t of testRunResult.tests) {
 										try {
@@ -744,7 +768,17 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                    
 				}
 
-               
+                // After all tests are complete, combine the results and update the summary view
+                if (allTestResults.length > 0) {
+                    // Combine all summaries
+                    const combinedSummary = allTestResults.map(result => result.summary);
+                    const allTests = allTestResults.reduce((acc, result) => acc.concat(result.tests), []);
+
+                    console.log('[VisbalExt.TestClassExplorerView] _runSelectedTests.sequentially -- Combined summary:', combinedSummary);
+                    this._testSummaryView.updateSummary(combinedSummary, allTests);
+                } else {
+                    console.warn('[VisbalExt.TestClassExplorerView] _runSelectedTests.sequentially -- No test results available');
+                }
                 //#endregion SEQUENTIAL MODE
             }
             

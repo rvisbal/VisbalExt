@@ -240,7 +240,7 @@ export class OrgUtils {
         try {
             console.log('[VisbalExt.OrgUtils] _fetchLogContent -- logId:', logId);
             const result = await this._sfdxService.getLogContent(logId);
-            console.log('[VisbalExt.OrgUtils] _fetchLogContent -- Result:', result);
+            //console.log('[VisbalExt.OrgUtils] _fetchLogContent -- Result:', result);
             const jsonResult = JSON.parse(result);
             console.log('[VisbalExt.OrgUtils] _fetchLogContent -- jsonResult:', jsonResult);
             if (jsonResult?.result) {
