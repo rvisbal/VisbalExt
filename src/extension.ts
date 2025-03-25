@@ -72,17 +72,6 @@ export function activate(context: vscode.ExtensionContext) {
     outputChannel.appendLine('[VisbalExt.Extension] Initializing TestRunResultsView');
     testRunResultsView = new TestRunResultsView(context);
 
-    // Register rerun all tests command
-    context.subscriptions.push(
-      vscode.commands.registerCommand('visbal-ext.rerunAllTests', () => {
-        if (testRunResultsView) {
-          testRunResultsView.rerunAllTests();
-        } else {
-          vscode.window.showErrorMessage('Test run results view is not initialized');
-        }
-      })
-    );
-
     // Initialize test results view
     console.log('[VisbalExt.Extension] Initializing TestResultsView');
     outputChannel.appendLine('[VisbalExt.Extension] Initializing TestResultsView');
@@ -92,25 +81,42 @@ export function activate(context: vscode.ExtensionContext) {
     console.log('[VisbalExt.Extension] Initializing TestClassExplorerView');
     outputChannel.appendLine('[VisbalExt.Extension] Initializing TestClassExplorerView');
     const testClassExplorerView = new TestClassExplorerView(
-      context.extensionUri,
-      statusBarService,
-      context,
-      testRunResultsView,
-      testResultsView
+        context.extensionUri,
+        statusBarService,
+        context,
+        testRunResultsView,
+        testResultsView
+    );
+
+    // Register test class explorer view commands
+    context.subscriptions.push(
+        vscode.commands.registerCommand('visbal-ext.testClassExplorerView.runTest', (args) => {
+            testClassExplorerView.runTest(args.testClass, args.testMethod);
+        }),
+        vscode.commands.registerCommand('visbal-ext.testClassExplorerView.runSelectedTests', (args) => {
+            testClassExplorerView.runSelectedTests(args);
+        }),
+        vscode.commands.registerCommand('visbal-ext.rerunAllTests', async () => {
+            if (testRunResultsView) {
+                await testRunResultsView.rerunAllTests();
+            } else {
+                vscode.window.showErrorMessage('Test run results view is not initialized');
+            }
+        })
     );
 
     // Register test class explorer view
     context.subscriptions.push(
-      vscode.window.registerWebviewViewProvider(
-        TestClassExplorerView.viewType,
-        testClassExplorerView
-      )
+        vscode.window.registerWebviewViewProvider(
+            TestClassExplorerView.viewType,
+            testClassExplorerView
+        )
     );
 
     // Register test run results view
     const treeView = vscode.window.createTreeView('testRunResults', {
-      treeDataProvider: testRunResultsView.getProvider(),
-      showCollapseAll: true
+        treeDataProvider: testRunResultsView.getProvider(),
+        showCollapseAll: true
     });
     context.subscriptions.push(treeView);
 

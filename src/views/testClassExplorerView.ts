@@ -2054,4 +2054,24 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
             vscode.window.showWarningMessage(`[VisbalExt.TestClassExplorerView] Could not view log for test ${testName}: ${(error as Error).message}`);
         }
     }
+
+    // Add public methods for running tests
+    public runTest(testClass: string, testMethod?: string) {
+        if (this._view) {
+            this._view.webview.postMessage({
+                command: 'runTest',
+                testClass,
+                testMethod
+            });
+        }
+    }
+
+    public runSelectedTests(tests: { classes: string[], methods: { className: string, methodName: string }[], runMode: 'sequential' | 'parallel' }) {
+        if (this._view) {
+            this._view.webview.postMessage({
+                command: 'runSelectedTests',
+                tests
+            });
+        }
+    }
 }

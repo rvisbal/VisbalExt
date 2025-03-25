@@ -181,7 +181,8 @@
       },
       {
         "command": "visbal-ext.rerunAllTests",
-        "title": "Rerun All Tests",
+        "title": "Rerun Tests",
+        "category": "Visbal",
         "icon": "$(refresh)"
       }
     ],
@@ -194,7 +195,7 @@
         {
           "command": "visbal-ext.rerunAllTests",
           "when": "view == testRunResults",
-          "group": "navigation"
+          "group": "navigation@1"
         }
       ],
       "editor/title": [

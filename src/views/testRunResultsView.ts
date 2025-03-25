@@ -281,7 +281,6 @@ export class TestRunResultsView {
             canSelectMany: false
         });
         this.provider.setTreeView(this.treeView);
-        context.subscriptions.push(this.treeView);
     }
 
     getProvider(): TestRunResultsProvider {
@@ -304,17 +303,51 @@ export class TestRunResultsView {
         this.provider.clear();
     }
 
-    // Add rerunAllTests method
-    public rerunAllTests() {
+    // Update rerunAllTests method
+    public async rerunAllTests() {
         const testRuns = this.provider.getTestRuns();
         if (testRuns.size === 0) {
             vscode.window.showInformationMessage('No tests to rerun');
             return;
         }
 
-        // Trigger rerun for each test class
-        for (const [className, classItem] of testRuns) {
-            vscode.commands.executeCommand('visbal-ext.rerunTest', classItem);
+        // Show loading message
+        const loadingMessage = vscode.window.setStatusBarMessage('$(sync~spin) Rerunning tests...');
+
+        try {
+            // Convert the Map entries to an array for easier processing
+            const tests = Array.from(testRuns.entries());
+
+            if (tests.length === 1) {
+                // Single test class scenario
+                const [className, classItem] = tests[0];
+                if (classItem.children.length === 1) {
+                    // Single method in a single class
+                    const methodName = classItem.children[0].label;
+                    await vscode.commands.executeCommand('visbal-ext.testClassExplorerView.runTest', {
+                        testClass: className,
+                        testMethod: methodName
+                    });
+                } else {
+                    // Multiple methods in a single class
+                    await vscode.commands.executeCommand('visbal-ext.testClassExplorerView.runTest', {
+                        testClass: className
+                    });
+                }
+            } else {
+                // Multiple test classes scenario
+                const testClasses = {
+                    classes: tests.map(([className]) => className),
+                    methods: [],
+                    runMode: 'sequential'
+                };
+                await vscode.commands.executeCommand('visbal-ext.testClassExplorerView.runSelectedTests', testClasses);
+            }
+        } catch (error) {
+            vscode.window.showErrorMessage(`Failed to rerun tests: ${error instanceof Error ? error.message : String(error)}`);
+        } finally {
+            // Clear the loading message
+            loadingMessage.dispose();
         }
     }
 } 
