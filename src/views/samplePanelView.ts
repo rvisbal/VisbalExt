@@ -86,6 +86,28 @@ export class SamplePanelView implements vscode.WebviewViewProvider {
         }
     }
 
+    private async _updateTemplates() {
+        try {
+            console.log('[VisbalExt.SamplePanelView] Updating template files');
+            await this._copyTemplateFiles();
+            await this._loadApexFiles();
+            if (this._view) {
+                this._view.webview.postMessage({
+                    command: 'templatesUpdated',
+                    message: 'Templates updated successfully'
+                });
+            }
+        } catch (error: any) {
+            console.error('[VisbalExt.SamplePanelView] Error updating templates:', error);
+            if (this._view) {
+                this._view.webview.postMessage({
+                    command: 'error',
+                    message: `Error updating templates: ${error.message}`
+                });
+            }
+        }
+    }
+
     private async _loadApexFileContent(filePath: string) {
         try {
             const content = await vscode.workspace.fs.readFile(vscode.Uri.file(filePath));
@@ -127,7 +149,7 @@ export class SamplePanelView implements vscode.WebviewViewProvider {
                 case 'executeApex':
                     await this.executeApex(message.code);
                     break;
-				 case 'setSelectedOrg':
+                case 'setSelectedOrg':
                     await this._setSelectedOrg(message.alias);
                     break;
                 case 'loadOrgList':
@@ -161,6 +183,9 @@ export class SamplePanelView implements vscode.WebviewViewProvider {
                             message: `Error loading file: ${error.message}`
                         });
                     }
+                    break;
+                case 'updateTemplates':
+                    await this._updateTemplates();
                     break;
             }
         });
@@ -442,17 +467,33 @@ export class SamplePanelView implements vscode.WebviewViewProvider {
                     color: var(--vscode-input-foreground);
                     border: 1px solid var(--vscode-input-border);
                     padding: 8px;
-                    font-family: monospace;
-                    font-size: var(--vscode-editor-font-size);
+                    font-family: var(--vscode-editor-font-family, monospace);
+                    font-size: var(--vscode-editor-font-size, 14px);
+                    line-height: 1.4;
                     resize: none;
                     flex: 1;
                     min-height: 0;
                     border-radius: 2px;
                     overflow-y: auto;
+                    white-space: pre;
+                    tab-size: 4;
+                    -webkit-text-fill-color: var(--vscode-input-foreground);
+                    opacity: 1;
+                    cursor: text;
+                    user-select: text;
+                    -webkit-user-select: text;
+                    -moz-user-select: text;
+                    -ms-user-select: text;
                 }
                 textarea:focus {
                     outline: 1px solid var(--vscode-focusBorder);
                     border-color: var(--vscode-focusBorder);
+                }
+                textarea:read-write {
+                    -webkit-user-modify: read-write !important;
+                    -moz-user-modify: read-write !important;
+                    -ms-user-modify: read-write !important;
+                    user-modify: read-write !important;
                 }
                 .char-count {
                     color: var(--vscode-descriptionForeground);
@@ -632,12 +673,19 @@ export class SamplePanelView implements vscode.WebviewViewProvider {
                                     <select id="fileSelector" class="fileSelector" title="Select Apex File">
                                         <option value="">Select an Apex file...</option>
                                     </select>
+                                     <button id="updateTemplatesButton" onclick="updateTemplates()" title="Update Template Files">
+                                        Update Templates
+                                        <svg width="16" height="16" viewBox="0 0 16 16">
+                                            <path fill="currentColor" d="M12.75 8a4.5 4.5 0 0 1-8.61 1.834l-1.391.565A6.001 6.001 0 0 0 14.25 8 6 6 0 0 0 3.5 4.334V2.5H2v4l.75.75h3.5v-1.5H4.352A4.5 4.5 0 0 1 12.75 8z"/>
+                                        </svg>
+                                    </button>
                                     <div id="statusBar"></div>
                                 </div>
                                 <div class="toolbar-right">
                                     <select id="org-selector" class="org-selector" title="Select Salesforce Org">
                                         <option value="">Loading orgs...</option>
                                     </select>
+                                   
                                     <button id="executeButton" onclick="executeApex()" title="Execute Apex Code">
                                         Execute Code
                                         <svg width="16" height="16" viewBox="0 0 16 16">
@@ -654,9 +702,10 @@ export class SamplePanelView implements vscode.WebviewViewProvider {
                             <textarea 
                                 id="apexTextarea" 
                                 placeholder="Type something here..."
-                                aria-label="Sample text input area"
-                                maxlength="1000"
-                            >System.debug('Hello World');</textarea>
+                                aria-label="Apex code editor"
+                                spellcheck="false"
+                                autocomplete="off"
+                            ></textarea>
                             <div class="char-count">0 / 1000 characters</div>
                         </div>
                     </div>
@@ -748,7 +797,7 @@ export class SamplePanelView implements vscode.WebviewViewProvider {
                     // Update character count
                     function updateCharCount() {
                         const length = textarea.value.length;
-                        charCount.textContent = \`\${length} / 1000 characters\`;
+                        charCount.textContent = \`\${length} characters\`;
                     }
                     
                     // Initialize character count
@@ -1010,14 +1059,42 @@ export class SamplePanelView implements vscode.WebviewViewProvider {
                                 updateFileListUI(message.files);
                                 break;
                             case 'apexFileContent':
-                                textarea.value = message.content;
-                                updateCharCount();
+                                const textarea = document.getElementById('apexTextarea');
+                                if (textarea) {
+                                    textarea.value = message.content;
+                                    textarea.focus();
+                                    updateCharCount();
+                                }
                                 stopLoading();
                                 break;
                         }
                     });
 
-					
+                    // Update Templates
+                    window.updateTemplates = function() {
+                        startLoading('Updating templates...');
+                        const updateButton = document.getElementById('updateTemplatesButton');
+                        updateButton.disabled = true;
+                        
+                        vscode.postMessage({
+                            command: 'updateTemplates'
+                        });
+                    };
+
+                    // Handle messages from the extension
+                    window.addEventListener('message', event => {
+                        const message = event.data;
+                        
+                        switch (message.command) {
+                            case 'templatesUpdated':
+                                stopLoading();
+                                statusBar.textContent = message.message;
+                                const updateButton = document.getElementById('updateTemplatesButton');
+                                updateButton.disabled = false;
+                                break;
+                        }
+                    });
+
                 })();
 
                 
