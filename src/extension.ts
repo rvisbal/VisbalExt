@@ -25,6 +25,64 @@ function isModuleEnabled(moduleName: string): boolean {
   return config.get(`modules.${moduleName}.enabled`, true);
 }
 
+// Initialize template files
+async function initializeTemplates(context: vscode.ExtensionContext) {
+  try {
+    // Get workspace folder
+    const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
+    if (!workspaceFolder) {
+      console.log('[VisbalExt.Extension] No workspace folder found');
+      return;
+    }
+
+    // Create src/apex directory if it doesn't exist
+    const apexDir = vscode.Uri.joinPath(workspaceFolder.uri, 'src', 'apex');
+    try {
+      await vscode.workspace.fs.createDirectory(apexDir);
+    } catch (err) {
+      console.log('[VisbalExt.Extension] Error creating src/apex directory:', err);
+      return;
+    }
+
+    // Check if we need to copy templates
+    let existingFiles: [string, vscode.FileType][] = [];
+    try {
+      existingFiles = await vscode.workspace.fs.readDirectory(apexDir);
+    } catch (err) {
+      console.log('[VisbalExt.Extension] Error reading src/apex directory:', err);
+    }
+
+    // Only copy templates if the directory is empty
+    if (existingFiles.length === 0) {
+      // Get template files from extension directory
+      const extensionTemplatesPath = vscode.Uri.joinPath(context.extensionUri, '.visbal', 'templates', 'apex');
+      try {
+        const templateFiles = await vscode.workspace.fs.readDirectory(extensionTemplatesPath);
+        
+        // Copy each template file
+        for (const [fileName, fileType] of templateFiles) {
+          if (fileType === vscode.FileType.File && fileName.endsWith('.apex')) {
+            const targetPath = vscode.Uri.joinPath(apexDir, fileName);
+            try {
+              const sourceContent = await vscode.workspace.fs.readFile(vscode.Uri.joinPath(extensionTemplatesPath, fileName));
+              await vscode.workspace.fs.writeFile(targetPath, sourceContent);
+              console.log(`[VisbalExt.Extension] Copied template ${fileName} to workspace`);
+            } catch (err) {
+              console.error(`[VisbalExt.Extension] Error copying template ${fileName}:`, err);
+            }
+          }
+        }
+      } catch (err) {
+        console.error('[VisbalExt.Extension] Error accessing template directory:', err);
+      }
+    } else {
+      console.log('[VisbalExt.Extension] src/apex directory not empty, skipping template copy');
+    }
+  } catch (error) {
+    console.error('[VisbalExt.Extension] Error initializing templates:', error);
+  }
+}
+
 // This method is called when your extension is activated
 export function activate(context: vscode.ExtensionContext) {
   // Create output channel
@@ -34,6 +92,11 @@ export function activate(context: vscode.ExtensionContext) {
   console.log('[VisbalExt.Extension] Activating extension');
   outputChannel.appendLine('[VisbalExt.Extension] Activating extension');
   
+  // Initialize templates
+  initializeTemplates(context).catch(err => {
+    console.error('[VisbalExt.Extension] Error during template initialization:', err);
+  });
+
   // Initialize status bar
   statusBarService.showMessage('[VisbalExt.Extension] activated', 'rocket');
   context.subscriptions.push({ dispose: () => {

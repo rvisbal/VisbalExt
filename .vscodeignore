@@ -36,4 +36,5 @@ package.json.bak
 Screenshot*.png
 cursor.rules.json
 scripts/**
-!media/icon.png 
+!media/icon.png
+!.visbal/templates/** 

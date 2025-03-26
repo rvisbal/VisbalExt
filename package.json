@@ -246,7 +246,7 @@
     "webpack-cli": "^6.0.1"
   },
   "dependencies": {
-    "@salesforce/core": "^5.3.9",
+    "@salesforce/core": "^6.5.2",
     "@vscode/codicons": "^0.0.35",
     "axios": "^1.6.7",
     "follow-redirects": "^1.15.6",
@@ -256,9 +256,5 @@
   "resolutions": {
     "@vscode/codicons": "^0.0.35",
     "follow-redirects": "^1.15.6"
-  },
-  "files": [
-    "out/**/*",
-    ".visbal/templates/**/*"
-  ]
+  }
 }
