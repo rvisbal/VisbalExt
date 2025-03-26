@@ -150,7 +150,7 @@ export class SamplePanelView implements vscode.WebviewViewProvider {
                     try {
                         console.log('[VisbalExt.SamplePanelView] loadApexFile -- Loading file:', message.filePath);
                         const content = await this._loadApexFileContent(message.filePath);
-                        console.log('[VisbalExt.SamplePanelView] loadApexFile -- Content:', content);
+                        console.log('[VisbalExt.SamplePanelView] loadApexFile -- Content:', content.length);
                         this._view?.webview.postMessage({
                             command: 'apexFileContent',
                             content: content
@@ -662,7 +662,7 @@ export class SamplePanelView implements vscode.WebviewViewProvider {
                     </div>
 					<div class="loading-container" id="loadingContainer">
 						<div class="loading-spinner"></div>
-						<span>Executing apex...</span>
+						<span id="loadingMessage">Loading...</span>
 					</div>
                 </div>
                 <div id="resultsContent" class="content">
@@ -824,10 +824,10 @@ export class SamplePanelView implements vscode.WebviewViewProvider {
                     });
 					
 					
-					function startLoading(m) {
-						 loadingContainer.style.display = 'flex';
-               
-                        statusBar.textContent = m;
+					function startLoading(message) {
+						loadingContainer.style.display = 'flex';
+						document.getElementById('loadingMessage').textContent = message || 'Loading...';
+                        statusBar.textContent = message || 'Loading...';
                         executeButton.disabled = true;
 					}
 					
@@ -836,6 +836,7 @@ export class SamplePanelView implements vscode.WebviewViewProvider {
 						loadingContainer.style.display = 'none';
                         statusBar.textContent = '';
 						executeButton.disabled = false;
+                        document.getElementById('loadingMessage').textContent = '';
 					}
                     
                     // Execute Apex code
@@ -999,28 +1000,30 @@ export class SamplePanelView implements vscode.WebviewViewProvider {
                             });
                         }
                     });
+
+                    // Handle messages from the extension
+                    window.addEventListener('message', event => {
+                        const message = event.data;
+                        
+                        switch (message.command) {
+                            case 'updateApexFileList':
+                                updateFileListUI(message.files);
+                                break;
+                            case 'apexFileContent':
+                                textarea.value = message.content;
+                                updateCharCount();
+                                stopLoading();
+                                break;
+                        }
+                    });
+
 					
                 })();
 
                 
                
 
-                // Handle messages from the extension
-                window.addEventListener('message', event => {
-                    const message = event.data;
-                    
-                    switch (message.command) {
-                        case 'updateApexFileList':
-                            updateFileListUI(message.files);
-                            break;
-                        case 'apexFileContent':
-                            textarea.value = message.content;
-                            updateCharCount();
-                            stopLoading();
-                            break;
-                    }
-                });
-
+                
                 function updateFileListUI(files) {
                     fileSelector.innerHTML = '<option value="">Select an Apex file...</option>';
                     files.forEach(file => {
