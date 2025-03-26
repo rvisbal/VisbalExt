@@ -37,4 +37,5 @@ Screenshot*.png
 cursor.rules.json
 scripts/**
 !media/icon.png
+!templates/**
 !.visbal/templates/** 

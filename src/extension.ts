@@ -31,55 +31,52 @@ async function initializeTemplates(context: vscode.ExtensionContext) {
     // Get workspace folder
     const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
     if (!workspaceFolder) {
-      console.log('[VisbalExt.Extension] No workspace folder found');
+      vscode.window.showWarningMessage('No workspace folder found. Please open a workspace to initialize templates.');
       return;
     }
 
-    // Create src/apex directory if it doesn't exist
-    const apexDir = vscode.Uri.joinPath(workspaceFolder.uri, 'src', 'apex');
+    // Create .visbal/templates/apex directory
+    const visbalTemplatesDir = vscode.Uri.joinPath(workspaceFolder.uri, '.visbal', 'templates', 'apex');
+    const templatesDir = vscode.Uri.joinPath(workspaceFolder.uri, 'templates', 'apex');
+    
     try {
-      await vscode.workspace.fs.createDirectory(apexDir);
+      await vscode.workspace.fs.createDirectory(visbalTemplatesDir);
+      await vscode.workspace.fs.createDirectory(templatesDir);
     } catch (err) {
-      console.log('[VisbalExt.Extension] Error creating src/apex directory:', err);
+      console.error('[VisbalExt.Extension] Error creating template directories:', err);
       return;
     }
 
-    // Check if we need to copy templates
-    let existingFiles: [string, vscode.FileType][] = [];
+    // Get template files from extension
+    const extensionTemplatesPath = vscode.Uri.joinPath(context.extensionUri, 'templates', 'apex');
     try {
-      existingFiles = await vscode.workspace.fs.readDirectory(apexDir);
-    } catch (err) {
-      console.log('[VisbalExt.Extension] Error reading src/apex directory:', err);
-    }
-
-    // Only copy templates if the directory is empty
-    if (existingFiles.length === 0) {
-      // Get template files from extension directory
-      const extensionTemplatesPath = vscode.Uri.joinPath(context.extensionUri, '.visbal', 'templates', 'apex');
-      try {
-        const templateFiles = await vscode.workspace.fs.readDirectory(extensionTemplatesPath);
-        
-        // Copy each template file
-        for (const [fileName, fileType] of templateFiles) {
-          if (fileType === vscode.FileType.File && fileName.endsWith('.apex')) {
-            const targetPath = vscode.Uri.joinPath(apexDir, fileName);
-            try {
-              const sourceContent = await vscode.workspace.fs.readFile(vscode.Uri.joinPath(extensionTemplatesPath, fileName));
-              await vscode.workspace.fs.writeFile(targetPath, sourceContent);
-              console.log(`[VisbalExt.Extension] Copied template ${fileName} to workspace`);
-            } catch (err) {
-              console.error(`[VisbalExt.Extension] Error copying template ${fileName}:`, err);
-            }
+      const templateFiles = await vscode.workspace.fs.readDirectory(extensionTemplatesPath);
+      
+      // Copy each template file to both locations
+      for (const [fileName, fileType] of templateFiles) {
+        if (fileType === vscode.FileType.File && fileName.endsWith('.apex')) {
+          const sourceUri = vscode.Uri.joinPath(extensionTemplatesPath, fileName);
+          const visbalTargetUri = vscode.Uri.joinPath(visbalTemplatesDir, fileName);
+          const targetUri = vscode.Uri.joinPath(templatesDir, fileName);
+          
+          try {
+            const content = await vscode.workspace.fs.readFile(sourceUri);
+            await vscode.workspace.fs.writeFile(visbalTargetUri, content);
+            await vscode.workspace.fs.writeFile(targetUri, content);
+            console.log(`[VisbalExt.Extension] Copied template ${fileName} to workspace`);
+          } catch (err) {
+            console.error(`[VisbalExt.Extension] Error copying template ${fileName}:`, err);
           }
         }
-      } catch (err) {
-        console.error('[VisbalExt.Extension] Error accessing template directory:', err);
       }
-    } else {
-      console.log('[VisbalExt.Extension] src/apex directory not empty, skipping template copy');
+      vscode.window.showInformationMessage('Visbal templates initialized successfully.');
+    } catch (err) {
+      console.error('[VisbalExt.Extension] Error accessing template directory:', err);
+      vscode.window.showErrorMessage('Failed to initialize Visbal templates. See output for details.');
     }
   } catch (error) {
     console.error('[VisbalExt.Extension] Error initializing templates:', error);
+    vscode.window.showErrorMessage('Failed to initialize Visbal templates. See output for details.');
   }
 }
 
@@ -498,6 +495,22 @@ export function activate(context: vscode.ExtensionContext) {
     outputChannel.appendLine(`[Debug] ${event.event}: ${JSON.stringify(event.body)}`);
     debugConsoleView.addOutput(`${event.event}: ${JSON.stringify(event.body)}`, 'info');
   });
+
+  // Register the initialize templates command
+  context.subscriptions.push(
+    vscode.commands.registerCommand('visbal-ext.initializeTemplates', () => {
+      initializeTemplates(context).catch(err => {
+        console.error('[VisbalExt.Extension] Error during template initialization:', err);
+      });
+    })
+  );
+
+  // Initialize templates on activation only if workspace is available
+  if (vscode.workspace.workspaceFolders && vscode.workspace.workspaceFolders.length > 0) {
+    initializeTemplates(context).catch(err => {
+      console.error('[VisbalExt.Extension] Error during template initialization:', err);
+    });
+  }
 
   outputChannel.appendLine('[VisbalExt.Extension] Visbal Extension activated successfully');
   outputChannel.show();

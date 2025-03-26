@@ -184,6 +184,11 @@
         "title": "Rerun Tests",
         "category": "Visbal",
         "icon": "$(refresh)"
+      },
+      {
+        "command": "visbal-ext.initializeTemplates",
+        "title": "Initialize Visbal Templates",
+        "category": "Visbal"
       }
     ],
     "menus": {
@@ -230,7 +235,13 @@
           "description": "Enable/disable the Sample Panel module"
         }
       }
-    }
+    },
+    "templates": [
+      {
+        "path": "./templates/apex",
+        "language": "apex"
+      }
+    ]
   },
   "devDependencies": {
     "@types/node": "^20.11.24",
