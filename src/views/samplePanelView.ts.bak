@@ -89,7 +89,6 @@ export class SamplePanelView implements vscode.WebviewViewProvider {
     private async _loadApexFileContent(filePath: string) {
         try {
             const content = await vscode.workspace.fs.readFile(vscode.Uri.file(filePath));
-            //console.log('[VisbalExt.SamplePanelView] _loadApexFileContent -- Content:', content.toString());
             return content.toString();
         } catch (error: any) {
             console.error('[VisbalExt.SamplePanelView] Error reading file:', error);
@@ -148,9 +147,7 @@ export class SamplePanelView implements vscode.WebviewViewProvider {
                     break;
                 case 'loadApexFile':
                     try {
-                        console.log('[VisbalExt.SamplePanelView] loadApexFile -- Loading file:', message.filePath);
                         const content = await this._loadApexFileContent(message.filePath);
-                        console.log('[VisbalExt.SamplePanelView] loadApexFile -- Content:', content);
                         this._view?.webview.postMessage({
                             command: 'apexFileContent',
                             content: content
@@ -590,14 +587,14 @@ export class SamplePanelView implements vscode.WebviewViewProvider {
 		        }
             </style>
             <style>
-                .fileSelector-container {
+                .file-selector-container {
                     display: flex;
                     align-items: center;
                     gap: 4px;
                     margin: 0 8px;
                 }
                 
-                .fileSelector {
+                .file-selector {
                     padding: 4px 8px;
                     border-radius: 4px;
                     border: 1px solid var(--vscode-dropdown-border);
@@ -608,11 +605,11 @@ export class SamplePanelView implements vscode.WebviewViewProvider {
                     cursor: pointer;
                 }
                 
-                .fileSelector:hover {
+                .file-selector:hover {
                     border-color: var(--vscode-focusBorder);
                 }
                 
-                .fileSelector:focus {
+                .file-selector:focus {
                     outline: none;
                     border-color: var(--vscode-focusBorder);
                 }
@@ -629,7 +626,7 @@ export class SamplePanelView implements vscode.WebviewViewProvider {
                         <div class="editor-header">
                             <div class="toolbar">
                                 <div class="toolbar-left">
-                                    <select id="fileSelector" class="fileSelector" title="Select Apex File">
+                                    <select id="file-selector" class="file-selector" title="Select Apex File">
                                         <option value="">Select an Apex file...</option>
                                     </select>
                                     <div id="statusBar"></div>
@@ -778,12 +775,12 @@ export class SamplePanelView implements vscode.WebviewViewProvider {
                                 let output = '';
                                 
                                 if (message.success) {
-                                    output += '<div class="success">✓ Execution successful</div>\\n';
+                                    output += '<div class="success">? Execution successful</div>\\n';
                                     if (message.logs) {
                                         output += '\\nLogs:\\n' + message.logs;
                                     }
                                 } else {
-                                    output += '<div class="error">✗ Execution failed</div>\\n';
+                                    output += '<div class="error">? Execution failed</div>\\n';
                                     if (message.compileProblem) {
                                         output += '\\nCompile Error:\\n' + message.compileProblem;
                                     }
@@ -806,7 +803,7 @@ export class SamplePanelView implements vscode.WebviewViewProvider {
                                 break;
                             case 'refreshComplete':
 							    stopLoading();
-                                refreshButton.innerHTML = '↻ Refresh Org List (Cached)';
+                                refreshButton.innerHTML = '? Refresh Org List (Cached)';
                                 refreshButton.disabled = false;
                                 break;
                             case 'error':
@@ -899,7 +896,7 @@ export class SamplePanelView implements vscode.WebviewViewProvider {
                         // Add refresh option at the top
                         const refreshOption = document.createElement('option');
                         refreshOption.value = '__refresh__';
-                        refreshOption.textContent = fromCache ? '↻ Refresh Org List (Cached)' : '↻ Refresh Org List';
+                        refreshOption.textContent = fromCache ? '? Refresh Org List (Cached)' : '? Refresh Org List';
                         refreshOption.style.fontStyle = 'italic';
                         refreshOption.style.backgroundColor = 'var(--vscode-dropdown-background)';
                         orgDropdown.appendChild(refreshOption);
@@ -907,7 +904,7 @@ export class SamplePanelView implements vscode.WebviewViewProvider {
                         // Add a separator
                         const separator = document.createElement('option');
                         separator.disabled = true;
-                        separator.textContent = '──────────────';
+                        separator.textContent = '--------------';
                         orgDropdown.appendChild(separator);
                 
                         // Helper function to add section if it has items
@@ -986,28 +983,40 @@ export class SamplePanelView implements vscode.WebviewViewProvider {
 	                });
 	                //#endregion LISTBOX
 					
-                    // File selector functionality
-                    const fileSelector = document.getElementById('fileSelector');
-
-                    fileSelector.addEventListener('change', () => {
-                        const selectedFile = fileSelector.value;
-                        if (selectedFile) {
-                            startLoading('Loading file content...');
-                            vscode.postMessage({
-                                command: 'loadApexFile',
-                                filePath: selectedFile
-                            });
-                        }
-                    });
+					
 					
                 })();
 
-                
-               
+                // File selector functionality
+                const fileSelector = document.getElementById('file-selector');
+                const textarea = document.getElementById('apexTextarea');
+
+                fileSelector.addEventListener('change', () => {
+                    const selectedFile = fileSelector.value;
+                    if (selectedFile) {
+                        startLoading('Loading template content...');
+                        vscode.postMessage({
+                            command: 'loadApexFile',
+                            filePath: selectedFile
+                        });
+                    }
+                });
+
+                function updateFileListUI(files) {
+                    console.log('[VisbalExt.htmlTemplate] Updating file list:', files);
+                    fileSelector.innerHTML = '<option value="">Select an Apex file...</option>';
+                    files.forEach(file => {
+                        const option = document.createElement('option');
+                        option.value = file.path;
+                        option.textContent = file.name;
+                        fileSelector.appendChild(option);
+                    });
+                }
 
                 // Handle messages from the extension
                 window.addEventListener('message', event => {
                     const message = event.data;
+                    console.log('[VisbalExt.htmlTemplate] Received message:', message);
                     
                     switch (message.command) {
                         case 'updateApexFileList':
@@ -1018,20 +1027,21 @@ export class SamplePanelView implements vscode.WebviewViewProvider {
                             updateCharCount();
                             stopLoading();
                             break;
+                        case 'error':
+                            stopLoading();
+                            statusBar.textContent = message.message;
+                            console.error('[VisbalExt.htmlTemplate] Error:', message.message);
+                            break;
+                        case 'startLoading':
+                            startLoading(message.message);
+                            break;
+                        case 'stopLoading':
+                            stopLoading();
+                            break;
                     }
                 });
-
-                function updateFileListUI(files) {
-                    fileSelector.innerHTML = '<option value="">Select an Apex file...</option>';
-                    files.forEach(file => {
-                        const option = document.createElement('option');
-                        option.value = file.path;
-                        option.textContent = file.name;
-                        fileSelector.appendChild(option);
-                    });
-                }
             </script>
         </body>
         </html>`;
     }
-} 
+}
