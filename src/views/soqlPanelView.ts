@@ -89,7 +89,7 @@ export class SoqlPanelView implements vscode.WebviewViewProvider {
                 return;
             }
 
-            console.log(`[VisbalExt.soqlPanel] Executing on ${selectedOrg?.alias} org SOQL:`, soql);
+            console.log(`[VisbalExt.soqlPanel] executeSOQL Executing on ${selectedOrg?.alias} org SOQL:`, soql);
             const m = `SOQL started on : ${selectedOrg.alias}`
             // Show loading state
             this._view?.webview.postMessage({
@@ -325,7 +325,7 @@ export class SoqlPanelView implements vscode.WebviewViewProvider {
                     opacity: 0.5;
                     cursor: not-allowed;
                 }
-                #statusBar {
+                #soqlStatus {
                     padding: 2px 5px;
                     font-style: italic;
                     color: var(--vscode-descriptionForeground);
@@ -416,12 +416,38 @@ export class SoqlPanelView implements vscode.WebviewViewProvider {
                 .toolbar-left {
                     display: flex;
                     align-items: center;
+                    min-width: 150px;
+                    gap: 5px;
                 }
                 .toolbar-right {
                     display: flex;
                     align-items: center;
-                    gap: 4px;
-                    margin-left: auto;
+                    gap: 5px;
+                    flex: 1;
+                    justify-content: flex-end;
+                }
+            </style>
+            <style>
+                .query-history {
+                    flex: 1;
+                    max-width: 300px;
+                }
+                #queryHistorySelect {
+                    width: 100%;
+                    height: 24px;
+                    background: var(--vscode-dropdown-background);
+                    color: var(--vscode-dropdown-foreground);
+                    border: 1px solid var(--vscode-dropdown-border);
+                    padding: 2px 6px;
+                    font-size: 12px;
+                }
+                #queryHistorySelect:focus {
+                    outline: 1px solid var(--vscode-focusBorder);
+                    outline-offset: -1px;
+                }
+                #queryHistorySelect option {
+                    background: var(--vscode-dropdown-listBackground);
+                    color: var(--vscode-dropdown-foreground);
                 }
             </style>
             <style>
@@ -456,7 +482,12 @@ export class SoqlPanelView implements vscode.WebviewViewProvider {
         <body>
             <div class="toolbar">
                 <div class="toolbar-left">
-                    <div id="statusBar"></div>
+                    <div class="query-history">
+                        <select id="queryHistorySelect" title="Query History">
+                            <option value="">Query History</option>
+                        </select>
+                    </div>
+                    <div id="soqlStatus"></div>
                 </div>
                 <div class="toolbar-right">
                     <select id="org-selector" class="org-selector" title="Select Salesforce Org">
@@ -494,12 +525,58 @@ export class SoqlPanelView implements vscode.WebviewViewProvider {
                     const soqlInput = document.getElementById('soqlInput');
                     const runSoqlButton = document.getElementById('runSoqlButton');
                     const copyAsCsvButton = document.getElementById('copyAsCsvButton');
-                    const statusBar = document.getElementById('statusBar');
+                    const soqlStatus = document.getElementById('soqlStatus');
                     const soqlResultsHeader = document.getElementById('soqlResultsHeader');
                     const soqlResultsBody = document.getElementById('soqlResultsBody');
                     const loadingContainer = document.getElementById('loadingContainer');
+                    const queryHistorySelect = document.getElementById('queryHistorySelect');
 					
-					//#region LISTBOX
+					//#region QUERY_HISTORY
+                    // Initialize query history from state
+                    let queryHistory = [];
+                    const state = vscode.getState() || {};
+                    if (state.queryHistory) {
+                        queryHistory = state.queryHistory;
+                        updateQueryHistoryUI();
+                    }
+
+                    // Handle query history selection
+                    queryHistorySelect.addEventListener('change', () => {
+                        const selectedQuery = queryHistorySelect.value;
+                        if (selectedQuery) {
+                            soqlInput.value = selectedQuery;
+                        }
+                    });
+
+                    function addToQueryHistory(query) {
+                        // Remove the query if it already exists
+                        queryHistory = queryHistory.filter(q => q !== query);
+                        // Add the new query to the beginning
+                        queryHistory.unshift(query);
+                        // Keep only the last 20 queries
+                        if (queryHistory.length > 20) {
+                            queryHistory.pop();
+                        }
+                        // Save to VS Code state
+                        vscode.setState({ ...state, queryHistory });
+                        // Update the UI
+                        updateQueryHistoryUI();
+                    }
+
+                    function updateQueryHistoryUI() {
+                        queryHistorySelect.innerHTML = '<option value="">Query History</option>';
+                        queryHistory.forEach(query => {
+                            const option = document.createElement('option');
+                            option.value = query;
+                            // Truncate the query for display if it's too long
+                            option.textContent = query.length > 50 ? query.substring(0, 47) + '...' : query;
+                            option.title = query; // Show full query on hover
+                            queryHistorySelect.appendChild(option);
+                        });
+                    }
+                    //#endregion QUERY_HISTORY
+
+                    //#region LISTBOX
                     // Dropdown functionality
                     const orgDropdown = document.getElementById('org-selector');
 
@@ -538,13 +615,12 @@ export class SoqlPanelView implements vscode.WebviewViewProvider {
                     runSoqlButton.addEventListener('click', () => {
                         const query = soqlInput.value.trim();
                         if (!query) {
-                            statusBar.textContent = 'Please enter a query';
+                            soqlStatus.textContent = 'Please enter a query';
                             return;
                         }
-                        // Show loading state
-                        startLoading('Executing soql...');
-                       
-                        
+                        // Add to query history
+                        addToQueryHistory(query);
+                        soqlStatus.textContent = 'Running...';
                         vscode.postMessage({
                             command: 'executeSoqlQuery',
                             query: query
@@ -563,10 +639,10 @@ export class SoqlPanelView implements vscode.WebviewViewProvider {
                         ].join('\\n');
                         
                         navigator.clipboard.writeText(csvContent).then(() => {
-                            const originalText = statusBar.textContent;
-                            statusBar.textContent = 'Results copied to clipboard as CSV';
+                            const originalText = soqlStatus.textContent;
+                            soqlStatus.textContent = 'Results copied to clipboard as CSV';
                             setTimeout(() => {
-                                statusBar.textContent = originalText;
+                                soqlStatus.textContent = originalText;
                             }, 2000);
                         });
                     });
@@ -580,7 +656,7 @@ export class SoqlPanelView implements vscode.WebviewViewProvider {
                                 break;
                             case 'error':
                                 stopLoading();
-                                statusBar.textContent = message.message;
+                                soqlStatus.textContent = message.message;
                                 soqlResultsHeader.innerHTML = '';
                                 soqlResultsBody.innerHTML = '';
                                 copyAsCsvButton.disabled = true;
@@ -607,7 +683,7 @@ export class SoqlPanelView implements vscode.WebviewViewProvider {
 						 loadingContainer.style.display = 'flex';
                         soqlResultsHeader.innerHTML = '';
                         soqlResultsBody.innerHTML = '';
-                        statusBar.textContent = m;
+                        soqlStatus.textContent = m;
                         runSoqlButton.disabled = true;
 					}
 
@@ -615,12 +691,12 @@ export class SoqlPanelView implements vscode.WebviewViewProvider {
 						// Hide loading state
 						loadingContainer.style.display = 'none';
 						runSoqlButton.disabled = false;
-                         statusBar.textContent = '';
+                         soqlStatus.textContent = '';
 					}
 
                     function handleSoqlResults(results) {
                         if (!results || !results.records || results.records.length === 0) {
-                            statusBar.textContent = 'No results';
+                            soqlStatus.textContent = 'No results';
                             soqlResultsHeader.innerHTML = '';
                             soqlResultsBody.innerHTML = '';
                             copyAsCsvButton.disabled = true;
@@ -638,7 +714,7 @@ export class SoqlPanelView implements vscode.WebviewViewProvider {
                             ).join('') + '</tr>'
                         ).join('');
 
-                        statusBar.textContent = results.records.length + ' rows';
+                        soqlStatus.textContent = results.records.length + ' rows';
                         copyAsCsvButton.disabled = false;
                     }
 
