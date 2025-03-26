@@ -12,12 +12,88 @@ export class SamplePanelView implements vscode.WebviewViewProvider {
 	private _orgListCacheService: OrgListCacheService;
     private _currentOrg?: string;
      private _isRefreshing: boolean = false;
+    private _apexFiles: string[] = [];
 
     constructor(private readonly _context: vscode.ExtensionContext) {
         console.log('[VisbalExt.SamplePanelView] Initializing SamplePanelView');
         this._metadataService = new MetadataService();
         this._orgListCacheService = new OrgListCacheService(_context);
         this._sfdxService = new SfdxService();
+        this._loadApexFiles();
+    }
+
+    private async _loadApexFiles() {
+        try {
+            // Get files from both locations
+            const [userFiles, templateFiles] = await Promise.all([
+                vscode.workspace.findFiles('src/apex/*.apex'),
+                vscode.workspace.findFiles('.visbal/templates/apex/*.apex')
+            ]);
+
+            // If src/apex directory doesn't exist or is empty, copy template files
+            if (userFiles.length === 0) {
+                await this._copyTemplateFiles();
+                // Refresh user files after copy
+                const updatedUserFiles = await vscode.workspace.findFiles('src/apex/*.apex');
+                this._apexFiles = updatedUserFiles.map(file => file.fsPath);
+            } else {
+                this._apexFiles = userFiles.map(file => file.fsPath);
+            }
+
+            if (this._view) {
+                this._view.webview.postMessage({
+                    command: 'updateApexFileList',
+                    files: this._apexFiles.map(path => {
+                        const fileName = path.split(/[\\/]/).pop() || '';
+                        return { path, name: fileName };
+                    })
+                });
+            }
+        } catch (error: any) {
+            console.error('[VisbalExt.SamplePanelView] Error loading apex files:', error);
+        }
+    }
+
+    private async _copyTemplateFiles() {
+        try {
+            // Ensure src/apex directory exists
+            const srcApexUri = vscode.Uri.joinPath(vscode.workspace.workspaceFolders![0].uri, 'src', 'apex');
+            await vscode.workspace.fs.createDirectory(srcApexUri);
+
+            // Get template files
+            const templateFiles = await vscode.workspace.findFiles('.visbal/templates/apex/*.apex');
+            
+            // Copy each template file to src/apex
+            for (const templateFile of templateFiles) {
+                const fileName = templateFile.path.split(/[\\/]/).pop()!;
+                const targetUri = vscode.Uri.joinPath(srcApexUri, fileName);
+                
+                // Check if file already exists
+                try {
+                    await vscode.workspace.fs.stat(targetUri);
+                    console.log(`[VisbalExt.SamplePanelView] File already exists: ${fileName}`);
+                    continue;
+                } catch {
+                    // File doesn't exist, proceed with copy
+                    const content = await vscode.workspace.fs.readFile(templateFile);
+                    await vscode.workspace.fs.writeFile(targetUri, content);
+                    console.log(`[VisbalExt.SamplePanelView] Copied template file: ${fileName}`);
+                }
+            }
+        } catch (error: any) {
+            console.error('[VisbalExt.SamplePanelView] Error copying template files:', error);
+            throw error;
+        }
+    }
+
+    private async _loadApexFileContent(filePath: string) {
+        try {
+            const content = await vscode.workspace.fs.readFile(vscode.Uri.file(filePath));
+            return content.toString();
+        } catch (error: any) {
+            console.error('[VisbalExt.SamplePanelView] Error reading file:', error);
+            throw error;
+        }
     }
 
     public resolveWebviewView(
@@ -39,6 +115,8 @@ export class SamplePanelView implements vscode.WebviewViewProvider {
 
          // Load orgs when view is initialized
          this._loadOrgList();
+         // Load apex files
+         this._loadApexFiles();
 
         // Handle messages from the webview
         webviewView.webview.onDidReceiveMessage(async (message) => {
@@ -64,6 +142,20 @@ export class SamplePanelView implements vscode.WebviewViewProvider {
                         this._view?.webview.postMessage({
                             command: 'error',
                             message: `Error refreshing org list: ${error.message}`
+                        });
+                    }
+                    break;
+                case 'loadApexFile':
+                    try {
+                        const content = await this._loadApexFileContent(message.filePath);
+                        this._view?.webview.postMessage({
+                            command: 'apexFileContent',
+                            content: content
+                        });
+                    } catch (error: any) {
+                        this._view?.webview.postMessage({
+                            command: 'error',
+                            message: `Error loading file: ${error.message}`
                         });
                     }
                     break;
@@ -494,6 +586,34 @@ export class SamplePanelView implements vscode.WebviewViewProvider {
 		          border-color: var(--vscode-focusBorder);
 		        }
             </style>
+            <style>
+                .file-selector-container {
+                    display: flex;
+                    align-items: center;
+                    gap: 4px;
+                    margin: 0 8px;
+                }
+                
+                .file-selector {
+                    padding: 4px 8px;
+                    border-radius: 4px;
+                    border: 1px solid var(--vscode-dropdown-border);
+                    background-color: var(--vscode-dropdown-background);
+                    color: var(--vscode-dropdown-foreground);
+                    font-size: 12px;
+                    min-width: 200px;
+                    cursor: pointer;
+                }
+                
+                .file-selector:hover {
+                    border-color: var(--vscode-focusBorder);
+                }
+                
+                .file-selector:focus {
+                    outline: none;
+                    border-color: var(--vscode-focusBorder);
+                }
+            </style>
         </head>
         <body>
             <div class="container">
@@ -506,12 +626,15 @@ export class SamplePanelView implements vscode.WebviewViewProvider {
                         <div class="editor-header">
                             <div class="toolbar">
                                 <div class="toolbar-left">
+                                    <select id="file-selector" class="file-selector" title="Select Apex File">
+                                        <option value="">Select an Apex file...</option>
+                                    </select>
                                     <div id="statusBar"></div>
                                 </div>
                                 <div class="toolbar-right">
                                     <select id="org-selector" class="org-selector" title="Select Salesforce Org">
                                         <option value="">Loading orgs...</option>
-                                        </select>
+                                    </select>
                                     <button id="executeButton" onclick="executeApex()" title="Execute Apex Code">
                                         Execute Code
                                         <svg width="16" height="16" viewBox="0 0 16 16">
@@ -863,6 +986,46 @@ export class SamplePanelView implements vscode.WebviewViewProvider {
 					
 					
                 })();
+
+                // File selector functionality
+                const fileSelector = document.getElementById('file-selector');
+
+                fileSelector.addEventListener('change', () => {
+                    const selectedFile = fileSelector.value;
+                    if (selectedFile) {
+                        startLoading('Loading file content...');
+                        vscode.postMessage({
+                            command: 'loadApexFile',
+                            filePath: selectedFile
+                        });
+                    }
+                });
+
+                // Handle messages from the extension
+                window.addEventListener('message', event => {
+                    const message = event.data;
+                    
+                    switch (message.command) {
+                        case 'updateApexFileList':
+                            updateFileListUI(message.files);
+                            break;
+                        case 'apexFileContent':
+                            textarea.value = message.content;
+                            updateCharCount();
+                            stopLoading();
+                            break;
+                    }
+                });
+
+                function updateFileListUI(files) {
+                    fileSelector.innerHTML = '<option value="">Select an Apex file...</option>';
+                    files.forEach(file => {
+                        const option = document.createElement('option');
+                        option.value = file.path;
+                        option.textContent = file.name;
+                        fileSelector.appendChild(option);
+                    });
+                }
             </script>
         </body>
         </html>`;
