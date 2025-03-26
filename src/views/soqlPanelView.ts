@@ -502,6 +502,9 @@ export class SoqlPanelView implements vscode.WebviewViewProvider {
                     <button id="copyAsCsvButton" title="Copy as CSV" style="margin-left: 4px;" disabled>
                         Copy CSV
                     </button>
+                    <button id="copyAsExcelButton" title="Copy as Excel Format" style="margin-left: 4px;" disabled>
+                        Copy Excel
+                    </button>
                 </div>
             </div>
             <div class="query-section">
@@ -525,6 +528,7 @@ export class SoqlPanelView implements vscode.WebviewViewProvider {
                     const soqlInput = document.getElementById('soqlInput');
                     const runSoqlButton = document.getElementById('runSoqlButton');
                     const copyAsCsvButton = document.getElementById('copyAsCsvButton');
+                    const copyAsExcelButton = document.getElementById('copyAsExcelButton');
                     const soqlStatus = document.getElementById('soqlStatus');
                     const soqlResultsHeader = document.getElementById('soqlResultsHeader');
                     const soqlResultsBody = document.getElementById('soqlResultsBody');
@@ -647,6 +651,27 @@ export class SoqlPanelView implements vscode.WebviewViewProvider {
                         });
                     });
 
+                    copyAsExcelButton.addEventListener('click', () => {
+                        const headers = Array.from(soqlResultsHeader.querySelectorAll('th')).map(th => th.textContent);
+                        const rows = Array.from(soqlResultsBody.querySelectorAll('tr')).map(row => 
+                            Array.from(row.querySelectorAll('td')).map(td => td.textContent)
+                        );
+                        
+                        // Use tab as separator for Excel compatibility
+                        const excelContent = [
+                            headers.join('\\t'),
+                            ...rows.map(row => row.join('\\t'))
+                        ].join('\\n');
+                        
+                        navigator.clipboard.writeText(excelContent).then(() => {
+                            const originalText = soqlStatus.textContent;
+                            soqlStatus.textContent = 'Results copied to clipboard in Excel format';
+                            setTimeout(() => {
+                                soqlStatus.textContent = originalText;
+                            }, 2000);
+                        });
+                    });
+
                     window.addEventListener('message', event => {
                         const message = event.data;
                         switch (message.command) {
@@ -660,6 +685,7 @@ export class SoqlPanelView implements vscode.WebviewViewProvider {
                                 soqlResultsHeader.innerHTML = '';
                                 soqlResultsBody.innerHTML = '';
                                 copyAsCsvButton.disabled = true;
+                                copyAsExcelButton.disabled = true;
                                 break;
                             case 'updateOrgList':
                                 updateOrgListUI(message.orgs || {}, message.fromCache, message.selectedOrg);
@@ -700,6 +726,7 @@ export class SoqlPanelView implements vscode.WebviewViewProvider {
                             soqlResultsHeader.innerHTML = '';
                             soqlResultsBody.innerHTML = '';
                             copyAsCsvButton.disabled = true;
+                            copyAsExcelButton.disabled = true;
                             return;
                         }
 
@@ -716,6 +743,7 @@ export class SoqlPanelView implements vscode.WebviewViewProvider {
 
                         soqlStatus.textContent = results.records.length + ' rows';
                         copyAsCsvButton.disabled = false;
+                        copyAsExcelButton.disabled = false;
                     }
 
                     //#region CACHE
