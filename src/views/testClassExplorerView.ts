@@ -146,7 +146,7 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
         //}, 1000);
     }
 
-    private async _fetchTestClasses(forceRefresh: boolean = false) {
+    private async _fetchTestClasses(forceRefresh: boolean = false, refreshMethods: boolean = false) {
         try {
             this._statusBarService.showMessage('$(sync~spin) Fetching test classes...');
             
@@ -194,11 +194,89 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
             await this._storageService.saveTestClasses(testClasses);
             console.log('[VisbalExt.TestClassExplorerView] _fetchTestClasses Test classes cached:', testClasses);
 
+            // If refreshMethods is true, fetch methods for each class
+            if (refreshMethods) {
+                console.log('[VisbalExt.TestClassExplorerView] _fetchTestClasses Refreshing methods for all classes');
+                const totalClasses = testClasses.length;
+                let processedClasses = 0;
+
+                // Update initial progress
+                this._statusBarService.showMessage(`$(sync~spin) Refreshing methods (0/${totalClasses} classes)`);
+                if (this._view) {
+                    this._view.webview.postMessage({
+                        command: 'showNotification',
+                        message: `Refreshing methods for ${totalClasses} classes...`
+                    });
+                }
+
+                for (const testClass of testClasses) {
+                    try {
+                        processedClasses++;
+                        const progressMessage = `$(sync~spin) Refreshing methods (${processedClasses}/${totalClasses} classes) - ${testClass.name}`;
+                        this._statusBarService.showMessage(progressMessage);
+                        
+                        // Update webview with current progress
+                        if (this._view) {
+                            this._view.webview.postMessage({
+                                command: 'showNotification',
+                                message: `Refreshing methods: ${processedClasses}/${totalClasses} classes (Current: ${testClass.name})`
+                            });
+                        }
+
+                        const methods = await this._metadataService.getTestMethodsForClass(testClass.name);
+                        await this._storageService.saveTestMethodsForClass(testClass.name, methods);
+                        testClass.methods = methods.map(m => m.name);
+                    } catch (error) {
+                        console.error(`[VisbalExt.TestClassExplorerView] _fetchTestClasses Error fetching methods for class ${testClass.name}:`, error);
+                    }
+                }
+
+                // Show completion message
+                if (this._view) {
+                    this._view.webview.postMessage({
+                        command: 'showNotification',
+                        message: `Completed refreshing methods for ${totalClasses} classes`
+                    });
+                }
+            }
+
             // Add test classes to VSCode Test Explorer
             if (testClasses) {
                 console.log('[VisbalExt.TestClassExplorerView] Adding test classes to Test Explorer ', testClasses);
+                const totalClasses = testClasses.length;
+                let processedClasses = 0;
+
+                // Show initial loading status
+                this._statusBarService.showMessage(`$(sync~spin) Loading test classes into explorer (0/${totalClasses})`);
+                if (this._view) {
+                    this._view.webview.postMessage({
+                        command: 'showNotification',
+                        message: `Loading ${totalClasses} test classes into explorer...`
+                    });
+                }
+
                 for (const testClass of testClasses) {
+                    processedClasses++;
+                    const progressMessage = `$(sync~spin) Loading test classes (${processedClasses}/${totalClasses}) - ${testClass.name}`;
+                    this._statusBarService.showMessage(progressMessage);
+
+                    // Update webview with current progress
+                    if (this._view) {
+                        this._view.webview.postMessage({
+                            command: 'showNotification',
+                            message: `Loading test classes: ${processedClasses}/${totalClasses} (Current: ${testClass.name})`
+                        });
+                    }
+
                     await this._addTestToExplorer(testClass);
+                }
+
+                // Show completion message
+                if (this._view) {
+                    this._view.webview.postMessage({
+                        command: 'showNotification',
+                        message: `Completed loading ${totalClasses} test classes into explorer`
+                    });
                 }
             }
 
@@ -227,7 +305,7 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
     }
 
     private async _addTestToExplorer(testClass: TestClass) {
-        console.log('[VisbalExt.TestClassExplorerView] [EXPLORER] Adding test class:', testClass.name);
+        console.log('[VisbalExt.TestClassExplorerView] _addTestToExplorer Adding test class:', testClass.name);
         
         // Create test item for the class
         const classItem = this._testController.createTestItem(
@@ -235,7 +313,21 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
             testClass.name,
             vscode.Uri.file(testClass.attributes.fileName)
         );
-        console.log('[VisbalExt.TestClassExplorerView] [EXPLORER] Created class test item:', classItem.label);
+        console.log('[VisbalExt.TestClassExplorerView] _addTestToExplorer Created class test item:', classItem.label);
+
+        // If no methods present, try to fetch them
+        if (!testClass.methods || testClass.methods.length === 0) {
+            console.log(`[VisbalExt.TestClassExplorerView] No methods found for class ${testClass.name}, fetching them...`);
+            try {
+                const methods = await this._metadataService.getTestMethodsForClass(testClass.name);
+                console.log('[VisbalExt.TestClassExplorerView] _addTestToExplorer Fetched methods:', methods);
+                await this._storageService.saveTestMethodsForClass(testClass.name, methods);
+                testClass.methods = methods.map(m => m.name);
+                console.log(`[VisbalExt.TestClassExplorerView] Fetched ${methods.length} methods for class ${testClass.name}`);
+            } catch (error) {
+                console.error(`[VisbalExt.TestClassExplorerView] Error fetching methods for class ${testClass.name}:`, error);
+            }
+        }
 
         // Add test methods
         if (testClass.methods && testClass.methods.length > 0) {
@@ -247,18 +339,18 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                     method,
                     vscode.Uri.file(testClass.attributes.fileName)
                 );
-                console.log('[VisbalExt.TestClassExplorerView] [EXPLORER] Created method test item:', methodItem.label);
+                console.log('[VisbalExt.TestClassExplorerView] _addTestToExplorer Created method test item:', methodItem.label);
                 
                 classItem.children.add(methodItem);
             }
         } else {
-            console.log(`[VisbalExt.TestClassExplorerView] No methods found for class ${testClass.name}`);
+            console.log(`[VisbalExt.TestClassExplorerView] No methods available for class ${testClass.name}`);
         }
 
         // Add to test controller
         this._testController.items.add(classItem);
         this._testItems.set(testClass.name, classItem);
-        console.log('[VisbalExt.TestClassExplorerView] [EXPLORER] Test items updated in controller');
+        console.log('[VisbalExt.TestClassExplorerView] _addTestToExplorer Test items updated in controller');
     }
 	
 	 private async _refreshTestMethods(className: string) {
@@ -300,13 +392,14 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
     private async _fetchTestMethods(className: string) {
         try {
             this._statusBarService.showMessage(`$(sync~spin) Fetching test methods for ${className}...`);
-            
+            console.log('[VisbalExt.TestClassExplorerView] _fetchTestMethods -- Fetching test methods for:', className);
             // Try to get from storage first
             let testMethods = await this._storageService.getTestMethodsForClass(className);
-            
+            console.log('[VisbalExt.TestClassExplorerView] _fetchTestMethods -- testMethods:', testMethods);
             if (testMethods.length === 0) {
                 // If not in storage, fetch from Salesforce
                 testMethods = await this._metadataService.getTestMethodsForClass(className);
+                console.log('[VisbalExt.TestClassExplorerView] _fetchTestMethods -- testMethods from Salesforce:', testMethods);
                 // Save to storage
                 await this._storageService.saveTestMethodsForClass(className, testMethods);
             }
