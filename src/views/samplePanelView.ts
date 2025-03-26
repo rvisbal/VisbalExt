@@ -709,7 +709,6 @@ export class SamplePanelView implements vscode.WebviewViewProvider {
                                         <option value="">Select an Apex file...</option>
                                     </select>
                                      <button id="saveButton" onclick="saveApexFile()" title="Save Changes" disabled>
-                                        Save
                                         <svg width="16" height="16" viewBox="0 0 16 16">
                                             <path fill="currentColor" d="M13.353 1.146l1.5 1.5L15 3v11.5l-.5.5h-13l-.5-.5v-13l.5-.5H13l.353.146zM2 2v12h12V3.208L12.793 2H2zm2 3h8v1H4V5zm6 3H4v1h6V8zM4 11h4v1H4v-1z"/>
                                         </svg>
@@ -894,7 +893,7 @@ export class SamplePanelView implements vscode.WebviewViewProvider {
                                 break;
                             case 'refreshComplete':
 							    stopLoading();
-                                refreshButton.innerHTML = '? Refresh Org List (Cached)';
+                                refreshButton.innerHTML = '↻ Refresh Org List (Cached)';
                                 refreshButton.disabled = false;
                                 break;
                             case 'error':
@@ -988,7 +987,7 @@ export class SamplePanelView implements vscode.WebviewViewProvider {
                         // Add refresh option at the top
                         const refreshOption = document.createElement('option');
                         refreshOption.value = '__refresh__';
-                        refreshOption.textContent = fromCache ? '? Refresh Org List (Cached)' : '? Refresh Org List';
+                        refreshOption.textContent = fromCache ? '↻ Refresh Org List (Cached)' : '↻ Refresh Org List';
                         refreshOption.style.fontStyle = 'italic';
                         refreshOption.style.backgroundColor = 'var(--vscode-dropdown-background)';
                         orgDropdown.appendChild(refreshOption);
