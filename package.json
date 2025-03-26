@@ -3,6 +3,7 @@
   "displayName": "Visbal Extension",
   "version": "0.1.0",
   "publisher": "visbal",
+  "icon": "media/icon.png",
   "description": "A Visual Studio Code extension for Salesforce development with enhanced test execution and log analysis capabilities",
   "author": {
     "name": "Visbal"
@@ -25,9 +26,9 @@
     "url": "https://github.com/yourusername/visbal-ext.git"
   },
   "scripts": {
-    "clean": "rimraf dist out *.vsix",
-    "build": "tsc",
-    "watch": "tsc -w",
+    "clean": "if exist dist rd /s /q dist && if exist out rd /s /q out && if exist *.vsix del *.vsix",
+    "build": "webpack --config webpack.config.js",
+    "watch": "webpack --watch --config webpack.config.js",
     "package": "vsce package",
     "lint": "eslint src --ext ts",
     "test": "node ./out/test/runTest.js",
@@ -67,7 +68,7 @@
       ],
       "activitybar": [
         {
-          "id": "testExplorerContainer",
+          "id": "visbal-test-container",
           "title": "Visbal Test",
           "icon": "$(beaker)"
         }
@@ -82,11 +83,24 @@
           "when": "inDebugMode"
         }
       ],
-      "testExplorerContainer": [
+      "visbal-test-container": [
         {
           "id": "testClassExplorerView",
           "name": "Test Classes",
           "type": "webview"
+        },
+        {
+          "id": "testRunResults",
+          "name": "Running Tasks",
+          "type": "tree",
+          "visibility": "visible",
+          "hideMenus": true
+        },
+        {
+          "id": "visbal-test-summary",
+          "name": "Test Summary",
+          "type": "webview",
+          "visibility": "visible"
         }
       ],
       "visbal-log-container": [
@@ -158,6 +172,18 @@
         "command": "visbal-ext.showTestResults",
         "title": "Show Test Results",
         "category": "Visbal Debug"
+      },
+      {
+        "command": "visbal-ext.showLogSummary",
+        "title": "Show Log Summary",
+        "category": "Visbal",
+        "icon": "$(preview)"
+      },
+      {
+        "command": "visbal-ext.rerunAllTests",
+        "title": "Rerun Tests",
+        "category": "Visbal",
+        "icon": "$(refresh)"
       }
     ],
     "menus": {
@@ -165,8 +191,45 @@
         {
           "command": "visbal.clearConsole",
           "group": "navigation"
+        },
+        {
+          "command": "visbal-ext.rerunAllTests",
+          "when": "view == testRunResults",
+          "group": "navigation@1"
+        }
+      ],
+      "editor/title": [
+        {
+          "command": "visbal-ext.showLogSummary",
+          "when": "resourceExtname == .log",
+          "group": "navigation"
         }
       ]
+    },
+    "configuration": {
+      "title": "Visbal Extension",
+      "properties": {
+        "visbal.modules.testExplorer.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable/disable the Test Explorer module"
+        },
+        "visbal.modules.logAnalyzer.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable/disable the Log Analyzer module"
+        },
+        "visbal.modules.soqlQuery.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable/disable the SOQL Query module"
+        },
+        "visbal.modules.samplePanel.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable/disable the Sample Panel module"
+        }
+      }
     }
   },
   "devDependencies": {
@@ -174,15 +237,24 @@
     "@types/vscode": "^1.87.0",
     "@typescript-eslint/eslint-plugin": "^5.42.0",
     "@typescript-eslint/parser": "^5.42.0",
+    "@vscode/vsce": "^2.24.0",
     "eslint": "^8.26.0",
     "rimraf": "^5.0.5",
+    "sharp": "^0.33.5",
+    "ts-loader": "^9.5.2",
     "typescript": "^5.3.3",
-    "@vscode/vsce": "^2.24.0"
+    "webpack-cli": "^6.0.1"
   },
   "dependencies": {
-    "@salesforce/core": "^5.3.9",
+    "@salesforce/core": "^6.5.2",
     "@vscode/codicons": "^0.0.35",
     "axios": "^1.6.7",
+    "follow-redirects": "^1.15.6",
+    "form-data": "^4.0.2",
     "jsforce": "^1.11.1"
+  },
+  "resolutions": {
+    "@vscode/codicons": "^0.0.35",
+    "follow-redirects": "^1.15.6"
   }
 }

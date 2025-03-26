@@ -1,21 +1,57 @@
 import * as vscode from 'vscode';
 import { StatusBarService } from '../services/statusBarService';
 import { MetadataService, TestMethod } from '../services/metadataService';
+import { SfdxService } from '../services/sfdxService';
+import { StorageService } from '../services/storageService';
+import { TestClass } from '../types/testClass';
 import { join } from 'path';
 import { readFileSync, writeFileSync } from 'fs';
 import { existsSync, mkdirSync } from 'fs';
-import { VisbalLogView } from './visbalLogView';
+import { OrgUtils } from '../utils/orgUtils';
 
-// Add TestClass interface at the top of the file
-interface TestClass {
-    name: string;
-    id: string;
-    methods: string[];
-    symbolTable?: any;
-    attributes: {
-        fileName: string;
-        fullName: string;
+
+import { TestRunResultsView } from './testRunResultsView';
+import { TestSummaryView } from './testSummaryView';
+
+interface TestRunSuccess {
+    methodName: string;
+    outcome: string;
+    runTime: number;
+    message?: string;
+}
+
+interface TestRunFailure {
+    methodName: string;
+    outcome: string;
+    runTime: number;
+    message: string;
+    stackTrace?: string;
+}
+
+interface TestRunResult {
+    status: number;
+    result: {
+        summary: {
+            commandTime?: string;
+            failing?: number;
+            failRate?: string;
+            hostname?: string;
+            orgId?: string;
+            outcome?: string;
+            passing?: number;
+            passRate?: string;
+            skipped?: number;
+            testExecutionTime?: string;
+            testRunId?: string;
+            testsRan?: number;
+            testStartTime?: string;
+            testTotalTime?: string;
+            userId?: string;
+            username?: string;
+        };
+        tests: any[];
     };
+    warnings: any[];
 }
 
 export class TestClassExplorerView implements vscode.WebviewViewProvider {
@@ -24,23 +60,30 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
     private _extensionUri: vscode.Uri;
     private _statusBarService: StatusBarService;
     private _metadataService: MetadataService;
-    private _cachedTestClasses?: TestClass[]; // Update type
-    private _cachedTestMethods: Map<string, TestMethod[]> = new Map(); // Cache for test methods
+    private _storageService: StorageService;
     private _testController: vscode.TestController;
     private _testItems: Map<string, vscode.TestItem>;
-    private _visbalLogView: VisbalLogView;
+    private _orgUtils = OrgUtils;
+    private _testRunResultsView: TestRunResultsView;
+    private _testSummaryView: TestSummaryView;
+    private _sfdxService: SfdxService;
 
     constructor(
         extensionUri: vscode.Uri,
         statusBarService: StatusBarService,
-        private readonly _context: vscode.ExtensionContext
+        private readonly _context: vscode.ExtensionContext,
+        testRunResultsView: TestRunResultsView,
+        testSummaryView: TestSummaryView
     ) {
         this._extensionUri = extensionUri;
         this._statusBarService = statusBarService;
         this._metadataService = new MetadataService();
+        this._storageService = new StorageService(_context);
         this._testController = vscode.tests.createTestController('testClassExplorerView', 'Test Class Explorer');
         this._testItems = new Map();
-        this._visbalLogView = new VisbalLogView(this._context);
+        this._testRunResultsView = testRunResultsView;
+        this._testSummaryView = testSummaryView;
+        this._sfdxService = new SfdxService();
     }
 
     public resolveWebviewView(
@@ -60,10 +103,20 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
         webviewView.webview.html = this._getHtmlForWebview(webviewView.webview);
 
         webviewView.webview.onDidReceiveMessage(async (data) => {
-            console.log('[VisbalExt.TestClassExplorerView] Received message from webview:', data);
+            console.log('[VisbalExt.TestClassExplorerView] resolveWebviewView webview -- Received message from webview:', data);
             switch (data.command) {
                 case 'fetchTestClasses':
                     await this._fetchTestClasses(data.forceRefresh);
+                    if (data.refreshMethods) {
+                        // Clear stored test methods for all classes
+                        const testClasses = await this._storageService.getTestClasses();
+                        for (const testClass of testClasses) {
+                            await this._storageService.clearTestMethodsForClass(testClass.name);
+                        }
+                    }
+                    break;
+				case 'refreshTestMethods':
+                    await this._refreshTestMethods(data.testClass);
                     break;
                 case 'fetchTestMethods':
                     await this._fetchTestMethods(data.className);
@@ -84,85 +137,82 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
         });
 
         // Initial fetch of test classes when view becomes visible
-        setTimeout(() => {
-            console.log('[VisbalExt.TestClassExplorerView] Initial fetch of test classes');
-            if (this._view && this._view.visible) {
+        //setTimeout(() => {
+        //    console.log('[VisbalExt.TestClassExplorerView] resolveWebviewView -- Initial fetch of test classes');
+        //    if (this._view && this._view.visible) {
                 // Use cached data if available
-                if (this._cachedTestClasses) {
-                    console.log('[VisbalExt.TestClassExplorerView] Using cached test classes');
-                    this._view.webview.postMessage({
-                        command: 'testClassesLoaded',
-                        testClasses: this._cachedTestClasses
-                    });
-                } else {
-                    this._fetchTestClasses(false);
-                }
-            }
-        }, 1000);
+        //        this._fetchTestClasses(false);
+        //    }
+        //}, 1000);
     }
 
     private async _fetchTestClasses(forceRefresh: boolean = false) {
-        console.log('[VisbalExt.TestClassExplorerView] [FETCH] Starting test class fetch. Force refresh:', forceRefresh);
-        
         try {
-            // Clear caches if force refresh
-            if (forceRefresh) {
-                this._cachedTestClasses = undefined;
-                this._cachedTestMethods.clear();
-                console.log('[VisbalExt.TestClassExplorerView] [FETCH] Cleared caches due to force refresh');
-            }
-
-            // Check cache first
-            if (this._cachedTestClasses && !forceRefresh) {
-                console.log('[VisbalExt.TestClassExplorerView] [FETCH] Using cached test classes:', this._cachedTestClasses.length, 'classes');
-                if (this._view) {
-                    this._view.webview.postMessage({
-                        command: 'testClassesLoaded',
-                        testClasses: this._cachedTestClasses
-                    });
-                }
-                return;
-            }
-
             this._statusBarService.showMessage('$(sync~spin) Fetching test classes...');
-            console.log('[VisbalExt.TestClassExplorerView] [FETCH] Fetching test classes from MetadataService');
             
-            const testClasses = await this._metadataService.getTestClasses();
-            console.log('[VisbalExt.TestClassExplorerView] [FETCH] Received test classes:', testClasses?.length || 0, 'classes');
-
-            // Transform ApexClass to TestClass with type checking
-            this._cachedTestClasses = testClasses?.filter(apexClass => apexClass && apexClass.name).map(apexClass => ({
-                name: apexClass.name,
-                id: apexClass.name, // Use name as id since it's unique
-                methods: [], // Will be populated later
-                symbolTable: {},
-                attributes: {
-                    fileName: `${apexClass.name}.cls`,
-                    fullName: apexClass.name
+            let testClasses: TestClass[];
+            
+            if (!forceRefresh) {
+                // Try to get from storage first
+                testClasses = await this._storageService.getTestClasses();
+                console.log('[VisbalExt.TestClassExplorerView] _fetchTestClasses Using stored test classes:', testClasses);
+                if (testClasses.length > 0) {
+                    console.log('[VisbalExt.TestClassExplorerView] _fetchTestClasses Using stored test classes');
+                    this._statusBarService.hide();
+                    if (this._view) {
+                        this._view.webview.postMessage({
+                            command: 'testClassesLoaded',
+                            testClasses: testClasses
+                        });
+                    }
+                    return;
                 }
-            })) || [];
-            console.log('[VisbalExt.TestClassExplorerView] [FETCH] Test classes cached');
+            }
+
+            // Fetch from Salesforce if not in storage or force refresh
+            const apexClasses = await this._metadataService.getTestClasses();
+            console.log('[VisbalExt.TestClassExplorerView] _fetchTestClasses Received test classes:', apexClasses?.length || 0, 'classes');
+            
+            // Filter and transform ApexClass to TestClass
+            testClasses = apexClasses
+                ?.filter((apexClass: { name: string }) => 
+                    apexClass && 
+                    apexClass.name && 
+                    apexClass.name.endsWith('Test'))
+                .map((apexClass: { name: string }) => ({
+                    name: apexClass.name,
+                    id: apexClass.name,
+                    methods: [],
+                    symbolTable: {},
+                    attributes: {
+                        fileName: `${apexClass.name}.cls`,
+                        fullName: apexClass.name
+                    }
+                })) || [];
+
+            // Save to storage
+            await this._storageService.saveTestClasses(testClasses);
+            console.log('[VisbalExt.TestClassExplorerView] _fetchTestClasses Test classes cached:', testClasses);
 
             // Add test classes to VSCode Test Explorer
-            if (this._cachedTestClasses) {
-                console.log('[VisbalExt.TestClassExplorerView] [FETCH] Adding test classes to Test Explorer');
-                for (const testClass of this._cachedTestClasses) {
+            if (testClasses) {
+                console.log('[VisbalExt.TestClassExplorerView] Adding test classes to Test Explorer ', testClasses);
+                for (const testClass of testClasses) {
                     await this._addTestToExplorer(testClass);
                 }
-                console.log('[VisbalExt.TestClassExplorerView] [FETCH] Finished adding test classes to Test Explorer');
             }
 
             if (this._view) {
-                console.log('[VisbalExt.TestClassExplorerView] [FETCH] Sending test classes to webview');
+                console.log('[VisbalExt.TestClassExplorerView] Sending test classes to webview');
                 this._view.webview.postMessage({
                     command: 'testClassesLoaded',
-                    testClasses: this._cachedTestClasses || []
+                    testClasses: testClasses
                 });
             }
             
             this._statusBarService.hide();
         } catch (error: any) {
-            console.error('[VisbalExt.TestClassExplorerView] [FETCH] Error fetching test classes:', error);
+            console.error('[VisbalExt.TestClassExplorerView] Error fetching test classes:', error);
             this._statusBarService.hide();
             
             if (this._view) {
@@ -210,38 +260,55 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
         this._testItems.set(testClass.name, classItem);
         console.log('[VisbalExt.TestClassExplorerView] [EXPLORER] Test items updated in controller');
     }
+	
+	 private async _refreshTestMethods(className: string) {
+		  console.log('[VisbalExt.TestClassExplorerView] _refreshTestMethods:', className);
+        try {
+            this._statusBarService.showMessage(`$(sync~spin) Refreshing test methods for ${className}...`);
+            
+			// If not in storage, fetch from Salesforce
+			const testMethods = await this._metadataService.getTestMethodsForClass(className);
+			 console.log('[VisbalExt.TestClassExplorerView] _refreshTestMethods testMethods:', testMethods);
+			// Save to storage
+			await this._storageService.saveTestMethodsForClass(className, testMethods);
+			 console.log('[VisbalExt.TestClassExplorerView] _refreshTestMethods saveTestMethodsForClass:');
+
+            // Send the test methods to the webview
+            if (this._view) {
+                this._view.webview.postMessage({
+                    command: 'testMethodsLoaded',
+                    className,
+                    testMethods
+                });
+            }
+            
+            this._statusBarService.hide();
+        } catch (error: any) {
+			console.error('[VisbalExt.TestClassExplorerView] _refreshTestMethods error:',error);
+            this._statusBarService.hide();
+            
+            if (this._view) {
+                this._view.webview.postMessage({
+                    command: 'error',
+                    message: `Error: ${error.message}`
+                });
+            }
+        }
+    }
+	
 
     private async _fetchTestMethods(className: string) {
         try {
             this._statusBarService.showMessage(`$(sync~spin) Fetching test methods for ${className}...`);
             
-            // Check cache first
-            if (this._cachedTestMethods.has(className)) {
-                console.log(`[VisbalExt.TestClassExplorerView] Using cached test methods for ${className}:`, this._cachedTestMethods.get(className));
-                if (this._view) {
-                    this._view.webview.postMessage({
-                        command: 'testMethodsLoaded',
-                        className,
-                        testMethods: this._cachedTestMethods.get(className)
-                    });
-                }
-                return;
-            }
+            // Try to get from storage first
+            let testMethods = await this._storageService.getTestMethodsForClass(className);
             
-            // Use MetadataService to get test methods for the class
-            const testMethods = await this._metadataService.getTestMethodsForClass(className);
-            
-            if (!testMethods || testMethods.length === 0) {
-                if (this._view) {
-                    this._view.webview.postMessage({
-                        command: 'showNotification',
-                        message: `No test methods found in ${className}.`
-                    });
-                }
-            } else {
-                // Cache the test methods with full objects
-                this._cachedTestMethods.set(className, testMethods);
-                console.log(`[VisbalExt.TestClassExplorerView] Cached test methods for ${className}:`, testMethods);
+            if (testMethods.length === 0) {
+                // If not in storage, fetch from Salesforce
+                testMethods = await this._metadataService.getTestMethodsForClass(className);
+                // Save to storage
+                await this._storageService.saveTestMethodsForClass(className, testMethods);
             }
             
             // Send the test methods to the webview
@@ -256,7 +323,6 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
             this._statusBarService.hide();
         } catch (error: any) {
             this._statusBarService.hide();
-            console.error(`[VisbalExt.TestClassExplorerView] Error fetching test methods for ${className}:`, error);
             
             if (this._view) {
                 this._view.webview.postMessage({
@@ -268,176 +334,457 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
     }
 
     private async _runTest(testClass: string, testMethod?: string) {
-        console.log(`[VisbalExt.TestClassExplorerView] [EXECUTION] Starting test run for class: ${testClass}${testMethod ? `, method: ${testMethod}` : ''}`);
-        
         try {
-            // Show running state in the webview
-            if (this._view) {
-                this._view.webview.postMessage({
-                    command: 'testRunStarted'
-                });
+            console.log(`[VisbalExt.TestClassExplorerView] _runTest -- Starting test run for class: ${testClass}${testMethod ? `, method: ${testMethod}` : ''}`);
+            
+            // Get test methods if not provided
+            let methodsToRun: string[] = [];
+            if (testMethod) {
+                methodsToRun = [testMethod];
+            } else {
+                const methods = await this._metadataService.getTestMethodsForClass(testClass);
+                methodsToRun = methods.map(m => m.name);
             }
 
-            this._statusBarService.showMessage('$(sync~spin) Running test...');
-            
-            // Execute the test
-            console.log('[VisbalExt.TestClassExplorerView] Calling MetadataService.runTests');
-            const result = await this._metadataService.runTests(testClass, testMethod);
-            console.log('[VisbalExt.TestClassExplorerView] Test execution completed. Result:', result);
+            // Add test run to results view
+            console.log('[VisbalExt.TestClassExplorerView] _runTest -- Adding test run to results view');
+            console.log('[VisbalExt.TestClassExplorerView] _runTest -- testClass:', testClass);
+            console.log('[VisbalExt.TestClassExplorerView] _runTest -- methodsToRun:', methodsToRun);
+            this._testRunResultsView.addTestRun(testClass, methodsToRun);
 
-            // Get test run details using the testRunId
+            // Update each method to running state
+            console.log('[VisbalExt.TestClassExplorerView] _runTest -- Setting methods to running state');
+            methodsToRun.forEach(method => {
+                this._testRunResultsView.updateMethodStatus(testClass, method, 'running');
+            });
+
+            // Update status bar
+            this._statusBarService.showMessage(`$(sync~spin) Running tests in ${testClass}...`);
+
+            console.log('[VisbalExt.TestClassExplorerView] _runTest -- Calling MetadataService.runTests');
+            const result = await this._sfdxService.runTests(testClass, testMethod);
+            console.log('[VisbalExt.TestClassExplorerView] _runTest -- Test execution completed. Result:', result);
+
             if (result && result.testRunId) {
-                console.log('[VisbalExt.TestClassExplorerView] Fetching test run details for:', result.testRunId);
-                const testRunResult = await this._metadataService.getTestRunResult(result.testRunId);
-                console.log('[VisbalExt.TestClassExplorerView] Test run details:', testRunResult);
+                console.log('[VisbalExt.TestClassExplorerView] _runTest test run details for:', result.testRunId);
+                const testRunResult = await this._sfdxService.getTestRunResult(result.testRunId);
+                console.log('[VisbalExt.TestClassExplorerView] _runTest -- testRunResult:', testRunResult);
+                console.log('[VisbalExt.TestClassExplorerView] _runTest -- testRunResult.summary:', testRunResult.summary);
 
-                // Send the test results to the webview
+                // Use the shared test results view instance
+                if (testRunResult?.summary) {
+                    console.log('[VisbalExt.TestClassExplorerView] _runTest -- Updating test results view with summary:', testRunResult.summary);
+                    this._testSummaryView.updateSummary(testRunResult.summary, testRunResult.tests);
+                } else {
+                    console.warn('[VisbalExt.TestClassExplorerView] _runTest -- No summary data available in test run result');
+                }
+
+                // Update test results in webview
                 if (this._view) {
-                    console.log('[VisbalExt.TestClassExplorerView] Sending test results to webview');
+                    console.log('[VisbalExt.TestClassExplorerView] _runTest -- Sending test results to webview');
                     this._view.webview.postMessage({
                         command: 'testResultsLoaded',
                         results: testRunResult
                     });
                 }
-
-                if (testRunResult && testRunResult.tests && testRunResult.tests.length > 0) {
-                    const testResult = testRunResult.tests[0]; // Get the first test result
-                    console.log('[VisbalExt.TestClassExplorerView] testResult:', testResult);
-
-                    // Update test status in UI
-                    const success = testResult.Outcome === 'Pass';
-                    const runTime = testResult.RunTime || 0;
-                    const message = testResult.Message || '';
-                    const stackTrace = testResult.StackTrace || '';
-					
-					
-					console.log('[VisbalExt.TestClassExplorerView] DOWNLOAD THE LOG');
-				
-					try {
-						
-						 const logId = await this._metadataService.getTestLogId(result.testRunId);
-						 if (logId) {
-                            await this._visbalLogView.downloadLog(logId);
-                            await this._visbalLogView.openLog(logId);
-                            //download the log with json values
-							//const logResult = await this._metadataService.getLogContent(logId);
-						 } else {
-							console.warn('[VisbalExt.TestClassExplorerView] No log IDs found for test run');
-						 }
-					}catch (logError) {
-						console.error('[VisbalExt.TestClassExplorerView] Error getLogContent:', logError);
-						vscode.window.showWarningMessage(`Could not fetch test log: ${(logError as Error).message}`);
-					}
-
-                    if (success) {
-                        console.log('[VisbalExt.TestClassExplorerView] Test passed');
-                        const successMessage = testMethod 
-                            ? `Method ${testMethod} passed in ${runTime}ms`
-                            : `All tests in ${testClass} passed in ${runTime}ms`;
-                        console.log(`[VisbalExt.TestClassExplorerView] [EXECUTION] ${successMessage}`);
-                        vscode.window.showInformationMessage(successMessage);
-
-                        // Wait a moment for the test to fully complete and logs to be available
-                        await new Promise(resolve => setTimeout(resolve, 2000));
-						
-						
-
-
-                        // Now fetch the log
-                        try {
-                            console.log('[VisbalExt.TestClassExplorerView] Fetching test run log for:', result.testRunId);
-                            const logResult = await this._metadataService.getTestRunLog(result.testRunId);
+                //test finish we collect the test run id and the logs    
+                const mainClassMap = new Map<string, Boolean>();
+                for (const t of testRunResult.tests) {
+                    try {
+                        //update the "Running Task" treeview status
+                        this._testRunResultsView.updateMethodStatus(testClass, t.MethodName, 'downloading');
+                        const logId = await this._metadataService.getTestLogId(result.testRunId);
+                        if (logId) {
+                            this._testRunResultsView.updateMethodStatus(testClass, t.MethodName, 'downloading', logId);
+                            console.log(`[VisbalExt.TestClassExplorer] _runTest Processing log for test: ${t.ApexClass?.Name || 'Unknown'}`);
                             
-                            if (logResult && logResult.logPath) {
-                                console.log('[VisbalExt.TestClassExplorerView] Log file created at:', logResult.logPath);
-                                vscode.window.showInformationMessage(`Test log saved to: ${logResult.logPath}`);
+                            // Download and open log for the first test only to avoid multiple windows
+                            if (mainClassMap.size === 0) {
+                                console.log(`[VisbalExt.TestClassExplorer] _runTest -- Downloading and opening log: ${logId}`);
+                                await this._orgUtils.downloadLog(logId);
+                                await this._orgUtils.openLog(logId, this._extensionUri);
+                            } else {
+                                // For subsequent tests, just download in background
+                                console.log(`[VisbalExt.TestClassExplorer] _runTest -- Downloading additional log: ${logId}`);
+                                this._orgUtils.downloadLog(logId);
                             }
-                        } catch (logError) {
-                            console.error('[VisbalExt.TestClassExplorerView] Error fetching test log:', logError);
-                            vscode.window.showWarningMessage(`Could not fetch test log: ${(logError as Error).message}`);
+                        } else {
+                            console.warn(`[VisbalExt.TestClassExplorer] _runTest -- No log ID found for test: ${t.ApexClass?.Name || 'Unknown'}`);
                         }
-                    } else {
-                        console.error('[VisbalExt.TestClassExplorerView] [EXECUTION] Test failed:', message);
-                        vscode.window.showErrorMessage(`Test failed: ${message}`);
+                        
+                        //UPDATE THE STATUS OF THE METHOD
+                        if (!mainClassMap.has(t.ApexClass.Name)) {
+                            mainClassMap.set(t.ApexClass.Name, true);
+                        }
+                        console.log('[VisbalExt.TestClassExplorerView] _runTest -- Test:', t);
+                        if (t.Outcome === 'Pass') {
+                            this._testRunResultsView.updateMethodStatus(testClass, t.MethodName, 'success');
+                        }
+                        else {
+                            console.log('[VisbalExt.TestClassExplorerView] _runTest -- Test failed:',t.Outcome);
+                            this._testRunResultsView.updateMethodStatus(testClass, t.MethodName, 'failed');
+                            mainClassMap.set(t.ApexClass.Name, false);
+                        }
+                    } catch (error) {
+                        console.error(`[VisbalExt.TestClassExplorer] _runTest -- Error processing test log: ${error}`);
                     }
-                } else {
-                    throw new Error('No test results found in the response');
                 }
-            } else {
-                throw new Error('No test run ID received from test execution');
-            }
 
-            console.log('[VisbalExt.TestClassExplorerView] Test run ended');
-        } catch (error: any) {
-            console.error('[VisbalExt.TestClassExplorerView] [EXECUTION] Error during test execution:', error);
-            this._statusBarService.showError(`Error running test: ${error.message}`);
-            vscode.window.showErrorMessage(`Failed to run test: ${error.message}`);
-            
-            // Send error to webview
-            if (this._view) {
-                this._view.webview.postMessage({
-                    command: 'error',
-                    message: `Error running test: ${error.message}`
-                });
+                for (const [className, isSuccess] of mainClassMap.entries()) {
+                    if (isSuccess) {
+                        this._testRunResultsView.updateClassStatus(className, 'success');
+                    }
+                    else {
+                        this._testRunResultsView.updateClassStatus(className, 'failed');
+                    }
+                }
+               
             }
+        } catch (error: any) {
+            console.error('[VisbalExt.TestClassExplorerView] _runTest -- Error during test execution:', error);
+            this._testRunResultsView.updateClassStatus(testClass, 'failed');
+            if (testMethod) {
+                this._testRunResultsView.updateMethodStatus(testClass, testMethod, 'failed');
+            }
+            vscode.window.showErrorMessage(`Error running tests: ${error.message}`);
         } finally {
             this._statusBarService.hide();
-            console.log('[VisbalExt.TestClassExplorerView] Status bar cleared');
         }
     }
     
-    private async _runSelectedTests(tests: { classes: string[], methods: { className: string, methodName: string }[] }) {
+    private async _runSelectedTests(tests: { 
+        classes: string[], 
+        methods: { className: string, methodName: string }[],
+        runMode: 'sequential' | 'parallel'
+    }) {
         try {
             const totalCount = tests.classes.length + tests.methods.length;
             
-            // Show running state in the webview
             if (this._view) {
                 this._view.webview.postMessage({
                     command: 'testRunStarted'
                 });
             }
 
-            this._statusBarService.showMessage(`$(beaker~spin) Running ${totalCount} selected tests...`);
+            this._statusBarService.showMessage(`$(beaker~spin) Running ${totalCount} selected tests in ${tests.runMode} mode...`);
             
-            // Check if Salesforce Extension Pack is installed
             const sfExtension = vscode.extensions.getExtension('salesforce.salesforcedx-vscode-core');
             
             if (!sfExtension) {
                 throw new Error('Salesforce Extension Pack is required to run tests. Please install it from the VS Code marketplace.');
             }
             
-            const results = [];
-            
-            // Run class tests
-            for (const className of tests.classes) {
-                try {
-                    console.log(`[VisbalExt.TestClassExplorerView] Running test class: ${className}`);
-                    const result = await this._metadataService.runTests(className);
-                    if (result) {
-                        results.push(result);
-                    }
-                } catch (error: any) {
-                    console.error(`[VisbalExt.TestClassExplorerView] Error running test class ${className}:`, error);
-                }
-            }
-            
-            // Run method tests
+            const results: TestRunResult[] = [];
+            console.log('[VisbalExt.TestClassExplorerView] _runSelectedTests -- tests:', tests);
+
+            // Add the tests to the Running task view
+            const classesWithMethods = new Map<string, string[]>();
             for (const { className, methodName } of tests.methods) {
-                try {
-                    console.log(`[VisbalExt.VisbalExt.TestClassExplorerView] Running test method: ${className}.${methodName}`);
-                    const result = await this._metadataService.runTests(className, methodName);
-                    if (result) {
-                        results.push(result);
-                    }
-                } catch (error: any) {
-                    console.error(`[VisbalExt.TestClassExplorerView] Error running test method ${className}.${methodName}:`, error);
+                if (!classesWithMethods.has(className)) {
+                    classesWithMethods.set(className, []);
+                }
+                classesWithMethods.get(className)?.push(methodName);
+            }
+
+            // Add class-level tests
+            for (const className of tests.classes) {
+                if (!classesWithMethods.has(className)) {
+                    const methods = await this._metadataService.getTestMethodsForClass(className);
+                    classesWithMethods.set(className, methods.map(m => m.name));
                 }
             }
+
+            // Add all tests to the results view
+            for (const [className, methodNames] of classesWithMethods.entries()) {
+                this._testRunResultsView.addTestRun(className, methodNames);
+            }
+
+            if (tests.runMode === 'parallel') {
+                //#region PARALLEL MODE
+                // Run all tests in parallel and process results as they complete
+                const mainClassMap = new Map<string, Boolean>();
+                const allTestResults: any[] = [];
+                const results: TestRunResult[] = [];
+
+                // Create promises for all tests but process them as they complete
+                const testPromises = [];
+                for (const [className, methodNames] of classesWithMethods.entries()) {
+                    for (const methodName of methodNames) {
+                        this._testRunResultsView.updateMethodStatus(className, methodName, 'running');
+                        
+                        // Execute test and process its result immediately
+                        const testPromise = this._executeTest(className, methodName)
+                            .then(async (result) => {
+                                if (result && result.testRunId) {
+                                    try {
+                                        const [testRunResult, logId] = await Promise.all([
+                                            this._sfdxService.getTestRunResult(result.testRunId),
+                                            this._sfdxService.getTestLogId(result.testRunId)
+                                        ]);
+                                        console.log('[VisbalExt.TestClassExplorerView] _runSelectedTests.parallel -- testRunResult:', testRunResult);
+                                        console.log('[VisbalExt.TestClassExplorerView] _runSelectedTests.parallel -- logId:', logId);
+
+                                        // Store the test result for summary
+                                        if (testRunResult && testRunResult.summary) {
+                                            allTestResults.push(testRunResult);
+                                        }
+
+                                        // Process each test in the result
+                                        for (const test of testRunResult.tests) {
+                                            const testClassName = test.ApexClass?.Name;
+                                            if (!testClassName) continue;
+
+                                            // Download log if available
+                                            if (logId) {
+                                                console.log(`[VisbalExt.TestClassExplorer] Processing log for test: ${testClassName}.${test.MethodName}`);
+                                                this._testRunResultsView.updateMethodStatus(testClassName, test.MethodName, 'downloading', logId);
+                                                
+                                                // Download log in background
+                                                this._orgUtils.downloadLog(logId).catch(error => {
+                                                    console.error(`[VisbalExt.TestClassExplorer] Error downloading log: ${error}`);
+                                                });
+                                            }
+
+                                            // Initialize class status if not already set
+                                            if (!mainClassMap.has(testClassName)) {
+                                                mainClassMap.set(testClassName, true);
+                                            }
+
+                                            // Update method status
+                                            if (test.Outcome === 'Pass') {
+                                                this._testRunResultsView.updateMethodStatus(testClassName, test.MethodName, 'success', logId);
+                                            } else {
+                                                this._testRunResultsView.updateMethodStatus(testClassName, test.MethodName, 'failed', logId);
+                                                mainClassMap.set(testClassName, false);
+                                            }
+
+                                            // Update class status immediately
+                                            this._testRunResultsView.updateClassStatus(
+                                                testClassName, 
+                                                mainClassMap.get(testClassName) ? 'success' : 'failed'
+                                            );
+                                        }
+
+                                        // Update the webview with current results
+                                        if (this._view && allTestResults.length > 0) {
+                                            const combinedSummary = allTestResults.map(result => result.summary);
+                                            const allTests = allTestResults.reduce((acc, result) => acc.concat(result.tests), []);
+                                            this._testSummaryView.updateSummary(combinedSummary, allTests);
+                                        }
+                                    } catch (error) {
+                                        console.error(`[VisbalExt.TestClassExplorer] Error processing test result: ${error}`);
+                                    }
+                                }
+                            })
+                            .catch(error => {
+                                console.error(`[VisbalExt.TestClassExplorer] Error executing test ${className}.${methodName}: ${error}`);
+                                this._testRunResultsView.updateMethodStatus(className, methodName, 'failed');
+                            });
+
+                        testPromises.push(testPromise);
+                    }
+                }
+
+                // Wait for all tests to complete
+                await Promise.all(testPromises);
+
+                // Final update with all results
+                if (allTestResults.length > 0) {
+                    const combinedSummary = allTestResults.map(result => result.summary);
+                    const allTests = allTestResults.reduce((acc, result) => acc.concat(result.tests), []);
+                    this._testSummaryView.updateSummary(combinedSummary, allTests);
+                } else {
+                    console.warn('[VisbalExt.TestClassExplorerView] _runSelectedTests.parallel -- No test results available');
+                }
+                //#endregion PARALLEL MODE
+            } else {
+                //#region SEQUENTIAL MODE
+                // Run tests sequentially
+                const errorMap = new Map<string, string>();
+                const allTestResults: any[] = [];  // Store all test results
+                console.log('[VisbalExt.TestClassExplorerView] _runSelectedTests.sequentially -- tests:', tests);
+                for (const { className, methodName } of tests.methods) {
+					try {
+						this._testRunResultsView.updateMethodStatus(className, methodName, 'running');
+						console.log(`[VisbalExt.VisbalExt.TestClassExplorerView] _runSelectedTests.sequentially -- Running test method: ${className}.${methodName}`);
+						
+						// Create an async function to handle test execution and log downloading in parallel
+						const handleTestAndLog = async () => {
+							try {
+								const result = await this._sfdxService.runTests(className, methodName);
+                                console.log('[VisbalExt.TestClassExplorerView] _runSelectedTests.sequentially -- result:', result);
+								if (result && result.testRunId) {
+									const [testRunResult, logId] = await Promise.all([
+										this._sfdxService.getTestRunResult(result.testRunId),
+										this._sfdxService.getTestLogId(result.testRunId)
+									]);
+                                    console.log('[VisbalExt.TestClassExplorerView] _runSelectedTests.sequentially -- testRunResult:', testRunResult);
+                                    console.log('[VisbalExt.TestClassExplorerView] _runSelectedTests.sequentially -- logId:', logId);
+
+                                    // Store the test result for summary
+                                    if (testRunResult && testRunResult.summary) {
+                                        allTestResults.push(testRunResult);
+                                    }
+
+									const mainClassMap = new Map<string, Boolean>();
+									for (const t of testRunResult.tests) {
+										try {
+											if (logId) {
+												console.log(`[VisbalExt.TestClassExplorer] _runSelectedTests.sequentially  Processing log for test: ${t.ApexClass?.Name || 'Unknown'}`);
+												this._testRunResultsView.updateMethodStatus(className, t.MethodName, 'downloading', logId);
+												
+												// Download log in background
+												this._orgUtils.downloadLog(logId).catch(error => {
+													console.error(`[VisbalExt.TestClassExplorer] _runSelectedTests.sequentially  Error downloading log: ${error}`);
+												});
+											}
+
+											if (!mainClassMap.has(t.ApexClass.Name)) {
+												mainClassMap.set(t.ApexClass.Name, true);
+											}
+
+											if (t.Outcome === 'Pass') {
+												this._testRunResultsView.updateMethodStatus(className, t.MethodName, 'success', logId);
+											} else {
+                                                console.error(`[VisbalExt.TestClassExplorer] _runSelectedTests.sequentially updateMethodStatus.failed logId:${logId}`);
+												this._testRunResultsView.updateMethodStatus(className, t.methodName, 'failed', logId);
+												mainClassMap.set(t.ApexClass.Name, false);
+											}
+										} catch (error) {
+											console.error(`[VisbalExt.TestClassExplorer] _runSelectedTests.sequentially updateMethodStatus.failed ERROR ON ${className}.${methodName} : ${error}`);
+											this._testRunResultsView.updateMethodStatus(className, t.MethodName, 'failed');
+										}
+									}
+
+									// Update class status after all methods are processed
+									for (const [className, isSuccess] of mainClassMap.entries()) {
+										this._testRunResultsView.updateClassStatus(
+											className, 
+											isSuccess ? 'success' : 'failed'
+										);
+									}
+								}
+							} catch (error: any) {
+								console.error(`[VisbalExt.TestClassExplorer] _runSelectedTests.sequentially  Error in test execution: ${error}`);
+								errorMap.set(className, error.message);
+								// Check if this is an "already enqueued" error
+								if (error.message && (
+									error.message.includes('ALREADY_IN_PROCESS') || 
+									error.message.includes('Test already enqueued')
+								)) {
+									console.log(`[VisbalExt.TestClassExplorer] _runSelectedTests.sequentially  Test ${className}.${methodName} is already running, waiting for completion...`);
+									
+									// Update UI to show waiting status
+									this._testRunResultsView.updateMethodStatus(className, methodName, 'running');
+									
+									if (this._view) {
+										this._view.webview.postMessage({
+											command: 'showNotification',
+											message: `Test ${className}.${methodName} is already running. Waiting for completion...`
+										});
+									}
+									
+									// Extract the test run ID from the error message if available
+									const testRunIdMatch = error.message.match(/Test already enqueued (\w+)/);
+									if (testRunIdMatch && testRunIdMatch[1]) {
+										const testRunId = testRunIdMatch[1];
+										try {
+											// Poll for test results with exponential backoff
+											let retryCount = 0;
+											const maxRetries = 5;
+											const baseDelay = 2000; // Start with 2 second delay
+
+											const pollWithBackoff = async () => {
+												try {
+													const testRunResult = await this._sfdxService.getTestRunResult(testRunId);
+													const logId = await this._sfdxService.getTestLogId(testRunId);
+                                                    console.log('[VisbalExt.TestClassExplorerView] _runSelectedTests.sequentially POLL ${className}.${methodName} testRunId:${testRunId} logId:${logId} testRunResult:', testRunResult);
+													// If we get here, we have results
+													for (const t of testRunResult.tests) {
+														if (t.MethodName === methodName) {
+                                                            console.error(`[VisbalExt.TestClassExplorer] _runSelectedTests.sequentially POLL updateMethodStatus.t.Outcome: ${t.Outcome}`);
+															this._testRunResultsView.updateMethodStatus(
+																className,
+																methodName,
+																t.Outcome === 'Pass' ? 'success' : 'failed',
+																logId
+															);
+															break;
+														}
+													}
+													return;
+												} catch (error) {
+													retryCount++;
+													if (retryCount < maxRetries) {
+														// Exponential backoff with jitter
+														const delay = baseDelay * Math.pow(2, retryCount) * (0.5 + Math.random());
+														console.log(`[VisbalExt.TestClassExplorer] _runSelectedTests POLL Retry ${retryCount}/${maxRetries} after ${delay}ms`);
+														await new Promise(resolve => setTimeout(resolve, delay));
+														return pollWithBackoff();
+													}
+													throw error;
+												}
+											};
+
+											await pollWithBackoff();
+										} catch (pollError: any) {
+											console.error(`[VisbalExt.TestClassExplorer] _runSelectedTests.sequentially POLL updateMethodStatus.failed pollError: ${pollError}`);
+                                            errorMap.set(className, pollError);
+
+											this._testRunResultsView.updateMethodStatus(className, methodName, 'failed', errorMap.get(className));
+											if (this._view) {
+												this._view.webview.postMessage({
+													command: 'error',
+													message: `Error polling test results for ${className}.${methodName}: ${pollError.message}`
+												});
+											}
+										}
+									}
+								}
+								
+								// For other errors or if polling fails, mark as failed
+                                console.error(`[VisbalExt.TestClassExplorer] _runSelectedTests.sequentially updateMethodStatus.failed`);
+								this._testRunResultsView.updateMethodStatus(className, methodName, 'failed', errorMap.get(className));
+								if (this._view) {
+									this._view.webview.postMessage({
+										command: 'error',
+										message: `Error running test ${className}.${methodName}: ${error.message}`
+									});
+								}
+							}
+						};
+
+						// Execute the async function without waiting
+						handleTestAndLog().catch(error => {
+							console.error(`[VisbalExt.TestClassExplorer] _runSelectedTests.sequentially  Error in test execution ${className}.${methodName} ERROR`, error);
+							this._testRunResultsView.updateMethodStatus(className, methodName, 'failed');
+						});
+
+					} catch (error) {
+						console.error(`[VisbalExt.TestClassExplorer] _runSelectedTests.sequentially  Error running test method ${className}.${methodName}: ${error}`);
+						this._testRunResultsView.updateMethodStatus(className, methodName, 'failed');
+					}
+
+                   
+				}
+
+                // After all tests are complete, combine the results and update the summary view
+                if (allTestResults.length > 0) {
+                    // Combine all summaries
+                    const combinedSummary = allTestResults.map(result => result.summary);
+                    const allTests = allTestResults.reduce((acc, result) => acc.concat(result.tests), []);
+
+                    console.log('[VisbalExt.TestClassExplorerView] _runSelectedTests.sequentially -- Combined summary:', combinedSummary);
+                    this._testSummaryView.updateSummary(combinedSummary, allTests);
+                } else {
+                    console.warn('[VisbalExt.TestClassExplorerView] _runSelectedTests.sequentially -- No test results available');
+                }
+                //#endregion SEQUENTIAL MODE
+            }
             
-            // Combine results
+            console.log('[VisbalExt.TestClassExplorerView] _runSelectedTests -- results:', results);
             const combinedResult = this._combineTestResults(results);
-            
-            // Send the combined results to the webview
+
             if (this._view) {
                 this._view.webview.postMessage({
                     command: 'testResultsLoaded',
@@ -458,7 +805,47 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
             }
         }
     }
-    
+
+    private async _executeTest(className: string, methodName: string) {
+        try {
+            console.log(`[VisbalExt.TestClassExplorerView] Executing test: ${className}.${methodName}`);
+            
+            const result = await this._sfdxService.runTests(className, methodName);
+            if (result && result.testRunId) {
+                const [testRunResult, logId] = await Promise.all([
+                    this._sfdxService.getTestRunResult(result.testRunId),
+                    this._sfdxService.getTestLogId(result.testRunId)
+                ]);
+
+                if (logId) {
+                    console.log(`[VisbalExt.TestClassExplorer] Processing log for test: ${className}.${methodName}`);
+                    this._testRunResultsView.updateMethodStatus(className, methodName, 'downloading');
+                    
+                    // Download log in background
+                    this._orgUtils.downloadLog(logId).catch(error => {
+                        console.error(`[VisbalExt.TestClassExplorer] Error downloading log: ${error}`);
+                    });
+                }
+
+                const test = testRunResult.tests.find((t: { MethodName: string, Outcome: string }) => t.MethodName === methodName);
+                if (test) {
+                    this._testRunResultsView.updateMethodStatus(
+                        className,
+                        methodName,
+                        test.Outcome === 'Pass' ? 'success' : 'failed'
+                    );
+                }
+
+                return result;
+            }
+            return null;
+        } catch (error) {
+            console.error(`[VisbalExt.TestClassExplorer] Error executing test ${className}.${methodName}:`, error);
+            this._testRunResultsView.updateMethodStatus(className, methodName, 'failed');
+            return null;
+        }
+    }
+
     private _combineTestResults(results: any[]): any {
         if (!results || results.length === 0) {
             return {
@@ -515,7 +902,6 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
     }
     
     private _getHtmlForWebview(webview: vscode.Webview): string {
-        // Use a nonce to only allow specific scripts to be run
         const nonce = this._getNonce();
 
         return `<!DOCTYPE html>
@@ -527,100 +913,204 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
             <title>Test Class Explorer</title>
             <link href="${webview.asWebviewUri(vscode.Uri.joinPath(this._extensionUri, 'node_modules', '@vscode/codicons', 'dist', 'codicon.css'))}" rel="stylesheet" />
             <style>
+                :root {
+                    --container-padding: 0;
+                    --input-padding-vertical: 2px;
+                    --input-padding-horizontal: 4px;
+                    --input-margin-vertical: 4px;
+                    --input-margin-horizontal: 0;
+                }
+
                 body {
                     font-family: var(--vscode-font-family);
                     color: var(--vscode-foreground);
                     background-color: var(--vscode-editor-background);
-                    padding: 5px;
+                    padding: var(--container-padding);
                     margin: 0;
+                    width: 100%;
                     height: 100vh;
+                    box-sizing: border-box;
                     overflow: hidden;
                 }
+
                 .container {
-                    display: flex;
-                    flex-direction: column;
                     height: 100%;
-                    width: 100%;
-                }
-                .split-container {
                     display: flex;
                     flex-direction: column;
-                    flex: 1;
-                    min-height: 0;
-                    position: relative;
+                    margin: 0;
+                    padding: 0;
+                    border-right: 1px solid var(--vscode-panel-border);
                 }
+
                 .test-classes-container {
                     flex: 1;
-                    overflow: auto;
-                    margin-top: 5px;
-                    border: 1px solid var(--vscode-panel-border);
+                    overflow-y: auto;
+                    margin: 0;
                     padding: 5px;
-                    min-height: 100px;
+                    border-top: 1px solid var(--vscode-panel-border);
+                    min-height: 0;
+                    scrollbar-width: thin; /* For Firefox */
+                    scrollbar-color: var(--vscode-scrollbarSlider-background) transparent; /* For Firefox */
                 }
-                .bottom-container {
-                    height: 400px;
-                    min-height: 100px;
-                    overflow: auto;
-                    margin-top: 5px;
-                    border: 1px solid var(--vscode-panel-border);
-                    padding: 5px;
-                    resize: vertical;
+
+                /* Webkit (Chrome, Safari, Edge) scrollbar styles */
+                .test-classes-container::-webkit-scrollbar {
+                    width: 8px;
+                    height: 8px;
                 }
-                .resizer {
-                    height: 5px;
-                    background: var(--vscode-panel-border);
-                    cursor: ns-resize;
-                    margin: 5px 0;
+
+                .test-classes-container::-webkit-scrollbar-track {
+                    background: var(--vscode-scrollbarSlider-background);
+                    opacity: 0.4;
                 }
+
+                .test-classes-container::-webkit-scrollbar-thumb {
+                    background-color: var(--vscode-scrollbarSlider-background);
+                    border-radius: 4px;
+                    min-height: 40px;
+                }
+
+                .test-classes-container::-webkit-scrollbar-thumb:hover {
+                    background-color: var(--vscode-scrollbarSlider-hoverBackground);
+                }
+
+                .test-classes-container::-webkit-scrollbar-thumb:active {
+                    background-color: var(--vscode-scrollbarSlider-activeBackground);
+                }
+
+                .test-classes-container::-webkit-scrollbar-corner {
+                    background: transparent;
+                }
+
+                /* Make sure the container allows scrolling */
+                .split-container {
+                    flex: 1;
+                    display: flex;
+                    flex-direction: column;
+                    min-height: 0;
+                    height: 100%;
+                    position: relative;
+                    margin: 0;
+                    padding: 0;
+                    overflow: hidden;
+                }
+
+                /* Ensure the list takes full height */
+                #testClassesList {
+                    height: 100%;
+                    overflow: visible;
+                }
+
                 .actions {
-                    margin-bottom: 5px;
+                    padding: 5px;
                     display: flex;
                     justify-content: space-between;
                     align-items: center;
+                    background: var(--vscode-editor-background);
+                    min-height: 32px;
                 }
+
+                .test-classes-list {
+                    list-style-type: none;
+                    padding: 0;
+                    margin: 0;
+                    width: 100%;
+                }
+
+                .test-class-item {
+                    padding: 3px 5px;
+                    cursor: pointer;
+                    display: flex;
+                    align-items: center;
+                    width: 100%;
+                }
+
+                .test-class-item:hover {
+                    background-color: var(--vscode-list-hoverBackground);
+                }
+
+                .test-class-name {
+                    margin-left: 5px;
+                    flex: 1;
+                    white-space: nowrap;
+                    overflow: hidden;
+                    text-overflow: ellipsis;
+                }
+
+                .test-methods-list {
+                    list-style-type: none;
+                    padding: 0;
+                    margin: 0;
+                    width: 100%;
+					background-color: #404040;
+                }
+
+                .test-method-item {
+                    padding: 2px 5px 2px 10px;
+                    cursor: pointer;
+                    display: flex;
+                    align-items: center;
+                    width: 100%;
+                }
+
+                .test-method-item:hover {
+                    background-color: var(--vscode-list-hoverBackground);
+                }
+
+                .test-method-name {
+                    margin-left: -5px;
+                    flex: 1;
+                    white-space: nowrap;
+                    overflow: hidden;
+                    text-overflow: ellipsis;
+                    padding-right: 8px;
+                }
+
+                
+
                 .button {
                     background-color: var(--vscode-button-background);
                     color: var(--vscode-button-foreground);
                     border: none;
-                    padding: 6px 12px;
+                    padding: 4px 8px;
                     cursor: pointer;
                     border-radius: 2px;
-                    margin: 2px;
                     font-size: 12px;
+                    margin: 0 2px;
                 }
+
                 .button:hover {
                     background-color: var(--vscode-button-hoverBackground);
                 }
+
                 .button:disabled {
                     opacity: 0.5;
                     cursor: not-allowed;
                 }
+
                 .icon-button {
                     background: transparent;
                     border: none;
                     cursor: pointer;
-                    padding: 2px;
+                    padding: 4px;
                     display: flex;
                     align-items: center;
                     justify-content: center;
                     color: var(--vscode-editor-foreground);
                     border-radius: 3px;
+                    margin: 0 2px;
                 }
+
                 .icon-button:hover {
                     background-color: var(--vscode-toolbar-hoverBackground);
                 }
-                .icon-button.refresh {
-                    color: var(--vscode-symbolIcon-colorForeground);
-                }
-                .icon-button.run {
-                    color: #3fb950; /* GitHub green color for play button */
-                    margin-left: auto;
-                }
+
                 .loading {
                     display: flex;
                     align-items: center;
-                    margin: 5px 0;
+                    padding: 5px;
                 }
+
                 .spinner {
                     width: 16px;
                     height: 16px;
@@ -630,150 +1120,101 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                     animation: spin 1s linear infinite;
                     margin-right: 8px;
                 }
+
                 @keyframes spin {
                     to { transform: rotate(360deg); }
                 }
+
                 .hidden {
                     display: none !important;
                 }
+
                 .error-container {
-                    margin: 5px 0;
+                    margin: 5px;
                     padding: 8px;
                     background-color: var(--vscode-inputValidation-errorBackground);
                     border: 1px solid var(--vscode-inputValidation-errorBorder);
                     color: var(--vscode-inputValidation-errorForeground);
                 }
+
                 .notification-container {
-                    margin: 5px 0;
+                    margin: 5px;
                     padding: 8px;
                     background-color: var(--vscode-inputValidation-infoBackground);
                     border: 1px solid var(--vscode-inputValidation-infoBorder);
                     color: var(--vscode-inputValidation-infoForeground);
                 }
-                .test-classes-list {
-                    list-style-type: none;
-                    padding: 0;
-                    margin: 0;
-                }
-                .test-class-item {
-                    padding: 3px 0;
-                    cursor: pointer;
-                    display: flex;
-                    align-items: center;
-                    white-space: nowrap;
-                    overflow: hidden;
-                    text-overflow: ellipsis;
-                }
-                .test-class-item:hover {
-                    background-color: var(--vscode-list-hoverBackground);
-                }
-                .test-class-name {
-                    margin-left: 5px;
-                    flex: 1;
-                    overflow: hidden;
-                    text-overflow: ellipsis;
-                    padding-right: 8px;
-                }
-                .test-methods-list {
-                    list-style-type: none;
-                    padding: 0;
-                    margin: 0;
-                }
-                .test-method-item {
-                    padding: 2px 0;
-                    cursor: pointer;
-                    display: flex;
-                    align-items: center;
-                    margin-left: 12px;
-                    white-space: nowrap;
-                    overflow: hidden;
-                    text-overflow: ellipsis;
-                }
-                .test-method-item:hover {
-                    background-color: var(--vscode-list-hoverBackground);
-                }
-                .test-method-name {
-                    margin-left: 2px;
-                    flex: 1;
-                    overflow: hidden;
-                    text-overflow: ellipsis;
-                    padding-right: 4px;
-                }
+
                 .icon {
                     width: 16px;
                     height: 16px;
-                    display: inline-block;
-                    text-align: center;
                     flex-shrink: 0;
                 }
-                .test-status {
-                    margin-right: 2px;
-                    color: var(--vscode-testing-iconPassed);
-                }
-                .test-status.failed {
-                    color: var(--vscode-testing-iconFailed);
-                }
-                .test-status.running {
-                    animation: spin 1s linear infinite;
-                }
-                .no-data {
-                    color: var(--vscode-descriptionForeground);
-                    font-style: italic;
-                    margin: 10px 0;
-                    display: none;
-                }
-                .footer-note {
-                    margin-top: 5px;
-                    font-size: 0.8em;
-                    color: var(--vscode-descriptionForeground);
-                }
-                .checkbox {
-                    margin: 0 3px;
-                    cursor: pointer;
-                }
-                .checkbox-container {
+
+                .select-all-container {
                     display: flex;
                     align-items: center;
-                    margin-right: 0;
+                    margin-right: 10px;
+                    cursor: pointer;
+                }
+                .select-all-label {
+                    margin-left: 5px;
+                    user-select: none;
                 }
                 .selection-actions {
                     display: flex;
                     align-items: center;
-                    gap: 8px;
+                    gap: 10px;
                 }
-                #runSelectedButton {
-                    display: none;
-                }
-                #runSelectedButton:not([disabled]) {
-                    cursor: pointer;
-                    opacity: 1;
-                }
-                #runSelectedButton[disabled] {
-                    opacity: 0.5;
-                    cursor: not-allowed;
-                }
-                .selection-count {
-                    margin-right: 8px;
-                    font-size: 12px;
-                    color: var(--vscode-descriptionForeground);
-                }
-                .codicon {
-                    font-size: 14px;
-                    line-height: 14px;
-                    width: 14px;
-                    height: 14px;
-                    display: inline-block;
-                    text-align: center;
-                    vertical-align: middle;
-                }
-                .running-tests {
+
+                .run-options {
                     display: flex;
                     align-items: center;
-                    color: var(--vscode-foreground);
-                    font-size: 13px;
+                    gap: 8px;
                 }
-                .running-tests .spinner {
-                    margin-right: 8px;
+
+                .run-mode-select {
+                    background: var(--vscode-dropdown-background);
+                    color: var(--vscode-dropdown-foreground);
+                    border: 1px solid var(--vscode-dropdown-border);
+                    padding: 2px 6px;
+                    border-radius: 2px;
+                    font-size: 12px;
+                }
+
+                .context-menu {
+                    position: absolute;
+                    background: var(--vscode-menu-background);
+                    border: 1px solid var(--vscode-menu-border);
+                    box-shadow: 0 2px 8px var(--vscode-widget-shadow);
+                    border-radius: 3px;
+                    padding: 4px 0;
+                    min-width: 180px;
+                    z-index: 1000;
+                    display: none;
+                }
+
+                .context-menu.show {
+                    display: block;
+                }
+
+                .context-menu-item {
+                    display: flex;
+                    align-items: center;
+                    padding: 6px 12px;
+                    cursor: pointer;
+                    color: var(--vscode-menu-foreground);
+                    font-size: 13px;
+                    gap: 8px;
+                }
+
+                .context-menu-item:hover {
+                    background: var(--vscode-menu-selectionBackground);
+                    color: var(--vscode-menu-selectionForeground);
+                }
+
+                .context-menu-item .codicon {
+                    font-size: 14px;
                 }
             </style>
         </head>
@@ -781,18 +1222,38 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
             <div class="container">
                 <div class="actions">
                     <div class="selection-actions">
+                        <label class="select-all-container">
+                            <input type="checkbox" id="selectAllCheckbox" class="checkbox">
+                            <span class="select-all-label">Select All</span>
+                        </label>
                         <span id="selectionCount" class="selection-count">0 selected</span>
-                        <button id="runSelectedButton" class="button" disabled>Run Selected</button>
+                        <div class="run-options">
+                            <select id="runMode" class="run-mode-select">
+                                <option value="sequential">Sequential</option>
+                                <option value="parallel">Parallel</option>
+                            </select>
+                            <button id="runSelectedButton" class="button" disabled>Run Selected</button>
+                        </div>
                     </div>
-                    <button id="refreshButton" class="icon-button refresh" title="Refresh Test Classes">
+                    <button id="refreshButton" class="icon-button refresh" title="Refresh Options">
                         <svg width="16" height="16" viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg" fill="currentColor">
                             <path fill-rule="evenodd" clip-rule="evenodd" d="M4.681 3H2V2h3.5l.5.5V6H5V4a5 5 0 1 0 4.53-.761l.302-.954A6 6 0 1 1 4.681 3z"/>
                         </svg>
                     </button>
+                    <div id="refreshContextMenu" class="context-menu">
+                        <div class="context-menu-item" id="refreshClasses">
+                            <i class="codicon codicon-refresh"></i>
+                            Refresh Classes
+                        </div>
+                        <div class="context-menu-item" id="refreshClassesAndMethods">
+                            <i class="codicon codicon-sync"></i>
+                            Refresh Classes & Methods
+                        </div>
+                    </div>
                 </div>
                 <div id="loading" class="loading hidden">
                     <div class="spinner"></div>
-                    <span>Loading test classes...</span>
+                    <span id="loadingMessage">Loading test classes...</span>
                 </div>
                 <div id="notificationContainer" class="notification-container hidden">
                     <div class="notification-message" id="notificationMessage"></div>
@@ -802,15 +1263,8 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                 </div>
                 <div class="split-container">
                     <div id="testClassesContainer" class="test-classes-container">
-                        <div id="noTestClasses" class="no-data">
-                            No test classes found. Click the refresh button to fetch test classes.
-                        </div>
+                        <div id="noTestClasses" class="no-data"></div>
                         <div id="testClassesList"></div>
-                    </div>
-                    <div class="resizer" id="resizer"></div>
-                    <div class="bottom-container" id="bottomContainer">
-                        <h3>Test Results</h3>
-                        <div id="testResults">No test results available</div>
                     </div>
                 </div>
             </div>
@@ -821,6 +1275,7 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                     const runSelectedButton = document.getElementById('runSelectedButton');
                     const selectionCount = document.getElementById('selectionCount');
                     const loading = document.getElementById('loading');
+					const loadingMessage = document.getElementById('loadingMessage');
                     const errorContainer = document.getElementById('errorContainer');
                     const errorMessage = document.getElementById('errorMessage');
                     const notificationContainer = document.getElementById('notificationContainer');
@@ -837,7 +1292,7 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                     
                     // Event listeners
                     refreshButton.addEventListener('click', () => {
-                        fetchTestClasses(true);
+                        fetchTestClasses(true, false);
                     });
                     
                     runSelectedButton.addEventListener('click', () => {
@@ -845,23 +1300,26 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                     });
                     
                     // Functions
-                    function fetchTestClasses(forceRefresh = false) {
-                        console.log('[VisbalExt.TestClassExplorerView] Fetching test classes...');
-                        showLoading();
+                    function fetchTestClasses(forceRefresh = false, refreshMethods = false) {
+                        console.log('[VisbalExt.TestClassExplorerView] Fetching test classes...', { forceRefresh, refreshMethods });
+                        showLoading('Loading test classes');
                         hideError();
                         hideNotification();
                         vscode.postMessage({ 
                             command: 'fetchTestClasses',
-                            forceRefresh: forceRefresh 
+                            forceRefresh: forceRefresh,
+                            refreshMethods: refreshMethods
                         });
                     }
                     
-                    function showLoading() {
+                    function showLoading(m) {
                         loading.classList.remove('hidden');
+						loadingMessage.innerHTML = m;
                     }
                     
                     function hideLoading() {
                         loading.classList.add('hidden');
+						loadingMessage.innerHTML = '';
                     }
                     
                     function showError(message) {
@@ -898,13 +1356,27 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                                 selectedTests.classes[className] = true;
                                 selectedTests.count++;
                             }
+
+                            // Check all method checkboxes for this class
+                            const methodCheckboxes = document.querySelectorAll('.method-checkbox[data-class="' + className + '"]');
+                            methodCheckboxes.forEach(methodCheckbox => {
+                                if (!methodCheckbox.checked) {
+                                    methodCheckbox.checked = true;
+                                    const methodName = methodCheckbox.dataset.method;
+                                    const key = className + '.' + methodName;
+                                    if (!selectedTests.methods[key]) {
+                                        selectedTests.methods[key] = true;
+                                        selectedTests.count++;
+                                    }
+                                }
+                            });
                         } else {
                             if (selectedTests.classes[className]) {
                                 delete selectedTests.classes[className];
                                 selectedTests.count--;
                             }
                             
-                            // Also uncheck all methods of this class
+                            // Uncheck all method checkboxes for this class
                             const methodCheckboxes = document.querySelectorAll('.method-checkbox[data-class="' + className + '"]');
                             methodCheckboxes.forEach(methodCheckbox => {
                                 if (methodCheckbox.checked) {
@@ -952,13 +1424,14 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                         updateSelectionCount();
                     }
                     
-                    function runSelectedTests() {
+                    async function runSelectedTests() {
                         const testsToRun = {
                             classes: Object.keys(selectedTests.classes),
                             methods: Object.entries(selectedTests.methods).map(([key]) => {
                                 const [className, methodName] = key.split('.');
                                 return { className, methodName };
-                            })
+                            }),
+                            runMode: document.getElementById('runMode').value
                         };
                         
                         if (testsToRun.classes.length === 0 && testsToRun.methods.length === 0) {
@@ -966,7 +1439,7 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                             return;
                         }
                         
-                        showLoading();
+                        showLoading('Runing selected test ' + testsToRun.classes.length);
                         hideError();
                         hideNotification();
                         
@@ -1022,6 +1495,16 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                             nameSpan.className = 'test-class-name';
                             nameSpan.textContent = testClass.name || 'Unknown Class';
                             
+                            // Create refresh button with refresh icon
+                            const refreshClassButton = document.createElement('button');
+                            refreshClassButton.className = 'icon-button refresh';
+                            refreshClassButton.title = 'Refresh Test Methods';
+                            refreshClassButton.innerHTML = '<svg width="14" height="14" viewBox="0 0 14 14" xmlns="http://www.w3.org/2000/svg" fill="currentColor"><path fill-rule="evenodd" clip-rule="evenodd" d="M4.681 3H2V2h3.5l.5.5V6H5V4a5 5 0 1 0 4.53-.761l.302-.954A6 6 0 1 1 4.681 3z"/></svg>';
+                            refreshClassButton.onclick = function(e) {
+                                e.stopPropagation();
+                                refreshTestMethods(testClass.name);
+                            };
+
                             // Create run button with play icon
                             const runButton = document.createElement('button');
                             runButton.className = 'icon-button run';
@@ -1035,6 +1518,7 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                             li.appendChild(checkboxContainer);
                             li.appendChild(expandIcon);
                             li.appendChild(nameSpan);
+                             li.appendChild(refreshClassButton);
                             li.appendChild(runButton);
                             
                             // Create a container for test methods (initially hidden)
@@ -1096,7 +1580,7 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                         // Find the methods list element for this class
                         const classItem = document.querySelector('.test-class-item[data-class-name="' + className + '"]');
                         if (!classItem) {
-                            console.error('[VisbalExt.TestClassExplorerView]Could not find class item for ' + className);
+                            console.error('[VisbalExt.TestClassExplorerView] Could not find class item for ' + className);
                             return;
                         }
                         
@@ -1112,7 +1596,19 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                         // Mark as loaded
                         methodsList.dataset.loaded = 'true';
                         
-                        if (!testMethods || testMethods.length === 0) {
+                        // Filter out @TestSetup methods
+                        const filteredMethods = testMethods.filter(method => {
+                            // Check if the method has annotations
+                            if (method.annotations) {
+                                // Exclude if it has @TestSetup annotation
+                                return !method.annotations.some(a => 
+                                    a.name.toLowerCase() === 'testsetup'
+                                );
+                            }
+                            return true; // Include methods without annotations
+                        });
+                        
+                        if (!filteredMethods || filteredMethods.length === 0) {
                             const noMethodsItem = document.createElement('li');
                             noMethodsItem.textContent = 'No test methods found in this class.';
                             noMethodsItem.style.fontStyle = 'italic';
@@ -1122,9 +1618,9 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                         }
                         
                         // Add each test method to the list
-                        testMethods.forEach(function(method) {
-                                const methodLi = document.createElement('li');
-                                methodLi.className = 'test-method-item';
+                        filteredMethods.forEach(function(method) {
+                            const methodLi = document.createElement('li');
+                            methodLi.className = 'test-method-item';
                             
                             // Add checkbox for method selection
                             const checkboxContainer = document.createElement('div');
@@ -1167,12 +1663,34 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                                 methodLi.appendChild(methodNameSpan);
                                 methodLi.appendChild(runMethodButton);
                                 methodsList.appendChild(methodLi);
-                            });
+                        });
+                        // Find the class item and its expand icon
+                        //const classItem = document.querySelector('.test-class-item[data-class-name="' + className + '"]');
+                        if (classItem) {
+                            const expandIcon = classItem.querySelector('.codicon');
+                            if (expandIcon) {
+                                expandIcon.className = 'codicon codicon-chevron-down';
+                            }
+                        }
+                        methodsList.classList.remove('hidden');
+                    }
+					
+					
+					function refreshTestMethods(testClass) {
+                        console.log('[VisbalExt.TestClassExplorerView] -- refreshTestMethods -- Refreshing methods:', testClass);
+                        showLoading('Refreshing methods on class ' + testClass  );
+                        hideError();
+                        hideNotification();
+
+                        vscode.postMessage({ 
+                            command: 'refreshTestMethods',
+                            testClass
+                        });
                     }
                     
                     function runTest(testClass, testMethod) {
                         console.log('[VisbalExt.TestClassExplorerView] -- runTest -- Running test:', testClass, testMethod);
-                        showLoading();
+                        showLoading('running test  ' + testClass + '. ' + testMethod );
                         hideError();
                         hideNotification();
 
@@ -1397,6 +1915,7 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                                 renderTestClasses(message.testClasses);
                                 break;
                             case 'testMethodsLoaded':
+								hideLoading();
                                 console.log('[VisbalExt.TestClassExplorerView] Test methods loaded:', message.testMethods);
                                 renderTestMethods(message.className, message.testMethods);
                                 break;
@@ -1428,38 +1947,109 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                     // Initial fetch without force refresh
                     fetchTestClasses(false);
 
-                    // Add resizer functionality
-                    const testClassesContainer = document.getElementById('testClassesContainer');
-                    const bottomContainer = document.getElementById('bottomContainer');
-                    const resizer = document.getElementById('resizer');
-                    let isResizing = false;
-                    let startY;
-                    let startHeightBottom;
+                    const selectAllCheckbox = document.getElementById('selectAllCheckbox');
 
-                    resizer.addEventListener('mousedown', initResize, false);
-
-                    function initResize(e) {
-                        isResizing = true;
-                        startY = e.clientY;
-                        startHeightBottom = bottomContainer.offsetHeight;
+                    // Add event listener for select all checkbox
+                    selectAllCheckbox.addEventListener('change', () => {
+                        const isChecked = selectAllCheckbox.checked;
                         
-                        document.addEventListener('mousemove', resize, false);
-                        document.addEventListener('mouseup', stopResize, false);
-                    }
-
-                    function resize(e) {
-                        if (!isResizing) return;
+                        // Get all class and method checkboxes
+                        const classCheckboxes = document.querySelectorAll('.class-checkbox');
+                        const methodCheckboxes = document.querySelectorAll('.method-checkbox');
                         
-                        const deltaY = startY - e.clientY;
-                        const newHeight = Math.max(100, startHeightBottom + deltaY);
-                        bottomContainer.style.height = newHeight + 'px';
+                        // Reset selection state
+                        selectedTests.classes = {};
+                        selectedTests.methods = {};
+                        selectedTests.count = 0;
+                        
+                        // Update all class checkboxes
+                        classCheckboxes.forEach(checkbox => {
+                            checkbox.checked = isChecked;
+                            if (isChecked) {
+                                const className = checkbox.dataset.class;
+                                selectedTests.classes[className] = true;
+                                selectedTests.count++;
+                            }
+                        });
+                        
+                        // Update all method checkboxes
+                        methodCheckboxes.forEach(checkbox => {
+                            checkbox.checked = isChecked;
+                            if (isChecked) {
+                                const className = checkbox.dataset.class;
+                                const methodName = checkbox.dataset.method;
+                                const key = className + '.' + methodName;
+                                selectedTests.methods[key] = true;
+                                selectedTests.count++;
+                            }
+                        });
+                        
+                        updateSelectionCount();
+                    });
+
+                    // Update select all checkbox state when individual selections change
+                    function updateSelectAllCheckbox() {
+                        const classCheckboxes = Array.from(document.querySelectorAll('.class-checkbox'));
+                        const methodCheckboxes = Array.from(document.querySelectorAll('.method-checkbox'));
+                        const allCheckboxes = [...classCheckboxes, ...methodCheckboxes];
+                        
+                        if (allCheckboxes.length === 0) {
+                            selectAllCheckbox.checked = false;
+                            selectAllCheckbox.indeterminate = false;
+                            return;
+                        }
+                        
+                        const allChecked = allCheckboxes.every(cb => cb.checked);
+                        const someChecked = allCheckboxes.some(cb => cb.checked);
+                        
+                        selectAllCheckbox.checked = allChecked;
+                        selectAllCheckbox.indeterminate = someChecked && !allChecked;
                     }
 
-                    function stopResize() {
-                        isResizing = false;
-                        document.removeEventListener('mousemove', resize, false);
-                        document.removeEventListener('mouseup', stopResize, false);
-                    }
+                    // Update the existing toggle functions to call updateSelectAllCheckbox
+                    const originalToggleClassSelection = toggleClassSelection;
+                    toggleClassSelection = function(className, checkbox) {
+                        originalToggleClassSelection(className, checkbox);
+                        updateSelectAllCheckbox();
+                    };
+
+                    const originalToggleMethodSelection = toggleMethodSelection;
+                    toggleMethodSelection = function(className, methodName, checkbox) {
+                        originalToggleMethodSelection(className, methodName, checkbox);
+                        updateSelectAllCheckbox();
+                    };
+
+                    // Add context menu handling
+                    const refreshContextMenu = document.getElementById('refreshContextMenu');
+                    const refreshClasses = document.getElementById('refreshClasses');
+                    const refreshClassesAndMethods = document.getElementById('refreshClassesAndMethods');
+
+                    // Show context menu on refresh button click
+                    refreshButton.addEventListener('click', (e) => {
+                        e.stopPropagation();
+                        const buttonRect = refreshButton.getBoundingClientRect();
+                        refreshContextMenu.style.top = buttonRect.bottom + 'px';
+                        refreshContextMenu.style.right = (window.innerWidth - buttonRect.right) + 'px';
+                        refreshContextMenu.classList.add('show');
+                    });
+
+                    // Hide context menu when clicking outside
+                    document.addEventListener('click', (e) => {
+                        if (!refreshContextMenu.contains(e.target)) {
+                            refreshContextMenu.classList.remove('show');
+                        }
+                    });
+
+                    // Handle menu item clicks
+                    refreshClasses.addEventListener('click', () => {
+                        fetchTestClasses(true, false);
+                        refreshContextMenu.classList.remove('show');
+                    });
+
+                    refreshClassesAndMethods.addEventListener('click', () => {
+                        fetchTestClasses(true, true);
+                        refreshContextMenu.classList.remove('show');
+                    });
                 })();
             </script>
         </body>
@@ -1503,9 +2093,23 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
         }
     }
 
-    // Add method to clear cache if needed
-    public clearCache() {
-        console.log('[VisbalExt.TestClassExplorerView] Clearing test methods cache');
-        this._cachedTestMethods.clear();
+    // Add public methods for running tests
+    public runTest(testClass: string, testMethod?: string) {
+        if (this._view) {
+            this._view.webview.postMessage({
+                command: 'runTest',
+                testClass,
+                testMethod
+            });
+        }
+    }
+
+    public runSelectedTests(tests: { classes: string[], methods: { className: string, methodName: string }[], runMode: 'sequential' | 'parallel' }) {
+        if (this._view) {
+            this._view.webview.postMessage({
+                command: 'runSelectedTests',
+                tests
+            });
+        }
     }
 }

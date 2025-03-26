@@ -1,8 +1,10 @@
 node_modules
 dist
 *.vsix
+*.zip
 .vscode-test/
 .DS_Store 
 .sfdx/
 .vs/
 temp/
+.bak/

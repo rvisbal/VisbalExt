@@ -1,0 +1,23 @@
+{
+    "workbench.colorCustomizations": {
+        "statusBar.background": null,
+        "activityBar.background": null,
+		"diffEditor.insertedLineBackground": "#a8e6cf20", // Very light green with 12.5% transparency
+        "diffEditor.removedLineBackground": "#ff8a8020",  // Very light red with 12.5% transparency
+        "editor.selectionBackground": "#80cbc440" // Light teal with transparency (example for selection)
+
+    },
+    "salesforcedx-vscode-core.push-or-deploy-on-save.enabled": true,
+    "salesforcedx-vscode-core.retrieve-test-code-coverage": true,
+    "salesforcedx-vscode-core.show-cli-success-msg": false,
+    "salesforcedx-vscode-apex.java.home": null,
+    "salesforcedx-vscode-apex.enable-semantic-errors": true,
+    "editor.inlineSuggest.enabled": false
+    
+    // Hide meta.xml files in the explorer
+    "files.exclude": {
+        "**/*.cls-meta.xml": true,
+        "**/*.component-meta.xml": true,
+        "**/*.page-meta.xml": true
+    }
+}

@@ -8,7 +8,7 @@ import { DebugConfig, DebugLogLevel } from '../models/logInterfaces';
  * Default debug configuration
  */
 export const DEFAULT_DEBUG_CONFIG: DebugConfig = {
-    apexCode: 'DEBUG',
+    apexCode: 'INFO',
     apexProfiling: 'INFO',
     callout: 'INFO',
     dataAccess: 'INFO',

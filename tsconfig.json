@@ -5,9 +5,14 @@
     "outDir": "dist",
     "lib": ["ES2020", "DOM"],
     "sourceMap": true,
-    "rootDir": "src",
+    "rootDir": ".",
     "strict": true,
-    "esModuleInterop": true
+    "esModuleInterop": true,
+    "moduleResolution": "node",
+    "resolveJsonModule": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true
   },
+  "include": ["src/**/*", "temp/**/*"],
   "exclude": ["node_modules", ".vscode-test"]
 } 
