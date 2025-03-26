@@ -1042,7 +1042,9 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                     padding: 0;
                     margin: 0;
                     width: 100%;
-					background-color: #404040;
+                    background-color: var(--vscode-list-dropBackground);
+                    border-top: 1px solid var(--vscode-list-focusOutline);
+                    border-bottom: 1px solid var(--vscode-list-focusOutline);
                 }
 
                 .test-method-item {
