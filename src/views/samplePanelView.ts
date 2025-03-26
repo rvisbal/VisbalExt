@@ -119,6 +119,31 @@ export class SamplePanelView implements vscode.WebviewViewProvider {
         }
     }
 
+    private async _saveApexFileContent(filePath: string, content: string) {
+        try {
+            console.log('[VisbalExt.SamplePanelView] Saving file:', filePath);
+            await vscode.workspace.fs.writeFile(
+                vscode.Uri.file(filePath),
+                Buffer.from(content, 'utf8')
+            );
+            if (this._view) {
+                this._view.webview.postMessage({
+                    command: 'fileSaved',
+                    message: 'File saved successfully'
+                });
+            }
+        } catch (error: any) {
+            console.error('[VisbalExt.SamplePanelView] Error saving file:', error);
+            if (this._view) {
+                this._view.webview.postMessage({
+                    command: 'error',
+                    message: `Error saving file: ${error.message}`
+                });
+            }
+            throw error;
+        }
+    }
+
     public resolveWebviewView(
         webviewView: vscode.WebviewView,
         context: vscode.WebviewViewResolveContext,
@@ -186,6 +211,16 @@ export class SamplePanelView implements vscode.WebviewViewProvider {
                     break;
                 case 'updateTemplates':
                     await this._updateTemplates();
+                    break;
+                case 'saveApexFile':
+                    try {
+                        await this._saveApexFileContent(message.filePath, message.content);
+                    } catch (error: any) {
+                        this._view?.webview.postMessage({
+                            command: 'error',
+                            message: `Error saving file: ${error.message}`
+                        });
+                    }
                     break;
             }
         });
@@ -673,8 +708,13 @@ export class SamplePanelView implements vscode.WebviewViewProvider {
                                     <select id="fileSelector" class="fileSelector" title="Select Apex File">
                                         <option value="">Select an Apex file...</option>
                                     </select>
+                                     <button id="saveButton" onclick="saveApexFile()" title="Save Changes" disabled>
+                                        Save
+                                        <svg width="16" height="16" viewBox="0 0 16 16">
+                                            <path fill="currentColor" d="M13.353 1.146l1.5 1.5L15 3v11.5l-.5.5h-13l-.5-.5v-13l.5-.5H13l.353.146zM2 2v12h12V3.208L12.793 2H2zm2 3h8v1H4V5zm6 3H4v1h6V8zM4 11h4v1H4v-1z"/>
+                                        </svg>
+                                    </button>
                                      <button id="updateTemplatesButton" onclick="updateTemplates()" title="Update Template Files">
-                                        Update Templates
                                         <svg width="16" height="16" viewBox="0 0 16 16">
                                             <path fill="currentColor" d="M12.75 8a4.5 4.5 0 0 1-8.61 1.834l-1.391.565A6.001 6.001 0 0 0 14.25 8 6 6 0 0 0 3.5 4.334V2.5H2v4l.75.75h3.5v-1.5H4.352A4.5 4.5 0 0 1 12.75 8z"/>
                                         </svg>
@@ -685,7 +725,6 @@ export class SamplePanelView implements vscode.WebviewViewProvider {
                                     <select id="org-selector" class="org-selector" title="Select Salesforce Org">
                                         <option value="">Loading orgs...</option>
                                     </select>
-                                   
                                     <button id="executeButton" onclick="executeApex()" title="Execute Apex Code">
                                         Execute Code
                                         <svg width="16" height="16" viewBox="0 0 16 16">
@@ -827,12 +866,12 @@ export class SamplePanelView implements vscode.WebviewViewProvider {
                                 let output = '';
                                 
                                 if (message.success) {
-                                    output += '<div class="success">✓ Execution successful</div>\\n';
+                                    output += '<div class="success">? Execution successful</div>\\n';
                                     if (message.logs) {
                                         output += '\\nLogs:\\n' + message.logs;
                                     }
                                 } else {
-                                    output += '<div class="error">✗ Execution failed</div>\\n';
+                                    output += '<div class="error">? Execution failed</div>\\n';
                                     if (message.compileProblem) {
                                         output += '\\nCompile Error:\\n' + message.compileProblem;
                                     }
@@ -855,7 +894,7 @@ export class SamplePanelView implements vscode.WebviewViewProvider {
                                 break;
                             case 'refreshComplete':
 							    stopLoading();
-                                refreshButton.innerHTML = '↻ Refresh Org List (Cached)';
+                                refreshButton.innerHTML = '? Refresh Org List (Cached)';
                                 refreshButton.disabled = false;
                                 break;
                             case 'error':
@@ -949,7 +988,7 @@ export class SamplePanelView implements vscode.WebviewViewProvider {
                         // Add refresh option at the top
                         const refreshOption = document.createElement('option');
                         refreshOption.value = '__refresh__';
-                        refreshOption.textContent = fromCache ? '↻ Refresh Org List (Cached)' : '↻ Refresh Org List';
+                        refreshOption.textContent = fromCache ? '? Refresh Org List (Cached)' : '? Refresh Org List';
                         refreshOption.style.fontStyle = 'italic';
                         refreshOption.style.backgroundColor = 'var(--vscode-dropdown-background)';
                         orgDropdown.appendChild(refreshOption);
@@ -957,7 +996,7 @@ export class SamplePanelView implements vscode.WebviewViewProvider {
                         // Add a separator
                         const separator = document.createElement('option');
                         separator.disabled = true;
-                        separator.textContent = '──────────────';
+                        separator.textContent = '--------------';
                         orgDropdown.appendChild(separator);
                 
                         // Helper function to add section if it has items
@@ -1039,15 +1078,47 @@ export class SamplePanelView implements vscode.WebviewViewProvider {
                     // File selector functionality
                     const fileSelector = document.getElementById('fileSelector');
 
+                    let currentFilePath = '';
+
+                    // File selector change handler
                     fileSelector.addEventListener('change', () => {
                         const selectedFile = fileSelector.value;
+                        currentFilePath = selectedFile;
                         if (selectedFile) {
                             startLoading('Loading file content...');
+                            document.getElementById('saveButton').disabled = true;
                             vscode.postMessage({
                                 command: 'loadApexFile',
                                 filePath: selectedFile
                             });
                         }
+                    });
+
+                    // Save file function
+                    window.saveApexFile = function() {
+                        if (!currentFilePath) {
+                            vscode.postMessage({
+                                command: 'error',
+                                message: 'No file selected'
+                            });
+                            return;
+                        }
+
+                        const content = document.getElementById('apexTextarea').value;
+                        startLoading('Saving file...');
+                        document.getElementById('saveButton').disabled = true;
+                        
+                        vscode.postMessage({
+                            command: 'saveApexFile',
+                            filePath: currentFilePath,
+                            content: content
+                        });
+                    };
+
+                    // Handle textarea changes
+                    document.getElementById('apexTextarea').addEventListener('input', function() {
+                        document.getElementById('saveButton').disabled = !currentFilePath;
+                        updateCharCount();
                     });
 
                     // Handle messages from the extension
@@ -1063,9 +1134,18 @@ export class SamplePanelView implements vscode.WebviewViewProvider {
                                 if (textarea) {
                                     textarea.value = message.content;
                                     textarea.focus();
+                                    document.getElementById('saveButton').disabled = false;
                                     updateCharCount();
                                 }
                                 stopLoading();
+                                break;
+                            case 'fileSaved':
+                                stopLoading();
+                                document.getElementById('saveButton').disabled = false;
+                                statusBar.textContent = message.message;
+                                setTimeout(() => {
+                                    statusBar.textContent = '';
+                                }, 3000);
                                 break;
                         }
                     });
