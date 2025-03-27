@@ -40,6 +40,13 @@ export class SamplePanelView implements vscode.WebviewViewProvider {
                 this._apexFiles = userFiles.map(file => file.fsPath);
             }
 
+            // Sort files alphabetically by filename
+            this._apexFiles.sort((a, b) => {
+                const fileNameA = a.split(/[\\/]/).pop()?.toLowerCase() || '';
+                const fileNameB = b.split(/[\\/]/).pop()?.toLowerCase() || '';
+                return fileNameA.localeCompare(fileNameB);
+            });
+
             if (this._view) {
                 this._view.webview.postMessage({
                     command: 'updateApexFileList',
@@ -708,12 +715,17 @@ export class SamplePanelView implements vscode.WebviewViewProvider {
                                     <select id="fileSelector" class="fileSelector" title="Select Apex File">
                                         <option value="">Select an Apex file...</option>
                                     </select>
-                                     <button id="saveButton" onclick="saveApexFile()" title="Save Changes" disabled>
+                                    <button id="saveButton" onclick="saveApexFile()" title="Save Changes" disabled>
                                         <svg width="16" height="16" viewBox="0 0 16 16">
                                             <path fill="currentColor" d="M13.353 1.146l1.5 1.5L15 3v11.5l-.5.5h-13l-.5-.5v-13l.5-.5H13l.353.146zM2 2v12h12V3.208L12.793 2H2zm2 3h8v1H4V5zm6 3H4v1h6V8zM4 11h4v1H4v-1z"/>
                                         </svg>
                                     </button>
-                                     <button id="updateTemplatesButton" onclick="updateTemplates()" title="Update Template Files">
+                                    <button id="clearButton" onclick="clearEditor()" title="Clear Editor">
+                                        <svg width="16" height="16" viewBox="0 0 16 16">
+                                            <path fill="currentColor" d="M10 12.6l.7.7 1.6-1.6 1.6 1.6.8-.7L13 11l1.7-1.6-.8-.8-1.6 1.7-1.6-1.7-.7.8 1.6 1.6-1.6 1.6zM1 4h14V3H1v1zm0 3h14V6H1v1zm0 3h8V9H1v1zm0 3h8v-1H1v1z"/>
+                                        </svg>
+                                    </button>
+                                    <button id="updateTemplatesButton" onclick="updateTemplates()" title="Update Template Files">
                                         <svg width="16" height="16" viewBox="0 0 16 16">
                                             <path fill="currentColor" d="M12.75 8a4.5 4.5 0 0 1-8.61 1.834l-1.391.565A6.001 6.001 0 0 0 14.25 8 6 6 0 0 0 3.5 4.334V2.5H2v4l.75.75h3.5v-1.5H4.352A4.5 4.5 0 0 1 12.75 8z"/>
                                         </svg>
@@ -1078,20 +1090,39 @@ export class SamplePanelView implements vscode.WebviewViewProvider {
                     const fileSelector = document.getElementById('fileSelector');
 
                     let currentFilePath = '';
+                    const saveButton = document.getElementById('saveButton');
+                    const clearButton = document.getElementById('clearButton');
+
 
                     // File selector change handler
                     fileSelector.addEventListener('change', () => {
                         const selectedFile = fileSelector.value;
                         currentFilePath = selectedFile;
+                        saveButton.disabled = !selectedFile; 
                         if (selectedFile) {
                             startLoading('Loading file content...');
-                            document.getElementById('saveButton').disabled = true;
                             vscode.postMessage({
                                 command: 'loadApexFile',
                                 filePath: selectedFile
                             });
+                        } else {
+                            textarea.value = '';
+                            updateCharCount();
                         }
                     });
+                    
+                    // Clear editor function
+                    window.clearEditor = function() {
+                        textarea.value = '';
+                        fileSelector.value = '';
+                        currentFilePath = '';
+                        saveButton.disabled = true;
+                        updateCharCount();
+                        statusBar.textContent = 'Editor cleared';
+                        setTimeout(() => {
+                            statusBar.textContent = '';
+                        }, 3000);
+                    };
 
                     // Save file function
                     window.saveApexFile = function() {
@@ -1114,9 +1145,10 @@ export class SamplePanelView implements vscode.WebviewViewProvider {
                         });
                     };
 
+
                     // Handle textarea changes
-                    document.getElementById('apexTextarea').addEventListener('input', function() {
-                        document.getElementById('saveButton').disabled = !currentFilePath;
+                    textarea.addEventListener('input', function() {
+                        saveButton.disabled = !currentFilePath;
                         updateCharCount();
                     });
 

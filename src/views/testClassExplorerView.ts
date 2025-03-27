@@ -146,7 +146,7 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
         //}, 1000);
     }
 
-    private async _fetchTestClasses(forceRefresh: boolean = false, refreshMethods: boolean = false) {
+    private async _fetchTestClasses(forceRefresh: boolean = false, refreshMethods: boolean = false, refreshMode: 'batch' | 'sequential' = 'batch') {
         try {
             this._statusBarService.showMessage('$(sync~spin) Fetching test classes...');
             
@@ -205,29 +205,62 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                 if (this._view) {
                     this._view.webview.postMessage({
                         command: 'showNotification',
-                        message: `Refreshing methods for ${totalClasses} classes...`
+                        message: `Refreshing methods for ${totalClasses} classes in ${refreshMode} mode...`
                     });
                 }
 
-                for (const testClass of testClasses) {
-                    try {
-                        processedClasses++;
-                        const progressMessage = `$(sync~spin) Refreshing methods (${processedClasses}/${totalClasses} classes) - ${testClass.name}`;
-                        this._statusBarService.showMessage(progressMessage);
-                        
-                        // Update webview with current progress
-                        if (this._view) {
-                            this._view.webview.postMessage({
-                                command: 'showNotification',
-                                message: `Refreshing methods: ${processedClasses}/${totalClasses} classes (Current: ${testClass.name})`
-                            });
-                        }
+                if (refreshMode === 'batch') {
+                    // Process in batches of 5
+                    const BATCH_SIZE = 5;
+                    for (let i = 0; i < testClasses.length; i += BATCH_SIZE) {
+                        const batch = testClasses.slice(i, i + BATCH_SIZE);
+                        const batchPromises = batch.map(async (testClass) => {
+                            try {
+                                const methods = await this._metadataService.getTestMethodsForClass(testClass.name);
+                                await this._storageService.saveTestMethodsForClass(testClass.name, methods);
+                                testClass.methods = methods.map(m => m.name);
+                                processedClasses++;
 
-                        const methods = await this._metadataService.getTestMethodsForClass(testClass.name);
-                        await this._storageService.saveTestMethodsForClass(testClass.name, methods);
-                        testClass.methods = methods.map(m => m.name);
-                    } catch (error) {
-                        console.error(`[VisbalExt.TestClassExplorerView] _fetchTestClasses Error fetching methods for class ${testClass.name}:`, error);
+                                // Update progress
+                                const progressMessage = `$(sync~spin) Refreshing methods (${processedClasses}/${totalClasses} classes) - Batch ${Math.floor(i/BATCH_SIZE) + 1}`;
+                                this._statusBarService.showMessage(progressMessage);
+                                if (this._view) {
+                                    this._view.webview.postMessage({
+                                        command: 'showNotification',
+                                        message: `Refreshing methods: ${processedClasses}/${totalClasses} classes (Current batch: ${Math.floor(i/BATCH_SIZE) + 1})`
+                                    });
+                                }
+                            } catch (error) {
+                                console.error(`[VisbalExt.TestClassExplorerView] _fetchTestClasses Error fetching methods for class ${testClass.name}:`, error);
+                            }
+                        });
+
+                        // Wait for the current batch to complete before moving to the next
+                        await Promise.all(batchPromises);
+                        console.log(`[VisbalExt.TestClassExplorerView] Completed batch ${Math.floor(i/BATCH_SIZE) + 1} (${processedClasses}/${totalClasses} classes)`);
+                    }
+                } else {
+                    // Process sequentially
+                    for (const testClass of testClasses) {
+                        try {
+                            processedClasses++;
+                            const progressMessage = `$(sync~spin) Refreshing methods (${processedClasses}/${totalClasses} classes) - ${testClass.name}`;
+                            this._statusBarService.showMessage(progressMessage);
+                            
+                            // Update webview with current progress
+                            if (this._view) {
+                                this._view.webview.postMessage({
+                                    command: 'showNotification',
+                                    message: `Refreshing methods: ${processedClasses}/${totalClasses} classes (Current: ${testClass.name})`
+                                });
+                            }
+
+                            const methods = await this._metadataService.getTestMethodsForClass(testClass.name);
+                            await this._storageService.saveTestMethodsForClass(testClass.name, methods);
+                            testClass.methods = methods.map(m => m.name);
+                        } catch (error) {
+                            console.error(`[VisbalExt.TestClassExplorerView] _fetchTestClasses Error fetching methods for class ${testClass.name}:`, error);
+                        }
                     }
                 }
 
@@ -245,6 +278,7 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                 console.log('[VisbalExt.TestClassExplorerView] Adding test classes to Test Explorer ', testClasses);
                 const totalClasses = testClasses.length;
                 let processedClasses = 0;
+                const BATCH_SIZE = 5;
 
                 // Show initial loading status
                 this._statusBarService.showMessage(`$(sync~spin) Loading test classes into explorer (0/${totalClasses})`);
@@ -255,20 +289,31 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                     });
                 }
 
-                for (const testClass of testClasses) {
-                    processedClasses++;
-                    const progressMessage = `$(sync~spin) Loading test classes (${processedClasses}/${totalClasses}) - ${testClass.name}`;
-                    this._statusBarService.showMessage(progressMessage);
+                // Process classes in batches
+                for (let i = 0; i < testClasses.length; i += BATCH_SIZE) {
+                    const batch = testClasses.slice(i, i + BATCH_SIZE);
+                    const batchPromises = batch.map(async (testClass) => {
+                        const result = await this._addTestToExplorer(testClass);
+                        processedClasses++;
+                        
+                        // Update progress after each class is processed
+                        const progressMessage = `$(sync~spin) Loading test classes (${processedClasses}/${totalClasses}) - Batch ${Math.floor(i/BATCH_SIZE) + 1}`;
+                        this._statusBarService.showMessage(progressMessage);
 
-                    // Update webview with current progress
-                    if (this._view) {
-                        this._view.webview.postMessage({
-                            command: 'showNotification',
-                            message: `Loading test classes: ${processedClasses}/${totalClasses} (Current: ${testClass.name})`
-                        });
-                    }
+                        if (this._view) {
+                            this._view.webview.postMessage({
+                                command: 'showNotification',
+                                message: `Loading test classes: ${processedClasses}/${totalClasses} (Current batch: ${Math.floor(i/BATCH_SIZE) + 1})`
+                            });
+                        }
+                        return result;
+                    });
 
-                    await this._addTestToExplorer(testClass);
+                    // Wait for the current batch to complete before moving to the next
+                    await Promise.all(batchPromises);
+                    
+                    // Log batch completion
+                    console.log(`[VisbalExt.TestClassExplorerView] Completed batch ${Math.floor(i/BATCH_SIZE) + 1} (${processedClasses}/${totalClasses} classes)`);
                 }
 
                 // Show completion message
@@ -1340,9 +1385,13 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                             <i class="codicon codicon-refresh"></i>
                             Refresh Classes
                         </div>
-                        <div class="context-menu-item" id="refreshClassesAndMethods">
-                            <i class="codicon codicon-sync"></i>
-                            Refresh Classes & Methods
+                        <div class="context-menu-item" id="refreshClassesAndMethodsBatch">
+                            <i class="codicon codicon-server-process"></i>
+                            Refresh Classes & Methods (Batch)
+                        </div>
+                        <div class="context-menu-item" id="refreshClassesAndMethodsSequential">
+                            <i class="codicon codicon-list-ordered"></i>
+                            Refresh Classes & Methods (Sequential)
                         </div>
                     </div>
                 </div>
@@ -1395,15 +1444,16 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                     });
                     
                     // Functions
-                    function fetchTestClasses(forceRefresh = false, refreshMethods = false) {
-                        console.log('[VisbalExt.TestClassExplorerView] Fetching test classes...', { forceRefresh, refreshMethods });
+                    function fetchTestClasses(forceRefresh = false, refreshMethods = false, refreshMode = 'batch') {
+                        console.log('[VisbalExt.TestClassExplorerView] Fetching test classes...', { forceRefresh, refreshMethods, refreshMode });
                         showLoading('Loading test classes');
                         hideError();
                         hideNotification();
                         vscode.postMessage({ 
                             command: 'fetchTestClasses',
                             forceRefresh: forceRefresh,
-                            refreshMethods: refreshMethods
+                            refreshMethods: refreshMethods,
+                            refreshMode: refreshMode
                         });
                     }
                     
@@ -2117,7 +2167,8 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                     // Add context menu handling
                     const refreshContextMenu = document.getElementById('refreshContextMenu');
                     const refreshClasses = document.getElementById('refreshClasses');
-                    const refreshClassesAndMethods = document.getElementById('refreshClassesAndMethods');
+                    const refreshClassesAndMethodsBatch = document.getElementById('refreshClassesAndMethodsBatch');
+                    const refreshClassesAndMethodsSequential = document.getElementById('refreshClassesAndMethodsSequential');
 
                     // Show context menu on refresh button click
                     refreshButton.addEventListener('click', (e) => {
@@ -2141,8 +2192,13 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                         refreshContextMenu.classList.remove('show');
                     });
 
-                    refreshClassesAndMethods.addEventListener('click', () => {
-                        fetchTestClasses(true, true);
+                    refreshClassesAndMethodsBatch.addEventListener('click', () => {
+                        fetchTestClasses(true, true, 'batch');
+                        refreshContextMenu.classList.remove('show');
+                    });
+
+                    refreshClassesAndMethodsSequential.addEventListener('click', () => {
+                        fetchTestClasses(true, true, 'sequential');
                         refreshContextMenu.classList.remove('show');
                     });
                 })();
