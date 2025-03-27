@@ -255,11 +255,7 @@ export class SamplePanelView implements vscode.WebviewViewProvider {
             console.log('[VisbalExt.SamplePanelView] Execution result:', result);
 
             if (result.success) {
-                this._view?.webview.postMessage({
-                    command: 'success',
-                    message: 'Code executed successfully'
-                });
-
+                // First send the execution result to update the results content
                 this._view?.webview.postMessage({
                     command: 'executionResult',
                     success: result.success,
@@ -269,7 +265,11 @@ export class SamplePanelView implements vscode.WebviewViewProvider {
                     exceptionStackTrace: result.exceptionStackTrace
                 });
                 
-
+                // Then send success message to trigger tab switch
+                this._view?.webview.postMessage({
+                    command: 'success',
+                    message: 'Code executed successfully'
+                });
             } else {
                 let errorMessage = 'Error executing code:\n';
                 if (result.compileProblem) {
@@ -285,15 +285,6 @@ export class SamplePanelView implements vscode.WebviewViewProvider {
                 this._view?.webview.postMessage({
                     command: 'error',
                     message: errorMessage.trim()
-                });
-
-                console.log(`[VisbalExt.SamplePanelView] Executing on ${selectedOrg?.alias} org Apex code:`, code);
-                const m = `Apex started on : ${selectedOrg?.alias}`
-                // Show loading state
-                this._view?.webview.postMessage({
-                    command: 'executionResult',
-                    success: false,
-                    message: m
                 });
             }
         } catch (error: any) {
@@ -571,6 +562,7 @@ export class SamplePanelView implements vscode.WebviewViewProvider {
                     gap: 4px;
                     font-size: 12px;
                     height: 24px;
+                    margin-right: 1px;
                 }
                 button:hover {
                     background: var(--vscode-button-hoverBackground);
@@ -578,6 +570,12 @@ export class SamplePanelView implements vscode.WebviewViewProvider {
                 button:disabled {
                     opacity: 0.5;
                     cursor: not-allowed;
+                }
+                button:last-child {
+                    margin-right: 0;
+                }
+                .toolbar-right button {
+                    margin-left: 1px;
                 }
 
                 #statusBar {
