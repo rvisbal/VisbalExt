@@ -955,6 +955,11 @@ export class SamplePanelView implements vscode.WebviewViewProvider {
                              case 'stopLoading':
                                 stopLoading();
                                 break;
+                            case 'success':
+                                statusBar.textContent = message.message;
+                                // Ensure we switch to results tab
+                                switchToResultsTab();
+                                break;
                         }
                     });
 					
