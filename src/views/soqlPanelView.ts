@@ -396,6 +396,14 @@ export class SoqlPanelView implements vscode.WebviewViewProvider {
                     justify-content: center;
                     padding: 20px;
                     color: var(--vscode-foreground);
+                    position: absolute;
+                    top: 50%;
+                    left: 50%;
+                    transform: translate(-50%, -50%);
+                    background: var(--vscode-editor-background);
+                    border-radius: 4px;
+                    box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+                    z-index: 1000;
                 }
                 .loading-spinner {
                     width: 18px;
@@ -728,12 +736,14 @@ export class SoqlPanelView implements vscode.WebviewViewProvider {
                             case 'soqlResultsLoaded':
                                 errorContainer.classList.remove('show');
                                 noResultsContainer.classList.remove('show');
+                                loadingContainer.style.display = 'none';
                                 handleSoqlResults(message.results);
                                 break;
                             case 'noResults':
                                 errorContainer.classList.remove('show');
                                 soqlResultsHeader.innerHTML = '';
                                 soqlResultsBody.innerHTML = '';
+                                loadingContainer.style.display = 'none';
                                 noResultsMessage.textContent = message.message;
                                 noResultsContainer.classList.add('show');
                                 copyAsCsvButton.disabled = true;
@@ -744,6 +754,7 @@ export class SoqlPanelView implements vscode.WebviewViewProvider {
                                 soqlStatus.textContent = '';
                                 soqlResultsHeader.innerHTML = '';
                                 soqlResultsBody.innerHTML = '';
+                                loadingContainer.style.display = 'none';
                                 noResultsContainer.classList.remove('show');
                                 errorMessage.textContent = message.message;
                                 errorContainer.classList.add('show');
@@ -757,9 +768,12 @@ export class SoqlPanelView implements vscode.WebviewViewProvider {
                                 break;
                             case 'startLoading':
                                 errorContainer.classList.remove('show');
+                                noResultsContainer.classList.remove('show');
+                                loadingContainer.style.display = 'flex';
                                 soqlStatus.textContent = message.message || 'Loading...';
                                 break;
                             case 'stopLoading':
+                                loadingContainer.style.display = 'none';
                                 soqlStatus.textContent = '';
                                 break;
                         }
@@ -767,19 +781,20 @@ export class SoqlPanelView implements vscode.WebviewViewProvider {
 
 
                     function startLoading(m) {
-						 loadingContainer.style.display = 'flex';
+                        loadingContainer.style.display = 'flex';
                         soqlResultsHeader.innerHTML = '';
                         soqlResultsBody.innerHTML = '';
+                        errorContainer.classList.remove('show');
+                        noResultsContainer.classList.remove('show');
                         soqlStatus.textContent = m;
                         runSoqlButton.disabled = true;
-					}
+                    }
 
                     function stopLoading() {
-						// Hide loading state
-						loadingContainer.style.display = 'none';
-						runSoqlButton.disabled = false;
-                         soqlStatus.textContent = '';
-					}
+                        loadingContainer.style.display = 'none';
+                        runSoqlButton.disabled = false;
+                        soqlStatus.textContent = '';
+                    }
 
                     function handleSoqlResults(results) {
                         if (!results || !results.records || results.records.length === 0) {
