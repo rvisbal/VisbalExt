@@ -1,1 +1,333 @@
-null
+{
+  "orgs": {
+    "devHubs": [
+      {
+        "username": "rvisbal@tractionlabs.dx.com",
+        "alias": "LABSDevDXHub",
+        "instanceUrl": "https://tractionlabs.my.salesforce.com",
+        "isDefault": false,
+        "type": "devHub",
+        "clientId": "PlatformCLI",
+        "clientSecret": "Unknown",
+        "redirectUri": "Unknown",
+        "expirationDate": "Unknown"
+      }
+    ],
+    "sandboxes": [],
+    "scratchOrgs": [
+      {
+        "username": "test-01t97ziikk4o@example.com",
+        "alias": "CURSOR_BUG",
+        "instanceUrl": "https://inspiration-speed-1463-dev-ed.scratch.my.salesforce.com",
+        "isDefault": false,
+        "type": "scratchOrg",
+        "clientId": "PlatformCLI",
+        "clientSecret": "Unknown",
+        "redirectUri": "Unknown",
+        "expirationDate": "2025-04-16"
+      },
+      {
+        "username": "test-omwbwsafsvwg@example.com",
+        "alias": "CURSOR_CODE_REVIEW",
+        "instanceUrl": "https://speed-fun-8256-dev-ed.scratch.my.salesforce.com",
+        "isDefault": false,
+        "type": "scratchOrg",
+        "clientId": "PlatformCLI",
+        "clientSecret": "Unknown",
+        "redirectUri": "Unknown",
+        "expirationDate": "2025-04-17"
+      },
+      {
+        "username": "test-grgo406wsqle@example.com",
+        "alias": "CURSOR_SAMPLE",
+        "instanceUrl": "https://innovation-customer-1040-dev-ed.scratch.my.salesforce.com",
+        "isDefault": false,
+        "type": "scratchOrg",
+        "clientId": "PlatformCLI",
+        "clientSecret": "Unknown",
+        "redirectUri": "Unknown",
+        "expirationDate": "2025-03-29"
+      },
+      {
+        "username": "test-06oz9kqpewkk@example.com",
+        "alias": "CURSOR_TICKET",
+        "instanceUrl": "https://fun-power-8424-dev-ed.scratch.my.salesforce.com",
+        "isDefault": false,
+        "type": "scratchOrg",
+        "clientId": "PlatformCLI",
+        "clientSecret": "Unknown",
+        "redirectUri": "Unknown",
+        "expirationDate": "2025-04-24"
+      },
+      {
+        "username": "test-4gthzj2ultof@example.com",
+        "alias": "CUSTOMER_DEBUG",
+        "instanceUrl": "https://momentum-saas-6904-dev-ed.scratch.my.salesforce.com",
+        "isDefault": false,
+        "type": "scratchOrg",
+        "clientId": "PlatformCLI",
+        "clientSecret": "Unknown",
+        "redirectUri": "Unknown",
+        "expirationDate": "2025-04-18"
+      },
+      {
+        "username": "test-kxdexx3o1xpr@example.com",
+        "alias": "HIERARCHY_BUG",
+        "instanceUrl": "https://speed-nosoftware-2551-dev-ed.scratch.my.salesforce.com",
+        "isDefault": false,
+        "type": "scratchOrg",
+        "clientId": "PlatformCLI",
+        "clientSecret": "Unknown",
+        "redirectUri": "Unknown",
+        "expirationDate": "2025-03-27"
+      },
+      {
+        "username": "test-cdmsdlcsxdpv@example.com",
+        "alias": "HIERARCHY_DEV",
+        "instanceUrl": "https://computing-computing-4008-dev-ed.scratch.my.salesforce.com",
+        "isDefault": false,
+        "type": "scratchOrg",
+        "clientId": "PlatformCLI",
+        "clientSecret": "Unknown",
+        "redirectUri": "Unknown",
+        "expirationDate": "2025-03-28"
+      },
+      {
+        "username": "test-y10sz9fa2prs@example.com",
+        "alias": "HIERARCHY_MERGE",
+        "instanceUrl": "https://customization-agility-8954-dev-ed.scratch.my.salesforce.com",
+        "isDefault": false,
+        "type": "scratchOrg",
+        "clientId": "PlatformCLI",
+        "clientSecret": "Unknown",
+        "redirectUri": "Unknown",
+        "expirationDate": "2025-03-27"
+      },
+      {
+        "username": "test-nhdlxmogkpjj@example.com",
+        "alias": "HIERARCHY_PLAY",
+        "instanceUrl": "https://flow-data-4748-dev-ed.scratch.my.salesforce.com",
+        "isDefault": false,
+        "type": "scratchOrg",
+        "clientId": "PlatformCLI",
+        "clientSecret": "Unknown",
+        "redirectUri": "Unknown",
+        "expirationDate": "2025-03-26"
+      },
+      {
+        "username": "test-s2mwur9wr83g@example.com",
+        "alias": "HIERARCHY_RELEASE",
+        "instanceUrl": "https://app-customer-6904-dev-ed.scratch.my.salesforce.com",
+        "isDefault": false,
+        "type": "scratchOrg",
+        "clientId": "PlatformCLI",
+        "clientSecret": "Unknown",
+        "redirectUri": "Unknown",
+        "expirationDate": "2025-04-10"
+      },
+      {
+        "username": "test-ayepp3blqlyq@example.com",
+        "alias": "HIERARCHY_RELEASE_4_50",
+        "instanceUrl": "https://customer-power-3138-dev-ed.scratch.my.salesforce.com",
+        "isDefault": false,
+        "type": "scratchOrg",
+        "clientId": "PlatformCLI",
+        "clientSecret": "Unknown",
+        "redirectUri": "Unknown",
+        "expirationDate": "2025-03-26"
+      }
+    ],
+    "nonScratchOrgs": [
+      {
+        "username": "adminqa@demoorg.com.manualuat",
+        "alias": "HIERARCHY_MANUAL_UAT",
+        "instanceUrl": "https://completedemo--uat.sandbox.my.salesforce.com",
+        "isDefault": false,
+        "type": "other",
+        "clientId": "PlatformCLI",
+        "clientSecret": "Unknown",
+        "redirectUri": "Unknown",
+        "expirationDate": "Unknown"
+      },
+      {
+        "username": "admin@trachier_4.40.patch",
+        "alias": "HIERARCHY_PATCH_4_40",
+        "instanceUrl": "https://computing-nosoftware-1246-dev-ed.patch.my.salesforce.com",
+        "isDefault": false,
+        "type": "other",
+        "clientId": "PlatformCLI",
+        "clientSecret": "Unknown",
+        "redirectUri": "Unknown",
+        "expirationDate": "Unknown"
+      },
+      {
+        "username": "admin@trachier_4.41.patch",
+        "alias": "HIERARCHY_PATCH_4_41",
+        "instanceUrl": "https://power-force-6074-dev-ed.my.salesforce.com",
+        "isDefault": false,
+        "type": "other",
+        "clientId": "PlatformCLI",
+        "clientSecret": "Unknown",
+        "redirectUri": "Unknown",
+        "expirationDate": "Unknown"
+      },
+      {
+        "username": "admin@trachier_4.44.patch",
+        "alias": "HIERARCHY_PATCH_4_44",
+        "instanceUrl": "https://inspiration-computing-10682-dev-ed.patch.my.salesforce.com",
+        "isDefault": false,
+        "type": "other",
+        "clientId": "PlatformCLI",
+        "clientSecret": "Unknown",
+        "redirectUri": "Unknown",
+        "expirationDate": "Unknown"
+      },
+      {
+        "username": "admin@trachier_4.49.patch",
+        "alias": "HIERARCHY_PATCH_4_49",
+        "instanceUrl": "https://velocity-fun-42212-dev-ed.patch.my.salesforce.com",
+        "isDefault": false,
+        "type": "other",
+        "clientId": "PlatformCLI",
+        "clientSecret": "Unknown",
+        "redirectUri": "Unknown",
+        "expirationDate": "Unknown"
+      },
+      {
+        "username": "admin@trachier_4.50.patch",
+        "alias": "HIERARCHY_PATCH_4_50",
+        "instanceUrl": "https://site-dream-92682-dev-ed.patch.my.salesforce.com",
+        "isDefault": false,
+        "type": "other",
+        "clientId": "PlatformCLI",
+        "clientSecret": "Unknown",
+        "redirectUri": "Unknown",
+        "expirationDate": "Unknown"
+      },
+      {
+        "username": "admin@trachier_4.52.patch",
+        "alias": "HIERARCHY_PATCH_4_52",
+        "instanceUrl": "https://nosoftware-power-57742-dev-ed.patch.my.salesforce.com",
+        "isDefault": false,
+        "type": "other",
+        "clientId": "PlatformCLI",
+        "clientSecret": "Unknown",
+        "redirectUri": "Unknown",
+        "expirationDate": "Unknown"
+      },
+      {
+        "username": "rvisbal@tractionlabs.dx.com",
+        "alias": "LABSDevDXHub",
+        "instanceUrl": "https://tractionlabs.my.salesforce.com",
+        "isDefault": false,
+        "type": "devHub",
+        "clientId": "PlatformCLI",
+        "clientSecret": "Unknown",
+        "redirectUri": "Unknown",
+        "expirationDate": "Unknown"
+      },
+      {
+        "username": "dev@hierarchies3.app",
+        "alias": "PACKAGING_ORG",
+        "instanceUrl": "https://tractionhierarchies-dev-ed.my.salesforce.com",
+        "isDefault": false,
+        "type": "other",
+        "clientId": "PlatformCLI",
+        "clientSecret": "Unknown",
+        "redirectUri": "Unknown",
+        "expirationDate": "Unknown"
+      }
+    ],
+    "other": [
+      {
+        "username": "adminqa@demoorg.com.manualuat",
+        "alias": "HIERARCHY_MANUAL_UAT",
+        "instanceUrl": "https://completedemo--uat.sandbox.my.salesforce.com",
+        "isDefault": false,
+        "type": "other",
+        "clientId": "PlatformCLI",
+        "clientSecret": "Unknown",
+        "redirectUri": "Unknown",
+        "expirationDate": "Unknown"
+      },
+      {
+        "username": "admin@trachier_4.40.patch",
+        "alias": "HIERARCHY_PATCH_4_40",
+        "instanceUrl": "https://computing-nosoftware-1246-dev-ed.patch.my.salesforce.com",
+        "isDefault": false,
+        "type": "other",
+        "clientId": "PlatformCLI",
+        "clientSecret": "Unknown",
+        "redirectUri": "Unknown",
+        "expirationDate": "Unknown"
+      },
+      {
+        "username": "admin@trachier_4.41.patch",
+        "alias": "HIERARCHY_PATCH_4_41",
+        "instanceUrl": "https://power-force-6074-dev-ed.my.salesforce.com",
+        "isDefault": false,
+        "type": "other",
+        "clientId": "PlatformCLI",
+        "clientSecret": "Unknown",
+        "redirectUri": "Unknown",
+        "expirationDate": "Unknown"
+      },
+      {
+        "username": "admin@trachier_4.44.patch",
+        "alias": "HIERARCHY_PATCH_4_44",
+        "instanceUrl": "https://inspiration-computing-10682-dev-ed.patch.my.salesforce.com",
+        "isDefault": false,
+        "type": "other",
+        "clientId": "PlatformCLI",
+        "clientSecret": "Unknown",
+        "redirectUri": "Unknown",
+        "expirationDate": "Unknown"
+      },
+      {
+        "username": "admin@trachier_4.49.patch",
+        "alias": "HIERARCHY_PATCH_4_49",
+        "instanceUrl": "https://velocity-fun-42212-dev-ed.patch.my.salesforce.com",
+        "isDefault": false,
+        "type": "other",
+        "clientId": "PlatformCLI",
+        "clientSecret": "Unknown",
+        "redirectUri": "Unknown",
+        "expirationDate": "Unknown"
+      },
+      {
+        "username": "admin@trachier_4.50.patch",
+        "alias": "HIERARCHY_PATCH_4_50",
+        "instanceUrl": "https://site-dream-92682-dev-ed.patch.my.salesforce.com",
+        "isDefault": false,
+        "type": "other",
+        "clientId": "PlatformCLI",
+        "clientSecret": "Unknown",
+        "redirectUri": "Unknown",
+        "expirationDate": "Unknown"
+      },
+      {
+        "username": "admin@trachier_4.52.patch",
+        "alias": "HIERARCHY_PATCH_4_52",
+        "instanceUrl": "https://nosoftware-power-57742-dev-ed.patch.my.salesforce.com",
+        "isDefault": false,
+        "type": "other",
+        "clientId": "PlatformCLI",
+        "clientSecret": "Unknown",
+        "redirectUri": "Unknown",
+        "expirationDate": "Unknown"
+      },
+      {
+        "username": "dev@hierarchies3.app",
+        "alias": "PACKAGING_ORG",
+        "instanceUrl": "https://tractionhierarchies-dev-ed.my.salesforce.com",
+        "isDefault": false,
+        "type": "other",
+        "clientId": "PlatformCLI",
+        "clientSecret": "Unknown",
+        "redirectUri": "Unknown",
+        "expirationDate": "Unknown"
+      }
+    ]
+  },
+  "timestamp": 1743083238870
+}

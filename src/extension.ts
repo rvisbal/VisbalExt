@@ -25,6 +25,61 @@ function isModuleEnabled(moduleName: string): boolean {
   return config.get(`modules.${moduleName}.enabled`, true);
 }
 
+// Initialize template files
+async function initializeTemplates(context: vscode.ExtensionContext) {
+  try {
+    // Get workspace folder
+    const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
+    if (!workspaceFolder) {
+      vscode.window.showWarningMessage('No workspace folder found. Please open a workspace to initialize templates.');
+      return;
+    }
+
+    // Create .visbal/templates/apex directory
+    const visbalTemplatesDir = vscode.Uri.joinPath(workspaceFolder.uri, '.visbal', 'templates', 'apex');
+    const templatesDir = vscode.Uri.joinPath(workspaceFolder.uri, 'templates', 'apex');
+    
+    try {
+      await vscode.workspace.fs.createDirectory(visbalTemplatesDir);
+      await vscode.workspace.fs.createDirectory(templatesDir);
+    } catch (err) {
+      console.error('[VisbalExt.Extension] Error creating template directories:', err);
+      return;
+    }
+
+    // Get template files from extension
+    const extensionTemplatesPath = vscode.Uri.joinPath(context.extensionUri, 'templates', 'apex');
+    try {
+      const templateFiles = await vscode.workspace.fs.readDirectory(extensionTemplatesPath);
+      
+      // Copy each template file to both locations
+      for (const [fileName, fileType] of templateFiles) {
+        if (fileType === vscode.FileType.File && fileName.endsWith('.apex')) {
+          const sourceUri = vscode.Uri.joinPath(extensionTemplatesPath, fileName);
+          const visbalTargetUri = vscode.Uri.joinPath(visbalTemplatesDir, fileName);
+          const targetUri = vscode.Uri.joinPath(templatesDir, fileName);
+          
+          try {
+            const content = await vscode.workspace.fs.readFile(sourceUri);
+            await vscode.workspace.fs.writeFile(visbalTargetUri, content);
+            await vscode.workspace.fs.writeFile(targetUri, content);
+            console.log(`[VisbalExt.Extension] Copied template ${fileName} to workspace`);
+          } catch (err) {
+            console.error(`[VisbalExt.Extension] Error copying template ${fileName}:`, err);
+          }
+        }
+      }
+      vscode.window.showInformationMessage('Visbal templates initialized successfully.');
+    } catch (err) {
+      console.error('[VisbalExt.Extension] Error accessing template directory:', err);
+      vscode.window.showErrorMessage('Failed to initialize Visbal templates. See output for details.');
+    }
+  } catch (error) {
+    console.error('[VisbalExt.Extension] Error initializing templates:', error);
+    vscode.window.showErrorMessage('Failed to initialize Visbal templates. See output for details.');
+  }
+}
+
 // This method is called when your extension is activated
 export function activate(context: vscode.ExtensionContext) {
   // Create output channel
@@ -34,6 +89,11 @@ export function activate(context: vscode.ExtensionContext) {
   console.log('[VisbalExt.Extension] Activating extension');
   outputChannel.appendLine('[VisbalExt.Extension] Activating extension');
   
+  // Initialize templates
+  initializeTemplates(context).catch(err => {
+    console.error('[VisbalExt.Extension] Error during template initialization:', err);
+  });
+
   // Initialize status bar
   statusBarService.showMessage('[VisbalExt.Extension] activated', 'rocket');
   context.subscriptions.push({ dispose: () => {
@@ -435,6 +495,22 @@ export function activate(context: vscode.ExtensionContext) {
     outputChannel.appendLine(`[Debug] ${event.event}: ${JSON.stringify(event.body)}`);
     debugConsoleView.addOutput(`${event.event}: ${JSON.stringify(event.body)}`, 'info');
   });
+
+  // Register the initialize templates command
+  context.subscriptions.push(
+    vscode.commands.registerCommand('visbal-ext.initializeTemplates', () => {
+      initializeTemplates(context).catch(err => {
+        console.error('[VisbalExt.Extension] Error during template initialization:', err);
+      });
+    })
+  );
+
+  // Initialize templates on activation only if workspace is available
+  if (vscode.workspace.workspaceFolders && vscode.workspace.workspaceFolders.length > 0) {
+    initializeTemplates(context).catch(err => {
+      console.error('[VisbalExt.Extension] Error during template initialization:', err);
+    });
+  }
 
   outputChannel.appendLine('[VisbalExt.Extension] Visbal Extension activated successfully');
   outputChannel.show();
