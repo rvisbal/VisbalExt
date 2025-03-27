@@ -1579,7 +1579,7 @@ export function getHtmlForWebview(extensionUri: vscode.Uri, webview: vscode.Webv
           // Add refresh option at the top
           const refreshOption = document.createElement('option');
           refreshOption.value = '__refresh__';
-          refreshOption.textContent = fromCache ? '↻ Refresh Org List (Cached)' : '↻ Refresh Org List';
+          refreshOption.textContent = '↻ Refresh Org List';
           refreshOption.style.fontStyle = 'italic';
           refreshOption.style.backgroundColor = 'var(--vscode-dropdown-background)';
           orgSelector.appendChild(refreshOption);

@@ -905,7 +905,7 @@ export class SamplePanelView implements vscode.WebviewViewProvider {
                                 break;
                             case 'refreshComplete':
 							    stopLoading();
-                                refreshButton.innerHTML = '↻ Refresh Org List (Cached)';
+                                refreshButton.innerHTML = '↻ Refresh Org List';
                                 refreshButton.disabled = false;
                                 break;
                             case 'error':
@@ -999,7 +999,7 @@ export class SamplePanelView implements vscode.WebviewViewProvider {
                         // Add refresh option at the top
                         const refreshOption = document.createElement('option');
                         refreshOption.value = '__refresh__';
-                        refreshOption.textContent = fromCache ? '↻ Refresh Org List (Cached)' : '↻ Refresh Org List';
+                        refreshOption.textContent = '↻ Refresh Org List';
                         refreshOption.style.fontStyle = 'italic';
                         refreshOption.style.backgroundColor = 'var(--vscode-dropdown-background)';
                         orgDropdown.appendChild(refreshOption);
