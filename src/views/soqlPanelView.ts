@@ -75,7 +75,7 @@ export class SoqlPanelView implements vscode.WebviewViewProvider {
 
         try {
             const selectedOrg = await OrgUtils.getSelectedOrg();
-        	this._view?.webview.postMessage({
+            this._view?.webview.postMessage({
                 command: 'startLoading',
                 message: `Executing SOQL ${selectedOrg?.alias}...`
             });
@@ -99,18 +99,24 @@ export class SoqlPanelView implements vscode.WebviewViewProvider {
             const result = await this._sfdxService.executeSoqlQuery(soql);
             console.log('[VisbalExt.soqlPanel] executeSOQL Execution result:', result);
 
+            if (!result || result.length === 0) {
+                this._view?.webview.postMessage({
+                    command: 'noResults',
+                    message: 'Query executed successfully but returned no records.'
+                });
+                return;
+            }
+
             this._view?.webview.postMessage({
-                            command: 'soqlResultsLoaded',
-                            results: {
-                                records: result
-                            }
-                        });
+                command: 'soqlResultsLoaded',
+                results: {
+                    records: result
+                }
+            });
                         
-             this._view?.webview.postMessage({
-                            command: 'stopLoading',
-                        });
-						
-						
+            this._view?.webview.postMessage({
+                command: 'stopLoading',
+            });
         } catch (error: any) {
             console.error('[VisbalExt.soqlPanel] executeSOQL Error executing SOQL:', error);
             this._view?.webview.postMessage({
@@ -497,6 +503,20 @@ export class SoqlPanelView implements vscode.WebviewViewProvider {
                 .error-container.show {
                     display: block;
                 }
+                .no-results-container {
+                    display: none;
+                    padding: 20px;
+                    text-align: center;
+                    color: var(--vscode-foreground);
+                    font-style: italic;
+                    background-color: var(--vscode-editor-background);
+                    border: 1px solid var(--vscode-widget-border);
+                    border-radius: 3px;
+                    margin: 10px;
+                }
+                .no-results-container.show {
+                    display: block;
+                }
             </style>
         </head>
         <body>
@@ -533,6 +553,9 @@ export class SoqlPanelView implements vscode.WebviewViewProvider {
             <div id="errorContainer" class="error-container">
                 <div id="errorMessage" class="error-message"></div>
             </div>
+            <div id="noResultsContainer" class="no-results-container">
+                <div id="noResultsMessage"></div>
+            </div>
             <div class="loading-container" id="loadingContainer">
                 <div class="loading-spinner"></div>
                 <span>Executing query...</span>
@@ -559,6 +582,8 @@ export class SoqlPanelView implements vscode.WebviewViewProvider {
                     const queryHistorySelect = document.getElementById('queryHistorySelect');
                     const errorContainer = document.getElementById('errorContainer');
                     const errorMessage = document.getElementById('errorMessage');
+                    const noResultsContainer = document.getElementById('noResultsContainer');
+                    const noResultsMessage = document.getElementById('noResultsMessage');
 					
 					//#region QUERY_HISTORY
                     // Initialize query history from state
@@ -702,12 +727,24 @@ export class SoqlPanelView implements vscode.WebviewViewProvider {
                         switch (message.command) {
                             case 'soqlResultsLoaded':
                                 errorContainer.classList.remove('show');
+                                noResultsContainer.classList.remove('show');
                                 handleSoqlResults(message.results);
+                                break;
+                            case 'noResults':
+                                errorContainer.classList.remove('show');
+                                soqlResultsHeader.innerHTML = '';
+                                soqlResultsBody.innerHTML = '';
+                                noResultsMessage.textContent = message.message;
+                                noResultsContainer.classList.add('show');
+                                copyAsCsvButton.disabled = true;
+                                copyAsExcelButton.disabled = true;
+                                soqlStatus.textContent = '0 rows';
                                 break;
                             case 'error':
                                 soqlStatus.textContent = '';
                                 soqlResultsHeader.innerHTML = '';
                                 soqlResultsBody.innerHTML = '';
+                                noResultsContainer.classList.remove('show');
                                 errorMessage.textContent = message.message;
                                 errorContainer.classList.add('show');
                                 break;
@@ -746,14 +783,16 @@ export class SoqlPanelView implements vscode.WebviewViewProvider {
 
                     function handleSoqlResults(results) {
                         if (!results || !results.records || results.records.length === 0) {
-                            soqlStatus.textContent = 'No results';
+                            soqlStatus.textContent = '0 rows';
                             soqlResultsHeader.innerHTML = '';
                             soqlResultsBody.innerHTML = '';
+                            noResultsMessage.textContent = 'Query executed successfully but returned no records.';
+                            noResultsContainer.classList.add('show');
                             copyAsCsvButton.disabled = true;
                             copyAsExcelButton.disabled = true;
                             return;
                         }
-
+                        noResultsContainer.classList.remove('show');
                         const columns = Object.keys(results.records[0]).filter(col => col !== 'attributes');
                         soqlResultsHeader.innerHTML = '<tr>' + columns.map(col => 
                             '<th>' + col + '</th>'
