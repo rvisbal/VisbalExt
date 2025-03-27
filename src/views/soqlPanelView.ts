@@ -478,6 +478,26 @@ export class SoqlPanelView implements vscode.WebviewViewProvider {
 		          border-color: var(--vscode-focusBorder);
 		        }
             </style>
+            <style>
+                .error-container {
+                    display: none;
+                    padding: 10px;
+                    margin: 10px;
+                    background-color: var(--vscode-inputValidation-errorBackground);
+                    border: 1px solid var(--vscode-inputValidation-errorBorder);
+                    color: var(--vscode-inputValidation-errorForeground);
+                    border-radius: 3px;
+                }
+                .error-message {
+                    font-family: var(--vscode-font-family);
+                    font-size: 12px;
+                    white-space: pre-wrap;
+                    word-break: break-word;
+                }
+                .error-container.show {
+                    display: block;
+                }
+            </style>
         </head>
         <body>
             <div class="toolbar">
@@ -510,6 +530,9 @@ export class SoqlPanelView implements vscode.WebviewViewProvider {
             <div class="query-section">
                 <textarea id="soqlInput" placeholder="Enter SOQL query..." rows="4">SELECT FIELDS(ALL) FROM Account ORDER BY CreatedDate DESC Limit 200</textarea>
             </div>
+            <div id="errorContainer" class="error-container">
+                <div id="errorMessage" class="error-message"></div>
+            </div>
             <div class="loading-container" id="loadingContainer">
                 <div class="loading-spinner"></div>
                 <span>Executing query...</span>
@@ -534,6 +557,8 @@ export class SoqlPanelView implements vscode.WebviewViewProvider {
                     const soqlResultsBody = document.getElementById('soqlResultsBody');
                     const loadingContainer = document.getElementById('loadingContainer');
                     const queryHistorySelect = document.getElementById('queryHistorySelect');
+                    const errorContainer = document.getElementById('errorContainer');
+                    const errorMessage = document.getElementById('errorMessage');
 					
 					//#region QUERY_HISTORY
                     // Initialize query history from state
@@ -676,30 +701,29 @@ export class SoqlPanelView implements vscode.WebviewViewProvider {
                         const message = event.data;
                         switch (message.command) {
                             case 'soqlResultsLoaded':
-                                stopLoading();
+                                errorContainer.classList.remove('show');
                                 handleSoqlResults(message.results);
                                 break;
                             case 'error':
-                                stopLoading();
-                                soqlStatus.textContent = message.message;
+                                soqlStatus.textContent = '';
                                 soqlResultsHeader.innerHTML = '';
                                 soqlResultsBody.innerHTML = '';
-                                copyAsCsvButton.disabled = true;
-                                copyAsExcelButton.disabled = true;
+                                errorMessage.textContent = message.message;
+                                errorContainer.classList.add('show');
                                 break;
                             case 'updateOrgList':
                                 updateOrgListUI(message.orgs || {}, message.fromCache, message.selectedOrg);
-
                                 break;
                             case 'refreshComplete':
                                 refreshButton.innerHTML = '↻ Refresh Org List';
                                 refreshButton.disabled = false;
                                 break;
-                             case 'startLoading':
-                                startLoading(message.message);
+                            case 'startLoading':
+                                errorContainer.classList.remove('show');
+                                soqlStatus.textContent = message.message || 'Loading...';
                                 break;
-                             case 'stopLoading':
-                                stopLoading();
+                            case 'stopLoading':
+                                soqlStatus.textContent = '';
                                 break;
                         }
                     });
