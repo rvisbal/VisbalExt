@@ -234,66 +234,77 @@ export class SamplePanelView implements vscode.WebviewViewProvider {
     }
 
     private async executeApex(code: string) {
-        if (!code.trim()) {
-            this._view?.webview.postMessage({
-                command: 'executionResult',
-                success: false,
-                message: 'Please enter some code to execute'
-            });
-            return;
-        }
-
         try {
             const selectedOrg = await OrgUtils.getSelectedOrg();
-			this._view?.webview.postMessage({
+            this._view?.webview.postMessage({
                 command: 'startLoading',
-                message: `Executing Apex on ${selectedOrg?.alias} ...`
+                message: `Executing Apex on ${selectedOrg?.alias}...`
             });
-			
-			
+            
             if (!selectedOrg?.alias) {
                 this._view?.webview.postMessage({
                     command: 'error',
-                    success: false,
                     message: 'Please select a Salesforce org first'
                 });
                 return;
             }
 
-            console.log(`[VisbalExt.SamplePanelView] Executing on ${selectedOrg?.alias} org Apex code:`, code);
-            const m = `Apex started on : ${selectedOrg?.alias}`
-            // Show loading state
-            this._view?.webview.postMessage({
-                command: 'executionResult',
-                success: false,
-                message: m
-            });
+            console.log(`[VisbalExt.SamplePanelView] executeAnonymousApex -- Executing on ${selectedOrg?.alias} org code:`, code);
 
             const result = await this._sfdxService.executeAnonymousApex(code);
             console.log('[VisbalExt.SamplePanelView] Execution result:', result);
 
-            this._view?.webview.postMessage({
-                command: 'executionResult',
-                success: result.success,
-                logs: result.logs,
-                compileProblem: result.compileProblem,
-                exceptionMessage: result.exceptionMessage,
-                exceptionStackTrace: result.exceptionStackTrace
-            });
-			
-			
+            if (result.success) {
+                this._view?.webview.postMessage({
+                    command: 'success',
+                    message: 'Code executed successfully'
+                });
+
+                this._view?.webview.postMessage({
+                    command: 'executionResult',
+                    success: result.success,
+                    logs: result.logs,
+                    compileProblem: result.compileProblem,
+                    exceptionMessage: result.exceptionMessage,
+                    exceptionStackTrace: result.exceptionStackTrace
+                });
+                
+
+            } else {
+                let errorMessage = 'Error executing code:\n';
+                if (result.compileProblem) {
+                    errorMessage += `Compilation Error: ${result.compileProblem}\n`;
+                }
+                if (result.exceptionMessage) {
+                    errorMessage += `Runtime Error: ${result.exceptionMessage}\n`;
+                }
+                if (result.exceptionStackTrace) {
+                    errorMessage += `Stack Trace:\n${result.exceptionStackTrace}`;
+                }
+                
+                this._view?.webview.postMessage({
+                    command: 'error',
+                    message: errorMessage.trim()
+                });
+
+                console.log(`[VisbalExt.SamplePanelView] Executing on ${selectedOrg?.alias} org Apex code:`, code);
+                const m = `Apex started on : ${selectedOrg?.alias}`
+                // Show loading state
+                this._view?.webview.postMessage({
+                    command: 'executionResult',
+                    success: false,
+                    message: m
+                });
+            }
         } catch (error: any) {
-            console.error('[VisbalExt.SamplePanelView] Error executing Apex:', error);
+            console.error('[VisbalExt.SamplePanelView] executeAnonymousApex Error:', error);
             this._view?.webview.postMessage({
                 command: 'error',
-                success: false,
-                message: `Error executing Apex: ${error.message}`
+                message: `Error executing code: ${error.message}`
             });
-        }
-		finally {
+        } finally {
             this._view?.webview.postMessage({
-                command: 'stopLoading',
-                isLoading: false
+                command: 'stopLoading'
             });
         }
     }
@@ -700,6 +711,26 @@ export class SamplePanelView implements vscode.WebviewViewProvider {
                     border-color: var(--vscode-focusBorder);
                 }
             </style>
+            <style>
+                .error-container {
+                    display: none;
+                    padding: 10px;
+                    margin: 10px 0;
+                    background-color: var(--vscode-inputValidation-errorBackground);
+                    border: 1px solid var(--vscode-inputValidation-errorBorder);
+                    color: var(--vscode-inputValidation-errorForeground);
+                    border-radius: 3px;
+                }
+                .error-message {
+                    font-family: var(--vscode-font-family);
+                    font-size: 12px;
+                    white-space: pre-wrap;
+                    word-break: break-word;
+                }
+                .error-container.show {
+                    display: block;
+                }
+            </style>
         </head>
         <body>
             <div class="container">
@@ -769,6 +800,9 @@ export class SamplePanelView implements vscode.WebviewViewProvider {
                         Execute Apex code to see results here
                     </div>
                 </div>
+                <div id="errorContainer" class="error-container">
+                    <div id="errorMessage" class="error-message"></div>
+                </div>
             </div>
             <script>
                 (function() {
@@ -781,6 +815,8 @@ export class SamplePanelView implements vscode.WebviewViewProvider {
                     const tabs = document.querySelectorAll('.tab');
                     const contents = document.querySelectorAll('.content');
 					const loadingContainer = document.getElementById('loadingContainer');
+                    const errorContainer = document.getElementById('errorContainer');
+                    const errorMessage = document.getElementById('errorMessage');
 					
 					//#region LISTBOX
                     // Dropdown functionality
@@ -912,6 +948,8 @@ export class SamplePanelView implements vscode.WebviewViewProvider {
 								stopLoading();
                                 statusBar.textContent = message.message;
                                 console.error('[VisbalExt.htmlTemplate] Error:', message.message);
+                                errorMessage.textContent = message.message;
+                                errorContainer.classList.add('show');
                                 break;
 							case 'startLoading':
                                 startLoading(message.message);
@@ -940,7 +978,8 @@ export class SamplePanelView implements vscode.WebviewViewProvider {
                     
                     // Execute Apex code
                     window.executeApex = function() {
-						// Show loading state
+						errorContainer.classList.remove('show');
+                        // Show loading state
                         startLoading('Executing apex...');
                
 						
