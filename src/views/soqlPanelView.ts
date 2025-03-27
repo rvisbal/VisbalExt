@@ -38,7 +38,7 @@ export class SoqlPanelView implements vscode.WebviewViewProvider {
         webviewView.webview.onDidReceiveMessage(async (message) => {
             switch (message.command) {
                 case 'executeSoqlQuery':
-                    this.executeSOQL(message.query);
+                    this.executeSOQL(message.query, message.useToolingApi);
                     break;
                 case 'setSelectedOrg':
                     await this._setSelectedOrg(message.alias);
@@ -63,7 +63,7 @@ export class SoqlPanelView implements vscode.WebviewViewProvider {
         });
     }
 	
-	private async executeSOQL(soql: string) {
+	private async executeSOQL(soql: string, useToolingApi: boolean) {
         if (!soql.trim()) {
             this._view?.webview.postMessage({
                 command: 'executionResult',
@@ -96,7 +96,7 @@ export class SoqlPanelView implements vscode.WebviewViewProvider {
                 command: m
             });
 
-            const result = await this._sfdxService.executeSoqlQuery(soql);
+            const result = await this._sfdxService.executeSoqlQuery(soql, useToolingApi, useToolingApi);
             console.log('[VisbalExt.soqlPanel] executeSOQL Execution result:', result);
 
             if (!result || result.length === 0) {
@@ -526,6 +526,23 @@ export class SoqlPanelView implements vscode.WebviewViewProvider {
                     display: block;
                 }
             </style>
+            <style>
+                .toolbar-checkbox {
+                    display: flex;
+                    align-items: center;
+                    margin-right: 8px;
+                    user-select: none;
+                }
+                .toolbar-checkbox input[type="checkbox"] {
+                    margin: 0 4px 0 0;
+                    cursor: pointer;
+                }
+                .toolbar-checkbox label {
+                    font-size: 12px;
+                    color: var(--vscode-foreground);
+                    cursor: pointer;
+                }
+            </style>
         </head>
         <body>
             <div class="toolbar">
@@ -538,6 +555,10 @@ export class SoqlPanelView implements vscode.WebviewViewProvider {
                     <div id="soqlStatus"></div>
                 </div>
                 <div class="toolbar-right">
+                    <div class="toolbar-checkbox">
+                        <input type="checkbox" id="useToolingApi" title="Use Tooling API for metadata queries">
+                        <label for="useToolingApi">Tooling API</label>
+                    </div>
                     <select id="org-selector" class="org-selector" title="Select Salesforce Org">
                         <option value="">Loading orgs...</option>
                     </select>
@@ -592,11 +613,25 @@ export class SoqlPanelView implements vscode.WebviewViewProvider {
                     const errorMessage = document.getElementById('errorMessage');
                     const noResultsContainer = document.getElementById('noResultsContainer');
                     const noResultsMessage = document.getElementById('noResultsMessage');
-					
-					//#region QUERY_HISTORY
+                    const useToolingApiCheckbox = document.getElementById('useToolingApi');
+
+                    // Initialize and restore tooling API state
+                    const state = vscode.getState() || {};
+                    if (state.useToolingApi !== undefined) {
+                        useToolingApiCheckbox.checked = state.useToolingApi;
+                    }
+
+                    // Save tooling API state when changed
+                    useToolingApiCheckbox.addEventListener('change', () => {
+                        vscode.setState({ 
+                            ...state, 
+                            useToolingApi: useToolingApiCheckbox.checked 
+                        });
+                    });
+
+                    //#region QUERY_HISTORY
                     // Initialize query history from state
                     let queryHistory = [];
-                    const state = vscode.getState() || {};
                     if (state.queryHistory) {
                         queryHistory = state.queryHistory;
                         updateQueryHistoryUI();
@@ -685,7 +720,8 @@ export class SoqlPanelView implements vscode.WebviewViewProvider {
                         soqlStatus.textContent = 'Running...';
                         vscode.postMessage({
                             command: 'executeSoqlQuery',
-                            query: query
+                            query: query,
+                            useToolingApi: useToolingApiCheckbox.checked
                         });
                     });
 
