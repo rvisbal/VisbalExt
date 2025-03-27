@@ -451,6 +451,7 @@ export class SoqlPanelView implements vscode.WebviewViewProvider {
                 .query-history {
                     flex: 1;
                     max-width: 300px;
+                    position: relative;
                 }
                 #queryHistorySelect {
                     width: 100%;
@@ -460,6 +461,7 @@ export class SoqlPanelView implements vscode.WebviewViewProvider {
                     border: 1px solid var(--vscode-dropdown-border);
                     padding: 2px 6px;
                     font-size: 12px;
+                    position: relative;
                 }
                 #queryHistorySelect:focus {
                     outline: 1px solid var(--vscode-focusBorder);
@@ -468,6 +470,23 @@ export class SoqlPanelView implements vscode.WebviewViewProvider {
                 #queryHistorySelect option {
                     background: var(--vscode-dropdown-listBackground);
                     color: var(--vscode-dropdown-foreground);
+                    width: auto;
+                    min-width: 800px;
+                    max-width: 1200px;
+                    white-space: nowrap;
+                    overflow: hidden;
+                    text-overflow: ellipsis;
+                    padding: 4px 6px;
+                }
+                #queryHistorySelect optgroup {
+                    color: var(--vscode-dropdown-foreground);
+                    font-style: italic;
+                    min-width: 800px;
+                }
+                /* Ensure dropdown list appears above other elements */
+                #queryHistorySelect:focus option {
+                    position: relative;
+                    z-index: 1000;
                 }
             </style>
             <style>
@@ -575,10 +594,14 @@ export class SoqlPanelView implements vscode.WebviewViewProvider {
                         </svg>
                     </button>
                     <button id="copyAsCsvButton" title="Copy as CSV" style="margin-left: 4px;" disabled>
-                        Copy CSV
+                        <svg width="16" height="16" viewBox="0 0 16 16">
+                            <path fill="currentColor" d="M11 3.9h3.8l-3.8-3.9v3.9zm1 .6v3h-7v-7h5v3.1h2v.9zm-8-4.5v7h-3v10h11v-3h1v4h-13v-12h3v-6h8.1l4.9 5v5h-1v-4h-11z"/>
+                        </svg>CSV
                     </button>
                     <button id="copyAsExcelButton" title="Copy as Excel Format" style="margin-left: 4px;" disabled>
-                        Copy Excel
+                        <svg width="16" height="16" viewBox="0 0 16 16">
+                            <path fill="currentColor" d="M11 3.9h3.8l-3.8-3.9v3.9zm1 .6v3h-7v-7h5v3.1h2v.9zm-8-4.5v7h-3v10h11v-3h1v4h-13v-12h3v-6h8.1l4.9 5v5h-1v-4h-11z"/>
+                        </svg>Excel
                     </button>
                 </div>
             </div>
