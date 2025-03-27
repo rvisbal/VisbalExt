@@ -7,7 +7,7 @@ System.debug('UserInfo.getSessionId():'+ UserInfo.getSessionId());
 System.debug('UserInfo.getUserId():'+ UserInfo.getUserId());
 System.debug('UserInfo.getUserEmail():'+ UserInfo.getUserEmail());
 System.debug('UserInfo.getUserRoleId():'+ UserInfo.getUserRoleId());
-System.debug('UserInfo.getUserRoleName():'+ UserInfo.getUserRoleName());
+System.debug('UserInfo.getProfileId():'+ UserInfo.getProfileId());
 
 
 
