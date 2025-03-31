@@ -561,6 +561,7 @@ export function getHtmlTemplate(
         { id: 'database', label: 'Database' },
         { id: 'limits', label: 'Limits' },
         { id: 'user_debug', label: 'Debug' },
+        { id: 'user_info', label: 'Info' },
         { id: 'raw', label: 'Raw Log' }
     ],
     executionTabHtml: string = '',
@@ -1003,10 +1004,21 @@ export function getHtmlTemplate(
             <div id="user_debug" class="tab-content ${currentTab === 'user_debug' ? 'active' : ''}">
                 <h2>Debug Lines</h2>
                 <div class="user-debug-info">
-                    <p>Showing debug-related lines from the log file, including USER_DEBUG, FATAL_ERROR, DML_BEGIN, and SOQL_EXECUTE_BEGIN.</p>
+                    <p>Showing debug-related lines from the log file, including USER_DEBUG, FATAL_ERROR, DML_BEGIN</p>
                     <p>Total debug lines: ${parsedData.summary ? parsedData.summary.userDebugCount : 0}</p>
                 </div>
                 <pre class="user-debug-content raw-log">${formatLogContentForHtml(parsedData.userDebugLog) || 'No debug lines found in the log.'}</pre>
+            </div>
+
+
+             
+            <div id="user_info" class="tab-content ${currentTab === 'user_info' ? 'active' : ''}">
+                <h2>Info Lines</h2>
+                <div class="user-debug-info">
+                    <p>Showing debug-related lines from the log file, including USER_DEBUG, FATAL_ERROR, DML_BEGIN, and SOQL_EXECUTE_BEGIN.</p>
+                    <p>Total debug lines: ${parsedData.summary ? parsedData.summary.userDebugCount : 0}</p>
+                </div>
+                <pre class="user-debug-content raw-log">${formatLogContentForHtml(parsedData.userInfoLog) || 'No debug lines found in the log.'}</pre>
             </div>
             
             <div id="raw" class="tab-content ${currentTab === 'raw' ? 'active' : ''}">

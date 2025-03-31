@@ -50,6 +50,7 @@ export interface ParsedLogData {
     error?: string;
     rawLog: string;
     userDebugLog: string;
+    userInfoLog : string;
     summary: LogSummary;
     categories: LogCategory[];
     timeline: LogTimelineEvent[];

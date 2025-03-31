@@ -2,7 +2,7 @@ import * as vscode from 'vscode';
 import * as fs from 'fs';
 import * as path from 'path';
 import { getHtmlTemplate } from './htmlTemplate';
-import { extractDebugLines, extractCategoryLines, formatLogContentForHtml } from '../utils/logParsingUtils';
+import { extractDebugLines, extractCategoryLines, formatLogContentForHtml, extractInfoLines } from '../utils/logParsingUtils';
 import { LogTab, LogCategory, LogSummary, LogTimelineEvent, ParsedLogData } from '../models/logInterfaces';
 import { ExecutionTabHandler } from './executionTabHandler';
 import { RawLogTabHandler } from './rawLogTabHandler';
@@ -232,6 +232,8 @@ export class LogDetailView {
             const heapLines = extractCategoryLines(lines, 'HEAP_');
             const limitLines = extractCategoryLines(lines, 'LIMIT_');
             const userDebugLines = extractDebugLines(lines);
+
+            const userInfoLines =  extractInfoLines(lines);
             
             // Parse database operations
             const soqlQueries = this._parseSoqlQueries(soqlLines);
@@ -251,7 +253,8 @@ export class LogDetailView {
                 dmlCount: dmlLines.length,
                 heapCount: heapLines.length,
                 limitCount: limitLines.length,
-                userDebugCount: userDebugLines.length
+                userDebugCount: userDebugLines.length,
+                userInfoCount: userInfoLines.length
             };
             
             // Create categories for overview
@@ -261,7 +264,8 @@ export class LogDetailView {
                 { name: 'DML', count: dmlLines.length, description: 'DML operations' },
                 { name: 'HEAP', count: heapLines.length, description: 'Heap usage' },
                 { name: 'LIMIT', count: limitLines.length, description: 'Governor limits' },
-                { name: 'USER_DEBUG', count: userDebugLines.length, description: 'Debug logs' }
+                { name: 'USER_DEBUG', count: userDebugLines.length, description: 'Debug logs' },
+                { name: 'USER_INFO', count: userInfoLines.length, description: 'Info logs' }
             ];
             
             // Create timeline events
@@ -271,6 +275,7 @@ export class LogDetailView {
             const parsedData: ParsedLogData = {
                 rawLog: logContent,
                 userDebugLog: userDebugLines.join('\n'),
+                userInfoLog: userInfoLines.join('\n'),
                 summary,
                 categories,
                 timeline,
@@ -295,6 +300,7 @@ export class LogDetailView {
                 error: `Error parsing log file: ${error.message}`,
                 rawLog: '',
                 userDebugLog: '',
+                userInfoLog: '',
                 summary: this._createEmptySummary(),
                 categories: [],
                 timeline: [],
@@ -473,6 +479,7 @@ export class LogDetailView {
                 { id: 'database', label: 'Database' },
                 { id: 'limits', label: 'Limits' },
                 { id: 'user_debug', label: 'Debug' },
+                { id: 'user_info', label: 'Info' },
                 { id: 'raw', label: 'Raw Log' }
             ];
             

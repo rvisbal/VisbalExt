@@ -540,7 +540,7 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                             if (mainClassMap.size === 0) {
                                 console.log(`[VisbalExt.TestClassExplorer] _runTest -- Downloading and opening log: ${logId}`);
                                 await this._orgUtils.downloadLog(logId);
-                                await this._orgUtils.openLog(logId, this._extensionUri);
+                                await this._orgUtils.openLog(logId, this._extensionUri, debugtab);
                             } else {
                                 // For subsequent tests, just download in background
                                 console.log(`[VisbalExt.TestClassExplorer] _runTest -- Downloading additional log: ${logId}`);

@@ -10,12 +10,28 @@
  */
 export function extractDebugLines(
     lines: string[], 
-    patterns: string[] = ['USER_DEBUG', 'FATAL_ERROR', 'DML_BEGIN', 'SOQL_EXECUTE_BEGIN']
+    patterns: string[] = ['USER_DEBUG', 'FATAL_ERROR', 'DML_BEGIN']
 ): string[] {
     return lines.filter(line => 
         patterns.some(pattern => line.includes(pattern))
     );
 }
+
+/**
+ * Extracts info-related lines from log content
+ * @param lines Array of log file lines
+ * @returns Array of matching info lines
+ */
+export function extractInfoLines(
+    lines: string[], 
+    patterns: string[] =['USER_DEBUG', 'FATAL_ERROR', 'DML_BEGIN', 'SOQL_EXECUTE_BEGIN']
+): string[] {
+    return lines.filter(line => 
+        patterns.some(pattern => line.includes(pattern))
+    );
+}
+
+
 
 /**
  * Extracts specific category lines from log content

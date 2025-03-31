@@ -98,12 +98,12 @@ export class SfdxService {
                 }
                 command += ' --json';
                 
-                console.log('[VisbalExt.SfdxService] getCurrentUserId command:', command);
+                //console.log('[VisbalExt.SfdxService] getCurrentUserId command:', command);
                 const userIdResult = await this._executeCommand(command);
-                console.log(`[VisbalExt.SfdxService] getCurrentUserId User ID result: ${userIdResult}`);
+                //console.log(`[VisbalExt.SfdxService] getCurrentUserId User ID result: ${userIdResult}`);
                 const userIdJson = JSON.parse(userIdResult);
                 userId = userIdJson.result.id;
-                console.log(`[VisbalExt.SfdxService] getCurrentUserId Current user ID: ${userId}`);
+                //console.log(`[VisbalExt.SfdxService] getCurrentUserId Current user ID: ${userId}`);
             } catch (error) {
                 console.error('[VisbalExt.SfdxService] getCurrentUserId Error getting user ID with new CLI format:', error);
                 let command = 'sfdx force:user:display';
@@ -132,7 +132,7 @@ export class SfdxService {
     //#region Organization Management
     public async getCurrentOrgAlias(): Promise<string> {
         try {
-            console.log('[VisbalExt.SfdxService] getCurrentOrgAlias -- BEGIN', this.orgAliasCache);
+            //console.log('[VisbalExt.SfdxService] getCurrentOrgAlias -- BEGIN', this.orgAliasCache);
             // Check cache first
             if (this.orgAliasCache && (Date.now() - this.orgAliasCache.timestamp) < this.CACHE_EXPIRATION) {
                 console.log('[VisbalExt.SfdxService] getCurrentOrgAlias -- Returning cached alias:', this.orgAliasCache.alias);
@@ -142,12 +142,12 @@ export class SfdxService {
                 console.log(`[VisbalExt.SfdxService] getCurrentOrgAlias --${(Date.now() - this.orgAliasCache.timestamp)} this.CACHE_EXPIRATION:${this.CACHE_EXPIRATION} this.orgAliasCache`, this.orgAliasCache);
             }
 
-            console.log('[VisbalExt.SfdxService] getCurrentOrgAlias -- NOT CACHED Getting current org alias');
+            //console.log('[VisbalExt.SfdxService] getCurrentOrgAlias -- NOT CACHED Getting current org alias');
             const command = 'sf org display --json';
-            console.log('[VisbalExt.SfdxService] getCurrentOrgAlias -- command:', command);
+            //console.log('[VisbalExt.SfdxService] getCurrentOrgAlias -- command:', command);
             const orgInfo = await this._executeCommand(command);
             const result = JSON.parse(orgInfo);
-            console.log('[VisbalExt.SfdxService] getCurrentOrgAlias -- result:', result);
+            //console.log('[VisbalExt.SfdxService] getCurrentOrgAlias -- result:', result);
             if (result.status === 0 && result.result) {
                 // Use alias if available, otherwise use username
                 const alias = result.result.alias || result.result.username;
