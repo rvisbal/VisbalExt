@@ -561,6 +561,7 @@ export function getHtmlTemplate(
         { id: 'database', label: 'Database' },
         { id: 'limits', label: 'Limits' },
         { id: 'user_debug', label: 'Debug' },
+        { id: 'user_info', label: 'Info' },
         { id: 'raw', label: 'Raw Log' }
     ],
     executionTabHtml: string = '',
@@ -830,6 +831,49 @@ export function getHtmlTemplate(
                 overflow: auto;
                 max-height: 500px;
             }
+
+            /* Log colorization styles */
+            .log-debug { color:rgb(17, 83, 19); } /* Green */
+            .log-error { color: #f44336; font-weight: bold; } /* Red */
+            .log-dml { color: #2196F3; } /* Blue */
+            .log-execution { color: #9C27B0; } /* Purple */
+            .log-soql { color: #FF9800; } /* Orange */
+            .log-system { color: #607D8B; } /* Blue Grey */
+            .log-code-unit { color: #795548; } /* Brown */
+            .log-info { color: #00BCD4; } /* Cyan */
+            .log-warning { color: #FFC107; } /* Amber */
+            .log-default { color: var(--vscode-editor-foreground); }
+
+            /* Make log lines preserve whitespace and wrap properly */
+            pre {
+                white-space: pre-wrap;
+                word-wrap: break-word;
+                margin: 0;
+                font-family: var(--vscode-editor-font-family);
+                font-size: var(--vscode-editor-font-size);
+            }
+
+            /* Add line numbers */
+            .log-line {
+                display: flex;
+                padding: 0 8px;
+            }
+
+            .log-line:hover {
+                background-color: var(--vscode-editor-selectionBackground);
+            }
+
+            .line-number {
+                user-select: none;
+                color: var(--vscode-editorLineNumber-foreground);
+                text-align: right;
+                padding-right: 1em;
+                min-width: 3em;
+            }
+
+            .line-content {
+                flex: 1;
+            }
         </style>
     </head>
     <body>
@@ -1001,12 +1045,18 @@ export function getHtmlTemplate(
             </div>
             
             <div id="user_debug" class="tab-content ${currentTab === 'user_debug' ? 'active' : ''}">
-                <h2>Debug Lines</h2>
+                <pre class="user-debug-content raw-log">${formatLogContentForHtml(parsedData.userDebugLog) || 'No debug lines found in the log.'}</pre>
+            </div>
+
+
+             
+            <div id="user_info" class="tab-content ${currentTab === 'user_info' ? 'active' : ''}">
+                <h2>Info Lines</h2>
                 <div class="user-debug-info">
                     <p>Showing debug-related lines from the log file, including USER_DEBUG, FATAL_ERROR, DML_BEGIN, and SOQL_EXECUTE_BEGIN.</p>
                     <p>Total debug lines: ${parsedData.summary ? parsedData.summary.userDebugCount : 0}</p>
                 </div>
-                <pre class="user-debug-content raw-log">${formatLogContentForHtml(parsedData.userDebugLog) || 'No debug lines found in the log.'}</pre>
+                <pre class="user-debug-content raw-log">${formatLogContentForHtml(parsedData.userInfoLog) || 'No debug lines found in the log.'}</pre>
             </div>
             
             <div id="raw" class="tab-content ${currentTab === 'raw' ? 'active' : ''}">

@@ -3,134 +3,124 @@ import { MetadataService } from '../services/metadataService';
 import { OrgListCacheService } from '../services/orgListCacheService';
 import { OrgUtils } from '../utils/orgUtils';
 import { SfdxService } from '../services/sfdxService';
-import * as path from 'path';
-
-interface ApexFile {
-    path: string;
-    name: string;
-}
 
 export class SamplePanelView implements vscode.WebviewViewProvider {
     public static readonly viewType = 'visbal-sample';
     private _view?: vscode.WebviewView;
     private _metadataService: MetadataService;
     private _sfdxService: SfdxService;
-    private _orgListCacheService: OrgListCacheService;
+	private _orgListCacheService: OrgListCacheService;
     private _currentOrg?: string;
-    private _isRefreshing: boolean = false;
-    private _apexFiles: ApexFile[] = [];
+     private _isRefreshing: boolean = false;
+    private _apexFiles: string[] = [];
 
     constructor(private readonly _context: vscode.ExtensionContext) {
         console.log('[VisbalExt.SamplePanelView] Initializing SamplePanelView');
         this._metadataService = new MetadataService();
         this._orgListCacheService = new OrgListCacheService(_context);
         this._sfdxService = new SfdxService();
-        this._initializeFiles();
-    }
-
-    private async _initializeFiles() {
-        try {
-            await this._loadApexFiles();
-        } catch (error) {
-            console.error('[VisbalExt.SamplePanelView] Error initializing files:', error);
-            this._handleError('Error initializing files', error);
-        }
+        this._loadApexFiles();
     }
 
     private async _loadApexFiles() {
         try {
+            // Get files from both locations
             const [userFiles, templateFiles] = await Promise.all([
-                this._findFiles('src/apex/*.apex'),
-                this._findFiles('.visbal/templates/apex/*.apex')
+                vscode.workspace.findFiles('src/apex/*.apex'),
+                vscode.workspace.findFiles('.visbal/templates/apex/*.apex')
             ]);
 
+            // If src/apex directory doesn't exist or is empty, copy template files
             if (userFiles.length === 0) {
                 await this._copyTemplateFiles();
-                const updatedUserFiles = await this._findFiles('src/apex/*.apex');
-                this._updateApexFilesList(updatedUserFiles);
+                // Refresh user files after copy
+                const updatedUserFiles = await vscode.workspace.findFiles('src/apex/*.apex');
+                this._apexFiles = updatedUserFiles.map(file => file.fsPath);
             } else {
-                this._updateApexFilesList(userFiles);
+                this._apexFiles = userFiles.map(file => file.fsPath);
             }
 
-            this._notifyWebviewOfFileListUpdate();
-        } catch (error) {
-            console.error('[VisbalExt.SamplePanelView] Error loading apex files:', error);
-            this._handleError('Error loading apex files', error);
-        }
-    }
-
-    private async _findFiles(pattern: string): Promise<vscode.Uri[]> {
-        return await vscode.workspace.findFiles(pattern);
-    }
-
-    private _updateApexFilesList(files: vscode.Uri[]) {
-        this._apexFiles = files
-            .map(file => ({
-                path: file.fsPath,
-                name: path.basename(file.fsPath)
-            }))
-            .sort((a, b) => a.name.toLowerCase().localeCompare(b.name.toLowerCase()));
-    }
-
-    private _notifyWebviewOfFileListUpdate() {
-        if (this._view) {
-            this._view.webview.postMessage({
-                command: 'updateApexFileList',
-                files: this._apexFiles
+            // Sort files alphabetically by filename
+            this._apexFiles.sort((a, b) => {
+                const fileNameA = a.split(/[\\/]/).pop()?.toLowerCase() || '';
+                const fileNameB = b.split(/[\\/]/).pop()?.toLowerCase() || '';
+                return fileNameA.localeCompare(fileNameB);
             });
+
+            if (this._view) {
+                this._view.webview.postMessage({
+                    command: 'updateApexFileList',
+                    files: this._apexFiles.map(path => {
+                        const fileName = path.split(/[\\/]/).pop() || '';
+                        return { path, name: fileName };
+                    })
+                });
+            }
+        } catch (error: any) {
+            console.error('[VisbalExt.SamplePanelView] Error loading apex files:', error);
         }
     }
 
     private async _copyTemplateFiles() {
         try {
-            const srcApexUri = this._getSrcApexUri();
+            // Ensure src/apex directory exists
+            const srcApexUri = vscode.Uri.joinPath(vscode.workspace.workspaceFolders![0].uri, 'src', 'apex');
             await vscode.workspace.fs.createDirectory(srcApexUri);
 
-            const templateFiles = await this._findFiles('.visbal/templates/apex/*.apex');
-            await Promise.all(templateFiles.map(file => this._copyTemplateFile(file, srcApexUri)));
-        } catch (error) {
+            // Get template files
+            const templateFiles = await vscode.workspace.findFiles('.visbal/templates/apex/*.apex');
+            
+            // Copy each template file to src/apex
+            for (const templateFile of templateFiles) {
+                const fileName = templateFile.path.split(/[\\/]/).pop()!;
+                const targetUri = vscode.Uri.joinPath(srcApexUri, fileName);
+                
+                // Check if file already exists
+                try {
+                    await vscode.workspace.fs.stat(targetUri);
+                    console.log(`[VisbalExt.SamplePanelView] File already exists: ${fileName}`);
+                    continue;
+                } catch {
+                    // File doesn't exist, proceed with copy
+                    const content = await vscode.workspace.fs.readFile(templateFile);
+                    await vscode.workspace.fs.writeFile(targetUri, content);
+                    console.log(`[VisbalExt.SamplePanelView] Copied template file: ${fileName}`);
+                }
+            }
+        } catch (error: any) {
             console.error('[VisbalExt.SamplePanelView] Error copying template files:', error);
             throw error;
         }
     }
 
-    private _getSrcApexUri(): vscode.Uri {
-        const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
-        if (!workspaceFolder) {
-            throw new Error('No workspace folder found');
-        }
-        return vscode.Uri.joinPath(workspaceFolder.uri, 'src', 'apex');
-    }
-
-    private async _copyTemplateFile(templateFile: vscode.Uri, targetDir: vscode.Uri) {
-        const fileName = path.basename(templateFile.fsPath);
-        const targetUri = vscode.Uri.joinPath(targetDir, fileName);
-
-        try {
-            await vscode.workspace.fs.stat(targetUri);
-            console.log(`[VisbalExt.SamplePanelView] File already exists: ${fileName}`);
-        } catch {
-            const content = await vscode.workspace.fs.readFile(templateFile);
-            await vscode.workspace.fs.writeFile(targetUri, content);
-            console.log(`[VisbalExt.SamplePanelView] Copied template file: ${fileName}`);
-        }
-    }
-
     private async _updateTemplates() {
         try {
+            console.log('[VisbalExt.SamplePanelView] Updating template files');
             await this._copyTemplateFiles();
             await this._loadApexFiles();
-            this._notifySuccess('Templates updated successfully');
-        } catch (error) {
-            this._handleError('Error updating templates', error);
+            if (this._view) {
+                this._view.webview.postMessage({
+                    command: 'templatesUpdated',
+                    message: 'Templates updated successfully'
+                });
+            }
+        } catch (error: any) {
+            console.error('[VisbalExt.SamplePanelView] Error updating templates:', error);
+            if (this._view) {
+                this._view.webview.postMessage({
+                    command: 'error',
+                    message: `Error updating templates: ${error.message}`
+                });
+            }
         }
     }
 
-    private async _loadApexFileContent(filePath: string): Promise<string> {
+    private async _loadApexFileContent(filePath: string) {
         try {
             const content = await vscode.workspace.fs.readFile(vscode.Uri.file(filePath));
+            //console.log('[VisbalExt.SamplePanelView] _loadApexFileContent -- Content:', content.toString());
             return content.toString();
-        } catch (error) {
+        } catch (error: any) {
             console.error('[VisbalExt.SamplePanelView] Error reading file:', error);
             throw error;
         }
@@ -138,33 +128,26 @@ export class SamplePanelView implements vscode.WebviewViewProvider {
 
     private async _saveApexFileContent(filePath: string, content: string) {
         try {
+            console.log('[VisbalExt.SamplePanelView] Saving file:', filePath);
             await vscode.workspace.fs.writeFile(
                 vscode.Uri.file(filePath),
                 Buffer.from(content, 'utf8')
             );
-            this._notifySuccess('File saved successfully');
-        } catch (error) {
-            this._handleError('Error saving file', error);
+            if (this._view) {
+                this._view.webview.postMessage({
+                    command: 'fileSaved',
+                    message: 'File saved successfully'
+                });
+            }
+        } catch (error: any) {
+            console.error('[VisbalExt.SamplePanelView] Error saving file:', error);
+            if (this._view) {
+                this._view.webview.postMessage({
+                    command: 'error',
+                    message: `Error saving file: ${error.message}`
+                });
+            }
             throw error;
-        }
-    }
-
-    private _notifySuccess(message: string) {
-        if (this._view) {
-            this._view.webview.postMessage({
-                command: 'success',
-                message
-            });
-        }
-    }
-
-    private _handleError(context: string, error: any) {
-        const errorMessage = error instanceof Error ? error.message : String(error);
-        if (this._view) {
-            this._view.webview.postMessage({
-                command: 'error',
-                message: `${context}: ${errorMessage}`
-            });
         }
     }
 

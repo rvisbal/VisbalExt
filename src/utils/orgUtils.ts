@@ -69,7 +69,7 @@ export class OrgUtils {
             const validStatuses = ['Active', 'Connected', 'Connected (Scratch Org)'];
             for (const org of orgs) {
                 if (!org || typeof org !== 'object') {
-                    console.log('[VisbalExt.OrgUtils] listOrgs -- Skipping invalid org entry:', org);
+                    //console.log('[VisbalExt.OrgUtils] getSectionArray -- Skipping invalid org entry:', org);
                     continue;
                 }
                 
@@ -77,7 +77,7 @@ export class OrgUtils {
                 const validconnectedStatus = (org.connectedStatus && validStatuses.includes(org.connectedStatus));
                 // Skip orgs that can't be connected to
                 if (!validStatus && !validconnectedStatus) {
-                    console.log(`[VisbalExt.OrgUtils] listOrgs -- SKIP: ${org.alias} status:${org.status} connectedStatus:${org.connectedStatus}`);
+                    //console.log(`[VisbalExt.OrgUtils] getSectionArray -- SKIP: ${org.alias} status:${org.status} connectedStatus:${org.connectedStatus}`);
                     continue;
                 }
 
@@ -259,13 +259,17 @@ export class OrgUtils {
      * Opens a log in the editor
      * @param logId The ID of the log to open
      * @param extensionUri The extension's URI for creating the detail view
+     * @param tab The tab to open initially (e.g., 'overview', 'timeline', 'execution', etc.)
      */
-    public static async openLog(logId: string, extensionUri: vscode.Uri): Promise<void> {
+    public static async openLog(logId: string, extensionUri: vscode.Uri, tab: string): Promise<void> {
         try {
+            console.log(`[VisbalExt.OrgUtils] openLog -- Opening log: ${logId} with tab: ${tab}`);
             // Check if we have a local copy of the log
             const localFilePath = this._downloadedLogPaths.get(logId);
             if (localFilePath && fs.existsSync(localFilePath)) {
-                LogDetailView.createOrShow(extensionUri, localFilePath, logId);
+                const view = LogDetailView.createOrShow(extensionUri, localFilePath, logId);
+                // Change to the requested tab after creation
+                view.changeTab(tab);
                 return;
             }
 
@@ -276,7 +280,9 @@ export class OrgUtils {
             const tempFile = path.join(os.tmpdir(), `sf_${sanitizedLogId}_${timestamp}.log`);
             
             await fs.promises.writeFile(tempFile, logContent);
-            LogDetailView.createOrShow(extensionUri, tempFile, logId);
+            const view = LogDetailView.createOrShow(extensionUri, tempFile, logId);
+            // Change to the requested tab after creation
+            view.changeTab(tab);
 
             // Mark as downloaded
             this._downloadedLogs.add(logId);
