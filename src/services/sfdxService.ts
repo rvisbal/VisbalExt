@@ -1281,11 +1281,37 @@ export class SfdxService {
                 console.log('[VisbalExt.SfdxService] SOQL query executed successfully');
                 return result.result.records || [];
             } else {
-                throw new Error(result.message || 'Failed to execute SOQL query');
+                // Extract the actual error message from the result
+                let errorMessage = result.message || 'Failed to execute SOQL query';
+                if (result.result && result.result.error) {
+                    errorMessage = result.result.error;
+                } else if (result.error && result.error.message) {
+                    errorMessage = result.error.message;
+                }
+                
+                // Format common error messages to be more user-friendly
+                if (errorMessage.includes('INVALID_TYPE')) {
+                    errorMessage = 'Invalid object type or field in query. Please check your SOQL syntax.';
+                } else if (errorMessage.includes('INVALID_FIELD')) {
+                    errorMessage = 'One or more fields in your query do not exist on the object. Please verify the field names.';
+                } else if (errorMessage.includes('MALFORMED_QUERY')) {
+                    errorMessage = 'The SOQL query syntax is invalid. Please check your query format.';
+                }
+                
+                throw new Error(errorMessage);
             }
         } catch (error: any) {
             console.error('[VisbalExt.SfdxService] Error executing SOQL query:', error);
-            throw error;
+            
+            // Format error message for better readability
+            let userMessage = error.message;
+            if (error.message.includes('Command failed')) {
+                userMessage = 'Failed to execute SOQL query. Please verify your Salesforce CLI installation and authentication.';
+            } else if (error.message.includes('No authorization information found')) {
+                userMessage = 'Not authenticated to Salesforce. Please run "sf org login web" to authenticate.';
+            }
+            
+            throw new Error(userMessage);
         }
     }
 

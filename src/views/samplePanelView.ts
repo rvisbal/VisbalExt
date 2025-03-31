@@ -3,117 +3,134 @@ import { MetadataService } from '../services/metadataService';
 import { OrgListCacheService } from '../services/orgListCacheService';
 import { OrgUtils } from '../utils/orgUtils';
 import { SfdxService } from '../services/sfdxService';
+import * as path from 'path';
+
+interface ApexFile {
+    path: string;
+    name: string;
+}
 
 export class SamplePanelView implements vscode.WebviewViewProvider {
     public static readonly viewType = 'visbal-sample';
     private _view?: vscode.WebviewView;
     private _metadataService: MetadataService;
     private _sfdxService: SfdxService;
-	private _orgListCacheService: OrgListCacheService;
+    private _orgListCacheService: OrgListCacheService;
     private _currentOrg?: string;
-     private _isRefreshing: boolean = false;
-    private _apexFiles: string[] = [];
+    private _isRefreshing: boolean = false;
+    private _apexFiles: ApexFile[] = [];
 
     constructor(private readonly _context: vscode.ExtensionContext) {
         console.log('[VisbalExt.SamplePanelView] Initializing SamplePanelView');
         this._metadataService = new MetadataService();
         this._orgListCacheService = new OrgListCacheService(_context);
         this._sfdxService = new SfdxService();
-        this._loadApexFiles();
+        this._initializeFiles();
+    }
+
+    private async _initializeFiles() {
+        try {
+            await this._loadApexFiles();
+        } catch (error) {
+            console.error('[VisbalExt.SamplePanelView] Error initializing files:', error);
+            this._handleError('Error initializing files', error);
+        }
     }
 
     private async _loadApexFiles() {
         try {
-            // Get files from both locations
             const [userFiles, templateFiles] = await Promise.all([
-                vscode.workspace.findFiles('src/apex/*.apex'),
-                vscode.workspace.findFiles('.visbal/templates/apex/*.apex')
+                this._findFiles('src/apex/*.apex'),
+                this._findFiles('.visbal/templates/apex/*.apex')
             ]);
 
-            // If src/apex directory doesn't exist or is empty, copy template files
             if (userFiles.length === 0) {
                 await this._copyTemplateFiles();
-                // Refresh user files after copy
-                const updatedUserFiles = await vscode.workspace.findFiles('src/apex/*.apex');
-                this._apexFiles = updatedUserFiles.map(file => file.fsPath);
+                const updatedUserFiles = await this._findFiles('src/apex/*.apex');
+                this._updateApexFilesList(updatedUserFiles);
             } else {
-                this._apexFiles = userFiles.map(file => file.fsPath);
+                this._updateApexFilesList(userFiles);
             }
 
-            if (this._view) {
-                this._view.webview.postMessage({
-                    command: 'updateApexFileList',
-                    files: this._apexFiles.map(path => {
-                        const fileName = path.split(/[\\/]/).pop() || '';
-                        return { path, name: fileName };
-                    })
-                });
-            }
-        } catch (error: any) {
+            this._notifyWebviewOfFileListUpdate();
+        } catch (error) {
             console.error('[VisbalExt.SamplePanelView] Error loading apex files:', error);
+            this._handleError('Error loading apex files', error);
+        }
+    }
+
+    private async _findFiles(pattern: string): Promise<vscode.Uri[]> {
+        return await vscode.workspace.findFiles(pattern);
+    }
+
+    private _updateApexFilesList(files: vscode.Uri[]) {
+        this._apexFiles = files
+            .map(file => ({
+                path: file.fsPath,
+                name: path.basename(file.fsPath)
+            }))
+            .sort((a, b) => a.name.toLowerCase().localeCompare(b.name.toLowerCase()));
+    }
+
+    private _notifyWebviewOfFileListUpdate() {
+        if (this._view) {
+            this._view.webview.postMessage({
+                command: 'updateApexFileList',
+                files: this._apexFiles
+            });
         }
     }
 
     private async _copyTemplateFiles() {
         try {
-            // Ensure src/apex directory exists
-            const srcApexUri = vscode.Uri.joinPath(vscode.workspace.workspaceFolders![0].uri, 'src', 'apex');
+            const srcApexUri = this._getSrcApexUri();
             await vscode.workspace.fs.createDirectory(srcApexUri);
 
-            // Get template files
-            const templateFiles = await vscode.workspace.findFiles('.visbal/templates/apex/*.apex');
-            
-            // Copy each template file to src/apex
-            for (const templateFile of templateFiles) {
-                const fileName = templateFile.path.split(/[\\/]/).pop()!;
-                const targetUri = vscode.Uri.joinPath(srcApexUri, fileName);
-                
-                // Check if file already exists
-                try {
-                    await vscode.workspace.fs.stat(targetUri);
-                    console.log(`[VisbalExt.SamplePanelView] File already exists: ${fileName}`);
-                    continue;
-                } catch {
-                    // File doesn't exist, proceed with copy
-                    const content = await vscode.workspace.fs.readFile(templateFile);
-                    await vscode.workspace.fs.writeFile(targetUri, content);
-                    console.log(`[VisbalExt.SamplePanelView] Copied template file: ${fileName}`);
-                }
-            }
-        } catch (error: any) {
+            const templateFiles = await this._findFiles('.visbal/templates/apex/*.apex');
+            await Promise.all(templateFiles.map(file => this._copyTemplateFile(file, srcApexUri)));
+        } catch (error) {
             console.error('[VisbalExt.SamplePanelView] Error copying template files:', error);
             throw error;
         }
     }
 
-    private async _updateTemplates() {
+    private _getSrcApexUri(): vscode.Uri {
+        const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
+        if (!workspaceFolder) {
+            throw new Error('No workspace folder found');
+        }
+        return vscode.Uri.joinPath(workspaceFolder.uri, 'src', 'apex');
+    }
+
+    private async _copyTemplateFile(templateFile: vscode.Uri, targetDir: vscode.Uri) {
+        const fileName = path.basename(templateFile.fsPath);
+        const targetUri = vscode.Uri.joinPath(targetDir, fileName);
+
         try {
-            console.log('[VisbalExt.SamplePanelView] Updating template files');
-            await this._copyTemplateFiles();
-            await this._loadApexFiles();
-            if (this._view) {
-                this._view.webview.postMessage({
-                    command: 'templatesUpdated',
-                    message: 'Templates updated successfully'
-                });
-            }
-        } catch (error: any) {
-            console.error('[VisbalExt.SamplePanelView] Error updating templates:', error);
-            if (this._view) {
-                this._view.webview.postMessage({
-                    command: 'error',
-                    message: `Error updating templates: ${error.message}`
-                });
-            }
+            await vscode.workspace.fs.stat(targetUri);
+            console.log(`[VisbalExt.SamplePanelView] File already exists: ${fileName}`);
+        } catch {
+            const content = await vscode.workspace.fs.readFile(templateFile);
+            await vscode.workspace.fs.writeFile(targetUri, content);
+            console.log(`[VisbalExt.SamplePanelView] Copied template file: ${fileName}`);
         }
     }
 
-    private async _loadApexFileContent(filePath: string) {
+    private async _updateTemplates() {
+        try {
+            await this._copyTemplateFiles();
+            await this._loadApexFiles();
+            this._notifySuccess('Templates updated successfully');
+        } catch (error) {
+            this._handleError('Error updating templates', error);
+        }
+    }
+
+    private async _loadApexFileContent(filePath: string): Promise<string> {
         try {
             const content = await vscode.workspace.fs.readFile(vscode.Uri.file(filePath));
-            //console.log('[VisbalExt.SamplePanelView] _loadApexFileContent -- Content:', content.toString());
             return content.toString();
-        } catch (error: any) {
+        } catch (error) {
             console.error('[VisbalExt.SamplePanelView] Error reading file:', error);
             throw error;
         }
@@ -121,26 +138,33 @@ export class SamplePanelView implements vscode.WebviewViewProvider {
 
     private async _saveApexFileContent(filePath: string, content: string) {
         try {
-            console.log('[VisbalExt.SamplePanelView] Saving file:', filePath);
             await vscode.workspace.fs.writeFile(
                 vscode.Uri.file(filePath),
                 Buffer.from(content, 'utf8')
             );
-            if (this._view) {
-                this._view.webview.postMessage({
-                    command: 'fileSaved',
-                    message: 'File saved successfully'
-                });
-            }
-        } catch (error: any) {
-            console.error('[VisbalExt.SamplePanelView] Error saving file:', error);
-            if (this._view) {
-                this._view.webview.postMessage({
-                    command: 'error',
-                    message: `Error saving file: ${error.message}`
-                });
-            }
+            this._notifySuccess('File saved successfully');
+        } catch (error) {
+            this._handleError('Error saving file', error);
             throw error;
+        }
+    }
+
+    private _notifySuccess(message: string) {
+        if (this._view) {
+            this._view.webview.postMessage({
+                command: 'success',
+                message
+            });
+        }
+    }
+
+    private _handleError(context: string, error: any) {
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        if (this._view) {
+            this._view.webview.postMessage({
+                command: 'error',
+                message: `${context}: ${errorMessage}`
+            });
         }
     }
 
@@ -227,66 +251,68 @@ export class SamplePanelView implements vscode.WebviewViewProvider {
     }
 
     private async executeApex(code: string) {
-        if (!code.trim()) {
-            this._view?.webview.postMessage({
-                command: 'executionResult',
-                success: false,
-                message: 'Please enter some code to execute'
-            });
-            return;
-        }
-
         try {
             const selectedOrg = await OrgUtils.getSelectedOrg();
-			this._view?.webview.postMessage({
+            this._view?.webview.postMessage({
                 command: 'startLoading',
-                message: `Executing Apex on ${selectedOrg?.alias} ...`
+                message: `Executing Apex on ${selectedOrg?.alias}...`
             });
-			
-			
+            
             if (!selectedOrg?.alias) {
                 this._view?.webview.postMessage({
                     command: 'error',
-                    success: false,
                     message: 'Please select a Salesforce org first'
                 });
                 return;
             }
 
-            console.log(`[VisbalExt.SamplePanelView] Executing on ${selectedOrg?.alias} org Apex code:`, code);
-            const m = `Apex started on : ${selectedOrg?.alias}`
-            // Show loading state
-            this._view?.webview.postMessage({
-                command: 'executionResult',
-                success: false,
-                message: m
-            });
+            console.log(`[VisbalExt.SamplePanelView] executeAnonymousApex -- Executing on ${selectedOrg?.alias} org code:`, code);
 
             const result = await this._sfdxService.executeAnonymousApex(code);
             console.log('[VisbalExt.SamplePanelView] Execution result:', result);
 
-            this._view?.webview.postMessage({
-                command: 'executionResult',
-                success: result.success,
-                logs: result.logs,
-                compileProblem: result.compileProblem,
-                exceptionMessage: result.exceptionMessage,
-                exceptionStackTrace: result.exceptionStackTrace
-            });
-			
-			
+            if (result.success) {
+                // First send the execution result to update the results content
+                this._view?.webview.postMessage({
+                    command: 'executionResult',
+                    success: result.success,
+                    logs: result.logs,
+                    compileProblem: result.compileProblem,
+                    exceptionMessage: result.exceptionMessage,
+                    exceptionStackTrace: result.exceptionStackTrace
+                });
+                
+                // Then send success message to trigger tab switch
+                this._view?.webview.postMessage({
+                    command: 'success',
+                    message: 'Code executed successfully'
+                });
+            } else {
+                let errorMessage = 'Error executing code:\n';
+                if (result.compileProblem) {
+                    errorMessage += `Compilation Error: ${result.compileProblem}\n`;
+                }
+                if (result.exceptionMessage) {
+                    errorMessage += `Runtime Error: ${result.exceptionMessage}\n`;
+                }
+                if (result.exceptionStackTrace) {
+                    errorMessage += `Stack Trace:\n${result.exceptionStackTrace}`;
+                }
+                
+                this._view?.webview.postMessage({
+                    command: 'error',
+                    message: errorMessage.trim()
+                });
+            }
         } catch (error: any) {
-            console.error('[VisbalExt.SamplePanelView] Error executing Apex:', error);
+            console.error('[VisbalExt.SamplePanelView] executeAnonymousApex Error:', error);
             this._view?.webview.postMessage({
                 command: 'error',
-                success: false,
-                message: `Error executing Apex: ${error.message}`
+                message: `Error executing code: ${error.message}`
             });
-        }
-		finally {
+        } finally {
             this._view?.webview.postMessage({
-                command: 'stopLoading',
-                isLoading: false
+                command: 'stopLoading'
             });
         }
     }
@@ -553,6 +579,7 @@ export class SamplePanelView implements vscode.WebviewViewProvider {
                     gap: 4px;
                     font-size: 12px;
                     height: 24px;
+                    margin-right: 1px;
                 }
                 button:hover {
                     background: var(--vscode-button-hoverBackground);
@@ -560,6 +587,12 @@ export class SamplePanelView implements vscode.WebviewViewProvider {
                 button:disabled {
                     opacity: 0.5;
                     cursor: not-allowed;
+                }
+                button:last-child {
+                    margin-right: 0;
+                }
+                .toolbar-right button {
+                    margin-left: 1px;
                 }
 
                 #statusBar {
@@ -693,6 +726,26 @@ export class SamplePanelView implements vscode.WebviewViewProvider {
                     border-color: var(--vscode-focusBorder);
                 }
             </style>
+            <style>
+                .error-container {
+                    display: none;
+                    padding: 10px;
+                    margin: 10px 0;
+                    background-color: var(--vscode-inputValidation-errorBackground);
+                    border: 1px solid var(--vscode-inputValidation-errorBorder);
+                    color: var(--vscode-inputValidation-errorForeground);
+                    border-radius: 3px;
+                }
+                .error-message {
+                    font-family: var(--vscode-font-family);
+                    font-size: 12px;
+                    white-space: pre-wrap;
+                    word-break: break-word;
+                }
+                .error-container.show {
+                    display: block;
+                }
+            </style>
         </head>
         <body>
             <div class="container">
@@ -708,12 +761,17 @@ export class SamplePanelView implements vscode.WebviewViewProvider {
                                     <select id="fileSelector" class="fileSelector" title="Select Apex File">
                                         <option value="">Select an Apex file...</option>
                                     </select>
-                                     <button id="saveButton" onclick="saveApexFile()" title="Save Changes" disabled>
+                                    <button id="saveButton" onclick="saveApexFile()" title="Save Changes" disabled>
                                         <svg width="16" height="16" viewBox="0 0 16 16">
                                             <path fill="currentColor" d="M13.353 1.146l1.5 1.5L15 3v11.5l-.5.5h-13l-.5-.5v-13l.5-.5H13l.353.146zM2 2v12h12V3.208L12.793 2H2zm2 3h8v1H4V5zm6 3H4v1h6V8zM4 11h4v1H4v-1z"/>
                                         </svg>
                                     </button>
-                                     <button id="updateTemplatesButton" onclick="updateTemplates()" title="Update Template Files">
+                                    <button id="clearButton" onclick="clearEditor()" title="Clear Editor">
+                                        <svg width="16" height="16" viewBox="0 0 16 16">
+                                            <path fill="currentColor" d="M10 12.6l.7.7 1.6-1.6 1.6 1.6.8-.7L13 11l1.7-1.6-.8-.8-1.6 1.7-1.6-1.7-.7.8 1.6 1.6-1.6 1.6zM1 4h14V3H1v1zm0 3h14V6H1v1zm0 3h8V9H1v1zm0 3h8v-1H1v1z"/>
+                                        </svg>
+                                    </button>
+                                    <button id="updateTemplatesButton" onclick="updateTemplates()" title="Update Template Files">
                                         <svg width="16" height="16" viewBox="0 0 16 16">
                                             <path fill="currentColor" d="M12.75 8a4.5 4.5 0 0 1-8.61 1.834l-1.391.565A6.001 6.001 0 0 0 14.25 8 6 6 0 0 0 3.5 4.334V2.5H2v4l.75.75h3.5v-1.5H4.352A4.5 4.5 0 0 1 12.75 8z"/>
                                         </svg>
@@ -757,6 +815,9 @@ export class SamplePanelView implements vscode.WebviewViewProvider {
                         Execute Apex code to see results here
                     </div>
                 </div>
+                <div id="errorContainer" class="error-container">
+                    <div id="errorMessage" class="error-message"></div>
+                </div>
             </div>
             <script>
                 (function() {
@@ -769,6 +830,8 @@ export class SamplePanelView implements vscode.WebviewViewProvider {
                     const tabs = document.querySelectorAll('.tab');
                     const contents = document.querySelectorAll('.content');
 					const loadingContainer = document.getElementById('loadingContainer');
+                    const errorContainer = document.getElementById('errorContainer');
+                    const errorMessage = document.getElementById('errorMessage');
 					
 					//#region LISTBOX
                     // Dropdown functionality
@@ -893,19 +956,26 @@ export class SamplePanelView implements vscode.WebviewViewProvider {
                                 break;
                             case 'refreshComplete':
 							    stopLoading();
-                                refreshButton.innerHTML = '↻ Refresh Org List (Cached)';
+                                refreshButton.innerHTML = '↻ Refresh Org List';
                                 refreshButton.disabled = false;
                                 break;
                             case 'error':
 								stopLoading();
                                 statusBar.textContent = message.message;
                                 console.error('[VisbalExt.htmlTemplate] Error:', message.message);
+                                errorMessage.textContent = message.message;
+                                errorContainer.classList.add('show');
                                 break;
 							case 'startLoading':
                                 startLoading(message.message);
                                 break;
                              case 'stopLoading':
                                 stopLoading();
+                                break;
+                            case 'success':
+                                statusBar.textContent = message.message;
+                                // Ensure we switch to results tab
+                                switchToResultsTab();
                                 break;
                         }
                     });
@@ -928,7 +998,8 @@ export class SamplePanelView implements vscode.WebviewViewProvider {
                     
                     // Execute Apex code
                     window.executeApex = function() {
-						// Show loading state
+						errorContainer.classList.remove('show');
+                        // Show loading state
                         startLoading('Executing apex...');
                
 						
@@ -987,7 +1058,7 @@ export class SamplePanelView implements vscode.WebviewViewProvider {
                         // Add refresh option at the top
                         const refreshOption = document.createElement('option');
                         refreshOption.value = '__refresh__';
-                        refreshOption.textContent = fromCache ? '↻ Refresh Org List (Cached)' : '↻ Refresh Org List';
+                        refreshOption.textContent = '↻ Refresh Org List';
                         refreshOption.style.fontStyle = 'italic';
                         refreshOption.style.backgroundColor = 'var(--vscode-dropdown-background)';
                         orgDropdown.appendChild(refreshOption);
@@ -1078,20 +1149,39 @@ export class SamplePanelView implements vscode.WebviewViewProvider {
                     const fileSelector = document.getElementById('fileSelector');
 
                     let currentFilePath = '';
+                    const saveButton = document.getElementById('saveButton');
+                    const clearButton = document.getElementById('clearButton');
+
 
                     // File selector change handler
                     fileSelector.addEventListener('change', () => {
                         const selectedFile = fileSelector.value;
                         currentFilePath = selectedFile;
+                        saveButton.disabled = !selectedFile; 
                         if (selectedFile) {
                             startLoading('Loading file content...');
-                            document.getElementById('saveButton').disabled = true;
                             vscode.postMessage({
                                 command: 'loadApexFile',
                                 filePath: selectedFile
                             });
+                        } else {
+                            textarea.value = '';
+                            updateCharCount();
                         }
                     });
+                    
+                    // Clear editor function
+                    window.clearEditor = function() {
+                        textarea.value = '';
+                        fileSelector.value = '';
+                        currentFilePath = '';
+                        saveButton.disabled = true;
+                        updateCharCount();
+                        statusBar.textContent = 'Editor cleared';
+                        setTimeout(() => {
+                            statusBar.textContent = '';
+                        }, 3000);
+                    };
 
                     // Save file function
                     window.saveApexFile = function() {
@@ -1114,9 +1204,10 @@ export class SamplePanelView implements vscode.WebviewViewProvider {
                         });
                     };
 
+
                     // Handle textarea changes
-                    document.getElementById('apexTextarea').addEventListener('input', function() {
-                        document.getElementById('saveButton').disabled = !currentFilePath;
+                    textarea.addEventListener('input', function() {
+                        saveButton.disabled = !currentFilePath;
                         updateCharCount();
                     });
 

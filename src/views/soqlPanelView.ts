@@ -38,7 +38,7 @@ export class SoqlPanelView implements vscode.WebviewViewProvider {
         webviewView.webview.onDidReceiveMessage(async (message) => {
             switch (message.command) {
                 case 'executeSoqlQuery':
-                    this.executeSOQL(message.query);
+                    this.executeSOQL(message.query, message.useToolingApi);
                     break;
                 case 'setSelectedOrg':
                     await this._setSelectedOrg(message.alias);
@@ -63,7 +63,7 @@ export class SoqlPanelView implements vscode.WebviewViewProvider {
         });
     }
 	
-	private async executeSOQL(soql: string) {
+	private async executeSOQL(soql: string, useToolingApi: boolean) {
         if (!soql.trim()) {
             this._view?.webview.postMessage({
                 command: 'executionResult',
@@ -75,7 +75,7 @@ export class SoqlPanelView implements vscode.WebviewViewProvider {
 
         try {
             const selectedOrg = await OrgUtils.getSelectedOrg();
-        	this._view?.webview.postMessage({
+            this._view?.webview.postMessage({
                 command: 'startLoading',
                 message: `Executing SOQL ${selectedOrg?.alias}...`
             });
@@ -96,21 +96,27 @@ export class SoqlPanelView implements vscode.WebviewViewProvider {
                 command: m
             });
 
-            const result = await this._sfdxService.executeSoqlQuery(soql);
+            const result = await this._sfdxService.executeSoqlQuery(soql, useToolingApi, useToolingApi);
             console.log('[VisbalExt.soqlPanel] executeSOQL Execution result:', result);
 
+            if (!result || result.length === 0) {
+                this._view?.webview.postMessage({
+                    command: 'noResults',
+                    message: 'Query executed successfully but returned no records.'
+                });
+                return;
+            }
+
             this._view?.webview.postMessage({
-                            command: 'soqlResultsLoaded',
-                            results: {
-                                records: result
-                            }
-                        });
+                command: 'soqlResultsLoaded',
+                results: {
+                    records: result
+                }
+            });
                         
-             this._view?.webview.postMessage({
-                            command: 'stopLoading',
-                        });
-						
-						
+            this._view?.webview.postMessage({
+                command: 'stopLoading',
+            });
         } catch (error: any) {
             console.error('[VisbalExt.soqlPanel] executeSOQL Error executing SOQL:', error);
             this._view?.webview.postMessage({
@@ -212,28 +218,34 @@ export class SoqlPanelView implements vscode.WebviewViewProvider {
             console.log('[VisbalExt.soqlPanel] _refreshOrgList -- Successfully sent org list to webview');
         } catch (error: any) {
             console.error('[VisbalExt.soqlPanel] _refreshOrgList -- Error refreshing org list:', error);
-          
+            this._view?.webview.postMessage({
+                command: 'error',
+                message: `Error refreshing organization list: ${error.message}`
+            });
         } finally {
             this._isRefreshing = false;
-            this._view?.webview.postMessage({
-                command: 'stopLoading'
-            });
         }
     }
 
     private async _setSelectedOrg(username: string): Promise<void> {
         try {
             console.log(`[VisbalExt.soqlPanel] _setSelectedOrg -- Setting selected org: ${username}`);
-            //this._showLoading(`Setting selected org to ${username}...`);
+            this._view?.webview.postMessage({
+                command: 'startLoading',
+                message: `Setting selected organization...`
+            });
             
             await OrgUtils.setSelectedOrg(username);
+            
+            this._view?.webview.postMessage({
+                command: 'stopLoading'
+            });
         }
         catch (error: any) {
             console.error('[VisbalExt.soqlPanel] _setSelectedOrg -- Error setting selected org:', error);
-            //this._showError(`Failed to set selected org: ${error.message}`);
-        } finally {
             this._view?.webview.postMessage({
-                command: 'stopLoading'
+                command: 'error',
+                message: `Failed to set selected organization: ${error.message}`
             });
         }
     }
@@ -390,6 +402,14 @@ export class SoqlPanelView implements vscode.WebviewViewProvider {
                     justify-content: center;
                     padding: 20px;
                     color: var(--vscode-foreground);
+                    position: absolute;
+                    top: 50%;
+                    left: 50%;
+                    transform: translate(-50%, -50%);
+                    background: var(--vscode-editor-background);
+                    border-radius: 4px;
+                    box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+                    z-index: 1000;
                 }
                 .loading-spinner {
                     width: 18px;
@@ -431,6 +451,7 @@ export class SoqlPanelView implements vscode.WebviewViewProvider {
                 .query-history {
                     flex: 1;
                     max-width: 300px;
+                    position: relative;
                 }
                 #queryHistorySelect {
                     width: 100%;
@@ -440,6 +461,7 @@ export class SoqlPanelView implements vscode.WebviewViewProvider {
                     border: 1px solid var(--vscode-dropdown-border);
                     padding: 2px 6px;
                     font-size: 12px;
+                    position: relative;
                 }
                 #queryHistorySelect:focus {
                     outline: 1px solid var(--vscode-focusBorder);
@@ -448,6 +470,23 @@ export class SoqlPanelView implements vscode.WebviewViewProvider {
                 #queryHistorySelect option {
                     background: var(--vscode-dropdown-listBackground);
                     color: var(--vscode-dropdown-foreground);
+                    width: auto;
+                    min-width: 800px;
+                    max-width: 1200px;
+                    white-space: nowrap;
+                    overflow: hidden;
+                    text-overflow: ellipsis;
+                    padding: 4px 6px;
+                }
+                #queryHistorySelect optgroup {
+                    color: var(--vscode-dropdown-foreground);
+                    font-style: italic;
+                    min-width: 800px;
+                }
+                /* Ensure dropdown list appears above other elements */
+                #queryHistorySelect:focus option {
+                    position: relative;
+                    z-index: 1000;
                 }
             </style>
             <style>
@@ -478,6 +517,57 @@ export class SoqlPanelView implements vscode.WebviewViewProvider {
 		          border-color: var(--vscode-focusBorder);
 		        }
             </style>
+            <style>
+                .error-container {
+                    display: none;
+                    padding: 10px;
+                    margin: 10px;
+                    background-color: var(--vscode-inputValidation-errorBackground);
+                    border: 1px solid var(--vscode-inputValidation-errorBorder);
+                    color: var(--vscode-inputValidation-errorForeground);
+                    border-radius: 3px;
+                }
+                .error-message {
+                    font-family: var(--vscode-font-family);
+                    font-size: 12px;
+                    white-space: pre-wrap;
+                    word-break: break-word;
+                }
+                .error-container.show {
+                    display: block;
+                }
+                .no-results-container {
+                    display: none;
+                    padding: 20px;
+                    text-align: center;
+                    color: var(--vscode-foreground);
+                    font-style: italic;
+                    background-color: var(--vscode-editor-background);
+                    border: 1px solid var(--vscode-widget-border);
+                    border-radius: 3px;
+                    margin: 10px;
+                }
+                .no-results-container.show {
+                    display: block;
+                }
+            </style>
+            <style>
+                .toolbar-checkbox {
+                    display: flex;
+                    align-items: center;
+                    margin-right: 8px;
+                    user-select: none;
+                }
+                .toolbar-checkbox input[type="checkbox"] {
+                    margin: 0 4px 0 0;
+                    cursor: pointer;
+                }
+                .toolbar-checkbox label {
+                    font-size: 12px;
+                    color: var(--vscode-foreground);
+                    cursor: pointer;
+                }
+            </style>
         </head>
         <body>
             <div class="toolbar">
@@ -490,6 +580,10 @@ export class SoqlPanelView implements vscode.WebviewViewProvider {
                     <div id="soqlStatus"></div>
                 </div>
                 <div class="toolbar-right">
+                    <div class="toolbar-checkbox">
+                        <input type="checkbox" id="useToolingApi" title="Use Tooling API for metadata queries">
+                        <label for="useToolingApi">Tooling API</label>
+                    </div>
                     <select id="org-selector" class="org-selector" title="Select Salesforce Org">
                         <option value="">Loading orgs...</option>
                     </select>
@@ -500,15 +594,25 @@ export class SoqlPanelView implements vscode.WebviewViewProvider {
                         </svg>
                     </button>
                     <button id="copyAsCsvButton" title="Copy as CSV" style="margin-left: 4px;" disabled>
-                        Copy CSV
+                        <svg width="16" height="16" viewBox="0 0 16 16">
+                            <path fill="currentColor" d="M11 3.9h3.8l-3.8-3.9v3.9zm1 .6v3h-7v-7h5v3.1h2v.9zm-8-4.5v7h-3v10h11v-3h1v4h-13v-12h3v-6h8.1l4.9 5v5h-1v-4h-11z"/>
+                        </svg>CSV
                     </button>
                     <button id="copyAsExcelButton" title="Copy as Excel Format" style="margin-left: 4px;" disabled>
-                        Copy Excel
+                        <svg width="16" height="16" viewBox="0 0 16 16">
+                            <path fill="currentColor" d="M11 3.9h3.8l-3.8-3.9v3.9zm1 .6v3h-7v-7h5v3.1h2v.9zm-8-4.5v7h-3v10h11v-3h1v4h-13v-12h3v-6h8.1l4.9 5v5h-1v-4h-11z"/>
+                        </svg>Excel
                     </button>
                 </div>
             </div>
             <div class="query-section">
                 <textarea id="soqlInput" placeholder="Enter SOQL query..." rows="4">SELECT FIELDS(ALL) FROM Account ORDER BY CreatedDate DESC Limit 200</textarea>
+            </div>
+            <div id="errorContainer" class="error-container">
+                <div id="errorMessage" class="error-message"></div>
+            </div>
+            <div id="noResultsContainer" class="no-results-container">
+                <div id="noResultsMessage"></div>
             </div>
             <div class="loading-container" id="loadingContainer">
                 <div class="loading-spinner"></div>
@@ -534,11 +638,29 @@ export class SoqlPanelView implements vscode.WebviewViewProvider {
                     const soqlResultsBody = document.getElementById('soqlResultsBody');
                     const loadingContainer = document.getElementById('loadingContainer');
                     const queryHistorySelect = document.getElementById('queryHistorySelect');
-					
-					//#region QUERY_HISTORY
+                    const errorContainer = document.getElementById('errorContainer');
+                    const errorMessage = document.getElementById('errorMessage');
+                    const noResultsContainer = document.getElementById('noResultsContainer');
+                    const noResultsMessage = document.getElementById('noResultsMessage');
+                    const useToolingApiCheckbox = document.getElementById('useToolingApi');
+
+                    // Initialize and restore tooling API state
+                    const state = vscode.getState() || {};
+                    if (state.useToolingApi !== undefined) {
+                        useToolingApiCheckbox.checked = state.useToolingApi;
+                    }
+
+                    // Save tooling API state when changed
+                    useToolingApiCheckbox.addEventListener('change', () => {
+                        vscode.setState({ 
+                            ...state, 
+                            useToolingApi: useToolingApiCheckbox.checked 
+                        });
+                    });
+
+                    //#region QUERY_HISTORY
                     // Initialize query history from state
                     let queryHistory = [];
-                    const state = vscode.getState() || {};
                     if (state.queryHistory) {
                         queryHistory = state.queryHistory;
                         updateQueryHistoryUI();
@@ -594,7 +716,7 @@ export class SoqlPanelView implements vscode.WebviewViewProvider {
                     orgDropdown.addEventListener('change', () => {
                         const selectedOrg = orgDropdown.value;
                         if (selectedOrg === '__refresh__') {
-                            startLoading('Refreshing org list...');
+                            startLoading('Refreshing organization list...');
                             // Reset selection to previously selected value
                             orgDropdown.value = orgDropdown.getAttribute('data-last-selection') || '';
                             // Request org list refresh
@@ -603,7 +725,7 @@ export class SoqlPanelView implements vscode.WebviewViewProvider {
                         }
                         
                         if (selectedOrg) {
-                            startLoading('Setting selected org...');
+                            startLoading('Setting selected organization...');
                             console.log('[VisbalExt.htmlTemplate] handleOrgSelection -- Org selected -- Details:', selectedOrg);
                             // Store the selection
                             orgDropdown.setAttribute('data-last-selection', selectedOrg);
@@ -627,7 +749,8 @@ export class SoqlPanelView implements vscode.WebviewViewProvider {
                         soqlStatus.textContent = 'Running...';
                         vscode.postMessage({
                             command: 'executeSoqlQuery',
-                            query: query
+                            query: query,
+                            useToolingApi: useToolingApiCheckbox.checked
                         });
                     });
 
@@ -676,29 +799,52 @@ export class SoqlPanelView implements vscode.WebviewViewProvider {
                         const message = event.data;
                         switch (message.command) {
                             case 'soqlResultsLoaded':
-                                stopLoading();
+                                errorContainer.classList.remove('show');
+                                noResultsContainer.classList.remove('show');
+                                loadingContainer.style.display = 'none';
                                 handleSoqlResults(message.results);
+                                runSoqlButton.disabled = false;
                                 break;
-                            case 'error':
-                                stopLoading();
-                                soqlStatus.textContent = message.message;
+                            case 'noResults':
+                                errorContainer.classList.remove('show');
                                 soqlResultsHeader.innerHTML = '';
                                 soqlResultsBody.innerHTML = '';
+                                loadingContainer.style.display = 'none';
+                                noResultsMessage.textContent = message.message;
+                                noResultsContainer.classList.add('show');
                                 copyAsCsvButton.disabled = true;
                                 copyAsExcelButton.disabled = true;
+                                soqlStatus.textContent = '0 rows';
+                                runSoqlButton.disabled = false;
+                                break;
+                            case 'error':
+                                soqlStatus.textContent = '';
+                                soqlResultsHeader.innerHTML = '';
+                                soqlResultsBody.innerHTML = '';
+                                loadingContainer.style.display = 'none';
+                                noResultsContainer.classList.remove('show');
+                                errorMessage.textContent = message.message;
+                                errorContainer.classList.add('show');
+                                runSoqlButton.disabled = false;
+                                break;
+                             case 'updateOrgList':
+                                updateOrgListUI(message.orgs || {}, message.fromCache, message.selectedOrg);
+                                break;
+                           
+                            case 'startLoading':
+                                errorContainer.classList.remove('show');
+                                noResultsContainer.classList.remove('show');
+                                loadingContainer.style.display = 'flex';
+                                soqlStatus.textContent = message.message || 'Loading...';
+                                runSoqlButton.disabled = true;
+                                break;
+                            case 'stopLoading':
+                                loadingContainer.style.display = 'none';
+                                soqlStatus.textContent = '';
+                                runSoqlButton.disabled = false;
                                 break;
                             case 'updateOrgList':
                                 updateOrgListUI(message.orgs || {}, message.fromCache, message.selectedOrg);
-
-                                break;
-                            case 'refreshComplete':
-                                refreshButton.innerHTML = '↻ Refresh Org List (Cached)';
-                                refreshButton.disabled = false;
-                                break;
-                             case 'startLoading':
-                                startLoading(message.message);
-                                break;
-                             case 'stopLoading':
                                 stopLoading();
                                 break;
                         }
@@ -706,30 +852,33 @@ export class SoqlPanelView implements vscode.WebviewViewProvider {
 
 
                     function startLoading(m) {
-						 loadingContainer.style.display = 'flex';
+                        loadingContainer.style.display = 'flex';
                         soqlResultsHeader.innerHTML = '';
                         soqlResultsBody.innerHTML = '';
+                        errorContainer.classList.remove('show');
+                        noResultsContainer.classList.remove('show');
                         soqlStatus.textContent = m;
                         runSoqlButton.disabled = true;
-					}
+                    }
 
                     function stopLoading() {
-						// Hide loading state
-						loadingContainer.style.display = 'none';
-						runSoqlButton.disabled = false;
-                         soqlStatus.textContent = '';
-					}
+                        loadingContainer.style.display = 'none';
+                        runSoqlButton.disabled = false;
+                        soqlStatus.textContent = '';
+                    }
 
                     function handleSoqlResults(results) {
                         if (!results || !results.records || results.records.length === 0) {
-                            soqlStatus.textContent = 'No results';
+                            soqlStatus.textContent = '0 rows';
                             soqlResultsHeader.innerHTML = '';
                             soqlResultsBody.innerHTML = '';
+                            noResultsMessage.textContent = 'Query executed successfully but returned no records.';
+                            noResultsContainer.classList.add('show');
                             copyAsCsvButton.disabled = true;
                             copyAsExcelButton.disabled = true;
                             return;
                         }
-
+                        noResultsContainer.classList.remove('show');
                         const columns = Object.keys(results.records[0]).filter(col => col !== 'attributes');
                         soqlResultsHeader.innerHTML = '<tr>' + columns.map(col => 
                             '<th>' + col + '</th>'
@@ -789,7 +938,7 @@ export class SoqlPanelView implements vscode.WebviewViewProvider {
                         // Add refresh option at the top
                         const refreshOption = document.createElement('option');
                         refreshOption.value = '__refresh__';
-                        refreshOption.textContent = fromCache ? '↻ Refresh Org List (Cached)' : '↻ Refresh Org List';
+                        refreshOption.textContent = '↻ Refresh Org List';
                         refreshOption.style.fontStyle = 'italic';
                         refreshOption.style.backgroundColor = 'var(--vscode-dropdown-background)';
                         orgDropdown.appendChild(refreshOption);
