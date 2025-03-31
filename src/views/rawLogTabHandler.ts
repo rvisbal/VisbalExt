@@ -103,7 +103,8 @@ export class RawLogTabHandler {
             });
             
             // Initial load
-            loadNextChunk();
+            //todo: perfomance issue, we need to load the whole log at once
+            //loadNextChunk();
             
             // Search functionality
             document.getElementById('searchButton')?.addEventListener('click', () => {

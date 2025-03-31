@@ -657,4 +657,13 @@ export class LogDetailView {
             statusBarService.showError(`Error searching log: ${error.message}`);
         }
     }
+
+    /**
+     * Changes the current tab
+     * @param tab The tab to change to
+     */
+    public changeTab(tab: string): void {
+        console.log(`[VisbalExt.LogDetailView] changeTab -- Changing tab to ${tab}`);
+        this._panel.webview.postMessage({ command: 'changeTab', tab });
+    }
 } 
