@@ -1,4 +1,5 @@
 import * as vscode from 'vscode';
+import { formatLogContentForHtml } from '../utils/logParsingUtils';
 
 /**
  * Class to handle the raw log tab functionality
@@ -6,7 +7,6 @@ import * as vscode from 'vscode';
 export class RawLogTabHandler {
     private _webview: vscode.Webview;
     private _logContent: string = '';
-    private _chunkSize: number = 500; // Number of lines to load at once
 
     /**
      * Constructor for RawLogTabHandler
@@ -28,14 +28,11 @@ export class RawLogTabHandler {
      * Updates the raw log tab content in the webview
      */
     public updateRawLogTab(): void {
-        // Only send the total line count and the first chunk initially
-        const initialChunk = this._logContent.slice(0, this._chunkSize);
-        
+        // Send initial chunk of the log
+        const initialChunk = this.getLogChunk(0, 1000);
         this._webview.postMessage({
-            command: 'updateRawLogTab',
-            totalLines: this._logContent.length,
-            initialChunk: initialChunk,
-            chunkSize: this._chunkSize
+            command: 'logChunk',
+            chunk: initialChunk
         });
     }
 
@@ -46,7 +43,17 @@ export class RawLogTabHandler {
      * @returns The chunk of log lines
      */
     public getLogChunk(startIndex: number, endIndex: number): string {
-        return this._logContent.substring(startIndex, endIndex);
+        const lines = this._logContent.split('\n');
+        return lines.slice(startIndex, endIndex)
+            .map((line, index) => {
+                const lineNumber = startIndex + index + 1;
+                const colorizedLine = formatLogContentForHtml(line);
+                return `<div class="log-line">
+                    <span class="line-number">${lineNumber}</span>
+                    <span class="line-content">${colorizedLine}</span>
+                </div>`;
+            })
+            .join('\n');
     }
 
     /**
@@ -54,20 +61,15 @@ export class RawLogTabHandler {
      * @returns HTML string for the raw log tab placeholder
      */
     public static getPlaceholderHtml(): string {
-        return `
-            <div class="raw-log-container">
-                <div class="raw-log-toolbar">
-                    <div class="search-container">
-                        <input type="text" id="rawLogSearch" placeholder="Search in log...">
-                        <label><input type="checkbox" id="caseSensitive"> Case sensitive</label>
-                        <label><input type="checkbox" id="wholeWord"> Whole word</label>
-                        <label><input type="checkbox" id="useRegex"> Use regex</label>
-                        <button id="searchButton">Search</button>
-                    </div>
-                </div>
-                <pre id="rawLogContent" class="raw-log"></pre>
+        return `<div id="raw-log-container" class="tab-content">
+            <div id="raw-log-toolbar">
+                <input type="text" id="raw-log-search" placeholder="Search log...">
+                <label><input type="checkbox" id="case-sensitive"> Case sensitive</label>
+                <label><input type="checkbox" id="whole-word"> Whole word</label>
+                <label><input type="checkbox" id="use-regex"> Use regex</label>
             </div>
-        `;
+            <pre id="raw-log-content"></pre>
+        </div>`;
     }
 
     /**
@@ -76,50 +78,49 @@ export class RawLogTabHandler {
      */
     public static getJavaScript(): string {
         return `
+            let rawLogContent = '';
             let currentChunkIndex = 0;
-            const chunkSize = 50000;
-            
+            const chunkSize = 1000;
+
             function loadNextChunk() {
                 vscode.postMessage({
                     command: 'getLogChunk',
                     chunkIndex: currentChunkIndex,
                     chunkSize: chunkSize
                 });
+                currentChunkIndex++;
             }
-            
-            window.addEventListener('message', event => {
-                const message = event.data;
-                
-                if (message.command === 'logChunk') {
-                    const logContent = document.getElementById('rawLogContent');
-                    if (message.chunkIndex === currentChunkIndex) {
-                        logContent.textContent += message.chunk;
-                        currentChunkIndex++;
-                        if (message.chunk.length === chunkSize) {
-                            loadNextChunk();
-                        }
-                    }
+
+            // Load initial chunk
+            loadNextChunk();
+
+            // Handle search in raw log
+            document.getElementById('raw-log-search').addEventListener('input', (e) => {
+                const searchTerm = e.target.value;
+                const caseSensitive = document.getElementById('case-sensitive').checked;
+                const wholeWord = document.getElementById('whole-word').checked;
+                const useRegex = document.getElementById('use-regex').checked;
+
+                if (searchTerm) {
+                    vscode.postMessage({
+                        command: 'searchRawLog',
+                        searchTerm: searchTerm,
+                        caseSensitive: caseSensitive,
+                        wholeWord: wholeWord,
+                        useRegex: useRegex
+                    });
                 }
             });
-            
-            // Initial load
-            //todo: perfomance issue, we need to load the whole log at once
-            //loadNextChunk();
-            
-            // Search functionality
-            document.getElementById('searchButton')?.addEventListener('click', () => {
-                const searchTerm = document.getElementById('rawLogSearch').value;
-                const caseSensitive = document.getElementById('caseSensitive').checked;
-                const wholeWord = document.getElementById('wholeWord').checked;
-                const useRegex = document.getElementById('useRegex').checked;
-                
-                vscode.postMessage({
-                    command: 'searchRawLog',
-                    searchTerm: searchTerm,
-                    caseSensitive: caseSensitive,
-                    wholeWord: wholeWord,
-                    useRegex: useRegex
-                });
+
+            // Handle log chunk messages
+            window.addEventListener('message', event => {
+                const message = event.data;
+                switch (message.command) {
+                    case 'logChunk':
+                        const logContent = document.getElementById('raw-log-content');
+                        logContent.innerHTML += message.chunk;
+                        break;
+                }
             });
         `;
     }

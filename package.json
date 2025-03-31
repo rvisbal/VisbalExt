@@ -262,6 +262,7 @@
     "axios": "^1.6.7",
     "follow-redirects": "^1.15.6",
     "form-data": "^4.0.2",
+    "highlight.js": "^11.11.1",
     "jsforce": "^1.11.1"
   },
   "resolutions": {
