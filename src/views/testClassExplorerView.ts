@@ -133,6 +133,9 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                 case 'error':
                     vscode.window.showErrorMessage(data.message);
                     break;
+                case 'openTestFile':
+                    await this._openTestFile(data.className, data.methodName);
+                    break;
             }
         });
 
@@ -1772,6 +1775,8 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                         filteredMethods.forEach(function(method) {
                             const methodLi = document.createElement('li');
                             methodLi.className = 'test-method-item';
+                            methodLi.dataset.class = className;
+                            methodLi.dataset.method = method.name;
                             
                             // Add checkbox for method selection
                             const checkboxContainer = document.createElement('div');
@@ -1798,6 +1803,20 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                                 const methodNameSpan = document.createElement('span');
                                 methodNameSpan.className = 'test-method-name';
                                 methodNameSpan.textContent = method.name.trim();
+                                
+                                // Add double-click handler to open file
+                                methodLi.addEventListener('dblclick', function(e) {
+                                    e.stopPropagation();
+                                    const testClassName = this.closest('.test-method-item').dataset.class;
+                                    const testMethodName = this.closest('.test-method-item').dataset.method;
+                                    if (testClassName && testMethodName) {
+                                        vscode.postMessage({
+                                            command: 'openTestFile',
+                                            className: testClassName,
+                                            methodName: testMethodName
+                                        });
+                                    }
+                                });
                                 
                             // Create run button with play icon
                                 const runMethodButton = document.createElement('button');
@@ -2092,6 +2111,9 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                                     </div>
                                 \`;
                                 break;
+                            case 'openTestFile':
+                                this._openTestFile(message.className, message.methodName);
+                                break;
                         }
                     });
                     
@@ -2267,6 +2289,48 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                 command: 'runSelectedTests',
                 tests
             });
+        }
+    }
+
+    // Add handler for opening test files (add near the top of the class where other methods are defined)
+    private async _openTestFile(className: string, methodName: string) {
+        try {
+            if (!vscode.workspace.workspaceFolders) {
+                throw new Error('No workspace folder found');
+            }
+
+            // Construct the file path
+            const filePath = vscode.Uri.joinPath(
+                vscode.workspace.workspaceFolders[0].uri,
+                'force-app',
+                'main',
+                'default',
+                'classes',
+                `${className}.cls`
+            );
+            
+            // Open the document
+            const document = await vscode.workspace.openTextDocument(filePath);
+            const editor = await vscode.window.showTextDocument(document);
+            
+            // Search for the method in the file
+            const text = document.getText();
+            const methodRegex = new RegExp(`\\s*(public|private|protected|global)?\\s*(static)?\\s*\\bvoid\\b\\s*${methodName}\\s*\\(`);
+            const match = methodRegex.exec(text);
+            
+            if (match) {
+                // Find the position of the method
+                const position = document.positionAt(match.index);
+                
+                // Reveal the method in the editor
+                editor.revealRange(new vscode.Range(position, position), vscode.TextEditorRevealType.InCenter);
+                
+                // Set the cursor at the method
+                editor.selection = new vscode.Selection(position, position);
+            }
+        } catch (error: any) {
+            console.error('[VisbalExt.TestClassExplorerView] Error opening test file:', error);
+            vscode.window.showErrorMessage(`Error opening test file: ${error.message}`);
         }
     }
 }
