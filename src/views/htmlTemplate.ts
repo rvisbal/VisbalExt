@@ -20,15 +20,53 @@ export function getLogListTemplate(): string {
                 padding: 0;
                 color: var(--vscode-foreground);
                 background-color: var(--vscode-editor-background);
+                height: 100vh;
+                overflow: hidden;
             }
             .container {
-                padding: 15px;
+                padding: 0;
+                height: 100vh;
+                display: flex;
+                flex-direction: column;
             }
             .header {
                 display: flex;
                 justify-content: space-between;
                 align-items: center;
-                margin-bottom: 20px;
+                padding: 10px 15px;
+                background-color: var(--vscode-editor-background);
+                border-bottom: 1px solid var(--vscode-panel-border);
+                flex: 0 0 auto;
+            }
+            .tabs {
+                display: flex;
+                border-bottom: 1px solid var(--vscode-panel-border);
+                flex: 0 0 auto;
+                padding: 0 15px;
+            }
+            .tab-content {
+                display: none;
+                height: 100%;
+                overflow: auto;
+                padding: 15px;
+            }
+            .tab-content.active {
+                display: block;
+                flex: 1;
+            }
+            .raw-log {
+                white-space: pre-wrap;
+                font-family: monospace;
+                padding: 10px;
+                background-color: var(--vscode-editor-background);
+                border: 1px solid var(--vscode-panel-border);
+                overflow: auto;
+                height: calc(100vh - 150px);
+                margin: 0;
+            }
+            #overview, #timeline, #execution, #database, #limits, #user_debug, #user_info, #raw {
+                height: calc(100vh - 110px);
+                overflow: auto;
             }
             h1 {
                 margin: 0;
@@ -586,18 +624,23 @@ export function getHtmlTemplate(
                 padding: 0;
                 color: var(--vscode-foreground);
                 background-color: var(--vscode-editor-background);
+                height: 100vh;
+                overflow: hidden;
             }
             .container {
-                padding: 15px;
+                padding: 0;
+                height: 100vh;
+                display: flex;
+                flex-direction: column;
             }
             .header {
                 display: flex;
                 justify-content: space-between;
                 align-items: center;
-                margin-bottom: 20px;
-                padding: 10px;
+                padding: 10px 15px;
                 background-color: var(--vscode-editor-background);
                 border-bottom: 1px solid var(--vscode-panel-border);
+                flex: 0 0 auto;
             }
             .log-title {
                 font-size: 1.2em;
@@ -651,7 +694,8 @@ export function getHtmlTemplate(
             .tabs {
                 display: flex;
                 border-bottom: 1px solid var(--vscode-panel-border);
-                margin-bottom: 20px;
+                flex: 0 0 auto;
+                padding: 0 15px;
             }
             .tab {
                 padding: 8px 16px;
@@ -668,9 +712,13 @@ export function getHtmlTemplate(
             }
             .tab-content {
                 display: none;
+                height: 100%;
+                overflow: auto;
+                padding: 15px;
             }
             .tab-content.active {
                 display: block;
+                flex: 1;
             }
             .button {
                 background-color: var(--vscode-button-background);
@@ -719,7 +767,8 @@ export function getHtmlTemplate(
                 background-color: var(--vscode-editor-background);
                 border: 1px solid var(--vscode-panel-border);
                 overflow: auto;
-                max-height: 500px;
+                height: calc(100vh - 150px);
+                margin: 0;
             }
             .limit-bar {
                 height: 20px;
@@ -868,7 +917,8 @@ export function getHtmlTemplate(
                 background-color: var(--vscode-editor-background);
                 border: 1px solid var(--vscode-panel-border);
                 overflow: auto;
-                max-height: 500px;
+                height: calc(100vh - 150px);
+                margin: 0;
             }
 
             /* Log colorization styles */
@@ -1100,11 +1150,6 @@ export function getHtmlTemplate(
 
              
             <div id="user_info" class="tab-content ${currentTab === 'user_info' ? 'active' : ''}">
-                <h2>Info Lines</h2>
-                <div class="user-debug-info">
-                    <p>Showing debug-related lines from the log file, including USER_DEBUG, FATAL_ERROR, DML_BEGIN, and SOQL_EXECUTE_BEGIN.</p>
-                    <p>Total debug lines: ${parsedData.summary ? parsedData.summary.userDebugCount : 0}</p>
-                </div>
                 <pre class="user-debug-content raw-log">${formatLogContentForHtml(parsedData.userInfoLog) || 'No debug lines found in the log.'}</pre>
             </div>
             
