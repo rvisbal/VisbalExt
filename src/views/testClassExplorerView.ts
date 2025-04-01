@@ -1435,7 +1435,7 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                     const runSelectedButton = document.getElementById('runSelectedButton');
                     const selectionCount = document.getElementById('selectionCount');
                     const loading = document.getElementById('loading');
-					const loadingMessage = document.getElementById('loadingMessage');
+                    const loadingMessage = document.getElementById('loadingMessage');
                     const errorContainer = document.getElementById('errorContainer');
                     const errorMessage = document.getElementById('errorMessage');
                     const notificationContainer = document.getElementById('notificationContainer');
@@ -1449,6 +1449,18 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                         methods: {},
                         count: 0
                     };
+
+                    // Load saved state if it exists
+                    const savedState = vscode.getState();
+                    if (savedState) {
+                        Object.assign(selectedTests, savedState);
+                        updateSelectionCount();
+                    }
+
+                    // Function to save state
+                    function saveState() {
+                        vscode.setState(selectedTests);
+                    }
                     
                     // Event listeners
                     refreshButton.addEventListener('click', () => {
@@ -1565,6 +1577,7 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                         }
                         
                         updateSelectionCount();
+                        saveState(); // Save state after selection changes
                     }
                     
                     function toggleMethodSelection(className, methodName, checkbox) {
@@ -1595,6 +1608,7 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                         }
                         
                         updateSelectionCount();
+                        saveState(); // Save state after selection changes
                     }
                     
                     async function runSelectedTests() {
@@ -1626,12 +1640,6 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                         console.log('[VisbalExt.TestClassExplorerView] Rendering test classes:', testClasses);
                         testClassesList.innerHTML = '';
                         
-                        // Reset selection state
-                        selectedTests.classes = {};
-                        selectedTests.methods = {};
-                        selectedTests.count = 0;
-                        updateSelectionCount();
-                        
                         if (!testClasses || testClasses.length === 0) {
                             console.log('[VisbalExt.TestClassExplorerView] No test classes to render');
                             noTestClasses.classList.remove('hidden');
@@ -1654,6 +1662,8 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                             checkbox.type = 'checkbox';
                             checkbox.className = 'checkbox class-checkbox';
                             checkbox.dataset.class = testClass.name;
+                            // Restore checkbox state from saved state
+                            checkbox.checked = !!selectedTests.classes[testClass.name];
                             checkbox.addEventListener('change', function(e) {
                                 e.stopPropagation();
                                 toggleClassSelection(testClass.name, this);
@@ -1806,6 +1816,9 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                             checkbox.className = 'checkbox method-checkbox';
                             checkbox.dataset.class = className;
                             checkbox.dataset.method = method.name;
+                            // Restore checkbox state from saved state
+                            const key = className + '.' + method.name;
+                            checkbox.checked = !!selectedTests.methods[key];
                             checkbox.addEventListener('change', function(e) {
                                 e.stopPropagation();
                                 toggleMethodSelection(className, method.name, this);
