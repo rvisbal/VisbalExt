@@ -53,6 +53,7 @@ async function initializeTemplates(context: vscode.ExtensionContext) {
       const templateFiles = await vscode.workspace.fs.readDirectory(extensionTemplatesPath);
       
       // Copy each template file to both locations
+      /*
       for (const [fileName, fileType] of templateFiles) {
         if (fileType === vscode.FileType.File && fileName.endsWith('.apex')) {
           const sourceUri = vscode.Uri.joinPath(extensionTemplatesPath, fileName);
@@ -69,6 +70,7 @@ async function initializeTemplates(context: vscode.ExtensionContext) {
           }
         }
       }
+      */
       vscode.window.showInformationMessage('Visbal templates initialized successfully.');
     } catch (err) {
       console.error('[VisbalExt.Extension] Error accessing template directory:', err);

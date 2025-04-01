@@ -595,6 +595,45 @@ export function getHtmlTemplate(
                 justify-content: space-between;
                 align-items: center;
                 margin-bottom: 20px;
+                padding: 10px;
+                background-color: var(--vscode-editor-background);
+                border-bottom: 1px solid var(--vscode-panel-border);
+            }
+            .log-title {
+                font-size: 1.2em;
+                font-weight: bold;
+                color: var(--vscode-foreground);
+                display: flex;
+                align-items: center;
+                min-width: 100px;
+            }
+            .log-info {
+                flex: 1;
+                margin: 0 15px;
+                padding: 8px 12px;
+                background-color: var(--vscode-editor-inactiveSelectionBackground);
+                border-radius: 4px;
+                font-size: 0.9em;
+                display: flex;
+                align-items: center;
+            }
+            .log-actions {
+                display: flex;
+                align-items: center;
+                gap: 8px;
+            }
+            .log-actions .button {
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                width: 32px;
+                height: 32px;
+                padding: 0;
+                border-radius: 4px;
+            }
+            .log-actions .button svg {
+                width: 16px;
+                height: 16px;
             }
             h1 {
                 margin: 0;
@@ -879,18 +918,23 @@ export function getHtmlTemplate(
     <body>
         <div class="container">
             <div class="header">
-                <h1>Log Detail View</h1>
-                <div>
-                    <button id="backButton" class="button">Back to List</button>
-                    <button id="downloadButton" class="button">Download</button>
+                <div class="log-title">Log :</div>
+                <div class="log-info">${logFileName} - ${fileSize}</div>
+                <div class="log-actions">
+                    <button id="backButton" class="button">
+                        <svg width="16" height="16" viewBox="0 0 16 16">
+                            <path fill="currentColor" d="M7 3.093l-5 5V8.8l5 5 .707-.707-4.146-4.147H14v-1H3.56L7.708 3.8 7 3.093z"/>
+                        </svg>
+                    </button>
+                    <button id="downloadButton" class="button">
+                        <svg width="16" height="16" viewBox="0 0 16 16">
+                            <path fill="currentColor" d="M7.47 10.78l.47.47.47-.47 2.47-2.47-.94-.94L8 9.31V3H7v6.31L5.06 7.37l-.94.94 2.47 2.47zM3.5 12h8l.5.5v1l-.5.5h-8l-.5-.5v-1l.5-.5z"/>
+                        </svg>
+                    </button>
                 </div>
             </div>
             
-            <div class="log-info">
-                <p><strong>File:</strong> ${logFileName}</p>
-                <p><strong>Size:</strong> ${fileSize}</p>
-                <p><strong>Date:</strong> ${new Date().toLocaleString()}</p>
-            </div>
+           
             
             <div class="tabs">
                 ${tabs.map(tab => `<button class="tab ${tab.id === currentTab ? 'active' : ''}" data-tab="${tab.id}">${tab.label}</button>`).join('')}
