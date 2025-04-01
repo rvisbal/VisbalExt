@@ -180,8 +180,8 @@
         "icon": "$(preview)"
       },
       {
-        "command": "visbal-ext.rerunAllTests",
-        "title": "Rerun Tests",
+        "command": "visbal-ext.rerunSelectedTests",
+        "title": "Rerun Selected Tests",
         "category": "Visbal",
         "icon": "$(refresh)"
       },

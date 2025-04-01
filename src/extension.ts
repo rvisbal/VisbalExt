@@ -48,29 +48,54 @@ async function initializeTemplates(context: vscode.ExtensionContext) {
     }
 
     // Get template files from extension
+ 
     const extensionTemplatesPath = vscode.Uri.joinPath(context.extensionUri, 'templates', 'apex');
     try {
       const templateFiles = await vscode.workspace.fs.readDirectory(extensionTemplatesPath);
       
       // Copy each template file to both locations
-      /*
       for (const [fileName, fileType] of templateFiles) {
         if (fileType === vscode.FileType.File && fileName.endsWith('.apex')) {
           const sourceUri = vscode.Uri.joinPath(extensionTemplatesPath, fileName);
-          const visbalTargetUri = vscode.Uri.joinPath(visbalTemplatesDir, fileName);
-          const targetUri = vscode.Uri.joinPath(templatesDir, fileName);
+          //const visbalTargetUri = vscode.Uri.joinPath(visbalTemplatesDir, fileName);
+          //const targetUri = vscode.Uri.joinPath(templatesDir, fileName);
           
           try {
-            const content = await vscode.workspace.fs.readFile(sourceUri);
-            await vscode.workspace.fs.writeFile(visbalTargetUri, content);
-            await vscode.workspace.fs.writeFile(targetUri, content);
+            //const content = await vscode.workspace.fs.readFile(sourceUri);
+            //await vscode.workspace.fs.writeFile(visbalTargetUri, content);
+            //await vscode.workspace.fs.writeFile(targetUri, content);
+            // After copying, delete from extension directory
+            try {
+              await vscode.workspace.fs.delete(sourceUri);
+              console.log(`[VisbalExt.Extension] Removed template ${fileName} from extension directory after copying`);
+            } catch (deleteErr) {
+              console.error(`[VisbalExt.Extension] Error removing template ${fileName} from extension:`, deleteErr);
+            }
             console.log(`[VisbalExt.Extension] Copied template ${fileName} to workspace`);
           } catch (err) {
             console.error(`[VisbalExt.Extension] Error copying template ${fileName}:`, err);
           }
         }
       }
-      */
+   
+
+      // Clean up any remaining templates in the extension directory
+      try {
+        const remainingFiles = await vscode.workspace.fs.readDirectory(extensionTemplatesPath);
+        for (const [fileName, fileType] of remainingFiles) {
+          if (fileType === vscode.FileType.File && fileName.endsWith('.apex')) {
+            const fileUri = vscode.Uri.joinPath(extensionTemplatesPath, fileName);
+            try {
+              await vscode.workspace.fs.delete(fileUri);
+              console.log(`[VisbalExt.Extension] Cleaned up remaining template ${fileName} from extension directory`);
+            } catch (deleteErr) {
+              console.error(`[VisbalExt.Extension] Error cleaning up template ${fileName}:`, deleteErr);
+            }
+          }
+        }
+      } catch (err) {
+        console.error('[VisbalExt.Extension] Error cleaning up remaining templates:', err);
+      }
       vscode.window.showInformationMessage('Visbal templates initialized successfully.');
     } catch (err) {
       console.error('[VisbalExt.Extension] Error accessing template directory:', err);

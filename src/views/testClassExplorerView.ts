@@ -1918,15 +1918,15 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                         const testItem = document.querySelector(selector);
                         if (testItem) {
                             const runButton = testItem.querySelector('.run');
-                            const statusIcon = testItem.querySelector('.test-status');
+                            //const statusIcon = testItem.querySelector('.test-status');
                             
-                            if (runButton) {
-                                runButton.style.display = 'none';
-                            }
+                            //if (runButton) {
+                            //    runButton.style.display = 'none';
+                            //}
                             
-                            if (statusIcon) {
-                                statusIcon.innerHTML = '<svg class="test-status running" width="14" height="14" viewBox="0 0 16 16"><path fill="currentColor" d="M14.5 8c0 3.584-2.916 6.5-6.5 6.5S1.5 11.584 1.5 8 4.416 1.5 8 1.5 14.5 4.416 14.5 8zM8 2.5A5.5 5.5 0 1 0 13.5 8 5.506 5.506 0 0 0 8 2.5z"/></svg>';
-                            }
+                            //if (statusIcon) {
+                            //    statusIcon.innerHTML = '<svg class="test-status running" width="14" height="14" viewBox="0 0 16 16"><path fill="currentColor" d="M14.5 8c0 3.584-2.916 6.5-6.5 6.5S1.5 11.584 1.5 8 4.416 1.5 8 1.5 14.5 4.416 14.5 8zM8 2.5A5.5 5.5 0 1 0 13.5 8 5.506 5.506 0 0 0 8 2.5z"/></svg>';
+                            //}
                         }
 
                         vscode.postMessage({ 
