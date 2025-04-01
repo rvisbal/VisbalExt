@@ -478,6 +478,9 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
         try {
             console.log(`[VisbalExt.TestClassExplorerView] _runTest -- Starting test run for class: ${testClass}${testMethod ? `, method: ${testMethod}` : ''}`);
             
+            // Clear previous test runs from the results view
+            this._testRunResultsView.clearResults();
+            
             // Get test methods if not provided
             let methodsToRun: string[] = [];
             if (testMethod) {
@@ -599,6 +602,10 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
         runMode: 'sequential' | 'parallel'
     }) {
         try {
+
+            // Clear previous test runs from the results view
+            this._testRunResultsView.clearResults();
+            
             const totalCount = tests.classes.length + tests.methods.length;
             
             if (this._view) {
