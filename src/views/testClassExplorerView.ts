@@ -2345,6 +2345,22 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
         }
     }
 
+    public rerunSelectedTests() {
+        const selectedTest =  {
+            classes: [],  // The webview maintains its own state of selected tests
+            methods: [],  // and will use that when receiving this command
+            runMode: 'sequential'  // Default to sequential mode
+        }
+       
+        if (this._view) {
+            this._view.webview.postMessage({
+                command: 'runSelectedTests',
+                tests : selectedTest
+            });
+        }
+    }
+    
+
     // Add handler for opening test files (add near the top of the class where other methods are defined)
     private async _openTestFile(className: string, methodName: string) {
         try {

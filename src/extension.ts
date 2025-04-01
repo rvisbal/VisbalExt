@@ -189,7 +189,11 @@ export function activate(context: vscode.ExtensionContext) {
             } else {
                 vscode.window.showErrorMessage('Test run results view is not initialized');
             }
+        }),
+        vscode.commands.registerCommand('visbal-ext.rerunSelectedTests', (args) => {
+            testClassExplorerView.rerunSelectedTests();
         })
+        
     );
 
     // Register test class explorer view
