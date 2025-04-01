@@ -1461,6 +1461,18 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                     
                     // Functions
                     function fetchTestClasses(forceRefresh = false, refreshMethods = false, refreshMode = 'batch') {
+                        // Check if we already have content and forceRefresh is false
+                        const testClassesList = document.getElementById('testClassesList');
+                        const methodsLists = document.querySelectorAll('.test-methods-list');
+                        
+                        if (!forceRefresh && (
+                            (testClassesList && testClassesList.children.length > 0) ||
+                            (methodsLists && methodsLists.length > 0)
+                        )) {
+                            console.log('[VisbalExt.TestClassExplorerView] Skipping fetch - content already exists and forceRefresh is false');
+                            return;
+                        }
+
                         console.log('[VisbalExt.TestClassExplorerView] Fetching test classes...', { forceRefresh, refreshMethods, refreshMode });
                         showLoading('Loading test classes');
                         hideError();
