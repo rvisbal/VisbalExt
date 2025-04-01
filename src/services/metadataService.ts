@@ -5,7 +5,7 @@ import * as os from 'os';
 import * as path from 'path';
 import { readFile, unlink } from 'fs/promises';
 import { join } from 'path';
-import { existsSync, mkdirSync } from 'fs';
+import { existsSync, mkdirSync, symlinkSync } from 'fs';
 import { readFileSync } from 'fs';
 import { SfdxService } from './sfdxService';
 
@@ -728,34 +728,18 @@ export class MetadataService {
             console.log(`[VisbalExt.MetadataService] getTestLogId logList.result:`,logList.result);  
             console.log(`[VisbalExt.MetadataService] getTestLogId logList.result[0].Id:`,logList.result[0].Id);  
             
-            return logList.result[0].Id;
-            /*
+            //return logList.result[0].Id;
+          
 
             // Filter logs that were created after the test started and are ApexTest logs
-            console.log('[VisbalExt.MetadataService] Test start time (UTC):', testStartTime.toISOString());
+            console.log('[VisbalExt.MetadataService] getTestLogId Test start time (UTC):', testStartTime.toISOString());
             
             const relevantLogs = logList.result
-                .filter((log: any) => {
-                    try {
-                        const logStartTime = new Date(log.StartTime);
-                        console.log(`[VisbalExt.MetadataService] Comparing log:`, {
-                            logId: log.Id,
-                            operation: log.Operation,
-                            startTime: logStartTime.toISOString(),
-                            isApexTest: log.Operation === 'ApexTest',
-                            isAfterTestStart: logStartTime >= testStartTime
-                        });
-                        return log.Operation === 'ApexTest';  // Temporarily remove time filter for debugging
-                    } catch (error) {
-                        console.error('[VisbalExt.MetadataService] Error processing log:', error, log);
-                        return false;
-                    }
-                })
                 .sort((a: any, b: any) => {
                     try {
                         const timeA = new Date(a.StartTime).getTime();
                         const timeB = new Date(b.StartTime).getTime();
-                        console.log(`[VisbalExt.MetadataService] Sorting logs:`, {
+                        console.log(`[VisbalExt.MetadataService] Sorting logs:a.StartTime: ${a.StartTime} b.StartTime: ${b.StartTime} -- timeA:${timeA} timeB:${timeB}` , {
                             logA: { id: a.Id, time: new Date(a.StartTime).toISOString() },
                             logB: { id: b.Id, time: new Date(b.StartTime).toISOString() }
                         });
@@ -769,7 +753,11 @@ export class MetadataService {
             console.log(`[VisbalExt.MetadataService] getTestLogId relevantLogs:`, relevantLogs);          
             const logIds = relevantLogs.map((log: any) => log.Id);
             console.log('[VisbalExt.MetadataService] getTestLogId -- logIds:', logIds);
-            */
+            // Get the latest log (first element after sorting)
+            const latestLog = relevantLogs[0];
+            console.log('[VisbalExt.MetadataService] getTestLogId -- latestLog:', latestLog);
+            // If you just need the ID:
+            return latestLog?.Id;
 
             
         } catch (error) {

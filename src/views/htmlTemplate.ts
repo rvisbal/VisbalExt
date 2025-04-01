@@ -926,6 +926,11 @@ export function getHtmlTemplate(
                             <path fill="currentColor" d="M7 3.093l-5 5V8.8l5 5 .707-.707-4.146-4.147H14v-1H3.56L7.708 3.8 7 3.093z"/>
                         </svg>
                     </button>
+                    <button id="copyButton" class="button">
+                        <svg width="16" height="16" viewBox="0 0 16 16">
+                            <path fill="currentColor" d="M4 4v9h9V4H4zm8 8H5V5h7v7zm2-4h1v5H9v1h6v-6zm-3-6h1v5h5v1h-6V2z"/>
+                        </svg>
+                    </button>
                     <button id="downloadButton" class="button">
                         <svg width="16" height="16" viewBox="0 0 16 16">
                             <path fill="currentColor" d="M7.47 10.78l.47.47.47-.47 2.47-2.47-.94-.94L8 9.31V3H7v6.31L5.06 7.37l-.94.94 2.47 2.47zM3.5 12h8l.5.5v1l-.5.5h-8l-.5-.5v-1l.5-.5z"/>
@@ -1162,6 +1167,52 @@ export function getHtmlTemplate(
                     vscode.postMessage({
                         command: 'downloadCurrentLog'
                     });
+                });
+
+                // Copy button
+                document.getElementById('copyButton').addEventListener('click', async () => {
+                    console.log('[VisbalExt.htmlTemplate:WebView] Copy button clicked');
+                    
+                    try {
+                        // Get the active tab content
+                        const activeTab = document.querySelector('.tab-content.active');
+                        let textToCopy = '';
+                        
+                        if (activeTab) {
+                            // If there's a pre element (raw log), use that
+                            const preElement = activeTab.querySelector('pre');
+                            if (preElement) {
+                                textToCopy = preElement.textContent || '';
+                            } else {
+                                // Otherwise, get all text content from the tab
+                                textToCopy = activeTab.textContent || '';
+                            }
+                        }
+                        
+                        // Copy to clipboard
+                        await navigator.clipboard.writeText(textToCopy);
+                        
+                        // Visual feedback
+                        const copyButton = document.getElementById('copyButton');
+                        const originalHTML = copyButton.innerHTML;
+                        copyButton.innerHTML = 
+                            '<svg width="16" height="16" viewBox="0 0 16 16">' +
+                            '<path fill="currentColor" d="M13.78 4.22a.75.75 0 0 1 0 1.06l-7.25 7.25a.75.75 0 0 1-1.06 0L2.22 9.28a.75.75 0 0 1 1.06-1.06L6 10.94l6.72-6.72a.75.75 0 0 1 1.06 0z"/>' +
+                            '</svg>';
+                        
+                        // Reset button after 2 seconds
+                        setTimeout(() => {
+                            copyButton.innerHTML = originalHTML;
+                        }, 2000);
+                        
+                        console.log('[VisbalExt.htmlTemplate:WebView] Content copied successfully');
+                    } catch (error) {
+                        console.error('[VisbalExt.htmlTemplate:WebView] Error copying content:', error);
+                        vscode.postMessage({
+                            command: 'showError',
+                            message: 'Failed to copy content to clipboard'
+                        });
+                    }
                 });
                 
                 // Filter tags
