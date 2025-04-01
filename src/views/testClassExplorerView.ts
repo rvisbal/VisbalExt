@@ -1701,13 +1701,18 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                             li.appendChild(checkboxContainer);
                             li.appendChild(expandIcon);
                             li.appendChild(nameSpan);
-                             li.appendChild(refreshClassButton);
+                            li.appendChild(refreshClassButton);
                             li.appendChild(runButton);
                             
                             // Create a container for test methods (initially hidden)
                             const methodsList = document.createElement('ul');
                             methodsList.className = 'test-methods-list hidden';
                             methodsList.dataset.loaded = 'false';
+
+                            // Check if this class has any selected methods
+                            const hasSelectedMethods = Object.keys(selectedTests.methods).some(key => 
+                                key.startsWith(testClass.name + '.')
+                            );
                             
                             // Toggle expand/collapse on click and load test methods if needed
                             li.onclick = function() {
@@ -1727,6 +1732,12 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                             
                             testClassesList.appendChild(li);
                             testClassesList.appendChild(methodsList);
+
+                            // If class has selected methods, automatically expand it
+                            if (hasSelectedMethods) {
+                                // Simulate a click to expand and load methods
+                                li.click();
+                            }
                         });
                     }
                     
