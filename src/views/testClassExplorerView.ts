@@ -67,6 +67,7 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
     private _testRunResultsView: TestRunResultsView;
     private _testSummaryView: TestSummaryView;
     private _sfdxService: SfdxService;
+    private _useVSCodeExplorer: boolean = true;
 
     constructor(
         extensionUri: vscode.Uri,
@@ -169,8 +170,24 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                 }
             }
 
+
+
             // Fetch from Salesforce if not in storage or force refresh
-            const apexClasses = await this._metadataService.getTestClasses();
+            let apexClasses = [];
+            if (this._useVSCodeExplorer) {
+                apexClasses = Array.from(this._testController.items).map(([_, item]) => ({
+                    name: item.label,
+                    id: item.id,
+                    methods: [],
+                    symbolTable: {},
+                    attributes: {
+                        fileName: item.uri?.fsPath || `${item.label}.cls`,
+                        fullName: item.label
+                    }
+                }));
+            } else {
+               apexClasses = await this._metadataService.getTestClasses();
+            }
             console.log('[VisbalExt.TestClassExplorerView] _fetchTestClasses Received test classes:', apexClasses?.length || 0, 'classes');
             
             // Filter and transform ApexClass to TestClass
@@ -216,7 +233,17 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                         const batch = testClasses.slice(i, i + BATCH_SIZE);
                         const batchPromises = batch.map(async (testClass) => {
                             try {
-                                const methods = await this._metadataService.getTestMethodsForClass(testClass.name);
+                                let methods: TestMethod[] = [];
+                                if (this._useVSCodeExplorer) {
+                                    methods = Array.from(this._testController.items).map(([_, item]) => ({
+                                        name: item.label,
+                                        isTestMethod: true,
+                                        annotations: [],
+                                        parameters: []
+                                    }));
+                                } else {
+                                    methods = await this._metadataService.getTestMethodsForClass(testClass.name);
+                                }
                                 await this._storageService.saveTestMethodsForClass(testClass.name, methods);
                                 testClass.methods = methods.map(m => m.name);
                                 processedClasses++;
@@ -442,8 +469,40 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
             let testMethods = await this._storageService.getTestMethodsForClass(className);
             console.log('[VisbalExt.TestClassExplorerView] _fetchTestMethods -- testMethods:', testMethods);
             if (testMethods.length === 0) {
-                // If not in storage, fetch from Salesforce
-                testMethods = await this._metadataService.getTestMethodsForClass(className);
+                if (this._useVSCodeExplorer) {
+                    console.log('[VisbalExt.TestClassExplorerView] _fetchTestMethods -- Looking for class:', className);
+                    
+                    // Iterate through items using forEach
+                    const availableItems: string[] = [];
+                    this._testController.items.forEach(item => {
+                        availableItems.push(item.label);
+                        console.log('[VisbalExt.TestClassExplorerView] Found test item:', item.label);
+                    });
+                    
+                    // Try to find the class item
+                    let classItem: vscode.TestItem | undefined;
+                    this._testController.items.forEach(item => {
+                        if (item.label.toLowerCase() === className.toLowerCase()) {
+                            classItem = item;
+                        }
+                    });
+                    
+                    console.log('[VisbalExt.TestClassExplorerView] _fetchTestMethods -- Found classItem:', classItem?.label);
+                    let methodsList: TestMethod[] = [];
+                    if (classItem) {
+                        methodsList = Array.from(classItem.children).map(([_, item]) => ({
+                            name: item.label,
+                            isTestMethod: true,
+                            annotations: [],
+                            parameters: []
+                        }));
+                    }
+                    testMethods = methodsList;
+                    console.log('[VisbalExt.TestClassExplorerView] _fetchTestMethods -- testMethods from VSCode Test Explorer:', testMethods);
+                } else {
+                    // If not in storage, fetch from Salesforce
+                    testMethods = await this._metadataService.getTestMethodsForClass(className);
+                }
                 console.log('[VisbalExt.TestClassExplorerView] _fetchTestMethods -- testMethods from Salesforce:', testMethods);
                 // Save to storage
                 await this._storageService.saveTestMethodsForClass(className, testMethods);
