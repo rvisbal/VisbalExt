@@ -2183,8 +2183,10 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                             checkbox.checked = isChecked;
                             if (isChecked) {
                                 const className = checkbox.dataset.class;
-                                selectedTests.classes[className] = true;
-                                selectedTests.count++;
+                                if (className) {
+                                    selectedTests.classes[className] = true;
+                                    selectedTests.count++;
+                                }
                             }
                         });
                         
@@ -2194,13 +2196,16 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                             if (isChecked) {
                                 const className = checkbox.dataset.class;
                                 const methodName = checkbox.dataset.method;
-                                const key = className + '.' + methodName;
-                                selectedTests.methods[key] = true;
-                                selectedTests.count++;
+                                if (className && methodName) {
+                                    const key = className + '.' + methodName;
+                                    selectedTests.methods[key] = true;
+                                    selectedTests.count++;
+                                }
                             }
                         });
                         
                         updateSelectionCount();
+                        saveState(); // Save state after bulk selection change
                     });
 
                     // Update select all checkbox state when individual selections change
@@ -2220,6 +2225,9 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                         
                         selectAllCheckbox.checked = allChecked;
                         selectAllCheckbox.indeterminate = someChecked && !allChecked;
+
+                        // Save state after updating select all checkbox
+                        saveState();
                     }
 
                     // Update the existing toggle functions to call updateSelectAllCheckbox
@@ -2227,12 +2235,14 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                     toggleClassSelection = function(className, checkbox) {
                         originalToggleClassSelection(className, checkbox);
                         updateSelectAllCheckbox();
+                        saveState(); // Save state after selection change
                     };
 
                     const originalToggleMethodSelection = toggleMethodSelection;
                     toggleMethodSelection = function(className, methodName, checkbox) {
                         originalToggleMethodSelection(className, methodName, checkbox);
                         updateSelectAllCheckbox();
+                        saveState(); // Save state after selection change
                     };
 
                     // Add context menu handling
