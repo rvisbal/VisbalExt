@@ -186,6 +186,12 @@
         "icon": "$(refresh)"
       },
       {
+        "command": "visbal-ext.rerunAllTests",
+        "title": "Rerun All Tests",
+        "category": "Visbal",
+        "icon": "$(refresh)"
+      },
+      {
         "command": "visbal-ext.initializeTemplates",
         "title": "Initialize Visbal Templates",
         "category": "Visbal"

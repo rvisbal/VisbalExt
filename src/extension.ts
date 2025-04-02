@@ -137,6 +137,13 @@ export function activate(context: vscode.ExtensionContext) {
   outputChannel.appendLine('[VisbalExt.Extension] Initializing DebugConsoleView');
   const debugConsoleView = new DebugConsoleView(context.extensionUri);
 
+  // Register the clear console command
+  context.subscriptions.push(
+    vscode.commands.registerCommand('visbal.clearConsole', () => {
+      debugConsoleView.clear();
+    })
+  );
+
   // Declare views that might be conditionally initialized
   let testRunResultsView: TestRunResultsView | undefined;
   let visbalLogViewProvider: VisbalLogView | undefined;

@@ -2345,17 +2345,16 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
         }
     }
 
-    public rerunSelectedTests() {
-        const selectedTest =  {
-            classes: [],  // The webview maintains its own state of selected tests
-            methods: [],  // and will use that when receiving this command
-            runMode: 'sequential'  // Default to sequential mode
-        }
-       
+    public async rerunSelectedTests() {
+        console.log('[VisbalExt.TestClassExplorerView] rerunSelectedTests -- Re-running selected tests');
         if (this._view) {
+            // Request the webview to run its currently selected tests
+            // The webview maintains the selection state and will use it when receiving this command
             this._view.webview.postMessage({
                 command: 'runSelectedTests',
-                tests : selectedTest
+                tests: {
+                    runMode: 'sequential'  // Default to sequential mode
+                }
             });
         }
     }
