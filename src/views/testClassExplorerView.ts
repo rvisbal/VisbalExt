@@ -139,6 +139,22 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                 case 'openTestFile':
                     await this._openTestFile(data.className, data.methodName);
                     break;
+                case 'showConfirmation':
+                    const choice = await vscode.window.showWarningMessage(
+                        data.message,
+                        { modal: true },
+                        'Yes',
+                        'No'
+                    );
+                    if (this._view) {
+                        this._view.webview.postMessage({
+                            command: 'confirmationResult',
+                            confirmed: choice === 'Yes',
+                            action: data.action,
+                            runMode: data.runMode
+                        });
+                    }
+                    break;
             }
         });
 
@@ -1498,7 +1514,7 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                                     <path d="M3.5 2.5v11l9-5.5z"/>
                                 </svg>
                             </button>
-                            <button id="runAllButton" class="button" disabled title="Run All Tests">
+                            <button id="runAllButton" class="button" title="Run All Tests">
                                 <svg width="16" height="16" viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg" fill="currentColor">
                                     <path d="M3.5 2v12l4.5-6L3.5 2zm4.5 0v12l4.5-6L8 2z"/>
                                 </svg>
@@ -1756,12 +1772,11 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                     }
 
                     async function runAllTests() {
-                        showLoading('Running all tests...');
-                        hideError();
-                        hideNotification();
-                        
-                        vscode.postMessage({    
-                            command: 'runAllTests',
+                        // Show confirmation dialog
+                        vscode.postMessage({
+                            command: 'showConfirmation',
+                            message: 'Are you sure you want to run all tests? This may take a while.',
+                            action: 'runAllTests',
                             runMode: document.getElementById('runMode').value
                         });
                     }
@@ -2266,6 +2281,20 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                                 hideLoading();
                                 console.log('[VisbalExt.TestClassExplorerView] Test results loaded:', message.results);
                                 handleTestResults(message.results);
+                                break;
+                            case 'confirmationResult':
+                                if (message.confirmed) {
+                                    if (message.action === 'runAllTests') {
+                                        showLoading('Running all tests...');
+                                        hideError();
+                                        hideNotification();
+                                        
+                                        vscode.postMessage({    
+                                            command: 'runAllTests',
+                                            runMode: message.runMode
+                                        });
+                                    }
+                                }
                                 break;
                             case 'error':
                                 hideLoading();
