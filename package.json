@@ -180,15 +180,16 @@
         "icon": "$(preview)"
       },
       {
-        "command": "visbal-ext.rerunAllTests",
-        "title": "Rerun Tests",
+        "command": "visbal-ext.rerunSelectedTests",
+        "title": "Rerun Selected Tests",
         "category": "Visbal",
         "icon": "$(refresh)"
       },
       {
-        "command": "visbal-ext.initializeTemplates",
-        "title": "Initialize Visbal Templates",
-        "category": "Visbal"
+        "command": "visbal-ext.rerunAllTests",
+        "title": "Rerun All Tests",
+        "category": "Visbal",
+        "icon": "$(refresh)"
       }
     ],
     "menus": {
@@ -235,13 +236,7 @@
           "description": "Enable/disable the Sample Panel module"
         }
       }
-    },
-    "templates": [
-      {
-        "path": "./templates/apex",
-        "language": "apex"
-      }
-    ]
+    }
   },
   "devDependencies": {
     "@types/node": "^20.11.24",
@@ -262,6 +257,7 @@
     "axios": "^1.6.7",
     "follow-redirects": "^1.15.6",
     "form-data": "^4.0.2",
+    "highlight.js": "^11.11.1",
     "jsforce": "^1.11.1"
   },
   "resolutions": {

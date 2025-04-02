@@ -303,6 +303,14 @@ export class TestRunResultsView {
         this.provider.clear();
     }
 
+    /**
+     * Clears all test runs from the view
+     */
+    public clearResults() {
+        // Clear the tree data provider which will automatically update the view
+        this.provider.clear();
+    }
+
     // Update rerunAllTests method
     public async rerunAllTests() {
         const testRuns = this.provider.getTestRuns();

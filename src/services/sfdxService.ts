@@ -1,5 +1,4 @@
 //import { execAsync } from '../utils/execUtils';
-import { promisify } from 'util';
 import { OrgUtils } from '../utils/orgUtils';
 import { ApexClass, SalesforceLog } from '../types/salesforceTypes';
 import * as fs from 'fs';
@@ -8,8 +7,6 @@ import * as path from 'path';
 import * as os from 'os';
 import * as vscode from 'vscode';
 import * as child_process from 'child_process';
-
-const execPromise = promisify(child_process.exec);
 
 // Maximum buffer size for CLI commands (100MB)
 const MAX_BUFFER_SIZE = 100 * 1024 * 1024;
@@ -21,63 +18,53 @@ interface ExecResult {
 
 export class SfdxService {
     private orgAliasCache: { alias: string; timestamp: number } | null = null;
-    private readonly CACHE_EXPIRATION = 15 * 60 * 1000; // 5 minutes in milliseconds
+    private readonly CACHE_EXPIRATION = 15 * 60 * 1000; // 15 minutes in milliseconds
 
     constructor() {}
 
     //#region Core Functionality
-	private async _executeCommand(command: string): Promise<string> {
-        try {
-            console.log(`[VisbalExt.SfdxService] _executeCommand BEGIN... : ${command}`);
-            const { stdout: result, stderr } = await execPromise(command, { maxBuffer: 1024 * 1024 * 10 });
-            //console.log(`[VisbalExt.SfdxService] _executeCommand result: `, result);
-            //console.log(`[VisbalExt.SfdxService] _executeCommand stderr: `, stderr);
-            return result;
-            /*
-            if (stderr) {
-                console.warn(`[MetadataService] _executeCommand Command produced stderr: ${stderr}`);
-                // Only throw if it seems like a real error, as some commands output warnings to stderr
-                if (stderr.includes('Error:') || stderr.includes('error:')) {
-                    throw new Error(stderr);
+    private _executeCommand(command: string): Promise<ExecResult> {
+        return new Promise((resolve, reject) => {
+            child_process.exec(command, { maxBuffer: MAX_BUFFER_SIZE }, (error, stdout, stderr) => {
+                console.log(`[VisbalExt.SfdxService] _executeCommand stdout:`, stdout);
+                console.log(`[VisbalExt.SfdxService] _executeCommand stderr:`, stderr);
+                console.log(`[VisbalExt.SfdxService] _executeCommand error:`, error);
+                if (error) {
+                    // If we have stdout even with an error, we might want to use it
+                    if (stdout) {
+                        console.log(`[VisbalExt.SfdxService] _executeCommand Warning: Command had error but returned stdout:`, stdout);
+                        resolve({ stdout: stdout.toString(), stderr: stderr?.toString() || '' });
+                        return;
+                    }
+                    console.error(`[VisbalExt.SfdxService] _executeCommand Error:`, error);
+                    reject(error);
+                    return;
                 }
-            }
-            if (result && result.trim()) {
-                try {
-                    return result;                   
-                } catch (parseError: any) {
-                    console.error('[VisbalExt.MetadataService] executeCliCommand execAsync 1 parseError:', parseError);
-                    console.log('[VisbalExt.MetadataService] executeCliCommand execAsync 1 parseError.message:', parseError.message);
-                    console.log('[VisbalExt.MetadataService] executeCliCommand execAsync 1 parseError.stack:', parseError.stack);     
-                  
-                    throw new Error(parseError.message);
-                    //const parseError1 = JSON.parse(parseError);
-                    //console.error('[VisbalExt.MetadataService] executeCliCommand parseError1:', parseError1);
-                    //throw new Error('Failed to parse org info. Please ensure Salesforce CLI is properly installed.');
+                
+                if (stderr) {
+                    console.warn(`[VisbalExt.SfdxService] _executeCommand stderr:`, stderr);
                 }
-            } else {
-                throw new Error('Executing executeCliCommand failed');
-            }
-                */
-        } catch (error: any) {
-            console.error(`[VisbalExt.SfdxService] _executeCommand Error ERROR: ${command}`, error);
-            console.log(`[VisbalExt.SfdxService] _executeCommand Error stdout: `, error.stdout);
-            if (error.stdout) {
-                return error.stdout;
-            } 
-            else {
-                throw new Error(`Failed _executeCommand`);
-            }
-        }
+                
+                resolve({ stdout: stdout.toString(), stderr: stderr?.toString() || '' });
+            });
+        });
     }
-	
-    private async _executeCommand2(command: string, options: any = {}): Promise<string> {
-        try {
-            const { stdout } = await execPromise(command, { maxBuffer: MAX_BUFFER_SIZE, ...options });
-            return stdout.toString();
-        } catch (error: any) {
-            console.error('[VisbalExt.SfdxService] Error executing command:', error);
-            throw error;
-        }
+
+    private _executeCommand2(command: string, options: any = {}): Promise<ExecResult> {
+        return new Promise((resolve, reject) => {
+            child_process.exec(command, { maxBuffer: MAX_BUFFER_SIZE, ...options }, (error, stdout, stderr) => {
+                if (error) {
+                    // If we have stdout even with an error, we might want to use it
+                    if (stdout) {
+                        resolve({ stdout: stdout.toString(), stderr: stderr?.toString() || '' });
+                        return;
+                    }
+                    reject(error);
+                    return;
+                }
+                resolve({ stdout: stdout.toString(), stderr: stderr?.toString() || '' });
+            });
+        });
     }
 
     /**
@@ -98,12 +85,12 @@ export class SfdxService {
                 }
                 command += ' --json';
                 
-                console.log('[VisbalExt.SfdxService] getCurrentUserId command:', command);
+                //console.log('[VisbalExt.SfdxService] getCurrentUserId command:', command);
                 const userIdResult = await this._executeCommand(command);
-                console.log(`[VisbalExt.SfdxService] getCurrentUserId User ID result: ${userIdResult}`);
-                const userIdJson = JSON.parse(userIdResult);
+                //console.log(`[VisbalExt.SfdxService] getCurrentUserId User ID result: ${userIdResult}`);
+                const userIdJson = JSON.parse(userIdResult.stdout);
                 userId = userIdJson.result.id;
-                console.log(`[VisbalExt.SfdxService] getCurrentUserId Current user ID: ${userId}`);
+                //console.log(`[VisbalExt.SfdxService] getCurrentUserId Current user ID: ${userId}`);
             } catch (error) {
                 console.error('[VisbalExt.SfdxService] getCurrentUserId Error getting user ID with new CLI format:', error);
                 let command = 'sfdx force:user:display';
@@ -115,8 +102,8 @@ export class SfdxService {
                 command += ' --json';
                 
                 const userIdResult = await this._executeCommand(command);
-                console.log(`[VisbalExt.SfdxService] getCurrentUserId User ID result (old format): ${userIdResult}`);
-                const userIdJson = JSON.parse(userIdResult);
+                console.log(`[VisbalExt.SfdxService] getCurrentUserId User ID result (old format): ${userIdResult.stdout}`);
+                const userIdJson = JSON.parse(userIdResult.stdout);
                 userId = userIdJson.result.id;
                 console.log(`[VisbalExt.SfdxService] getCurrentUserId Current user ID (old format): ${userId}`);
             }
@@ -132,7 +119,7 @@ export class SfdxService {
     //#region Organization Management
     public async getCurrentOrgAlias(): Promise<string> {
         try {
-            console.log('[VisbalExt.SfdxService] getCurrentOrgAlias -- BEGIN', this.orgAliasCache);
+            //console.log('[VisbalExt.SfdxService] getCurrentOrgAlias -- BEGIN', this.orgAliasCache);
             // Check cache first
             if (this.orgAliasCache && (Date.now() - this.orgAliasCache.timestamp) < this.CACHE_EXPIRATION) {
                 console.log('[VisbalExt.SfdxService] getCurrentOrgAlias -- Returning cached alias:', this.orgAliasCache.alias);
@@ -142,12 +129,12 @@ export class SfdxService {
                 console.log(`[VisbalExt.SfdxService] getCurrentOrgAlias --${(Date.now() - this.orgAliasCache.timestamp)} this.CACHE_EXPIRATION:${this.CACHE_EXPIRATION} this.orgAliasCache`, this.orgAliasCache);
             }
 
-            console.log('[VisbalExt.SfdxService] getCurrentOrgAlias -- NOT CACHED Getting current org alias');
+            //console.log('[VisbalExt.SfdxService] getCurrentOrgAlias -- NOT CACHED Getting current org alias');
             const command = 'sf org display --json';
-            console.log('[VisbalExt.SfdxService] getCurrentOrgAlias -- command:', command);
+            //console.log('[VisbalExt.SfdxService] getCurrentOrgAlias -- command:', command);
             const orgInfo = await this._executeCommand(command);
-            const result = JSON.parse(orgInfo);
-            console.log('[VisbalExt.SfdxService] getCurrentOrgAlias -- result:', result);
+            const result = JSON.parse(orgInfo.stdout);
+            //console.log('[VisbalExt.SfdxService] getCurrentOrgAlias -- result:', result);
             if (result.status === 0 && result.result) {
                 // Use alias if available, otherwise use username
                 const alias = result.result.alias || result.result.username;
@@ -182,7 +169,7 @@ export class SfdxService {
             const command = 'sf org list --all --json';
             console.log('[VisbalExt.SfdxService] getCurrentOrgAlias -- command:', command);
             const resultStr = await this._executeCommand(command);
-            const result = JSON.parse(resultStr);
+            const result = JSON.parse(resultStr.stdout);
             console.log('[VisbalExt.SfdxService] listOrgs -- result:', result);
             
             if (!result.result) {
@@ -315,7 +302,7 @@ export class SfdxService {
             command += ' --json';
             
             const result = await this._executeCommand(command);
-            const parsedResult = JSON.parse(result);
+            const parsedResult = JSON.parse(result.stdout);
             
             if (parsedResult.status === 0 && parsedResult.result && parsedResult.result.id) {
                 return parsedResult.result.id;
@@ -402,7 +389,7 @@ export class SfdxService {
                 
                 console.log(`[VisbalExt.SfdxService] Creating trace flag with command: ${command}`);
                 const result = await this._executeCommand(command);
-                const json = JSON.parse(result);
+                const json = JSON.parse(result.stdout);
                 return json.result.id;
             } catch (error) {
                 console.error('[VisbalExt.SfdxService] Error creating trace flag with new CLI format:', error);
@@ -418,7 +405,7 @@ export class SfdxService {
                 
                 console.log(`[VisbalExt.SfdxService] Creating trace flag with command (old format): ${command}`);
                 const result = await this._executeCommand(command);
-                const json = JSON.parse(result);
+                const json = JSON.parse(result.stdout);
                 return json.result.id;
             }
         } catch (error) {
@@ -463,7 +450,7 @@ export class SfdxService {
                     }
                     
                     const result = await this._executeCommand(`sf apex log get --log-id ${logId} --json --target-org ${selectedOrg.alias}`);
-                    const parsedResult = JSON.parse(result);
+                    const parsedResult = JSON.parse(result.stdout);
                     if (parsedResult.result?.log) {
                         return parsedResult.result.log;
                     }
@@ -476,11 +463,8 @@ export class SfdxService {
                         throw new Error('No org selected');
                     }
                     
-                    const { stdout } = await execPromise(
-                        `sf apex log get --log-id ${logId} --target-org ${selectedOrg.alias}`,
-                        { maxBuffer: MAX_BUFFER_SIZE }
-                    );
-                    return stdout;
+                    const result = await this._executeCommand(`sf apex log get --log-id ${logId} --target-org ${selectedOrg.alias}`);
+                    return result.stdout;
                 }
             }
             
@@ -507,7 +491,7 @@ export class SfdxService {
             command += ' --json';
             
             const result = await this._executeCommand(command);
-            return result;
+            return result.stdout;
         } catch (error) {
             console.error('[VisbalExt.SfdxService] Failed to list Apex logs:', error);
             throw error;
@@ -520,24 +504,213 @@ export class SfdxService {
      * @returns Promise<SalesforceLog[]> Array of Salesforce logs
      */
     public async getLogContent(logId: string, useDefaultOrg: boolean = false): Promise<string> {
+        console.log(`[VisbalExt.SfdxService] Starting to fetch content for log: ${logId}`);
         try {
-            console.log('[VisbalExt.SfdxService] getLogContent...');
-            let command = `sf apex get log -i ${logId}`;
+            // First, check if we can directly output to a file to avoid buffer issues
+            let targetDir: string;
             
-            const selectedOrg = await OrgUtils.getSelectedOrg();
-            if (!useDefaultOrg && selectedOrg?.alias) {
-                command += ` --target-org ${selectedOrg.alias}`;
+            // Check if we have a workspace folder
+            if (vscode.workspace.workspaceFolders && vscode.workspace.workspaceFolders.length > 0) {
+                // Use the .visbal/logs directory in the workspace
+                targetDir = path.join(vscode.workspace.workspaceFolders[0].uri.fsPath, '.visbal', 'logs');
+            } else {
+                // Use the user's home directory
+                targetDir = path.join(os.homedir(), '.visbal', 'logs');
             }
-            command += ' --json';
-            console.log('[VisbalExt.SfdxService] getLogContent -- command:', command);
-            const result = await this._executeCommand(command);
-            return result;
-        } catch (error) {
-            console.error('[VisbalExt.SfdxService] Failed to getLogContent:', error);
+            
+            // Create the directory if it doesn't exist
+            if (!fs.existsSync(targetDir)) {
+                console.log(`[VisbalExt.SfdxService] Creating directory: ${targetDir}`);
+                fs.mkdirSync(targetDir, { recursive: true });
+            }
+            
+            // Create a temporary file path for direct output
+            const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+            
+            // Sanitize the log ID to avoid any issues with special characters
+            const sanitizedLogId = logId.replace(/[\/\\:*?"<>|]/g, '_');
+            // Format: id_operation_status_size_date.log with temp_ prefix
+            const tempFilePath = path.join(targetDir, `temp_${sanitizedLogId}_${timestamp}.log`);
+            
+            console.log(`[VisbalExt.SfdxService] Temp file path: ${tempFilePath}`);
+            console.log(`[VisbalExt.SfdxService] Target directory: ${targetDir}`);
+            
+            // Try direct file output first (most reliable for large logs)
+            try {
+                console.log(`[VisbalExt.SfdxService] Trying direct file output to: ${tempFilePath}`);
+                
+                // Try with new CLI format first
+                try {
+                    const selectedOrg = await OrgUtils.getSelectedOrg();  
+                    const command = `sf apex get log -i ${logId} > "${tempFilePath}" --target-org ${selectedOrg?.alias}`;
+                    console.log(`[VisbalExt.SfdxService] Executing direct output command: ${command}`);
+                    const result = await this._executeCommand(command);
+                    
+                    // Check if the file was created and has content
+                    if (fs.existsSync(tempFilePath) && fs.statSync(tempFilePath).size > 0) {
+                        console.log(`[VisbalExt.SfdxService] Successfully wrote log to file: ${tempFilePath}`);
+                        const logContent = fs.readFileSync(tempFilePath, 'utf8');
+                        
+                        // Clean up the temporary file
+                        try {
+                            fs.unlinkSync(tempFilePath);
+                        } catch (cleanupError) {
+                            console.log(`[VisbalExt.SfdxService] Warning: Could not delete temp file: ${tempFilePath}`);
+                        }
+                        
+                        return logContent;
+                    }
+                } catch (directOutputError) {
+                    console.log('[VisbalExt.SfdxService] Direct output with new CLI format failed, trying old format', directOutputError);
+                    
+                    // Try with old CLI format
+                    try {
+                        const command = `sfdx force:apex:log:get --logid ${logId} > "${tempFilePath}"`;
+                        console.log(`[VisbalExt.SfdxService] Executing direct output command with old format: ${command}`);
+                        const result = await this._executeCommand(command);
+                        
+                        // Check if the file was created and has content
+                        if (fs.existsSync(tempFilePath) && fs.statSync(tempFilePath).size > 0) {
+                            console.log(`[VisbalExt.SfdxService] Successfully wrote log to file with old format: ${tempFilePath}`);
+                            const logContent = fs.readFileSync(tempFilePath, 'utf8');
+                            
+                            // Clean up the temporary file
+                            try {
+                                fs.unlinkSync(tempFilePath);
+                            } catch (cleanupError) {
+                                console.log(`[VisbalExt.SfdxService] Warning: Could not delete temp file: ${tempFilePath}`);
+                            }
+                            
+                            return logContent;
+                        }
+                    } catch (oldDirectOutputError) {
+                        console.log('[VisbalExt.SfdxService] Direct output with old CLI format failed', oldDirectOutputError);
+                    }
+                }
+            } catch (error) {
+                console.log('[VisbalExt.SfdxService] Direct file output approach failed, falling back to standard methods', error);
+            }
+            
+            // If direct file output failed, try the standard methods with increased buffer size
+            
+            // Try to fetch the log using the new command format first
+            let log;
+            console.log('[VisbalExt.SfdxService] Trying to fetch log content with new CLI format');
+            try {
+                const selectedOrg = await OrgUtils.getSelectedOrg();
+                const command = `sf apex get log -i ${logId} --json --target-org ${selectedOrg?.alias}`;
+                console.log(`[VisbalExt.SfdxService] Executing: ${command}`);
+                const result = await this._executeCommand(command);
+                console.log('[VisbalExt.SfdxService] Successfully fetched log content with new CLI format');
+                log = JSON.parse(result.stdout);
+                
+                // Debug the response structure
+                console.log(`[VisbalExt.SfdxService] Response structure: ${JSON.stringify(Object.keys(log))}`);
+                if (log.result) {
+                    console.log(`[VisbalExt.SfdxService] Result structure: ${typeof log.result} ${Array.isArray(log.result) ? 'array' : 'not array'}`);
+                    if (Array.isArray(log.result) && log.result.length > 0) {
+                        console.log(`[VisbalExt.SfdxService] First result item keys: ${JSON.stringify(Object.keys(log.result[0]))}`);
+                    }
+                }
+                
+                // Handle different response formats
+                if (log.result) {
+                    if (typeof log.result === 'string') {
+                        // Direct log content as string
+                        console.log('[VisbalExt.SfdxService] Found log content as string in result');
+                        return log.result;
+                    } else if (typeof log.result.log === 'string') {
+                        // Log content in result.log
+                        console.log('[VisbalExt.SfdxService] Found log content in result.log');
+                        return log.result.log;
+                    } else if (Array.isArray(log.result) && log.result.length > 0) {
+                        // Array result format
+                        const firstResult = log.result[0];
+                        
+                        // Check for common properties that might contain the log
+                        if (firstResult.log) {
+                            console.log('[VisbalExt.SfdxService] Found log content in result[0].log');
+                            return firstResult.log;
+                        } else if (firstResult.body) {
+                            console.log('[VisbalExt.SfdxService] Found log content in result[0].body');
+                            return firstResult.body;
+                        } else if (firstResult.content) {
+                            console.log('[VisbalExt.SfdxService] Found log content in result[0].content');
+                            return firstResult.content;
+                        } else if (firstResult.text) {
+                            console.log('[VisbalExt.SfdxService] Found log content in result[0].text');
+                            return firstResult.text;
+                        } else {
+                            // If we can't find a specific property, try to stringify the first result
+                            console.log('[VisbalExt.SfdxService] No specific log property found, using entire result object');
+                            return JSON.stringify(firstResult, null, 2);
+                        }
+                    }
+                }
+                
+                // If we couldn't find the log content in the expected places, try direct CLI output
+                console.log('[VisbalExt.SfdxService] Could not find log content in JSON response, trying direct CLI output');
+                throw new Error('Log content not found in expected format');
+            } catch (error) {
+                console.log('[VisbalExt.SfdxService] Failed with new CLI format or parsing, trying old format', error);
+                // If the new command fails, try the old format
+                try {
+                    const command = `sfdx force:apex:log:get --logid ${logId} --json`;
+                    console.log(`[VisbalExt.SfdxService] Executing: ${command}`);
+                    const result = await this._executeCommand(command);
+                    console.log('[VisbalExt.SfdxService] Successfully fetched log content with old CLI format');
+                    log = JSON.parse(result.stdout);
+                    
+                    // Debug the response structure
+                    console.log(`[VisbalExt.SfdxService] Old format response structure: ${JSON.stringify(Object.keys(log))}`);
+                    
+                    if (log.result && log.result.log) {
+                        console.log(`[VisbalExt.SfdxService] Found log content in old format result.log`);
+                        return log.result.log;
+                    } else {
+                        console.error('[VisbalExt.SfdxService] Log not found in old format response:', log);
+                        throw new Error('Log content not found in old format response');
+                    }
+                } catch (innerError) {
+                    console.error('[VisbalExt.SfdxService] Failed to fetch log content with both formats:', innerError);
+                    
+                    // Try one more approach - direct CLI output without JSON
+                    try {
+                        console.log('[VisbalExt.SfdxService] Trying direct CLI output without JSON');
+                        const selectedOrg = await OrgUtils.getSelectedOrg();
+                        const result = await this._executeCommand(`sf apex get log -i ${logId} --target-org ${selectedOrg?.alias}`);
+                        console.log('[VisbalExt.SfdxService] Successfully fetched log content with direct CLI output');
+                        if (result.stdout && result.stdout.trim().length > 0) {
+                            return result.stdout;
+                        } else {
+                            throw new Error('Empty log content from direct CLI output');
+                        }
+                    } catch (directError) {
+                        try {
+                            console.log('[VisbalExt.SfdxService] Trying direct CLI output with old format');
+                            const result = await this._executeCommand(`sfdx force:apex:log:get --logid ${logId}`);
+                            console.log('[VisbalExt.SfdxService] Successfully fetched log content with direct CLI output (old format)');
+                            if (result.stdout && result.stdout.trim().length > 0) {
+                                return result.stdout;
+                            } else {
+                                throw new Error('Empty log content from direct CLI output (old format)');
+                            }
+                        } catch (oldDirectError) {
+                            console.error('[VisbalExt.SfdxService] All attempts to fetch log content failed');
+                            throw new Error('Failed to fetch log content. The log may be too large to download. Please try using the Salesforce CLI directly.');
+                        }
+                    }
+                }
+            }
+            
+            // This should not be reached due to the throws above, but just in case
+            console.error('[VisbalExt.SfdxService] No log content found in any format');
+            throw new Error('Log content not found in any format');
+        } catch (error: any) {
+            console.error(`[VisbalExt.SfdxService] Error fetching log with ID ${logId}:`, error);
             throw error;
         }
     }
-	
 
     /**
      * Deletes a log by ID
@@ -602,8 +775,8 @@ export class SfdxService {
             let sfInstalled = false;
             try {
                 console.log('[VisbalExt.SfdxService] Checking if SF CLI is installed');
-                const sfVersionOutput = await this._executeCommand('sf version');
-                console.log(`[VisbalExt.SfdxService] SF CLI version: ${sfVersionOutput.trim()}`);
+                const result = await this._executeCommand('sf version');
+                console.log(`[VisbalExt.SfdxService] SF CLI version: ${result.stdout}`);
                 sfInstalled = true;
             } catch (err) {
                 console.log('[VisbalExt.SfdxService] SF CLI not installed');
@@ -626,7 +799,7 @@ export class SfdxService {
                 console.log(`[VisbalExt.SfdxService] Executing: ${command}`);
                 const queryData = await this._executeCommand(command);
                 console.log('[VisbalExt.SfdxService] Successfully executed SOQL query with new CLI format');
-                queryResult = JSON.parse(queryData);
+                queryResult = JSON.parse(queryData.stdout);
             } catch (error) {
                 console.log('[VisbalExt.SfdxService] Failed with new CLI format, trying old format', error);
                 // If the new command fails, try the old format
@@ -635,7 +808,7 @@ export class SfdxService {
                     console.log(`[VisbalExt.SfdxService] Executing: ${command}`);
                     const queryData = await this._executeCommand(command);
                     console.log('[VisbalExt.SfdxService] Successfully executed SOQL query with old CLI format');
-                    queryResult = JSON.parse(queryData);
+                    queryResult = JSON.parse(queryData.stdout);
                 } catch (innerError) {
                     console.error('[VisbalExt.SfdxService] Failed to execute SOQL query with both formats:', innerError);
                     throw new Error('Failed to execute SOQL query. Please ensure your Salesforce CLI is properly configured.');
@@ -667,221 +840,6 @@ export class SfdxService {
             return formattedLogs;
         } catch (error: any) {
             console.error('[VisbalExt.SfdxService] Error:', error);
-            throw error;
-        }
-    }
-
-    /**
-     * Fetches the content of a specific Salesforce debug log
-     * @param logId The ID of the log to fetch
-     * @returns Promise<string> The log content
-     * @throws Error if unable to fetch log content
-     */
-    public async fetchLogContent(logId: string): Promise<string> {
-        console.log(`[VisbalExt.SfdxService] Starting to fetch content for log: ${logId}`);
-        try {
-            // First, check if we can directly output to a file to avoid buffer issues
-            let targetDir: string;
-            
-            // Check if we have a workspace folder
-            if (vscode.workspace.workspaceFolders && vscode.workspace.workspaceFolders.length > 0) {
-                // Use the .visbal/logs directory in the workspace
-                targetDir = path.join(vscode.workspace.workspaceFolders[0].uri.fsPath, '.visbal', 'logs');
-            } else {
-                // Use the user's home directory
-                targetDir = path.join(os.homedir(), '.visbal', 'logs');
-            }
-            
-            // Create the directory if it doesn't exist
-            if (!fs.existsSync(targetDir)) {
-                console.log(`[VisbalExt.SfdxService] Creating directory: ${targetDir}`);
-                fs.mkdirSync(targetDir, { recursive: true });
-            }
-            
-            // Create a temporary file path for direct output
-            const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-            
-            // Sanitize the log ID to avoid any issues with special characters
-            const sanitizedLogId = logId.replace(/[\/\\:*?"<>|]/g, '_');
-            // Format: id_operation_status_size_date.log with temp_ prefix
-            const tempFilePath = path.join(targetDir, `temp_${sanitizedLogId}_${timestamp}.log`);
-            
-            console.log(`[VisbalExt.SfdxService] Temp file path: ${tempFilePath}`);
-            console.log(`[VisbalExt.SfdxService] Target directory: ${targetDir}`);
-            
-            // Try direct file output first (most reliable for large logs)
-            try {
-                console.log(`[VisbalExt.SfdxService] Trying direct file output to: ${tempFilePath}`);
-                
-                // Try with new CLI format first
-                try {
-                    const selectedOrg = await OrgUtils.getSelectedOrg();  
-                    const command = `sf apex get log -i ${logId} > "${tempFilePath}" --target-org ${selectedOrg?.alias}`;
-                    console.log(`[VisbalExt.SfdxService] Executing direct output command: ${command}`);
-                    await this._executeCommand(command);
-                    
-                    // Check if the file was created and has content
-                    if (fs.existsSync(tempFilePath) && fs.statSync(tempFilePath).size > 0) {
-                        console.log(`[VisbalExt.SfdxService] Successfully wrote log to file: ${tempFilePath}`);
-                        const logContent = fs.readFileSync(tempFilePath, 'utf8');
-                        
-                        // Clean up the temporary file
-                        try {
-                            fs.unlinkSync(tempFilePath);
-                        } catch (cleanupError) {
-                            console.log(`[VisbalExt.SfdxService] Warning: Could not delete temp file: ${tempFilePath}`);
-                        }
-                        
-                        return logContent;
-                    }
-                } catch (directOutputError) {
-                    console.log('[VisbalExt.SfdxService] Direct output with new CLI format failed, trying old format', directOutputError);
-                    
-                    // Try with old CLI format
-                    try {
-                        const command = `sfdx force:apex:log:get --logid ${logId} > "${tempFilePath}"`;
-                        console.log(`[VisbalExt.SfdxService] Executing direct output command with old format: ${command}`);
-                        await this._executeCommand(command);
-                        
-                        // Check if the file was created and has content
-                        if (fs.existsSync(tempFilePath) && fs.statSync(tempFilePath).size > 0) {
-                            console.log(`[VisbalExt.SfdxService] Successfully wrote log to file with old format: ${tempFilePath}`);
-                            const logContent = fs.readFileSync(tempFilePath, 'utf8');
-                            
-                            // Clean up the temporary file
-                            try {
-                                fs.unlinkSync(tempFilePath);
-                            } catch (cleanupError) {
-                                console.log(`[VisbalExt.SfdxService] Warning: Could not delete temp file: ${tempFilePath}`);
-                            }
-                            
-                            return logContent;
-                        }
-                    } catch (oldDirectOutputError) {
-                        console.log('[VisbalExt.SfdxService] Direct output with old CLI format failed', oldDirectOutputError);
-                    }
-                }
-            } catch (error) {
-                console.log('[VisbalExt.SfdxService] Direct file output approach failed, falling back to standard methods', error);
-            }
-            
-            // If direct file output failed, try the standard methods with increased buffer size
-            
-            // Try to fetch the log using the new command format first
-            let log;
-            console.log('[VisbalExt.SfdxService] Trying to fetch log content with new CLI format');
-            try {
-                const selectedOrg = await OrgUtils.getSelectedOrg();
-                const command = `sf apex get log -i ${logId} --json --target-org ${selectedOrg?.alias}`;
-                console.log(`[VisbalExt.SfdxService] Executing: ${command}`);
-                const logData = await this._executeCommand(command);
-                console.log('[VisbalExt.SfdxService] Successfully fetched log content with new CLI format');
-                log = JSON.parse(logData);
-                
-                // Debug the response structure
-                console.log(`[VisbalExt.SfdxService] Response structure: ${JSON.stringify(Object.keys(log))}`);
-                if (log.result) {
-                    console.log(`[VisbalExt.SfdxService] Result structure: ${typeof log.result} ${Array.isArray(log.result) ? 'array' : 'not array'}`);
-                    if (Array.isArray(log.result) && log.result.length > 0) {
-                        console.log(`[VisbalExt.SfdxService] First result item keys: ${JSON.stringify(Object.keys(log.result[0]))}`);
-                    }
-                }
-                
-                // Handle different response formats
-                if (log.result) {
-                    if (typeof log.result === 'string') {
-                        // Direct log content as string
-                        console.log('[VisbalExt.SfdxService] Found log content as string in result');
-                        return log.result;
-                    } else if (typeof log.result.log === 'string') {
-                        // Log content in result.log
-                        console.log('[VisbalExt.SfdxService] Found log content in result.log');
-                        return log.result.log;
-                    } else if (Array.isArray(log.result) && log.result.length > 0) {
-                        // Array result format
-                        const firstResult = log.result[0];
-                        
-                        // Check for common properties that might contain the log
-                        if (firstResult.log) {
-                            console.log('[VisbalExt.SfdxService] Found log content in result[0].log');
-                            return firstResult.log;
-                        } else if (firstResult.body) {
-                            console.log('[VisbalExt.SfdxService] Found log content in result[0].body');
-                            return firstResult.body;
-                        } else if (firstResult.content) {
-                            console.log('[VisbalExt.SfdxService] Found log content in result[0].content');
-                            return firstResult.content;
-                        } else if (firstResult.text) {
-                            console.log('[VisbalExt.SfdxService] Found log content in result[0].text');
-                            return firstResult.text;
-                        } else {
-                            // If we can't find a specific property, try to stringify the first result
-                            console.log('[VisbalExt.SfdxService] No specific log property found, using entire result object');
-                            return JSON.stringify(firstResult, null, 2);
-                        }
-                    }
-                }
-                
-                // If we couldn't find the log content in the expected places, try direct CLI output
-                console.log('[VisbalExt.SfdxService] Could not find log content in JSON response, trying direct CLI output');
-                throw new Error('Log content not found in expected format');
-            } catch (error) {
-                console.log('[VisbalExt.SfdxService] Failed with new CLI format or parsing, trying old format', error);
-                // If the new command fails, try the old format
-                try {
-                    const command = `sfdx force:apex:log:get --logid ${logId} --json`;
-                    console.log(`[VisbalExt.SfdxService] Executing: ${command}`);
-                    const logData = await this._executeCommand(command);
-                    console.log('[VisbalExt.SfdxService] Successfully fetched log content with old CLI format');
-                    log = JSON.parse(logData);
-                    
-                    // Debug the response structure
-                    console.log(`[VisbalExt.SfdxService] Old format response structure: ${JSON.stringify(Object.keys(log))}`);
-                    
-                    if (log.result && log.result.log) {
-                        console.log(`[VisbalExt.SfdxService] Found log content in old format result.log`);
-                        return log.result.log;
-                    } else {
-                        console.error('[VisbalExt.SfdxService] Log not found in old format response:', log);
-                        throw new Error('Log content not found in old format response');
-                    }
-                } catch (innerError) {
-                    console.error('[VisbalExt.SfdxService] Failed to fetch log content with both formats:', innerError);
-                    
-                    // Try one more approach - direct CLI output without JSON
-                    try {
-                        console.log('[VisbalExt.SfdxService] Trying direct CLI output without JSON');
-                        const selectedOrg = await OrgUtils.getSelectedOrg();
-                        const directOutput = await this._executeCommand(`sf apex get log -i ${logId} --target-org ${selectedOrg?.alias}`);
-                        console.log('[VisbalExt.SfdxService] Successfully fetched log content with direct CLI output');
-                        if (directOutput && directOutput.trim().length > 0) {
-                            return directOutput;
-                        } else {
-                            throw new Error('Empty log content from direct CLI output');
-                        }
-                    } catch (directError) {
-                        try {
-                            console.log('[VisbalExt.SfdxService] Trying direct CLI output with old format');
-                            const oldDirectOutput = await this._executeCommand(`sfdx force:apex:log:get --logid ${logId}`);
-                            console.log('[VisbalExt.SfdxService] Successfully fetched log content with direct CLI output (old format)');
-                            if (oldDirectOutput && oldDirectOutput.trim().length > 0) {
-                                return oldDirectOutput;
-                            } else {
-                                throw new Error('Empty log content from direct CLI output (old format)');
-                            }
-                        } catch (oldDirectError) {
-                            console.error('[VisbalExt.SfdxService] All attempts to fetch log content failed');
-                            throw new Error('Failed to fetch log content. The log may be too large to download. Please try using the Salesforce CLI directly.');
-                        }
-                    }
-                }
-            }
-            
-            // This should not be reached due to the throws above, but just in case
-            console.error('[VisbalExt.SfdxService] No log content found in any format');
-            throw new Error('Log content not found in any format');
-        } catch (error: any) {
-            console.error(`[VisbalExt.SfdxService] Error fetching log with ID ${logId}:`, error);
             throw error;
         }
     }
@@ -1024,7 +982,7 @@ export class SfdxService {
             }
             console.log(`[VisbalExt.SfdxService] runTests -- _executeCommand: ${command}`);
             const output = await this._executeCommand(command);
-            const result = JSON.parse(output).result;
+            const result = JSON.parse(output.stdout).result;
             
             const endTime = Date.now();
             console.log(`[VisbalExt.SfdxService] runTests -- TIME COMPLETED: ${endTime - startTime}ms`);
@@ -1041,6 +999,97 @@ export class SfdxService {
             }
             else {
                 console.error(`[VisbalExt.SfdxService] runTests -- Test execution failed after ${endTime - startTime}ms:`, error);
+                throw new Error(`Failed to run tests: ${error.message}`);
+            }
+        }
+    }
+
+
+    public async runAllTests(useDefaultOrg: boolean = false, synchronous: boolean = false): Promise<any> {
+        const startTime = Date.now();
+        try {
+            console.log(`[VisbalExt.SfdxService] runAllTests -- START at ${new Date(startTime).toISOString()}`);
+            let command = `sf apex run test `;
+
+            const selectedOrg = await OrgUtils.getSelectedOrg();
+            console.log(`[VisbalExt.SfdxService] runAllTests -- Selected org:`, selectedOrg);
+            if (synchronous) {
+                command += ` --synchronous`;
+            }
+            if (!useDefaultOrg && selectedOrg?.alias) {
+                command += ` --target-org ${selectedOrg.alias}`;
+            }
+            command += ' --json --wait 0'; // Add --wait 0 to get immediate response with testRunId
+            console.log(`[VisbalExt.SfdxService] runAllTests -- _executeCommand: ${command}`);
+            const output = await this._executeCommand(command);
+            const result = JSON.parse(output.stdout).result;
+            console.log('[VisbalExt.SfdxService] runAllTests -- Initial result:', result);
+            
+            // Store the final test result
+            let finalTestResult = result;
+            
+            // If we have a testRunId, poll for progress
+            if (result && result.testRunId) {
+                console.log('[VisbalExt.SfdxService] runAllTests -- Found testRunId:', result.testRunId);
+                let completed = false;
+                let attempts = 0;
+                const maxAttempts = 100; // Maximum number of polling attempts
+                const pollInterval = 3000; // Poll every 3 seconds
+                console.log(`[VisbalExt.SfdxService] runAllTests -- WHILE completed: ${completed} attempts: ${attempts} maxAttempts: ${maxAttempts}`);
+                while (!completed && attempts < maxAttempts) {
+                    try {
+                        console.log(`[VisbalExt.SfdxService] runAllTests -- Polling attempt ${attempts + 1}`);
+                        const testRunResult = await this.getTestRunResult(result.testRunId);
+                        console.log('[VisbalExt.SfdxService] runAllTests -- Poll result:', testRunResult);
+                        
+                        if (testRunResult && testRunResult.summary) {
+                            const { outcome, testsRan, passing, failing, skipped } = testRunResult.summary;
+                            console.log(`[VisbalExt.SfdxService] runAllTests -- Progress: ${testsRan} tests ran, ${passing} passed, ${failing} failed, ${skipped} skipped`);
+                            
+                            // Update the final result with the latest data
+                            finalTestResult = testRunResult;
+                            
+                            if (outcome === 'Completed' || outcome === 'Failed') {
+                                console.log('[VisbalExt.SfdxService] runAllTests -- Tests completed with outcome:', outcome);
+                                completed = true;
+                                break; // Exit the loop but don't return yet
+                            }
+                        } else {
+                            console.log('[VisbalExt.SfdxService] runAllTests -- No summary in test run result');
+                        }
+                    } catch (pollError) {
+                        console.error('[VisbalExt.SfdxService] runAllTests -- Error polling test progress:', pollError);
+                    }
+
+                    if (!completed) {
+                        console.log(`[VisbalExt.SfdxService] runAllTests -- Waiting ${pollInterval}ms before next poll`);
+                        await new Promise(resolve => setTimeout(resolve, pollInterval));
+                        attempts++;
+                    }
+                }
+
+                if (!completed) {
+                    console.warn('[VisbalExt.SfdxService] runAllTests -- Test execution polling timed out');
+                    throw new Error('Test execution timed out or exceeded maximum polling attempts');
+                }
+            } else {
+                console.log('[VisbalExt.SfdxService] runAllTests -- No testRunId found in result');
+            }
+            
+            const endTime = Date.now();
+            console.log(`[VisbalExt.SfdxService] runAllTests -- TIME COMPLETED: ${endTime - startTime}ms`);
+            console.log('[VisbalExt.SfdxService] runAllTests -- FINAL RESULT:', finalTestResult);
+            
+            return finalTestResult;
+        } catch (error: any) {
+            const endTime = Date.now();
+            if (error.stdout) {
+                const parsedStdout = JSON.parse(error.stdout);
+                console.error(`[VisbalExt.MetadataService] runAllTests ERROR parsedStdout: `, parsedStdout);
+                throw new Error(`Failed to run tests: ${parsedStdout.message}`);
+            }
+            else {
+                console.error(`[VisbalExt.SfdxService] runAllTests -- Test execution failed after ${endTime - startTime}ms:`, error);
                 throw new Error(`Failed to run tests: ${error.message}`);
             }
         }
@@ -1066,16 +1115,32 @@ export class SfdxService {
             command += ' --json';
             console.log(`[VisbalExt.SfdxService] getTestRunResult Executing command: ${command}`);
             const result = await this._executeCommand(command);
-            const parsedResult = JSON.parse(result);
+            const parsedResult = JSON.parse(result.stdout);
             
+            // Check if we got a valid result
+            if (!parsedResult.result) {
+                console.log('[VisbalExt.SfdxService] getTestRunResult No result found in response:', parsedResult);
+                return null;
+            }
+
             const endTime = Date.now();
             console.log(`[VisbalExt.SfdxService] getTestRunResult TIME in ${endTime - startTime}ms`);
-            console.log('[VisbalExt.SfdxService] getTestRunResult RETURN RESULT:', parsedResult);
+            console.log('[VisbalExt.SfdxService] getTestRunResult RETURN RESULT:', parsedResult.result);
             
-            return parsedResult.result || null;
-        } catch (error) {
+            return parsedResult.result;
+        } catch (error: any) {
             const endTime = Date.now();
             console.error(`[VisbalExt.SfdxService] getTestRunResult Error getting test run result after ${endTime - startTime}ms:`, error);
+            
+            // If we get a specific error about the test run not being found, return null instead of throwing
+            if (error.message && (
+                error.message.includes('No test run found') ||
+                error.message.includes('not found')
+            )) {
+                console.log('[VisbalExt.SfdxService] getTestRunResult Test run not found yet, returning null');
+                return null;
+            }
+            
             throw error;
         }
     }
@@ -1098,7 +1163,7 @@ export class SfdxService {
             
             console.log(`[VisbalExt.SfdxService] Executing command: ${command}`);
             const result = await this._executeCommand(command);
-            const parsedResult = JSON.parse(result);
+            const parsedResult = JSON.parse(result.stdout);
             
             if (!parsedResult.result) {
                 console.warn('[VisbalExt.SfdxService] getTestLog No test log content found');
@@ -1141,7 +1206,7 @@ export class SfdxService {
             console.log(`[VisbalExt.SfdxService] getTestLogId Executing command: ${command}`);
 
             const testRunDetailsResult = await this._executeCommand(command);
-            const testRunDetails = JSON.parse(testRunDetailsResult);
+            const testRunDetails = JSON.parse(testRunDetailsResult.stdout);
 
             if (!testRunDetails?.result?.summary?.testStartTime) {
                 console.warn('[VisbalExt.SfdxService] getTestLogId No test start time found in test run details');
@@ -1152,7 +1217,7 @@ export class SfdxService {
             const logListCommand = `sf apex list log --json`;
             console.log('[VisbalExt.SfdxService] getTestLogId -- logListCommand:', logListCommand);
             const logListResult = await this._executeCommand(logListCommand);
-            const logList = JSON.parse(logListResult);
+            const logList = JSON.parse(logListResult.stdout);
 
             if (!logList?.result || !logList.result[0]?.Id) {
                 console.warn('[VisbalExt.SfdxService] getTestLogId No logs found');
@@ -1185,7 +1250,7 @@ export class SfdxService {
             console.log(`[VisbalExt.SfdxService] getTestRunLog Executing command: ${command}`);
 
             const testResult = await this._executeCommand(command);
-            const parsedTestResult = JSON.parse(testResult);
+            const parsedTestResult = JSON.parse(testResult.stdout);
             
             if (!parsedTestResult.result?.tests?.[0]) {
                 throw new Error('Test results not found');
@@ -1194,7 +1259,7 @@ export class SfdxService {
             // Get the test run logs
             try {
                 const logResult = await this._executeCommand(`sf apex list log --json`);
-                const parsedLog = JSON.parse(logResult);
+                const parsedLog = JSON.parse(logResult.stdout);
                 
                 // Find the most recent log for this test run
                 const testLogs = parsedLog.result.filter((log: any) => 
@@ -1208,7 +1273,7 @@ export class SfdxService {
                     const latestLog = testLogs[0];
                     // Fetch the actual log content
                     const logContent = await this._executeCommand(`sf apex get log --log-id ${latestLog.Id} --json`);
-                    const parsedLogContent = JSON.parse(logContent);
+                    const parsedLogContent = JSON.parse(logContent.stdout);
 
                     if (parsedLogContent.result) {
                         const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
@@ -1275,7 +1340,7 @@ export class SfdxService {
             }
             command += ' --json';
             const resultStr = await this._executeCommand(command);
-            const result = JSON.parse(resultStr);
+            const result = JSON.parse(resultStr.stdout);
             
             if (result.status === 0 && result.result) {
                 console.log('[VisbalExt.SfdxService] SOQL query executed successfully');
@@ -1337,7 +1402,7 @@ export class SfdxService {
             }
             command += ' --json';
             const resultStr = await this._executeCommand(command);
-            const result = JSON.parse(resultStr);
+            const result = JSON.parse(resultStr.stdout);
             
             // Clean up the temporary file
             try {
@@ -1389,7 +1454,7 @@ export class SfdxService {
                 const command = 'sfdx force:data:soql:query --query "SELECT Id FROM ApexLog" --usetoolingapi --json';
                 console.log(`[VisbalExt.SfdxService] queryApexLogIds -- Executing command (old format): ${command}`);
                 const queryResult = await this._executeCommand(command);
-                const queryData = JSON.parse(queryResult);
+                const queryData = JSON.parse(queryResult.stdout);
                 
                 if (queryData.result && queryData.result.records) {
                     return queryData.result.records.map((record: any) => record.Id);
@@ -1405,8 +1470,8 @@ export class SfdxService {
 
     public async executeCommand(command: string): Promise<string> {
         try {
-            const { stdout } = await execPromise(command, { maxBuffer: 100 * 1024 * 1024 });
-            return stdout;
+            const result = await this._executeCommand(command);
+            return result.stdout;
         } catch (error) {
             const errorMessage = error instanceof Error ? error.message : String(error);
             console.error('Error executing SFDX command:', errorMessage);

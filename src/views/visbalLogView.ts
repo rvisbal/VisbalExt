@@ -2229,7 +2229,7 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
                 status: 'downloading' 
             });
 
-            await OrgUtils.openLog(logId, this._extensionUri);
+            await OrgUtils.openLog(logId, this._extensionUri, 'user_debug');
 
             this._view?.webview.postMessage({ 
                 command: 'downloadStatus', 
