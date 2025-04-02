@@ -1046,6 +1046,48 @@ export class SfdxService {
         }
     }
 
+
+    public async runAllTests(useDefaultOrg: boolean = false, synchronous: boolean = false): Promise<any> {
+        const startTime = Date.now();
+        try {
+            console.log(`[VisbalExt.SfdxService] runAllTests -- START at ${new Date(startTime).toISOString()}`);
+            //un all Apex tests and suites in your default org:
+            //sf apex run test
+            let command  =`sf apex run test `;
+            //sf apex run test --synchronous
+
+            const selectedOrg = await OrgUtils.getSelectedOrg();
+            console.log(`[VisbalExt.SfdxService] runAllTests -- Selected org:`, selectedOrg);
+            if (synchronous) {
+                command += ` --synchronous`;
+            }
+            if (!useDefaultOrg && selectedOrg?.alias) {
+                command += ` --target-org ${selectedOrg.alias}`;
+            }
+            console.log(`[VisbalExt.SfdxService] runAllTests -- _executeCommand: ${command}`);
+            const output = await this._executeCommand(command);
+            const  result = JSON.parse(output).result;
+            
+            const endTime = Date.now();
+            console.log(`[VisbalExt.SfdxService] runAllTests -- TIME COMPLETED: ${endTime - startTime}ms`);
+            console.log('[VisbalExt.SfdxService] runAllTests -- RETURN RESULT:', result);
+            
+            return result;
+        } catch (error: any) {
+            const endTime = Date.now();
+            //
+            if (error.stdout) {
+                const parsedStdout = JSON.parse(error.stdout);
+                console.error(`[VisbalExt.MetadataService] runAllTests ERROR parsedStdout: `, parsedStdout);
+                throw new Error(`Failed to run tests: ${parsedStdout.message}`);
+            }
+            else {
+                console.error(`[VisbalExt.SfdxService] runAllTests -- Test execution failed after ${endTime - startTime}ms:`, error);
+                throw new Error(`Failed to run tests: ${error.message}`);
+            }
+        }
+    }
+
     /**
      * Gets the result of a test run
      * @param testRunId The ID of the test run
