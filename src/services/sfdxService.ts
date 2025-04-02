@@ -1051,10 +1051,7 @@ export class SfdxService {
         const startTime = Date.now();
         try {
             console.log(`[VisbalExt.SfdxService] runAllTests -- START at ${new Date(startTime).toISOString()}`);
-            //un all Apex tests and suites in your default org:
-            //sf apex run test
-            let command  =`sf apex run test `;
-            //sf apex run test --synchronous
+            let command = `sf apex run test `;
 
             const selectedOrg = await OrgUtils.getSelectedOrg();
             console.log(`[VisbalExt.SfdxService] runAllTests -- Selected org:`, selectedOrg);
@@ -1064,18 +1061,70 @@ export class SfdxService {
             if (!useDefaultOrg && selectedOrg?.alias) {
                 command += ` --target-org ${selectedOrg.alias}`;
             }
+            command += ' --json --wait 0'; // Add --wait 0 to get immediate response with testRunId
             console.log(`[VisbalExt.SfdxService] runAllTests -- _executeCommand: ${command}`);
             const output = await this._executeCommand(command);
-            const  result = JSON.parse(output).result;
+            const result = JSON.parse(output).result;
+            console.log('[VisbalExt.SfdxService] runAllTests -- Initial result:', result);
+            
+            // Store the final test result
+            let finalTestResult = result;
+            
+            // If we have a testRunId, poll for progress
+            if (result && result.testRunId) {
+                console.log('[VisbalExt.SfdxService] runAllTests -- Found testRunId:', result.testRunId);
+                let completed = false;
+                let attempts = 0;
+                const maxAttempts = 100; // Maximum number of polling attempts
+                const pollInterval = 3000; // Poll every 3 seconds
+                console.log(`[VisbalExt.SfdxService] runAllTests -- WHILE completed: ${completed} attempts: ${attempts} maxAttempts: ${maxAttempts}`);
+                while (!completed && attempts < maxAttempts) {
+                    try {
+                        console.log(`[VisbalExt.SfdxService] runAllTests -- Polling attempt ${attempts + 1}`);
+                        const testRunResult = await this.getTestRunResult(result.testRunId);
+                        console.log('[VisbalExt.SfdxService] runAllTests -- Poll result:', testRunResult);
+                        
+                        if (testRunResult && testRunResult.summary) {
+                            const { outcome, testsRan, passing, failing, skipped } = testRunResult.summary;
+                            console.log(`[VisbalExt.SfdxService] runAllTests -- Progress: ${testsRan} tests ran, ${passing} passed, ${failing} failed, ${skipped} skipped`);
+                            
+                            // Update the final result with the latest data
+                            finalTestResult = testRunResult;
+                            
+                            if (outcome === 'Completed' || outcome === 'Failed') {
+                                console.log('[VisbalExt.SfdxService] runAllTests -- Tests completed with outcome:', outcome);
+                                completed = true;
+                                break; // Exit the loop but don't return yet
+                            }
+                        } else {
+                            console.log('[VisbalExt.SfdxService] runAllTests -- No summary in test run result');
+                        }
+                    } catch (pollError) {
+                        console.error('[VisbalExt.SfdxService] runAllTests -- Error polling test progress:', pollError);
+                    }
+
+                    if (!completed) {
+                        console.log(`[VisbalExt.SfdxService] runAllTests -- Waiting ${pollInterval}ms before next poll`);
+                        await new Promise(resolve => setTimeout(resolve, pollInterval));
+                        attempts++;
+                    }
+                }
+
+                if (!completed) {
+                    console.warn('[VisbalExt.SfdxService] runAllTests -- Test execution polling timed out');
+                    throw new Error('Test execution timed out or exceeded maximum polling attempts');
+                }
+            } else {
+                console.log('[VisbalExt.SfdxService] runAllTests -- No testRunId found in result');
+            }
             
             const endTime = Date.now();
             console.log(`[VisbalExt.SfdxService] runAllTests -- TIME COMPLETED: ${endTime - startTime}ms`);
-            console.log('[VisbalExt.SfdxService] runAllTests -- RETURN RESULT:', result);
+            console.log('[VisbalExt.SfdxService] runAllTests -- FINAL RESULT:', finalTestResult);
             
-            return result;
+            return finalTestResult;
         } catch (error: any) {
             const endTime = Date.now();
-            //
             if (error.stdout) {
                 const parsedStdout = JSON.parse(error.stdout);
                 console.error(`[VisbalExt.MetadataService] runAllTests ERROR parsedStdout: `, parsedStdout);
@@ -1110,14 +1159,30 @@ export class SfdxService {
             const result = await this._executeCommand(command);
             const parsedResult = JSON.parse(result);
             
+            // Check if we got a valid result
+            if (!parsedResult.result) {
+                console.log('[VisbalExt.SfdxService] getTestRunResult No result found in response:', parsedResult);
+                return null;
+            }
+
             const endTime = Date.now();
             console.log(`[VisbalExt.SfdxService] getTestRunResult TIME in ${endTime - startTime}ms`);
-            console.log('[VisbalExt.SfdxService] getTestRunResult RETURN RESULT:', parsedResult);
+            console.log('[VisbalExt.SfdxService] getTestRunResult RETURN RESULT:', parsedResult.result);
             
-            return parsedResult.result || null;
-        } catch (error) {
+            return parsedResult.result;
+        } catch (error: any) {
             const endTime = Date.now();
             console.error(`[VisbalExt.SfdxService] getTestRunResult Error getting test run result after ${endTime - startTime}ms:`, error);
+            
+            // If we get a specific error about the test run not being found, return null instead of throwing
+            if (error.message && (
+                error.message.includes('No test run found') ||
+                error.message.includes('not found')
+            )) {
+                console.log('[VisbalExt.SfdxService] getTestRunResult Test run not found yet, returning null');
+                return null;
+            }
+            
             throw error;
         }
     }

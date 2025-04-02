@@ -1083,7 +1083,9 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
             console.log(`[VisbalExt.TestClassExplorerView] _executeAllTest:`);
             
             const result = await this._sfdxService.runAllTests();
+            console.log('[VisbalExt.TestClassExplorerView] _executeAllTest -- result:', result);
             if (result && result.testRunId) {
+                console.log('[VisbalExt.TestClassExplorerView] _executeAllTest -- result.testRunId:', result.testRunId);
                 const [testRunResult, logId] = await Promise.all([
                     this._sfdxService.getTestRunResult(result.testRunId),
                     this._sfdxService.getTestLogId(result.testRunId)
