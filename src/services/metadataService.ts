@@ -371,35 +371,11 @@ export class MetadataService {
             
             if (method.isTestMethod) {
                 console.log(`[VisbalExt.MetadataService] extractTestMethods -- Found test method: ${methodName}`);
-            } else {
-                console.log(`[VisbalExt.MetadataService] extractTestMethods -- Method ${methodName} is not a test method`);
             }
         }   
-        
-        
-        // Use the specific test method patterns
-        for (const pattern of patterns) {
-            let match;
-            while ((match = pattern.exec(classBody)) !== null) {
-                const methodName = match[1];
-                // Skip if method is already added or is a TestSetup method
-                if (!methods.some(m => m.name === methodName) && !testSetupMethods.has(methodName)) {
-                    // Additional check to ensure it's not a TestSetup method
-                    const methodStart = classBody.indexOf(methodName);
-                    const methodContext = classBody.substring(Math.max(0, methodStart - 100), methodStart);
-                    if (!methodContext.toLowerCase().includes('@testsetup')) {
-                        console.log(`[VisbalExt.MetadataService] extractTestMethods -- Found test method: ${methodName}`);
-                        methods.push({
-                            name: methodName,
-                            isTestMethod: true
-                        });
-                    }
-                }
-            }
-        }
 
-        console.log(`[VisbalExt.MetadataService] Extracted ${methods.length} test methods`);
-        return methods;
+        // Filter out non-test methods before returning
+        return methods.filter(method => method.isTestMethod);
     }
 
     /**
