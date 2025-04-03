@@ -1101,43 +1101,52 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                     });
                     this._testRunResultsView.updateMethodStatus(className, methodName, 'running');
                     console.log(`[VisbalExt.VisbalExt.TestClassExplorerView] _runTestSelectedSequentially -- Running: ${className}.${methodName} -- iteration:${countIteration}`);
-                    const progress = testProgress.get(className);
+                    const progress = testProgress.get(methodId);
                     if (progress) {
                         try {
-                            // Execute test and wait for result
-                            const result = await this._sfdxService.runTests(className, methodName);
-                            console.log(`[VisbalExt.TestClassExplorerView] _runTestSelectedSequentially -- runTests -- iteration:${countIteration} result:`, result);
-                            progress.runTest = result;
-                            progress.testRunId = progress.runTest.testRunId;
-                            progress.finishExecutingTest = true;
-                            console.error(`[VisbalExt.TestClassExplorer] _runTestSelectedSequentially -- runTests -- iteration:${countIteration} result:`, result);
+                            const handleTestRun = async () => {
+                                // Execute test and wait for result
+                                console.log(`[VisbalExt.TestClassExplorerView] _runTestSelectedSequentially -- runTests -- iteration:${countIteration} className:${className} methodName:${methodName}`);
+                                const result = await this._sfdxService.runTests(className, methodName);
+                                console.log(`[VisbalExt.TestClassExplorerView] _runTestSelectedSequentially -- runTests -- iteration:${countIteration} result:`, result);
+                                progress.runTest = result;
+                                progress.testRunId = progress.runTest.testRunId;
+                                progress.finishExecutingTest = true;
+                                console.error(`[VisbalExt.TestClassExplorer] _runTestSelectedSequentially -- runTests -- iteration:${countIteration} result:`, result);
 
-                            if (!progress.runResult && !progress.initiateTestResult) {
-                                progress.initiateTestResult = true;
-                                const testResult = await this._sfdxService.getTestRunResult(result.testRunId);
-                                progress.runResult = testResult;
-                                progress.finishGettingTestResult = true;
-                                console.error(`[VisbalExt.TestClassExplorer] _runTestSelectedSequentially -- getTestRunResult -- iteration:${countIteration} result:`, testResult);
-                            }
+                                if (!progress.runResult && !progress.initiateTestResult) {
+                                    progress.initiateTestResult = true;
+                                    const testResult = await this._sfdxService.getTestRunResult(result.testRunId);
+                                    progress.runResult = testResult;
+                                    progress.finishGettingTestResult = true;
+                                    console.error(`[VisbalExt.TestClassExplorer] _runTestSelectedSequentially -- getTestRunResult -- iteration:${countIteration} result:`, testResult);
+                                }
 
-                            if (!progress.logId && !progress.initiateLogId) {
-                                progress.initiateLogId = true;
-                                const logId = await this._sfdxService.getTestLogId(result.testRunId);
-                                progress.logId = logId;
-                                progress.finishGettingLogId = true;
-                                console.error(`[VisbalExt.TestClassExplorer] _runTestSelectedSequentially -- getTestLogId -- iteration:${countIteration} logId:`, logId);
+                                if (!progress.logId && !progress.initiateLogId) {
+                                    progress.initiateLogId = true;
+                                    const logId = await this._sfdxService.getTestLogId(result.testRunId);
+                                    progress.logId = logId;
+                                    progress.finishGettingLogId = true;
+                                    console.error(`[VisbalExt.TestClassExplorer] _runTestSelectedSequentially -- getTestLogId -- iteration:${countIteration} logId:`, logId);
 
-                                if (progress.logId && !progress.initiateDownloadingLog) {
-                                    progress.initiateDownloadingLog = true;
-                                    this._testRunResultsView.updateMethodStatus(progress.className, progress.methodName, TestStatus.downloading, progress.logId);
-                                    // Download log in background
-                                    await this._orgUtils.downloadLog(progress.logId);
-                                    progress.finishDownloadingLog = true;
-                                    console.error(`[VisbalExt.TestClassExplorer] _runTestSelectedSequentially -- downloadLog -- iteration:${countIteration} logId:`, progress.logId);
+                                    if (progress.logId && !progress.initiateDownloadingLog) {
+                                        progress.initiateDownloadingLog = true;
+                                        this._testRunResultsView.updateMethodStatus(progress.className, progress.methodName, TestStatus.downloading, progress.logId);
+                                        // Download log in background
+                                        await this._orgUtils.downloadLog(progress.logId);
+                                        progress.finishDownloadingLog = true;
+                                        console.error(`[VisbalExt.TestClassExplorer] _runTestSelectedSequentially -- downloadLog -- iteration:${countIteration} logId:`, progress.logId);
+                                    }
                                 }
                             }
+
+                             // Execute the async function without waiting
+                             handleTestRun().catch(error => {
+                                console.error(`[VisbalExt.TestClassExplorer] _runTestSelectedSequentially -- handleTestRun -- iteration:${countIteration} ${className}.${methodName} ERROR`, error);
+                                this._testRunResultsView.updateMethodStatus(className, methodName, 'failed');
+                            });
                         } catch (error) {
-                            console.error(`[VisbalExt.TestClassExplorer] _runTestSelectedSequentially -- error: ${error} -- iteration:${countIteration}`);
+                            console.error(`[VisbalExt.TestClassExplorer] _runTestSelectedSequentially -- error: -- iteration:${countIteration}`, error);
                         }
                     }
                 }
