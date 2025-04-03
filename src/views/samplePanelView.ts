@@ -25,19 +25,15 @@ export class SamplePanelView implements vscode.WebviewViewProvider {
     private async _loadApexFiles() {
         try {
             // Get files from both locations
-            const [userFiles, templateFiles] = await Promise.all([
-                vscode.workspace.findFiles('src/apex/*.apex'),
+            const [templateFiles] = await Promise.all([
                 vscode.workspace.findFiles('.visbal/templates/apex/*.apex')
             ]);
 
             // If src/apex directory doesn't exist or is empty, copy template files
-            if (userFiles.length === 0) {
-                await this._copyTemplateFiles();
-                // Refresh user files after copy
-                const updatedUserFiles = await vscode.workspace.findFiles('src/apex/*.apex');
-                this._apexFiles = updatedUserFiles.map(file => file.fsPath);
+            if (templateFiles.length === 0) {
+                console.log('[VisbalExt.SamplePanelView] _loadApexFiles -- No template files found, copying template files');
             } else {
-                this._apexFiles = userFiles.map(file => file.fsPath);
+                this._apexFiles = templateFiles.map(file => file.fsPath);
             }
 
             // Sort files alphabetically by filename
@@ -63,6 +59,7 @@ export class SamplePanelView implements vscode.WebviewViewProvider {
 
     private async _copyTemplateFiles() {
         try {
+            /*
             // Ensure src/apex directory exists
             const srcApexUri = vscode.Uri.joinPath(vscode.workspace.workspaceFolders![0].uri, 'src', 'apex');
             await vscode.workspace.fs.createDirectory(srcApexUri);
@@ -87,6 +84,7 @@ export class SamplePanelView implements vscode.WebviewViewProvider {
                     console.log(`[VisbalExt.SamplePanelView] Copied template file: ${fileName}`);
                 }
             }
+            */
         } catch (error: any) {
             console.error('[VisbalExt.SamplePanelView] Error copying template files:', error);
             throw error;

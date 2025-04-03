@@ -33,14 +33,16 @@ export interface SelectedOrg {
     timestamp: string;
 }
 
+interface LogResult {
+    log: string;
+}
+
 export class OrgUtils {
     private static _downloadedLogs: Set<string> = new Set<string>();
     private static _downloadedLogPaths: Map<string, string> = new Map<string, string>();
     private static _logs: any[] = [];
     private static _context: vscode.ExtensionContext;
     private static _sfdxService: SfdxService;
-
-
 
     /**
      * Initialize the OrgUtils class with necessary data
@@ -61,7 +63,6 @@ export class OrgUtils {
         this._downloadedLogs = downloadedLogs;
         this._downloadedLogPaths = downloadedLogPaths;
     }
-
 
     public static getSectionArray(orgs: Set<object>): any[] {
         if (Array.isArray(orgs)) {
@@ -226,6 +227,22 @@ export class OrgUtils {
         }
     }
 
+    private static parseResultJson(content: string): { isJson: boolean; hasError: boolean; content: LogResult[] | null } {
+        const result = {
+            isJson: false,
+            hasError: false,
+            content: null as LogResult[] | null
+        };
+        try {
+            result.content = JSON.parse(content);
+            result.isJson = true;
+        } catch (error: any) {
+           console.log(`[VisbalExt.OrgUtils] isJsonType -- error:`, error);
+           result.hasError = true;
+        }
+        return result;
+    }
+
     /**
      * Fetch log content from Salesforce
      * @param logId ID of the log to fetch
@@ -240,12 +257,16 @@ export class OrgUtils {
         try {
             console.log('[VisbalExt.OrgUtils] _fetchLogContent -- logId:', logId);
             const result = await this._sfdxService.getLogContent(logId);
-            //console.log('[VisbalExt.OrgUtils] _fetchLogContent -- Result:', result);
-            const jsonResult = JSON.parse(result);
+            console.log('[VisbalExt.OrgUtils] _fetchLogContent -- Result:', result);
+            const jsonResult = this.parseResultJson(result);
             console.log('[VisbalExt.OrgUtils] _fetchLogContent -- jsonResult:', jsonResult);
-            if (jsonResult?.result) {
+            if (!jsonResult.hasError && jsonResult.content && jsonResult.content[0]?.log) {
                 console.log('[VisbalExt.OrgUtils] _fetchLogContent -- retunrretuning');
-                return jsonResult.result[0].log;
+                return jsonResult.content[0].log;
+            }
+            else {
+                console.log('[VisbalExt.OrgUtils] _fetchLogContent -- returning result:', result);
+                return result;
             }
         } catch (e) {
             console.log('[VisbalExt.OrgUtils] _fetchLogContent -- Error:', e);

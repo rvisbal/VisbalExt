@@ -20,15 +20,53 @@ export function getLogListTemplate(): string {
                 padding: 0;
                 color: var(--vscode-foreground);
                 background-color: var(--vscode-editor-background);
+                height: 100vh;
+                overflow: hidden;
             }
             .container {
-                padding: 15px;
+                padding: 0;
+                height: 100vh;
+                display: flex;
+                flex-direction: column;
             }
             .header {
                 display: flex;
                 justify-content: space-between;
                 align-items: center;
-                margin-bottom: 20px;
+                padding: 10px 15px;
+                background-color: var(--vscode-editor-background);
+                border-bottom: 1px solid var(--vscode-panel-border);
+                flex: 0 0 auto;
+            }
+            .tabs {
+                display: flex;
+                border-bottom: 1px solid var(--vscode-panel-border);
+                flex: 0 0 auto;
+                padding: 0 15px;
+            }
+            .tab-content {
+                display: none;
+                height: 100%;
+                overflow: auto;
+                padding: 15px;
+            }
+            .tab-content.active {
+                display: block;
+                flex: 1;
+            }
+            .raw-log {
+                white-space: pre-wrap;
+                font-family: monospace;
+                padding: 10px;
+                background-color: var(--vscode-editor-background);
+                border: 1px solid var(--vscode-panel-border);
+                overflow: auto;
+                height: calc(100vh - 150px);
+                margin: 0;
+            }
+            #overview, #timeline, #execution, #database, #limits, #user_debug, #user_info, #raw {
+                height: calc(100vh - 110px);
+                overflow: auto;
             }
             h1 {
                 margin: 0;
@@ -586,15 +624,59 @@ export function getHtmlTemplate(
                 padding: 0;
                 color: var(--vscode-foreground);
                 background-color: var(--vscode-editor-background);
+                height: 100vh;
+                overflow: hidden;
             }
             .container {
-                padding: 15px;
+                padding: 0;
+                height: 100vh;
+                display: flex;
+                flex-direction: column;
             }
             .header {
                 display: flex;
                 justify-content: space-between;
                 align-items: center;
-                margin-bottom: 20px;
+                padding: 10px 15px;
+                background-color: var(--vscode-editor-background);
+                border-bottom: 1px solid var(--vscode-panel-border);
+                flex: 0 0 auto;
+            }
+            .log-title {
+                font-size: 1.2em;
+                font-weight: bold;
+                color: var(--vscode-foreground);
+                display: flex;
+                align-items: center;
+                min-width: 100px;
+            }
+            .log-info {
+                flex: 1;
+                margin: 0 15px;
+                padding: 8px 12px;
+                background-color: var(--vscode-editor-inactiveSelectionBackground);
+                border-radius: 4px;
+                font-size: 0.9em;
+                display: flex;
+                align-items: center;
+            }
+            .log-actions {
+                display: flex;
+                align-items: center;
+                gap: 8px;
+            }
+            .log-actions .button {
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                width: 32px;
+                height: 32px;
+                padding: 0;
+                border-radius: 4px;
+            }
+            .log-actions .button svg {
+                width: 16px;
+                height: 16px;
             }
             h1 {
                 margin: 0;
@@ -612,7 +694,8 @@ export function getHtmlTemplate(
             .tabs {
                 display: flex;
                 border-bottom: 1px solid var(--vscode-panel-border);
-                margin-bottom: 20px;
+                flex: 0 0 auto;
+                padding: 0 15px;
             }
             .tab {
                 padding: 8px 16px;
@@ -629,9 +712,13 @@ export function getHtmlTemplate(
             }
             .tab-content {
                 display: none;
+                height: 100%;
+                overflow: auto;
+                padding: 15px;
             }
             .tab-content.active {
                 display: block;
+                flex: 1;
             }
             .button {
                 background-color: var(--vscode-button-background);
@@ -680,7 +767,8 @@ export function getHtmlTemplate(
                 background-color: var(--vscode-editor-background);
                 border: 1px solid var(--vscode-panel-border);
                 overflow: auto;
-                max-height: 500px;
+                height: calc(100vh - 150px);
+                margin: 0;
             }
             .limit-bar {
                 height: 20px;
@@ -829,7 +917,8 @@ export function getHtmlTemplate(
                 background-color: var(--vscode-editor-background);
                 border: 1px solid var(--vscode-panel-border);
                 overflow: auto;
-                max-height: 500px;
+                height: calc(100vh - 150px);
+                margin: 0;
             }
 
             /* Log colorization styles */
@@ -879,18 +968,28 @@ export function getHtmlTemplate(
     <body>
         <div class="container">
             <div class="header">
-                <h1>Log Detail View</h1>
-                <div>
-                    <button id="backButton" class="button">Back to List</button>
-                    <button id="downloadButton" class="button">Download</button>
+                <div class="log-title">Log :</div>
+                <div class="log-info">${logFileName} - ${fileSize}</div>
+                <div class="log-actions">
+                    <button id="backButton" class="button">
+                        <svg width="16" height="16" viewBox="0 0 16 16">
+                            <path fill="currentColor" d="M7 3.093l-5 5V8.8l5 5 .707-.707-4.146-4.147H14v-1H3.56L7.708 3.8 7 3.093z"/>
+                        </svg>
+                    </button>
+                    <button id="copyButton" class="button">
+                        <svg width="16" height="16" viewBox="0 0 16 16">
+                            <path fill="currentColor" d="M4 4v9h9V4H4zm8 8H5V5h7v7zm2-4h1v5H9v1h6v-6zm-3-6h1v5h5v1h-6V2z"/>
+                        </svg>
+                    </button>
+                    <button id="downloadButton" class="button">
+                        <svg width="16" height="16" viewBox="0 0 16 16">
+                            <path fill="currentColor" d="M7.47 10.78l.47.47.47-.47 2.47-2.47-.94-.94L8 9.31V3H7v6.31L5.06 7.37l-.94.94 2.47 2.47zM3.5 12h8l.5.5v1l-.5.5h-8l-.5-.5v-1l.5-.5z"/>
+                        </svg>
+                    </button>
                 </div>
             </div>
             
-            <div class="log-info">
-                <p><strong>File:</strong> ${logFileName}</p>
-                <p><strong>Size:</strong> ${fileSize}</p>
-                <p><strong>Date:</strong> ${new Date().toLocaleString()}</p>
-            </div>
+           
             
             <div class="tabs">
                 ${tabs.map(tab => `<button class="tab ${tab.id === currentTab ? 'active' : ''}" data-tab="${tab.id}">${tab.label}</button>`).join('')}
@@ -1051,11 +1150,6 @@ export function getHtmlTemplate(
 
              
             <div id="user_info" class="tab-content ${currentTab === 'user_info' ? 'active' : ''}">
-                <h2>Info Lines</h2>
-                <div class="user-debug-info">
-                    <p>Showing debug-related lines from the log file, including USER_DEBUG, FATAL_ERROR, DML_BEGIN, and SOQL_EXECUTE_BEGIN.</p>
-                    <p>Total debug lines: ${parsedData.summary ? parsedData.summary.userDebugCount : 0}</p>
-                </div>
                 <pre class="user-debug-content raw-log">${formatLogContentForHtml(parsedData.userInfoLog) || 'No debug lines found in the log.'}</pre>
             </div>
             
@@ -1118,6 +1212,52 @@ export function getHtmlTemplate(
                     vscode.postMessage({
                         command: 'downloadCurrentLog'
                     });
+                });
+
+                // Copy button
+                document.getElementById('copyButton').addEventListener('click', async () => {
+                    console.log('[VisbalExt.htmlTemplate:WebView] Copy button clicked');
+                    
+                    try {
+                        // Get the active tab content
+                        const activeTab = document.querySelector('.tab-content.active');
+                        let textToCopy = '';
+                        
+                        if (activeTab) {
+                            // If there's a pre element (raw log), use that
+                            const preElement = activeTab.querySelector('pre');
+                            if (preElement) {
+                                textToCopy = preElement.textContent || '';
+                            } else {
+                                // Otherwise, get all text content from the tab
+                                textToCopy = activeTab.textContent || '';
+                            }
+                        }
+                        
+                        // Copy to clipboard
+                        await navigator.clipboard.writeText(textToCopy);
+                        
+                        // Visual feedback
+                        const copyButton = document.getElementById('copyButton');
+                        const originalHTML = copyButton.innerHTML;
+                        copyButton.innerHTML = 
+                            '<svg width="16" height="16" viewBox="0 0 16 16">' +
+                            '<path fill="currentColor" d="M13.78 4.22a.75.75 0 0 1 0 1.06l-7.25 7.25a.75.75 0 0 1-1.06 0L2.22 9.28a.75.75 0 0 1 1.06-1.06L6 10.94l6.72-6.72a.75.75 0 0 1 1.06 0z"/>' +
+                            '</svg>';
+                        
+                        // Reset button after 2 seconds
+                        setTimeout(() => {
+                            copyButton.innerHTML = originalHTML;
+                        }, 2000);
+                        
+                        console.log('[VisbalExt.htmlTemplate:WebView] Content copied successfully');
+                    } catch (error) {
+                        console.error('[VisbalExt.htmlTemplate:WebView] Error copying content:', error);
+                        vscode.postMessage({
+                            command: 'showError',
+                            message: 'Failed to copy content to clipboard'
+                        });
+                    }
                 });
                 
                 // Filter tags

@@ -879,14 +879,54 @@ export class SoqlPanelView implements vscode.WebviewViewProvider {
                             return;
                         }
                         noResultsContainer.classList.remove('show');
-                        const columns = Object.keys(results.records[0]).filter(col => col !== 'attributes');
+                        function getFields(record, prefix = '') {
+                            const fields = [];
+                            for (const [key, value] of Object.entries(record)) {
+                                if (key === 'attributes') continue;
+                                
+                                if (value && typeof value === 'object' && !Array.isArray(value)) {
+                                    // Handle nested objects (relationships)
+                                    const nestedFields = getFields(value, prefix + key + '.');
+                                    fields.push(...nestedFields);
+                                } else {
+                                    fields.push(prefix + key);
+                                }
+                            }
+                            return fields;
+                        }
+
+                        // Get all unique fields from all records
+                        const allFields = new Set();
+                        results.records.forEach(record => {
+                            getFields(record).forEach(field => allFields.add(field));
+                        });
+                        const columns = Array.from(allFields);
+
+                        function formatColumnHeader(field) {
+                            return field;
+                        }
+
+                        function getNestedValue(record, path) {
+                            const parts = path.split('.');
+                            let value = record;
+                            
+                            for (const part of parts) {
+                                if (value === null || value === undefined) return '';
+                                value = value[part];
+                            }
+                            
+                            if (value === null || value === undefined) return '';
+                            if (typeof value === 'object') return JSON.stringify(value);
+                            return String(value);
+                        }
+
                         soqlResultsHeader.innerHTML = '<tr>' + columns.map(col => 
-                            '<th>' + col + '</th>'
+                            '<th>' + formatColumnHeader(col) + '</th>'
                         ).join('') + '</tr>';
 
                         soqlResultsBody.innerHTML = results.records.map(record => 
                             '<tr>' + columns.map(col => 
-                                '<td>' + (record[col] || '') + '</td>'
+                                '<td>' + getNestedValue(record, col) + '</td>'
                             ).join('') + '</tr>'
                         ).join('');
 
