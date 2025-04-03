@@ -966,6 +966,7 @@ export class SfdxService {
      * Runs Apex tests
      */
     public async runTests(testClass: string, testMethod?: string, useDefaultOrg: boolean = false): Promise<any> {
+        console.log(`[VisbalExt.SfdxService] runTests -- START at ${new Date().toISOString()}`);
         const startTime = Date.now();
         try {
             const methodLabel = `class: ${testClass}${testMethod ? `, method: ${testMethod}` : ''}`;
