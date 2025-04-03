@@ -333,6 +333,49 @@ export class MetadataService {
                 }
             }
         }
+
+        // double check if potentials are test methods by verifying they have the @isTest annotation
+        for (const method of methods) {
+            const methodName = method.name;
+            const methodStart = classBody.indexOf(methodName);
+            // Look for @IsTest in a more targeted way - from the previous method or class start
+            let methodContext = classBody.substring(0, methodStart);
+            // Find the last occurrence of either a closing brace } or class declaration before the method
+            const lastBrace = methodContext.lastIndexOf('}');
+            const lastClass = methodContext.lastIndexOf('class');
+            const searchStart = Math.max(lastBrace, lastClass);
+            // Only look at the context between the last closing brace/class and the method
+            methodContext = methodContext.substring(searchStart);
+            
+            // First check for standalone @IsTest annotation above the method
+            const hasIsTestAnnotation = /@istest\s*$/im.test(methodContext);
+            
+            // If no standalone annotation, check for other test method patterns
+            if (!hasIsTestAnnotation) {
+                const isTestPatterns = [
+                    new RegExp(`@istest\\s+(?:static\\s+)?(?:void\\s+)?${methodName}\\s*\\(`, 'i'),
+                    new RegExp(`testmethod\\s+(?:static\\s+)?(?:void\\s+)?${methodName}\\s*\\(`, 'i'),
+                    new RegExp(`@istest\\s+.*?${methodName}\\s*\\(`, 'i')
+                ];
+                
+                // Check if the method name ends with 'Test' or 'Tests'
+                const isTestByName = methodName.toLowerCase().endsWith('test') || 
+                                   methodName.toLowerCase().endsWith('tests');
+                                   
+                const isTestByPattern = isTestPatterns.some(pattern => pattern.test(methodContext));
+                
+                method.isTestMethod = isTestByName || isTestByPattern;
+            } else {
+                method.isTestMethod = true;
+            }
+            
+            if (method.isTestMethod) {
+                console.log(`[VisbalExt.MetadataService] extractTestMethods -- Found test method: ${methodName}`);
+            } else {
+                console.log(`[VisbalExt.MetadataService] extractTestMethods -- Method ${methodName} is not a test method`);
+            }
+        }   
+        
         
         // Use the specific test method patterns
         for (const pattern of patterns) {
