@@ -32,17 +32,17 @@ export class SfdxService {
                 if (error) {
                     // If we have stdout even with an error, we might want to use it
                     if (stdout) {
-                        console.log(`[VisbalExt.SfdxService] _executeCommand Warning: Command had error but returned stdout:`, stdout);
+                        console.log(`[VisbalExt.SfdxService] _executeCommand Warning: Command ${command} stdout:`, stdout);
                         resolve({ stdout: stdout.toString(), stderr: stderr?.toString() || '' });
                         return;
                     }
-                    console.error(`[VisbalExt.SfdxService] _executeCommand Error:`, error);
+                    console.error(`[VisbalExt.SfdxService] _executeCommand ${command} Error:`, error);
                     reject(error);
                     return;
                 }
                 
                 if (stderr) {
-                    console.warn(`[VisbalExt.SfdxService] _executeCommand stderr:`, stderr);
+                    console.warn(`[VisbalExt.SfdxService] _executeCommand ${command} stderr:`, stderr);
                 }
                 
                 resolve({ stdout: stdout.toString(), stderr: stderr?.toString() || '' });
@@ -968,27 +968,31 @@ export class SfdxService {
     public async runTests(testClass: string, testMethod?: string, useDefaultOrg: boolean = false): Promise<any> {
         const startTime = Date.now();
         try {
+            const methodLabel = `class: ${testClass}${testMethod ? `, method: ${testMethod}` : ''}`;
             console.log(`[VisbalExt.SfdxService] runTests -- START at ${new Date(startTime).toISOString()}`);
-            console.log(`[VisbalExt.SfdxService] runTests -- RUNNIND class: ${testClass}${testMethod ? `, method: ${testMethod}` : ''}`);
+            console.log(`[VisbalExt.SfdxService] runTests -- RUNNING ${methodLabel}`);
             
             let command = testMethod
                 ? `sf apex run test --tests ${testClass}.${testMethod} --json`
                 : `sf apex run test --class-names ${testClass} --json`;
             
             const selectedOrg = await OrgUtils.getSelectedOrg();
-            console.log(`[VisbalExt.SfdxService] runTests -- Selected org:`, selectedOrg);
+            console.log(`[VisbalExt.SfdxService] runTests -- ${methodLabel} -- Selected org:`, selectedOrg);
             if (!useDefaultOrg && selectedOrg?.alias) {
                 command += ` --target-org ${selectedOrg.alias}`;
             }
-            console.log(`[VisbalExt.SfdxService] runTests -- _executeCommand: ${command}`);
+            console.log(`[VisbalExt.SfdxService] runTests -- ${methodLabel} _executeCommand: ${command}`);
             const output = await this._executeCommand(command);
-            const result = JSON.parse(output.stdout).result;
-            
             const endTime = Date.now();
-            console.log(`[VisbalExt.SfdxService] runTests -- TIME COMPLETED: ${endTime - startTime}ms`);
-            console.log('[VisbalExt.SfdxService] runTests -- RETURN RESULT:', result);
-            
-            return result;
+            console.log(`[VisbalExt.SfdxService] runTests -- ${methodLabel} TIME COMPLETED: ${endTime - startTime}ms`);
+            const result = OrgUtils.parseResultJson(output.stdout);
+            console.log(`[VisbalExt.SfdxService] runTests -- ${methodLabel} -- hasError: ${result.hasError} -- isJson: ${result.isJson} -- RETURN RESULT:`, result);
+            if (result.isJson) {
+                return result.content;
+            }
+            else {
+                return result.content;
+            }
         } catch (error: any) {
             const endTime = Date.now();
             //

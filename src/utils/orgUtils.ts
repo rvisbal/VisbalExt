@@ -227,7 +227,7 @@ export class OrgUtils {
         }
     }
 
-    private static parseResultJson(content: string): { isJson: boolean; hasError: boolean; content: LogResult[] | null } {
+    public static parseResultJson(content: string): { isJson: boolean; hasError: boolean; content: LogResult[] | null } {
         const result = {
             isJson: false,
             hasError: false,
