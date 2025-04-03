@@ -998,7 +998,7 @@ export class SfdxService {
             //
             if (error.stdout) {
                 const parsedStdout = JSON.parse(error.stdout);
-                console.error(`[VisbalExt.MetadataService] runTests ERROR parsedStdout: `, parsedStdout);
+                console.error(`[VisbalExt.MetadataService] runTests -- ERROR parsedStdout: `, parsedStdout);
                 throw new Error(`Failed to run tests: ${parsedStdout.message}`);
             }
             else {
