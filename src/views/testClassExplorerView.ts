@@ -1414,6 +1414,48 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                     background-color: var(--vscode-inputValidation-errorBackground);
                     border: 1px solid var(--vscode-inputValidation-errorBorder);
                     color: var(--vscode-inputValidation-errorForeground);
+                    max-height: 200px;
+                    overflow-y: auto;
+                    font-size: 12px;
+                    position: relative;
+                }
+
+                .error-container.collapsed {
+                    max-height: 32px;
+                    overflow: hidden;
+                    cursor: pointer;
+                }
+
+                .error-container .error-header {
+                    display: flex;
+                    align-items: center;
+                    justify-content: space-between;
+                    margin-bottom: 4px;
+                }
+
+                .error-container .error-title {
+                    font-weight: bold;
+                    margin-right: 8px;
+                }
+
+                .error-container .error-toggle {
+                    cursor: pointer;
+                    padding: 2px;
+                    position: absolute;
+                    right: 4px;
+                    top: 4px;
+                }
+
+                .error-container .error-content {
+                    white-space: pre-wrap;
+                    word-break: break-word;
+                }
+
+                .error-container.collapsed .error-content {
+                    display: -webkit-box;
+                    -webkit-line-clamp: 1;
+                    -webkit-box-orient: vertical;
+                    overflow: hidden;
                 }
 
                 .notification-container {
@@ -1550,8 +1592,12 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                 <div id="notificationContainer" class="notification-container hidden">
                     <div class="notification-message" id="notificationMessage"></div>
                 </div>
-                <div id="errorContainer" class="error-container hidden">
-                    <div class="error-message" id="errorMessage"></div>
+                <div id="errorContainer" class="error-container collapsed hidden">
+                    <div class="error-header">
+                        <span class="error-title">Error</span>
+                        <span class="error-toggle codicon codicon-chevron-down"></span>
+                    </div>
+                    <div class="error-content" id="errorMessage"></div>
                 </div>
                 <div class="split-container">
                     <div id="testClassesContainer" class="test-classes-container">
@@ -1645,8 +1691,24 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                     }
                     
                     function showError(message) {
-                        errorMessage.textContent = message;
-                        errorContainer.classList.remove('hidden');
+                        const errorContainer = document.getElementById('errorContainer');
+                        const errorContent = document.getElementById('errorMessage');
+                        if (errorContent) {
+                            errorContent.textContent = message;
+                        }
+                        if (errorContainer) {
+                            errorContainer.classList.remove('hidden');
+                            
+                            // Add click handler for toggling
+                            errorContainer.onclick = function() {
+                                this.classList.toggle('collapsed');
+                                const toggle = this.querySelector('.error-toggle');
+                                if (toggle) {
+                                    toggle.classList.toggle('codicon-chevron-down');
+                                    toggle.classList.toggle('codicon-chevron-up');
+                                }
+                            };
+                        }
                     }
                     
                     function hideError() {
@@ -2460,29 +2522,29 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
 
     private async _viewTestLog(logId: string, testName: string) {
         try {
-            console.log('[VisbalExt.TestClassExplorerView] Viewing test log:', { logId, testName });
+            console.log('[VisbalExt.TestClassExplorerView] -- _viewTestLog -- Viewing test log:', { logId, testName });
             const logContent = await this._metadataService.getTestLog(logId);
-            console.log('[VisbalExt.TestClassExplorerView] Log content retrieved:', !!logContent);
+            console.log('[VisbalExt.TestClassExplorerView] -- _viewTestLog --   Log content retrieved:', !!logContent);
             
             if (logContent) {
                 // Create a temporary file with the log content
                 const tmpPath = join(vscode.workspace.rootPath || '', '.sf', 'logs', `${testName}-${new Date().getTime()}.log`);
-                console.log('[VisbalExt.TestClassExplorerView] Creating log file at:', tmpPath);
+                console.log('[VisbalExt.TestClassExplorerView] -- _viewTestLog --   Creating log file at:', tmpPath);
                 
                 const document = await vscode.workspace.openTextDocument(vscode.Uri.parse('untitled:' + tmpPath));
                 const editor = await vscode.window.showTextDocument(document);
                 await editor.edit(editBuilder => {
                     editBuilder.insert(new vscode.Position(0, 0), logContent);
                 });
-                console.log('[VisbalExt.TestClassExplorerView] Log file created and opened');
+                console.log('[VisbalExt.TestClassExplorerView] -- _viewTestLog --   Log file created and opened');
             }
         } catch (error) {
-            console.error('[VisbalExt.TestClassExplorerView] Error viewing test log:', {
+            console.error('[VisbalExt.TestClassExplorerView] -- _viewTestLog --   Error viewing test log:', {
                 testName,
                 logId,
                 error: error
             });
-            vscode.window.showWarningMessage(`[VisbalExt.TestClassExplorerView] Could not view log for test ${testName}: ${(error as Error).message}`);
+            vscode.window.showWarningMessage(`[VisbalExt.TestClassExplorerView] -- _viewTestLog --   Could not view log for test ${testName}: ${(error as Error).message}`);
         }
     }
 
