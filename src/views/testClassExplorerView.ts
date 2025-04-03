@@ -891,7 +891,7 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
 
                                  if (!progress.runResult && !progress.initiateTestResult) {
                                     progress.initiateTestResult = true;
-                                    this._sfdxService.getTestRunResult(result.testRunId)
+                                    this._sfdxService.getTestRunResult(progress.testRunId)
                                         .then(result => {
                                             progress.runResult = result;
                                             progress.finishGettingTestResult = true;
@@ -906,7 +906,7 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
 
                                 if (!progress.logId && !progress.initiateLogId) {
                                     progress.initiateLogId = true;
-                                    this._sfdxService.getTestLogId(result.testRunId)
+                                    this._sfdxService.getTestLogId(progress.testRunId)
                                         .then(logId => {
                                             progress.logId = logId;
                                             progress.finishGettingLogId = true;
@@ -957,7 +957,7 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
 
                         if (!progress.runResult && !progress.initiateTestResult) {
                             progress.initiateTestResult = true;
-                            this._sfdxService.getTestRunResult(result.testRunId)
+                            this._sfdxService.getTestRunResult(progress.testRunId)
                                 .then(result => {
                                     progress.runResult = result;
                                     progress.finishGettingTestResult = true;
@@ -969,7 +969,7 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
 
                         if (!progress.logId && !progress.initiateLogId) {
                             progress.initiateLogId = true;
-                            this._sfdxService.getTestLogId(result.testRunId)
+                            this._sfdxService.getTestLogId(progress.testRunId)
                                 .then(logId => {
                                     progress.logId = logId;
                                     progress.finishGettingLogId = true;
@@ -1110,12 +1110,15 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                                 console.log(`[VisbalExt.TestClassExplorerView] _runTestSelectedSequentially -- runTests -- iteration:${countIteration} result:`, result);
                                 progress.runTest = result;
                                 progress.testRunId = result.result.testRunId;
+                                console.log(`[VisbalExt.TestClassExplorerView] _runTestSelectedSequentially -- runTests -- iteration:${countIteration} result.testRunId:`, result.testRunId);
+                                console.log(`[VisbalExt.TestClassExplorerView] _runTestSelectedSequentially -- runTests -- iteration:${countIteration} result.result.testRunId:`, result.result.testRunId);
+                                console.log(`[VisbalExt.TestClassExplorerView] _runTestSelectedSequentially -- runTests -- iteration:${countIteration} progress.testRunId:`, progress.testRunId);
                                 progress.finishExecutingTest = true;
                                 console.error(`[VisbalExt.TestClassExplorer] _runTestSelectedSequentially -- runTests -- iteration:${countIteration} result:`, result);
 
                                 if (!progress.runResult && !progress.initiateTestResult) {
                                     progress.initiateTestResult = true;
-                                    const testResult = await this._sfdxService.getTestRunResult(result.testRunId);
+                                    const testResult = await this._sfdxService.getTestRunResult(progress.testRunId);
                                     progress.runResult = testResult;
                                     progress.finishGettingTestResult = true;
                                     console.error(`[VisbalExt.TestClassExplorer] _runTestSelectedSequentially -- getTestRunResult -- iteration:${countIteration} result:`, testResult);
@@ -1123,7 +1126,7 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
 
                                 if (!progress.logId && !progress.initiateLogId) {
                                     progress.initiateLogId = true;
-                                    const logId = await this._sfdxService.getTestLogId(result.testRunId);
+                                    const logId = await this._sfdxService.getTestLogId(progress.testRunId);
                                     progress.logId = logId;
                                     progress.finishGettingLogId = true;
                                     console.error(`[VisbalExt.TestClassExplorer] _runTestSelectedSequentially -- getTestLogId -- iteration:${countIteration} logId:`, logId);
@@ -1162,7 +1165,7 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
 
                         if (!progress.runResult && !progress.initiateTestResult) {
                             progress.initiateTestResult = true;
-                            this._sfdxService.getTestRunResult(result.testRunId)
+                            this._sfdxService.getTestRunResult(progress.testRunId)
                                 .then(result => {
                                     progress.runResult = result;
                                     progress.finishGettingTestResult = true;
@@ -1174,7 +1177,7 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
 
                         if (!progress.logId && !progress.initiateLogId) {
                             progress.initiateLogId = true;
-                            this._sfdxService.getTestLogId(result.testRunId)
+                            this._sfdxService.getTestLogId(progress.testRunId)
                                 .then(logId => {
                                     progress.logId = logId;
                                     progress.finishGettingLogId = true;
