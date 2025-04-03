@@ -739,10 +739,6 @@ export class MetadataService {
                     try {
                         const timeA = new Date(a.StartTime).getTime();
                         const timeB = new Date(b.StartTime).getTime();
-                        console.log(`[VisbalExt.MetadataService] Sorting logs:a.StartTime: ${a.StartTime} b.StartTime: ${b.StartTime} -- timeA:${timeA} timeB:${timeB}` , {
-                            logA: { id: a.Id, time: new Date(a.StartTime).toISOString() },
-                            logB: { id: b.Id, time: new Date(b.StartTime).toISOString() }
-                        });
                         return timeB - timeA;
                     } catch (error) {
                         console.error('[VisbalExt.MetadataService] Error sorting logs:', error);

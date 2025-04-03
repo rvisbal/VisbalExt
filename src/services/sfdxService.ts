@@ -26,9 +26,9 @@ export class SfdxService {
     private _executeCommand(command: string): Promise<ExecResult> {
         return new Promise((resolve, reject) => {
             child_process.exec(command, { maxBuffer: MAX_BUFFER_SIZE }, (error, stdout, stderr) => {
-                console.log(`[VisbalExt.SfdxService] _executeCommand stdout:`, stdout);
-                console.log(`[VisbalExt.SfdxService] _executeCommand stderr:`, stderr);
-                console.log(`[VisbalExt.SfdxService] _executeCommand error:`, error);
+                //console.log(`[VisbalExt.SfdxService] _executeCommand stdout:`, stdout);
+                //console.log(`[VisbalExt.SfdxService] _executeCommand stderr:`, stderr);
+                //console.log(`[VisbalExt.SfdxService] _executeCommand error:`, error);
                 if (error) {
                     // If we have stdout even with an error, we might want to use it
                     if (stdout) {
