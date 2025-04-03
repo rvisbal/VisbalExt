@@ -73,8 +73,11 @@ interface TestProgressState {
     initiated: boolean;
     finished: boolean;
     finishExecutingTest: boolean;
+    initiateTestResult: boolean;
     finishGettingTestResult: boolean;
+    initiateLogId: boolean;
     finishGettingLogId: boolean;
+    initiateDownloadingLog: boolean;
     finishDownloadingLog: boolean;
     status: TestStatus;
 }
@@ -863,8 +866,11 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                         initiated: true,
                         finished: false,
                         finishExecutingTest: false,
+                        initiateTestResult: false,
                         finishGettingTestResult: false,
+                        initiateLogId: false,
                         finishGettingLogId: false,
+                        initiateDownloadingLog: false,
                         finishDownloadingLog: false,
                         status: TestStatus.running
                     });
@@ -872,6 +878,7 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                     console.log(`[VisbalExt.VisbalExt.TestClassExplorerView] _runTestSelectedParallel -- Running: ${className}.${methodName} -- iteration:${countIteration}`);
                     const progress = testProgress.get(className);
                     if (progress) {
+
                         // Chain of promises: runTests -> getTestResult -> getLogId -> downloadLog
                         // Each step updates progress state and triggers UI updates
                         this._sfdxService.runTests(className, methodName)
@@ -882,7 +889,8 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                                 console.error(`[VisbalExt.TestClassExplorer] _runTestSelectedParallel -- runTests -- iteration:${countIteration} result:`, result);
 
 
-                                 if (!progress.runResult) {
+                                 if (!progress.runResult && !progress.initiateTestResult) {
+                                    progress.initiateTestResult = true;
                                     this._sfdxService.getTestRunResult(result.testRunId)
                                         .then(result => {
                                             progress.runResult = result;
@@ -896,7 +904,8 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                                         });
                                 }
 
-                                if (!progress.logId) {
+                                if (!progress.logId && !progress.initiateLogId) {
+                                    progress.initiateLogId = true;
                                     this._sfdxService.getTestLogId(result.testRunId)
                                         .then(logId => {
                                             progress.logId = logId;
@@ -904,7 +913,8 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                                             console.error(`[VisbalExt.TestClassExplorer] _runTestSelectedParallel -- getTestLogId -- iteration:${countIteration} logId:`, logId);
                                         
                                      
-                                            if (progress.logId) {
+                                            if (progress.logId && !progress.initiateDownloadingLog) {
+                                                progress.initiateDownloadingLog = true;
                                                 this._testRunResultsView.updateMethodStatus(progress.className, progress.methodName, TestStatus.downloading, progress.logId);
                                                 // Download log in background
                                                 this._orgUtils.downloadLog(progress.logId)
@@ -945,7 +955,8 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                     const result = progress.runTest;
                     if (result && result.testRunId) {
 
-                        if (!progress.runResult) {
+                        if (!progress.runResult && !progress.initiateTestResult) {
+                            progress.initiateTestResult = true;
                             this._sfdxService.getTestRunResult(result.testRunId)
                                 .then(result => {
                                     progress.runResult = result;
@@ -956,7 +967,8 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                                 });
                         }
 
-                        if (!progress.logId) {
+                        if (!progress.logId && !progress.initiateLogId) {
+                            progress.initiateLogId = true;
                             this._sfdxService.getTestLogId(result.testRunId)
                                 .then(logId => {
                                     progress.logId = logId;
@@ -976,8 +988,9 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
             for (const { className, methodName } of tests.methods) {
                 const methodId = this.getMethodId(className, methodName);
                 const progress = testProgress.get(methodId);
-                if (progress && progress.finishGettingLogId) {
-                    if (progress.logId) {
+                if (progress && progress.finishGettingLogId ) {
+                    if (progress.logId && !progress.initiateDownloadingLog) {
+                        progress.initiateDownloadingLog = true;
                         this._testRunResultsView.updateMethodStatus(progress.className, progress.methodName, TestStatus.downloading, progress.logId);
                         // Download log in background
                         this._orgUtils.downloadLog(progress.logId)
@@ -1078,8 +1091,11 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                         initiated: true,
                         finished: false,
                         finishExecutingTest: false,
+                        initiateTestResult: false,
                         finishGettingTestResult: false,
+                        initiateLogId: false,
                         finishGettingLogId: false,
+                        initiateDownloadingLog: false,
                         finishDownloadingLog: false,
                         status: TestStatus.running
                     });
@@ -1097,7 +1113,8 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                                 console.error(`[VisbalExt.TestClassExplorer] _runTestSelectedSequentially -- runTests -- iteration:${countIteration} result:`, result);
 
 
-                                 if (!progress.runResult) {
+                                 if (!progress.runResult && !progress.initiateTestResult) {
+                                    progress.initiateTestResult = true;
                                     this._sfdxService.getTestRunResult(result.testRunId)
                                         .then(result => {
                                             progress.runResult = result;
@@ -1111,7 +1128,8 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                                         });
                                 }
 
-                                if (!progress.logId) {
+                                if (!progress.logId&& !progress.initiateLogId) {
+                                    progress.initiateLogId = true;
                                     this._sfdxService.getTestLogId(result.testRunId)
                                         .then(logId => {
                                             progress.logId = logId;
@@ -1119,7 +1137,8 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                                             console.error(`[VisbalExt.TestClassExplorer] _runTestSelectedSequentially -- getTestLogId -- iteration:${countIteration} logId:`, logId);
                                         
                                      
-                                            if (progress.logId) {
+                                            if (progress.logId && !progress.initiateDownloadingLog) {
+                                                progress.initiateDownloadingLog = true;
                                                 this._testRunResultsView.updateMethodStatus(progress.className, progress.methodName, TestStatus.downloading, progress.logId);
                                                 // Download log in background
                                                 this._orgUtils.downloadLog(progress.logId)
@@ -1160,7 +1179,8 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                     const result = progress.runTest;
                     if (result && result.testRunId) {
 
-                        if (!progress.runResult) {
+                        if (!progress.runResult && !progress.initiateTestResult) {
+                            progress.initiateTestResult = true;
                             this._sfdxService.getTestRunResult(result.testRunId)
                                 .then(result => {
                                     progress.runResult = result;
@@ -1171,7 +1191,8 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                                 });
                         }
 
-                        if (!progress.logId) {
+                        if (!progress.logId && !progress.initiateLogId) {
+                            progress.initiateLogId = true;
                             this._sfdxService.getTestLogId(result.testRunId)
                                 .then(logId => {
                                     progress.logId = logId;
@@ -1191,8 +1212,9 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
             for (const { className, methodName } of tests.methods) {
                 const methodId = this.getMethodId(className, methodName);
                 const progress = testProgress.get(methodId);
-                if (progress && progress.finishGettingLogId) {
-                    if (progress.logId) {
+                if (progress && progress.finishGettingLogId ) {  
+                    if (progress.logId && !progress.initiateDownloadingLog) {
+                        progress.initiateDownloadingLog = true;
                         this._testRunResultsView.updateMethodStatus(progress.className, progress.methodName, TestStatus.downloading, progress.logId);
                         // Download log in background
                         this._orgUtils.downloadLog(progress.logId)
