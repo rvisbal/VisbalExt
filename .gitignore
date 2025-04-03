@@ -8,3 +8,5 @@ dist
 .vs/
 temp/
 .bak/
+.visbal/
+.visbal/cache/logs.json
