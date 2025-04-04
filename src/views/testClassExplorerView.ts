@@ -572,7 +572,7 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
 
                 // Update test results in webview
                 if (this._view) {
-                    console.log('[VisbalExt.TestClassExplorerView] _runTest -- Sending test results to webview');
+                    console.log('[VisbalExt.TestClassExplorerView] _runTest -- testResultsLoaded');
                     this._view.webview.postMessage({
                         command: 'testResultsLoaded',
                         results: testRunResult
@@ -674,7 +674,7 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                     throw new Error('Salesforce Extension Pack is required to run tests. Please install it from the VS Code marketplace.');
                 }
                 
-                let results: TestRunResult[] = [];
+                let results: any[] = [];
                 console.log('[VisbalExt.TestClassExplorerView] _runSelectedTests -- tests:', tests);
 
                 // Add the tests to the Running task view
@@ -801,13 +801,19 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                     //#region SEQUENTIAL MODE
                     // Run tests sequentially
                     results = await this._runTestSelectedSequentially(tests);
+                    console.log(`[VisbalExt.TestClassExplorerView] _runSelectedTests -- runMode:${tests.runMode} -- testResultsLoaded results:`, results);
+                    if (results.length > 0) {
+                        const combinedSummary = results.map(result => result.summary);
+                        const allTests = results.reduce((acc, result) => acc.concat(result.tests), []);
+                        this._testSummaryView.updateSummary(combinedSummary, allTests);
+                    }
                     //#endregion SEQUENTIAL MODE
                 }
                 
-                console.log('[VisbalExt.TestClassExplorerView] _runSelectedTests.sequentially -- results:', results);
+                console.log(`[VisbalExt.TestClassExplorerView] _runSelectedTests -- runMode:${tests.runMode} -- testResultsLoaded results:`, results);
                 const combinedResult = this._combineTestResults(results);
-                console.log('[VisbalExt.TestClassExplorerView] _runSelectedTests.sequentially -- combinedResult:', combinedResult);    
-                console.log('[VisbalExt.TestClassExplorerView] _runSelectedTests.sequentially -- this._view:', this._view);
+                console.log(`[VisbalExt.TestClassExplorerView] _runSelectedTests -- runMode:${tests.runMode} -- testResultsLoaded combinedResult:`, combinedResult);    
+                console.log(`[VisbalExt.TestClassExplorerView] _runSelectedTests -- runMode:${tests.runMode} -- testResultsLoaded this._view:`, this._view);
                 if (this._view) {
                     this._view.webview.postMessage({
                         command: 'testResultsLoaded',
@@ -836,7 +842,7 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
         methods: { className: string, methodName: string }[],
         runMode: 'sequential' | 'parallel'
     }) {
-        const results: TestRunResult[] = [];
+        const results: any[] = [];
         //const errorMap = new Map<string, string>();
         //const allTestResults: any[] = [];  // Store all test results
         console.log('[VisbalExt.TestClassExplorerView] _runTestSelectedParallel -- tests:', tests);
