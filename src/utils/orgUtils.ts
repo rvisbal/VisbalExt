@@ -227,20 +227,24 @@ export class OrgUtils {
         }
     }
 
-    public static parseResultJson(content: string): { isJson: boolean; hasError: boolean; content: LogResult[] | null } {
+    public static parseResultJson(content: string): { isJson: boolean; hasError: boolean; content: LogResult[] | null, rawContent: string } {
         const result = {
             isJson: false,
             hasError: false,
-            content: null as LogResult[] | null
+            content: null as LogResult[] | null,
+            rawContent: content
         };
         try {
+            result.rawContent = content;
             result.content = JSON.parse(content);
             result.isJson = true;
         } catch (error: any) {
-           console.log(`[VisbalExt.OrgUtils] isJsonType -- error:`, error);
+           console.log(`[VisbalExt.OrgUtils] parseResultJson isJsonType -- error:`, error);
+           console.log(`[VisbalExt.OrgUtils] parseResultJson isJsonType -- content:`, content);
            result.hasError = true;
+        } finally {
+            return result;
         }
-        return result;
     }
 
     /**
@@ -261,11 +265,11 @@ export class OrgUtils {
             const jsonResult = this.parseResultJson(result);
             console.log(`[VisbalExt.OrgUtils] _fetchLogContent -- hasError:${jsonResult.hasError} isJson:${jsonResult.isJson} `);
             if (!jsonResult.hasError && jsonResult.content && jsonResult.content[0]?.log) {
-                //console.log('[VisbalExt.OrgUtils] _fetchLogContent -- retunrretuning');
+                console.log('[VisbalExt.OrgUtils] _fetchLogContent -- retunrretuning');
                 return jsonResult.content[0].log;
             }
             else {
-                //console.log('[VisbalExt.OrgUtils] _fetchLogContent -- returning result:', result);
+                console.log('[VisbalExt.OrgUtils] _fetchLogContent -- returning result:', result);
                 return result;
             }
         } catch (e) {

@@ -990,7 +990,7 @@ export class SfdxService {
                 return result.content.result;
             }
             else {
-                return result.content;
+                return result.rawContent;
             }
         } catch (error: any) {
             const endTime = Date.now();
