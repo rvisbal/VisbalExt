@@ -806,7 +806,8 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                 
                 console.log('[VisbalExt.TestClassExplorerView] _runSelectedTests.sequentially -- results:', results);
                 const combinedResult = this._combineTestResults(results);
-
+                console.log('[VisbalExt.TestClassExplorerView] _runSelectedTests.sequentially -- combinedResult:', combinedResult);    
+                console.log('[VisbalExt.TestClassExplorerView] _runSelectedTests.sequentially -- this._view:', this._view);
                 if (this._view) {
                     this._view.webview.postMessage({
                         command: 'testResultsLoaded',
