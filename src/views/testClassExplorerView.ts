@@ -80,6 +80,7 @@ interface TestProgressState {
     initiateDownloadingLog: boolean;
     finishDownloadingLog: boolean;
     status: TestStatus;
+    downloadLog: boolean;
 }
 
 export class TestClassExplorerView implements vscode.WebviewViewProvider {
@@ -878,9 +879,14 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                         
                         // Download log
                         if (logId) {
-                            this._testRunResultsView.updateMethodStatus(progress.className, progress.methodName, TestStatus.downloading, logId);
-                            await this._orgUtils.downloadLog(logId);
-                            progress.finishDownloadingLog = true;
+                            
+                            if (progress.downloadLog) {
+                                progress.initiateDownloadingLog = true;
+                                this._testRunResultsView.updateMethodStatus(progress.className, progress.methodName, TestStatus.downloading, logId);
+                                await this._orgUtils.downloadLog(logId);
+                                progress.finishDownloadingLog = true;
+                            }
+
                             if (progress.runResult && progress.runResult.summary) {
                                 if (progress.runResult.summary.outcome === 'Pass' || progress.runResult.summary.outcome === 'Passed') {
                                     this._testRunResultsView.updateMethodStatus(progress.className, progress.methodName, 'success', logId);
@@ -907,6 +913,7 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
         runMode: 'sequential' | 'parallel'
     }) {
         try {
+            const downloadLog = false;
             this._isRunning = true;
             this._abortController = new AbortController();
             const signal = this._abortController.signal;
@@ -951,7 +958,8 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                         finishGettingLogId: false,
                         initiateDownloadingLog: false,
                         finishDownloadingLog: false,
-                        status: TestStatus.running
+                        status: TestStatus.running,
+                        downloadLog: false
                     });
                     this._testRunResultsView.updateMethodStatus(className, methodName, 'pending');
                 }
@@ -1155,7 +1163,7 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                         runTest: null,
                         runResult: null,
                         logId: '',
-                        initiated: true,
+                        initiated: false,
                         finished: false,
                         finishExecutingTest: false,
                         initiateTestResult: false,
@@ -1164,7 +1172,8 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                         finishGettingLogId: false,
                         initiateDownloadingLog: false,
                         finishDownloadingLog: false,
-                        status: TestStatus.running
+                        status: TestStatus.running,
+                        downloadLog: false
                     });
                     this._testRunResultsView.updateMethodStatus(className, methodName, 'running');
                     console.log(`[VisbalExt.TestClassExplorerView] _runTestSelectedSequentially -- Running: ${className}.${methodName} -- iteration:${countIteration}`);
@@ -1198,13 +1207,15 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                                     console.error(`[VisbalExt.TestClassExplorer] _runTestSelectedSequentially -- getTestLogId -- ${className}.${methodName} -- iteration:${countIteration} logId:`, logId);
 
                                     if (progress.logId && !progress.initiateDownloadingLog) {
-                                        progress.initiateDownloadingLog = true;
-                                        this._testRunResultsView.updateMethodStatus(progress.className, progress.methodName, TestStatus.downloading, progress.logId);
-                                        console.log(`[VisbalExt.TestClassExplorerView] _runTestSelectedSequentially -- downloadLog -- A -- ${className}.${methodName} -- iteration:${countIteration} logId:`, progress.logId);
-                                        // Download log in background
-                                        await this._orgUtils.downloadLog(progress.logId);
-                                        progress.finishDownloadingLog = true;
-                                        console.error(`[VisbalExt.TestClassExplorer] _runTestSelectedSequentially -- downloadLog -- B -- ${className}.${methodName} -- iteration:${countIteration} logId:`, progress.logId);
+                                        if (progress.downloadLog) {
+                                            progress.initiateDownloadingLog = true;
+                                            this._testRunResultsView.updateMethodStatus(progress.className, progress.methodName, TestStatus.downloading, progress.logId);
+                                            console.log(`[VisbalExt.TestClassExplorerView] _runTestSelectedSequentially -- downloadLog -- A -- ${className}.${methodName} -- iteration:${countIteration} logId:`, progress.logId);
+                                            // Download log in background
+                                            await this._orgUtils.downloadLog(progress.logId);
+                                            progress.finishDownloadingLog = true;
+                                            console.error(`[VisbalExt.TestClassExplorer] _runTestSelectedSequentially -- downloadLog -- B -- ${className}.${methodName} -- iteration:${countIteration} logId:`, progress.logId);
+                                        }
                                     }
                                 }
                             //}
