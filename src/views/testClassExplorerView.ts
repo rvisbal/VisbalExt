@@ -1035,14 +1035,14 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                                         }
                                     }
                                     
-                                    
                                     resolve({ className: progress.className, methodName: progress.methodName, progress });
                                 }
                                 else if (runTest.name === 'ALREADY_IN_PROCESS') {
-                                    console.log(`[VisbalExt.TestClassExplorerView] _runTestSelectedParallel -- getTestRunResult ${progress.className}.${progress.methodName} -- runTest.name:${runTest.name} -- runTest:`, runTest);
+                                    console.log(`[VisbalExt.TestClassExplorerView] _runTestSelectedParallel -- ALREADY_IN_PROCESS detected for ${progress.className}.${progress.methodName}`);
+                                    console.log('[VisbalExt.TestClassExplorerView] _runTestSelectedParallel -- Full runTest object:', runTest);
                                     progress.status = TestStatus.running;
                                     this._testRunResultsView.updateMethodStatus(progress.className, progress.methodName, 'running');
-                                    resolve({ className: progress.className, methodName: progress.methodName, progress });  
+                                    resolve({ className: progress.className, methodName: progress.methodName, progress });
                                 }
                             } catch (error: unknown) {
                                 console.error(`[VisbalExt.TestClassExplorer] _runTestSelectedParallel -- Error executing test:`, error);
