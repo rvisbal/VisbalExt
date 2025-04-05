@@ -860,16 +860,38 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
     private async _processPromises(promises: Promise<any>[]) {
         const results = await Promise.allSettled(promises);
       
-        results.forEach((result) => {
-          if (result.status === 'fulfilled') {
-            console.log('Promise resolved:', result.value);
-            // Process resolved value immediately
-          } else {
-            console.error('Promise rejected:', result.reason);
-            // Handle rejection immediately
-          }
-        });
-      }
+        for (const result of results) {
+            if (result.status === 'fulfilled' && result.value) {
+                console.log('Promise resolved:', result.value);
+                const { progress } = result.value;
+                if (progress?.runTest?.testRunId) {
+                    try {
+                        // Get log ID
+                        const logId = await this._sfdxService.getTestLogId(progress.runTest.testRunId);
+                        progress.logId = logId;
+                        progress.finishGettingLogId = true;
+                        
+                        // Download log
+                        if (logId) {
+                            this._testRunResultsView.updateMethodStatus(progress.className, progress.methodName, TestStatus.downloading, logId);
+                            await this._orgUtils.downloadLog(logId);
+                            progress.finishDownloadingLog = true;
+
+                            if (progress.Outcome === 'Pass') {
+                                this._testRunResultsView.updateMethodStatus(progress.className, progress.methodName, 'success', logId);
+                            } else if (progress.Outcome === 'Fail') {
+                                this._testRunResultsView.updateMethodStatus(progress.className, progress.methodName, 'failed', logId);
+                            }
+                        }
+                    } catch (error) {
+                        console.error('Error processing test logs:', error);
+                    }
+                }
+            } else if (result.status === 'rejected') {
+                console.error('Promise rejected:', result.reason);
+            }
+        }
+    }
       
 
 
@@ -885,40 +907,46 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
         let allTestsCompleted = false;      
       
         const testProgress = new Map<string, TestProgressState>();
+
+        
+        console.log(`[VisbalExt.TestClassExplorerView] _runTestSelectedParallel -- iteration:0`);
+        for (const { className, methodName } of tests.methods) {
+            const methodId = this.getMethodId(className, methodName);
+            //initialize & execute the test
+            if (!testProgress.has(methodId)) {     
+                testProgress.set(methodId, {
+                    className: className,
+                    methodName: methodName,
+                    testRunId: '',
+                    error: '',
+                    runTest: null,
+                    runResult: null,
+                    logId: '',
+                    initiated: false,
+                    finished: false,
+                    finishExecutingTest: false,
+                    initiateTestResult: false,
+                    finishGettingTestResult: false,
+                    initiateLogId: false,
+                    finishGettingLogId: false,
+                    initiateDownloadingLog: false,
+                    finishDownloadingLog: false,
+                    status: TestStatus.running
+                });
+                this._testRunResultsView.updateMethodStatus(className, methodName, 'pending');
+            }
+        }
+
+
+
         const maxRetries = 10 * tests.methods.length;
         let countIteration = 0;
         let retryCount = 0;
+
+
         while (!allTestsCompleted && retryCount < maxRetries) {
             
             countIteration++;
-            console.log(`[VisbalExt.TestClassExplorerView] _runTestSelectedParallel -- iteration:${countIteration}`);
-            for (const { className, methodName } of tests.methods) {
-                const methodId = this.getMethodId(className, methodName);
-                //initialize & execute the test
-                if (!testProgress.has(methodId)) {     
-                    testProgress.set(methodId, {
-                        className: className,
-                        methodName: methodName,
-                        testRunId: '',
-                        error: '',
-                        runTest: null,
-                        runResult: null,
-                        logId: '',
-                        initiated: false,
-                        finished: false,
-                        finishExecutingTest: false,
-                        initiateTestResult: false,
-                        finishGettingTestResult: false,
-                        initiateLogId: false,
-                        finishGettingLogId: false,
-                        initiateDownloadingLog: false,
-                        finishDownloadingLog: false,
-                        status: TestStatus.running
-                    });
-                    this._testRunResultsView.updateMethodStatus(className, methodName, 'pending');
-                }
-            }
-
             //get 5 testProgress where initiated is false
             const pendingTests = Array.from(testProgress.values()).filter((progress: TestProgressState) => !progress.initiated);
             console.log(`[VisbalExt.TestClassExplorerView] _runTestSelectedParallel -- pendingTests:`, pendingTests);
@@ -948,8 +976,11 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                         return Promise.resolve(null);
                     }
 
+                   
+
                     return new Promise<{ className: string; methodName: string; progress: TestProgressState }>(async (resolve, reject) => {
                         try {
+                            progress.initiated = true;
                             console.log(`[VisbalExt.TestClassExplorerView] _runTestSelectedParallel -- Running: ${progress.className}.${progress.methodName} -- iteration:${countIteration}`);
                             this._testRunResultsView.updateMethodStatus(progress.className, progress.methodName, 'running');
                             // Execute test and wait for result
@@ -962,18 +993,8 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                             const runResult = await this._sfdxService.getTestRunResult(runTest.testRunId);
                             progress.runResult = runResult;
                             progress.finishGettingTestResult = true;
+                            console.log(`[VisbalExt.TestClassExplorerView] _runTestSelectedParallel -- runResult:`, runResult);
                             
-                            // Get log ID
-                            const logId = await this._sfdxService.getTestLogId(runTest.testRunId);
-                            progress.logId = logId;
-                            progress.finishGettingLogId = true;
-                            
-                            // Download log
-                            if (logId) {
-                                this._testRunResultsView.updateMethodStatus(progress.className, progress.methodName, TestStatus.downloading, logId);
-                                await this._orgUtils.downloadLog(logId);
-                                progress.finishDownloadingLog = true;
-                            }
                             
                             resolve({ className: progress.className, methodName: progress.methodName, progress });
                         } catch (error: unknown) {
@@ -998,6 +1019,20 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                 // Add a small delay between batches to prevent overwhelming the system
                 await new Promise(resolve => setTimeout(resolve, 1000));
             }
+            
+            // filter where progress.finishGettingTestResult get progress.runResult
+            let tempResults = Array.from(testProgress.values()).filter((progress: TestProgressState) => progress.finishGettingTestResult && progress.runResult);
+            //get the runResult from tempResults
+            let tempRunResults = tempResults.map((progress: TestProgressState) => progress.runResult);
+            console.log(`[VisbalExt.TestClassExplorerView] _runTestSelectedParallel -- tempRunResults:`, tempRunResults);
+           
+            if (tempRunResults.length > 0) {
+                const combinedSummary = results.map(result => result.summary);
+                const allTests = results.reduce((acc, result) => acc.concat(result.tests), []);
+                this._testSummaryView.updateSummary(combinedSummary, allTests);
+            }
+          
+            
 
             console.log(`[VisbalExt.TestClassExplorerView] _runTestSelectedParallel -- testProgress:`, testProgress);
             allTestsCompleted = Array.from(testProgress.values()).every((progress: TestProgressState) => 
@@ -1389,7 +1424,7 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
 
 
     private _combineTestResults(results: any[]): any {
-        if (!results || results.length === 0) {
+        if (!results || results.length === 0 || !Array.isArray(results)) {
             return {
                 summary: {
                     outcome: 'Failed',
@@ -1403,9 +1438,12 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
             };
         }
         
-        // If only one result, return it directly
-        if (results.length === 1) {
-            return results[0];
+        // Filter out null/undefined results
+        const validResults = results.filter(result => result && result.summary);
+        
+        // If only one valid result, return it directly
+        if (validResults.length === 1) {
+            return validResults[0];
         }
         
         // Combine multiple results
@@ -1416,7 +1454,7 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
         let totalSkipped = 0;
         let totalTime = 0;
         
-        for (const result of results) {
+        for (const result of validResults) {
             if (result.tests) {
                 combinedTests.push(...result.tests);
             }
