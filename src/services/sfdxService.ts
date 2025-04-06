@@ -1118,22 +1118,32 @@ export class SfdxService {
             command += ' --json';
             console.log(`[VisbalExt.SfdxService] getTestRunResult Executing command: ${command}`);
             const result = await this._executeCommand(command);
-            const parsedResult = JSON.parse(result.stdout);
+            const parsedResult = OrgUtils.parseResultJson(result.stdout);
             
             // Check if we got a valid result
-            if (!parsedResult.result) {
+            if (!parsedResult.isJson || !parsedResult.content) {
                 console.log('[VisbalExt.SfdxService] getTestRunResult No result found in response:', parsedResult);
                 return null;
+            }else if (parsedResult.hasError) {
+                console.log('[VisbalExt.SfdxService] getTestRunResult No result found in response:', parsedResult);
+                // @ts-ignore - Handle error case where parsedResult has an error property
+                return parsedResult.error || null;
             }
 
             const endTime = Date.now();
             console.log(`[VisbalExt.SfdxService] getTestRunResult TIME in ${endTime - startTime}ms`);
-            console.log('[VisbalExt.SfdxService] getTestRunResult RETURN RESULT:', parsedResult.result);
-            
-            return parsedResult.result;
+            console.log('[VisbalExt.SfdxService] getTestRunResult RETURN RESULT:', parsedResult.content);
+            if (parsedResult.isJson && parsedResult.content) {
+                if (Array.isArray(parsedResult.content)) {
+                    return parsedResult.content;
+                }
+                // @ts-ignore - Handle case where content is an object with result property
+                return parsedResult.content.result || parsedResult.content;
+            }
+
         } catch (error: any) {
             const endTime = Date.now();
-            console.error(`[VisbalExt.SfdxService] getTestRunResult Error getting test run result after ${endTime - startTime}ms:`, error);
+            console.error(`[VisbalExt.SfdxService] getTestRunResult catch error ${endTime - startTime}ms:`, error);
             
             // If we get a specific error about the test run not being found, return null instead of throwing
             if (error.message && (

@@ -232,7 +232,8 @@ export class OrgUtils {
             isJson: false,
             hasError: false,
             content: null as LogResult[] | null,
-            rawContent: content
+            rawContent: content,
+            error: null as Error | null
         };
         try {
             result.rawContent = content;
@@ -242,6 +243,7 @@ export class OrgUtils {
            console.log(`[VisbalExt.OrgUtils] parseResultJson isJsonType -- error:`, error);
            console.log(`[VisbalExt.OrgUtils] parseResultJson isJsonType -- content:`, content);
            result.hasError = true;
+           result.error = error as Error;
         } finally {
             return result;
         }

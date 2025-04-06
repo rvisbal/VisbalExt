@@ -1156,7 +1156,7 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
             const maxRetries = 10 * tests.methods.length;
             let countIteration = 0;
             let retryCount = 0;
-
+            const errorMap = new Map<string, string>();
 
             while (!allTestsCompleted && retryCount < maxRetries) {
                 if (signal.aborted) {
@@ -1209,9 +1209,9 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                                      console.log(`[VisbalExt.TestClassExplorerView] _runTestSelectedParallel -- getTestRunResult ${progress.className}.${progress.methodName} -- STARTS`);
                                     // Get test run result
                                     const runResult = await this._sfdxService.getTestRunResult(runTest.testRunId);
+                                    console.log(`[VisbalExt.TestClassExplorerView] _runTestSelectedParallel -- getTestRunResult ${progress.className}.${progress.methodName} -- runResult:`, runResult);
                                     progress.runResult = runResult;
                                     progress.finishGettingTestResult = true;
-                                    console.log(`[VisbalExt.TestClassExplorerView] _runTestSelectedParallel -- getTestRunResult ${progress.className}.${progress.methodName} -- runResult:`, runResult);
 
                                     if (progress.runResult && progress.runResult.summary) {
                                         if (progress.runResult.summary.outcome === 'Pass' || progress.runResult.summary.outcome === 'Passed') {
@@ -1230,8 +1230,93 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                                     this._testRunResultsView.updateMethodStatus(progress.className, progress.methodName, 'running');
                                     resolve({ className: progress.className, methodName: progress.methodName, progress });  
                                 }
-                            } catch (error: unknown) {
+                            } catch (error: any) {
                                 console.error(`[VisbalExt.TestClassExplorer] _runTestSelectedParallel -- Error executing test:`, error);
+                                errorMap.set(progress.className, error.message);
+                                if (error.message && (
+                                    error.message.includes('ALREADY_IN_PROCESS') || 
+                                    error.message.includes('Test already enqueued')
+                                )) {
+                                    // Update UI to show waiting status
+                                    this._testRunResultsView.updateMethodStatus(progress.className, progress.methodName, 'running');
+                                        
+                                    if (this._view) {
+                                        this._view.webview.postMessage({
+                                            command: 'showNotification',
+                                            message: `Test ${progress.className}.${progress.methodName} is already running. Waiting for completion...`
+                                        });
+                                    }
+
+
+                                    // Extract the test run ID from the error message if available
+                                    const testRunIdMatch = error.message.match(/Test already enqueued (\w+)/);
+                                    if (testRunIdMatch && testRunIdMatch[1]) {
+                                        const testRunId = testRunIdMatch[1];
+                                        try {
+                                            // Poll for test results with exponential backoff
+                                            let retryCount = 0;
+                                            const maxRetries = 5;
+                                            const baseDelay = 2000; // Start with 2 second delay
+
+                                            const pollWithBackoff = async () => {
+                                                try {
+                                                    const testRunResult = await this._sfdxService.getTestRunResult(testRunId);
+                                                    const logId = await this._sfdxService.getTestLogId(testRunId);
+                                                    console.log('[VisbalExt.TestClassExplorerView] _runSelectedTests.sequentially POLL ${className}.${methodName} testRunId:${testRunId} logId:${logId} testRunResult:', testRunResult);
+                                                    // If we get here, we have results
+                                                    for (const t of testRunResult.tests) {
+                                                        if (t.MethodName === progress.methodName) {
+                                                            console.error(`[VisbalExt.TestClassExplorer] _runSelectedTests.sequentially POLL updateMethodStatus.t.Outcome: ${t.Outcome}`);
+                                                            this._testRunResultsView.updateMethodStatus(
+                                                                progress.className,
+                                                                progress.methodName,
+                                                                t.Outcome === 'Pass' ? 'success' : 'failed',
+                                                                logId
+                                                            );
+                                                            break;
+                                                        }
+                                                    }
+                                                    return;
+                                                } catch (error) {
+                                                    retryCount++;
+                                                    if (retryCount < maxRetries) {
+                                                        // Exponential backoff with jitter
+                                                        const delay = baseDelay * Math.pow(2, retryCount) * (0.5 + Math.random());
+                                                        console.log(`[VisbalExt.TestClassExplorer] _runSelectedTests POLL Retry ${retryCount}/${maxRetries} after ${delay}ms`);
+                                                        await new Promise(resolve => setTimeout(resolve, delay));
+                                                        return pollWithBackoff();
+                                                    }
+                                                    throw error;
+                                                }
+                                            };
+
+                                            await pollWithBackoff();
+                                        } catch (pollError: any) {
+                                            console.error(`[VisbalExt.TestClassExplorer] _runTestSelectedParallel POLL updateMethodStatus.failed pollError: ${pollError}`);
+                                            errorMap.set(progress.className, pollError);
+
+                                            this._testRunResultsView.updateMethodStatus(progress.className, progress.methodName, 'failed', errorMap.get(progress.className));
+                                            if (this._view) {
+                                                this._view.webview.postMessage({
+                                                    command: 'error',
+                                                    message: `Error polling test results for ${progress.className}.${progress.methodName}: ${pollError.message}`
+                                                });
+                                            }
+                                        }
+                                    }
+                                
+                                }
+
+                                // For other errors or if polling fails, mark as failed
+                                console.error(`[VisbalExt.TestClassExplorer] _runTestSelectedParallel updateMethodStatus.failed`);
+                                this._testRunResultsView.updateMethodStatus(progress.className, progress.methodName, 'failed', errorMap.get(progress.className));
+                                if (this._view) {
+                                    this._view.webview.postMessage({
+                                        command: 'error',
+                                        message: `Error running test ${progress.className}.${progress.methodName}: ${error.message}`
+                                    });
+                                }
+                                
                                 if (error instanceof Error && 'data' in error && typeof error.data === 'object' && error.data && 'errorCode' in error.data && error.data.errorCode === 'ALREADY_IN_PROCESS') {
                                     console.log(`[VisbalExt.TestClassExplorerView] _runTestSelectedParallel -- ALREADY_IN_PROCESS detected for ${progress.className}.${progress.methodName}`);
                                     progress.status = TestStatus.running;
