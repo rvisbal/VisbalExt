@@ -337,37 +337,48 @@ export class MetadataService {
         // double check if potentials are test methods by verifying they have the @isTest annotation
         for (const method of methods) {
             const methodName = method.name;
-            const methodStart = classBody.indexOf(methodName);
-            // Look for @IsTest in a more targeted way - from the previous method or class start
-            let methodContext = classBody.substring(0, methodStart);
-            // Find the last occurrence of either a closing brace } or class declaration before the method
-            const lastBrace = methodContext.lastIndexOf('}');
-            const lastClass = methodContext.lastIndexOf('class');
-            const searchStart = Math.max(lastBrace, lastClass);
-            // Only look at the context between the last closing brace/class and the method
-            methodContext = methodContext.substring(searchStart);
+            // Find all occurrences of the method name
+            let currentPos = 0;
+            let methodStart = -1;
+            let methodContext = '';
+
+            // Find the actual method declaration
+            const methodPattern = new RegExp(`(?:private|public|protected)?\\s+static\\s+void\\s+${methodName}\\s*\\(`, 'i');
+            const match = methodPattern.exec(classBody);
             
-            // First check for standalone @IsTest annotation above the method
-            const hasIsTestAnnotation = /@istest\s*$/im.test(methodContext);
-            
-            // If no standalone annotation, check for other test method patterns
-            if (!hasIsTestAnnotation) {
-                const isTestPatterns = [
-                    new RegExp(`@istest\\s+(?:static\\s+)?(?:void\\s+)?${methodName}\\s*\\(`, 'i'),
-                    new RegExp(`testmethod\\s+(?:static\\s+)?(?:void\\s+)?${methodName}\\s*\\(`, 'i'),
-                    new RegExp(`@istest\\s+.*?${methodName}\\s*\\(`, 'i')
-                ];
-                
-                // Check if the method name ends with 'Test' or 'Tests'
-                const isTestByName = methodName.toLowerCase().endsWith('test') || 
-                                   methodName.toLowerCase().endsWith('tests');
-                                   
-                const isTestByPattern = isTestPatterns.some(pattern => pattern.test(methodContext));
-                
-                method.isTestMethod = isTestByName || isTestByPattern;
-            } else {
-                method.isTestMethod = true;
+            if (match) {
+                methodStart = match.index;
+                // Look backwards from method declaration to find the comment block or previous method
+                let contextStart = methodStart;
+                while (contextStart > 0) {
+                    contextStart--;
+                    // If we find a closing brace, we've gone too far back (into previous method)
+                    if (classBody[contextStart] === '}') {
+                        contextStart++;
+                        break;
+                    }
+                    // If we find a line with just whitespace and newline, we've found the start
+                    if (classBody.substring(contextStart - 1, contextStart + 1).match(/\n\s*\n/)) {
+                        break;
+                    }
+                }
+                methodContext = classBody.substring(contextStart, methodStart).trim();
             }
+
+            if (methodStart === -1) {
+                method.isTestMethod = false;
+                continue;
+            }
+
+            // Check for @isTest annotation in the context before the method
+            const hasIsTestAnnotation = /@istest\b/i.test(methodContext);
+
+            if (methodName === "testEnforceRuleParentDunsChange" || methodName === "testEnforceRuleParentDunsChangeMatchLowerToUpper") {
+                console.log(`[VisbalExt.MetadataService] extractTestMethods --  methodName:${methodName} methodContext:`, methodContext);
+            }
+
+            // Method is a test only if it has @isTest annotation before its declaration
+            method.isTestMethod = hasIsTestAnnotation;
             
             if (method.isTestMethod) {
                 console.log(`[VisbalExt.MetadataService] extractTestMethods -- Found test method: ${methodName}`);
