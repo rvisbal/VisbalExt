@@ -17,7 +17,7 @@ interface ExecResult {
 }
 
 export class SfdxService {
-    private orgAliasCache: { alias: string; timestamp: number } | null = null;
+    
     private readonly CACHE_EXPIRATION = 15 * 60 * 1000; // 15 minutes in milliseconds
 
     constructor() {}
@@ -26,23 +26,23 @@ export class SfdxService {
     private _executeCommand(command: string): Promise<ExecResult> {
         return new Promise((resolve, reject) => {
             child_process.exec(command, { maxBuffer: MAX_BUFFER_SIZE }, (error, stdout, stderr) => {
-                console.log(`[VisbalExt.SfdxService] _executeCommand stdout:`, stdout);
-                console.log(`[VisbalExt.SfdxService] _executeCommand stderr:`, stderr);
-                console.log(`[VisbalExt.SfdxService] _executeCommand error:`, error);
+                console.log(`[VisbalExt.SfdxService] _executeCommand command:${command} -- stdout:`, stdout);
+                //console.log(`[VisbalExt.SfdxService] _executeCommand command:${command} -- stderr:`, stderr);
+                //console.log(`[VisbalExt.SfdxService] _executeCommand command:${command} -- error:`, error);
                 if (error) {
                     // If we have stdout even with an error, we might want to use it
                     if (stdout) {
-                        console.log(`[VisbalExt.SfdxService] _executeCommand Warning: Command had error but returned stdout:`, stdout);
+                        console.log(`[VisbalExt.SfdxService] _executeCommand command:${command} --Warning: Command had error but returned stdout:`, stdout);
                         resolve({ stdout: stdout.toString(), stderr: stderr?.toString() || '' });
                         return;
                     }
-                    console.error(`[VisbalExt.SfdxService] _executeCommand Error:`, error);
+                    console.error(`[VisbalExt.SfdxService] _executeCommand command:${command} -- Error:`, error);
                     reject(error);
                     return;
                 }
                 
                 if (stderr) {
-                    console.warn(`[VisbalExt.SfdxService] _executeCommand stderr:`, stderr);
+                    console.warn(`[VisbalExt.SfdxService] _executeCommand command:${command} -- stderr:`, stderr);
                 }
                 
                 resolve({ stdout: stdout.toString(), stderr: stderr?.toString() || '' });
@@ -120,14 +120,7 @@ export class SfdxService {
     public async getCurrentOrgAlias(): Promise<string> {
         try {
             //console.log('[VisbalExt.SfdxService] getCurrentOrgAlias -- BEGIN', this.orgAliasCache);
-            // Check cache first
-            if (this.orgAliasCache && (Date.now() - this.orgAliasCache.timestamp) < this.CACHE_EXPIRATION) {
-                console.log('[VisbalExt.SfdxService] getCurrentOrgAlias -- Returning cached alias:', this.orgAliasCache.alias);
-                return this.orgAliasCache.alias;
-            }
-            else if (this.orgAliasCache) {
-                console.log(`[VisbalExt.SfdxService] getCurrentOrgAlias --${(Date.now() - this.orgAliasCache.timestamp)} this.CACHE_EXPIRATION:${this.CACHE_EXPIRATION} this.orgAliasCache`, this.orgAliasCache);
-            }
+         
 
             //console.log('[VisbalExt.SfdxService] getCurrentOrgAlias -- NOT CACHED Getting current org alias');
             const command = 'sf org display --json';
@@ -143,11 +136,7 @@ export class SfdxService {
                     throw new Error('No org alias or username found');
                 }
                
-                // Update cache
-                this.orgAliasCache = {
-                    alias,
-                    timestamp: Date.now()
-                };
+               
                 console.log('[VisbalExt.SfdxService] getCurrentOrgAlias -- CACHED & RETURN alias:', alias);
                 
                 return alias;

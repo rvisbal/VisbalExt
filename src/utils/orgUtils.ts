@@ -43,6 +43,8 @@ export class OrgUtils {
     private static _logs: any[] = [];
     private static _context: vscode.ExtensionContext;
     private static _sfdxService: SfdxService;
+    private static _orgAliasCache: { alias: string; timestamp: number } | null = null;
+    private static readonly CACHE_EXPIRATION = 15 * 60 * 1000; // 15 minutes in milliseconds
 
     /**
      * Initialize the OrgUtils class with necessary data
@@ -52,6 +54,8 @@ export class OrgUtils {
     public static initialize(logs: any[], context: vscode.ExtensionContext): void {
         this._logs = logs;
         this._context = context;
+        // Initialize sfdxService if needed
+        this.sfdxService;
     }
 
     /**
@@ -186,6 +190,25 @@ export class OrgUtils {
         }
     }
 
+     //#region Organization Management
+     public static async getCurrentOrgAlias(): Promise<string> {
+        try {
+            if (this._orgAliasCache && (Date.now() - this._orgAliasCache.timestamp) < this.CACHE_EXPIRATION) {
+                return this._orgAliasCache.alias;
+            }
+
+            const alias = await this.sfdxService.getCurrentOrgAlias();
+            this._orgAliasCache = {
+                alias,
+                timestamp: Date.now()
+            };
+            return alias;
+        } catch (error) {
+            console.error('[VisbalExt.OrgUtils] getCurrentOrgAlias Error:', error);
+            throw error;
+        }
+    }
+
     /**
      * Opens the default org in a browser
      */
@@ -255,31 +278,13 @@ export class OrgUtils {
      * @returns Promise<string> Log content
      */
     private static async _fetchLogContent(logId: string): Promise<string> {
-        let logContent: string | null = null;
-        let error: Error | null = null;
-        this._sfdxService = new SfdxService();
-
-        // Try new CLI format first
         try {
-            console.log('[VisbalExt.OrgUtils] _fetchLogContent -- logId:', logId);
-            const result = await this._sfdxService.getLogContent(logId);
-            //console.log('[VisbalExt.OrgUtils] _fetchLogContent -- Result:', result);
-            const jsonResult = this.parseResultJson(result);
-            console.log(`[VisbalExt.OrgUtils] _fetchLogContent -- hasError:${jsonResult.hasError} isJson:${jsonResult.isJson} `);
-            if (!jsonResult.hasError && jsonResult.content && jsonResult.content[0]?.log) {
-                console.log('[VisbalExt.OrgUtils] _fetchLogContent -- retunrretuning');
-                return jsonResult.content[0].log;
-            }
-            else {
-                console.log('[VisbalExt.OrgUtils] _fetchLogContent -- returning result:', result);
-                return result;
-            }
-        } catch (e) {
-            console.log('[VisbalExt.OrgUtils] _fetchLogContent -- Error:', e);
-            error = e as Error;
+            const result = await this.sfdxService.getLogContent(logId);
+            return result;
+        } catch (error) {
+            console.error('[VisbalExt.OrgUtils] _fetchLogContent Error:', error);
+            throw error;
         }
-
-        throw new Error('Failed to fetch log content');
     }
 
     /**
@@ -377,5 +382,12 @@ export class OrgUtils {
             vscode.window.showErrorMessage(`Failed to download log: ${error.message}`);
             throw error;
         }
+    }
+
+    private static get sfdxService(): SfdxService {
+        if (!this._sfdxService) {
+            this._sfdxService = new SfdxService();
+        }
+        return this._sfdxService;
     }
 } 
