@@ -1217,13 +1217,18 @@ export class SfdxService {
             //if query includes breakpoint, new line, or other special characters then use the advance query
             const advanceQuery = query.includes('breakpoint') || query.includes('\n') || query.includes(' ');
             if (advanceQuery)  {
-                //delete the query.txt file if it exists
-                if (fs.existsSync('query.txt')) {
-                    fs.unlinkSync('query.txt');
+                // Ensure .visbal directory exists
+                if (!fs.existsSync('.visbal')) {
+                    fs.mkdirSync('.visbal');
                 }
-                //write the query into a file and athis command
-                fs.writeFileSync('query.txt', query);
-                command += ` --file query.txt`;
+                const queryFilePath = '.visbal/query.txt';
+                //delete the query.txt file if it exists
+                if (fs.existsSync(queryFilePath)) {
+                    fs.unlinkSync(queryFilePath);
+                }
+                //write the query into a file and add this command
+                fs.writeFileSync(queryFilePath, query);
+                command += ` --file ${queryFilePath}`;
             }
             else {
                 command += ` --query "${query}"`;
