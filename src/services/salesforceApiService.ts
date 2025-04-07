@@ -340,7 +340,283 @@ export class SalesforceApiService {
         }
     }
 
+    /**
+     * Retrieve metadata using the Metadata API
+     * @param metadataType The type of metadata (e.g., 'CustomObject', 'ApexClass')
+     * @param fullNames Array of API names to retrieve
+     */
+    public async retrieveMetadata(metadataType: string, fullNames: string[]): Promise<any> {
+        try {
+            if (!this._instance) {
+                throw new Error('Salesforce API service not initialized');
+            }
+            
+            statusBarService.showProgress(`Retrieving ${metadataType} metadata...`);
+            
+            const endpoint = '/tooling/sobjects/MetadataContainer';
+            const response = await this._instance.post(endpoint, {
+                name: `retrieve_${Date.now()}`,
+                metadataContainerMembers: fullNames.map(name => ({
+                    type: metadataType,
+                    fullName: name
+                }))
+            });
+            
+            console.log(`[VisbalExt.SalesforceApiService] retrieveMetadata -- Retrieved ${metadataType} metadata`);
+            statusBarService.showSuccess('Metadata retrieval completed');
+            return response.data;
+        } catch (error: any) {
+            console.error('[VisbalExt.SalesforceApiService] retrieveMetadata -- Error:', error);
+            statusBarService.showError(`Metadata retrieval error: ${error.message}`);
+            throw error;
+        }
+    }
 
+    /**
+     * Deploy metadata using the Metadata API
+     * @param metadataType The type of metadata
+     * @param metadata The metadata to deploy
+     */
+    public async deployMetadata(metadataType: string, metadata: any): Promise<any> {
+        try {
+            if (!this._instance) {
+                throw new Error('Salesforce API service not initialized');
+            }
+            
+            statusBarService.showProgress(`Deploying ${metadataType} metadata...`);
+            
+            const endpoint = '/tooling/sobjects/MetadataContainer';
+            const response = await this._instance.post(endpoint, {
+                name: `deploy_${Date.now()}`,
+                metadataContainerMembers: [{
+                    type: metadataType,
+                    content: JSON.stringify(metadata)
+                }]
+            });
+            
+            console.log(`[VisbalExt.SalesforceApiService] deployMetadata -- Deployed ${metadataType} metadata`);
+            statusBarService.showSuccess('Metadata deployment completed');
+            return response.data;
+        } catch (error: any) {
+            console.error('[VisbalExt.SalesforceApiService] deployMetadata -- Error:', error);
+            statusBarService.showError(`Metadata deployment error: ${error.message}`);
+            throw error;
+        }
+    }
+
+    /**
+     * List metadata types available in the org
+     */
+    public async listMetadataTypes(): Promise<any> {
+        try {
+            if (!this._instance) {
+                throw new Error('Salesforce API service not initialized');
+            }
+            
+            statusBarService.showProgress('Retrieving metadata types...');
+            
+            const endpoint = '/tooling/sobjects';
+            const response = await this._instance.get(endpoint);
+            
+            console.log('[VisbalExt.SalesforceApiService] listMetadataTypes -- Retrieved metadata types');
+            statusBarService.showSuccess('Metadata types retrieved');
+            return response.data.sobjects;
+        } catch (error: any) {
+            console.error('[VisbalExt.SalesforceApiService] listMetadataTypes -- Error:', error);
+            statusBarService.showError(`Failed to list metadata types: ${error.message}`);
+            throw error;
+        }
+    }
+
+    /**
+     * Execute a composite request to perform multiple operations in a single call
+     * @param requests Array of subrequests to execute
+     * @param allOrNone Whether to roll back all changes if any request fails
+     */
+    public async executeComposite(requests: Array<{
+        method: string;
+        url: string;
+        referenceId: string;
+        body?: any;
+    }>, allOrNone: boolean = true): Promise<any> {
+        try {
+            if (!this._instance) {
+                throw new Error('Salesforce API service not initialized');
+            }
+            
+            statusBarService.showProgress('Executing composite request...');
+            
+            const endpoint = '/composite';
+            const response = await this._instance.post(endpoint, {
+                allOrNone,
+                compositeRequest: requests
+            });
+            
+            console.log('[VisbalExt.SalesforceApiService] executeComposite -- Composite request completed');
+            statusBarService.showSuccess('Composite request completed');
+            return response.data;
+        } catch (error: any) {
+            console.error('[VisbalExt.SalesforceApiService] executeComposite -- Error:', error);
+            statusBarService.showError(`Composite request error: ${error.message}`);
+            throw error;
+        }
+    }
+
+    /**
+     * Create a bulk API job for large data operations
+     * @param objectType The Salesforce object type
+     * @param operation The operation type ('insert', 'update', 'delete', 'query')
+     * @param records Array of records to process
+     */
+    public async createBulkJob(objectType: string, operation: 'insert' | 'update' | 'delete' | 'query', records: any[]): Promise<any> {
+        try {
+            if (!this._instance) {
+                throw new Error('Salesforce API service not initialized');
+            }
+            
+            statusBarService.showProgress(`Creating bulk ${operation} job for ${objectType}...`);
+            
+            // Create the bulk job
+            const createJobResponse = await this._instance.post('/jobs/ingest', {
+                object: objectType,
+                operation,
+                contentType: 'JSON',
+                lineEnding: 'LF'
+            });
+            
+            const jobId = createJobResponse.data.id;
+            
+            // Upload the data
+            await this._instance.put(
+                `/jobs/ingest/${jobId}/batches`,
+                records,
+                {
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                }
+            );
+            
+            // Close the job
+            await this._instance.patch(`/jobs/ingest/${jobId}`, {
+                state: 'UploadComplete'
+            });
+            
+            console.log(`[VisbalExt.SalesforceApiService] createBulkJob -- Created bulk job: ${jobId}`);
+            statusBarService.showSuccess('Bulk job created and data uploaded');
+            return jobId;
+        } catch (error: any) {
+            console.error('[VisbalExt.SalesforceApiService] createBulkJob -- Error:', error);
+            statusBarService.showError(`Bulk job error: ${error.message}`);
+            throw error;
+        }
+    }
+
+    /**
+     * Check the status of a bulk API job
+     * @param jobId The ID of the bulk job
+     */
+    public async checkBulkJobStatus(jobId: string): Promise<any> {
+        try {
+            if (!this._instance) {
+                throw new Error('Salesforce API service not initialized');
+            }
+            
+            const response = await this._instance.get(`/jobs/ingest/${jobId}`);
+            
+            console.log(`[VisbalExt.SalesforceApiService] checkBulkJobStatus -- Job ${jobId} status: ${response.data.state}`);
+            return response.data;
+        } catch (error: any) {
+            console.error('[VisbalExt.SalesforceApiService] checkBulkJobStatus -- Error:', error);
+            throw error;
+        }
+    }
+
+    /**
+     * Run Apex tests and return the test run ID
+     * @param testClasses Array of Apex test class names to run. If empty, runs all tests.
+     * @param testMethods Array of specific test methods to run (optional)
+     * @returns The test run ID that can be used to check status and get logs
+     */
+    public async runApexTests(testClasses: string[] = [], testMethods: string[] = []): Promise<string> {
+        try {
+            if (!this._instance) {
+                throw new Error('Salesforce API service not initialized');
+            }
+
+            statusBarService.showProgress('Starting Apex test run...');
+
+            // Create the test run request
+            const testRequest = {
+                testLevel: testClasses.length ? 'RunSpecifiedTests' : 'RunLocalTests',
+                classids: testClasses,
+                suiteids: [],
+                maxFailedTests: -1,
+                testMethods: testMethods
+            };
+
+            const response = await this._instance.post('/tooling/runTestsAsynchronous', testRequest);
+            const testRunId = response.data;
+
+            console.log(`[VisbalExt.SalesforceApiService] runApexTests -- Test run started with ID: ${testRunId}`);
+            statusBarService.showSuccess('Test run started');
+            return testRunId;
+        } catch (error: any) {
+            console.error('[VisbalExt.SalesforceApiService] runApexTests -- Error:', error);
+            statusBarService.showError(`Failed to start test run: ${error.message}`);
+            throw error;
+        }
+    }
+
+    /**
+     * Get the status of an Apex test run
+     * @param testRunId The ID of the test run
+     * @returns Test run status and results
+     */
+    public async getApexTestStatus(testRunId: string): Promise<any> {
+        try {
+            if (!this._instance) {
+                throw new Error('Salesforce API service not initialized');
+            }
+
+            const query = encodeURIComponent(
+                `SELECT Id, Status, StartTime, EndTime, ApexClassId, MethodName, Message, StackTrace, Outcome, ApexLogId ` +
+                `FROM ApexTestResult WHERE AsyncApexJobId = '${testRunId}'`
+            );
+
+            const response = await this._instance.get(`/tooling/query?q=${query}`);
+            console.log(`[VisbalExt.SalesforceApiService] getApexTestStatus -- Retrieved status for test run: ${testRunId}`);
+            return response.data.records;
+        } catch (error: any) {
+            console.error('[VisbalExt.SalesforceApiService] getApexTestStatus -- Error:', error);
+            throw error;
+        }
+    }
+
+    /**
+     * Get the debug log for a specific test method
+     * @param logId The ID of the debug log (ApexLogId from test results)
+     * @returns The debug log content
+     */
+    public async getApexTestLog(logId: string): Promise<string> {
+        try {
+            if (!this._instance) {
+                throw new Error('Salesforce API service not initialized');
+            }
+
+            statusBarService.showProgress('Retrieving test log...');
+
+            const response = await this._instance.get(`/tooling/sobjects/ApexLog/${logId}/Body`);
+            
+            console.log(`[VisbalExt.SalesforceApiService] getApexTestLog -- Retrieved log: ${logId}`);
+            statusBarService.showSuccess('Test log retrieved');
+            return response.data;
+        } catch (error: any) {
+            console.error('[VisbalExt.SalesforceApiService] getApexTestLog -- Error:', error);
+            statusBarService.showError(`Failed to retrieve test log: ${error.message}`);
+            throw error;
+        }
+    }
 }
 
 // Export a singleton instance
