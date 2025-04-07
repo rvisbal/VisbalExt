@@ -1363,6 +1363,14 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                 allTestsCompleted = Array.from(testProgress.values()).every((progress: TestProgressState) => 
                     progress.status === TestStatus.success || progress.status === TestStatus.failed
                 );
+                console.log(`[VisbalExt.TestClassExplorerView] _runTestSelectedParallel -- A: allTestsCompleted:`, allTestsCompleted);
+                allTestsCompleted = Array.from(testProgress.values()).every((progress) => {
+                    const hasValidOutcome = progress.runResult?.summary?.outcome === 'Passed' || progress.runResult?.summary?.outcome === 'Failed';
+                    console.log(`[VisbalExt.TestClassExplorerView] _runTestSelectedParallel -- ? progress:`, progress);
+                    return hasValidOutcome;
+                });
+                console.log(`[VisbalExt.TestClassExplorerView] _runTestSelectedParallel -- B:  allTestsCompleted:`, allTestsCompleted);
+          
                 console.log(`[VisbalExt.TestClassExplorerView] _runTestSelectedParallel -- allTestsCompleted:`, allTestsCompleted);
 
                 if (!allTestsCompleted) {
@@ -1385,7 +1393,7 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                         results.push(progress.runResult);
                         //isrunning show pending
                         if (progress.status === TestStatus.running) {
-                            this._testRunResultsView.updateMethodStatus(progress.className, progress.methodName, 'pending');
+                            //this._testRunResultsView.updateMethodStatus(progress.className, progress.methodName, 'pending');
                         }
                     }
                 }

@@ -39,7 +39,9 @@ export class SfdxService {
     private _executeCommand(command: string): Promise<ExecResult> {
         return new Promise((resolve, reject) => {
             child_process.exec(command, { maxBuffer: MAX_BUFFER_SIZE }, (error, stdout, stderr) => {
-                console.log(`[VisbalExt.SfdxService] _executeCommand command:${command} -- stdout:`, stdout);
+                if (!command.includes('sf apex list log')) {
+                    console.log(`[VisbalExt.SfdxService] _executeCommand command:${command} -- stdout:`, stdout);
+                }
                 //console.log(`[VisbalExt.SfdxService] _executeCommand command:${command} -- stderr:`, stderr);
                 //console.log(`[VisbalExt.SfdxService] _executeCommand command:${command} -- error:`, error);
                 if (error) {
