@@ -647,6 +647,11 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
             vscode.window.showErrorMessage(`Error running tests: ${error.message}`);
         } finally {
             this._statusBarService.hide();
+            if (this._view) {
+                this._view.webview.postMessage({
+                    command: 'testRunFinished'
+                });
+            }
         }
     }
     
@@ -671,6 +676,8 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
 
             if (tests.methods.length === 1) {
                 this._runTest(tests.methods[0].className, tests.methods[0].methodName);
+
+
             }
             else {
 
@@ -1041,10 +1048,10 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                     });
                 }
                 
-                this._statusBarService.hide();
+
             }
         } catch (error: any) {
-            this._statusBarService.hide();
+
             console.error('[VisbalExt.TestClassExplorerView] Error running selected tests:', error);
             
             if (this._view) {
@@ -1054,6 +1061,11 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                 });
             }
         }
+        finally {
+            this._statusBarService.hide();
+
+        }
+
     }
 
 

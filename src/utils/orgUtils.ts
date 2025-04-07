@@ -477,7 +477,17 @@ export class OrgUtils {
         console.log('[VisbalExt.OrgUtils] hasExistingDebugTraceFlag -- userId:', userId);
         const traceResult = await OrgUtils.getExistingDebugTraceFlag(userId);
         console.log('[VisbalExt.OrgUtils] hasExistingDebugTraceFlag -- traceResult:', traceResult);
-        return !!traceResult.existingTraceFlag;
+        
+        if (!traceResult.existingTraceFlag) {
+            return false;
+        }
+
+        const now = new Date();
+        const expirationDate = new Date(traceResult.existingTraceFlag.ExpirationDate);
+        const isActive = expirationDate > now;
+        
+        console.log(`[VisbalExt.OrgUtils] hasExistingDebugTraceFlag -- isActive: ${isActive}, expires: ${expirationDate}`);
+        return isActive;
     }
 
 
