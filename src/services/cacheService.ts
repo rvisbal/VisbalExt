@@ -4,6 +4,7 @@ import * as path from 'path';
 import { SalesforceLog } from '../types/salesforceLog';
 import { execAsync } from '../utils/execUtils';
 import { SfdxService } from './sfdxService';
+import { OrgUtils } from '../utils/orgUtils';
 
 interface LogCache {
     [orgAlias: string]: {
@@ -46,11 +47,6 @@ export class CacheService {
         }
     }
 
-    private async getCurrentOrgAlias(): Promise<string> {
-        this.currentOrgAlias = await this._sfdxService.getCurrentOrgAlias();
-        return this.currentOrgAlias ;
-    }
-
     private readCache(): LogCache {
         try {
             if (fs.existsSync(this.logCacheFile)) {
@@ -76,7 +72,8 @@ export class CacheService {
 
     public async getCachedLogs(): Promise<SalesforceLog[]> {
         try {
-            const orgAlias = await this.getCurrentOrgAlias();
+            console.log('[VisbalExt.CacheService] getCachedLogs -- BEGIN');
+            const orgAlias = await OrgUtils.getCurrentOrgAlias();
             const cache = this.readCache();
             return cache[orgAlias]?.logs || [];
         } catch (error) {
@@ -87,7 +84,7 @@ export class CacheService {
 
     public async saveCachedLogs(logs: SalesforceLog[]): Promise<void> {
         try {
-            const orgAlias = await this.getCurrentOrgAlias();
+            const orgAlias = await OrgUtils.getCurrentOrgAlias();
             const cache = this.readCache();
             
             if (!cache[orgAlias]) {
@@ -112,7 +109,7 @@ export class CacheService {
 
     public async getCachedOrg(): Promise<{ alias: string; timestamp: string } | null> {
         try {
-            const orgAlias = await this.getCurrentOrgAlias();
+            const orgAlias = await OrgUtils.getCurrentOrgAlias();
             console.log('[VisbalExt.CacheService] getCachedOrg -- orgAlias:', orgAlias);
             const cache = this.readCache();
             return cache[orgAlias]?.selectedOrg || null;
@@ -124,7 +121,7 @@ export class CacheService {
 
     public async saveCachedOrg(selectedOrg: { alias: string; timestamp: string }): Promise<void> {
         try {
-            const orgAlias = await this.getCurrentOrgAlias();
+            const orgAlias = await OrgUtils.getCurrentOrgAlias();
             console.log('[VisbalExt.CacheService] getCasaveCachedOrgchedOrg -- orgAlias:', orgAlias);
             const cache = this.readCache();
             
@@ -150,7 +147,7 @@ export class CacheService {
 
     public async getLastFetchTime(): Promise<number> {
         try {
-            const orgAlias = await this.getCurrentOrgAlias();
+            const orgAlias = await OrgUtils.getCurrentOrgAlias();
             const cache = this.readCache();
             return cache[orgAlias]?.lastFetchTime || 0;
         } catch (error) {
@@ -161,7 +158,7 @@ export class CacheService {
 
     public async getDownloadedLogs(): Promise<Set<string>> {
         try {
-            const orgAlias = await this.getCurrentOrgAlias();
+            const orgAlias = await OrgUtils.getCurrentOrgAlias();
             const cache = this.readCache();
             return new Set(cache[orgAlias]?.downloadedLogs || []);
         } catch (error) {
@@ -172,7 +169,7 @@ export class CacheService {
 
     public async getDownloadedLogPaths(): Promise<Map<string, string>> {
         try {
-            const orgAlias = await this.getCurrentOrgAlias();
+            const orgAlias = await OrgUtils.getCurrentOrgAlias();
             const cache = this.readCache();
             return new Map(Object.entries(cache[orgAlias]?.downloadedLogPaths || {}));
         } catch (error) {
@@ -183,7 +180,7 @@ export class CacheService {
 
     public async saveDownloadedLogs(downloadedLogs: Set<string>, downloadedLogPaths: Map<string, string>): Promise<void> {
         try {
-            const orgAlias = await this.getCurrentOrgAlias();
+            const orgAlias = await OrgUtils.getCurrentOrgAlias();
             const cache = this.readCache();
             
             if (!cache[orgAlias]) {
@@ -208,7 +205,7 @@ export class CacheService {
 
     public async clearCache(): Promise<void> {
         try {
-            const orgAlias = await this.getCurrentOrgAlias();
+            const orgAlias = await OrgUtils.getCurrentOrgAlias();
             const cache = this.readCache();
             delete cache[orgAlias];
             this.writeCache(cache);

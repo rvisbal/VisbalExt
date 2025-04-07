@@ -333,30 +333,60 @@ export class MetadataService {
                 }
             }
         }
-        
-        // Use the specific test method patterns
-        for (const pattern of patterns) {
-            let match;
-            while ((match = pattern.exec(classBody)) !== null) {
-                const methodName = match[1];
-                // Skip if method is already added or is a TestSetup method
-                if (!methods.some(m => m.name === methodName) && !testSetupMethods.has(methodName)) {
-                    // Additional check to ensure it's not a TestSetup method
-                    const methodStart = classBody.indexOf(methodName);
-                    const methodContext = classBody.substring(Math.max(0, methodStart - 100), methodStart);
-                    if (!methodContext.toLowerCase().includes('@testsetup')) {
-                        console.log(`[VisbalExt.MetadataService] extractTestMethods -- Found test method: ${methodName}`);
-                        methods.push({
-                            name: methodName,
-                            isTestMethod: true
-                        });
+
+        // double check if potentials are test methods by verifying they have the @isTest annotation
+        for (const method of methods) {
+            const methodName = method.name;
+            // Find all occurrences of the method name
+            let currentPos = 0;
+            let methodStart = -1;
+            let methodContext = '';
+
+            // Find the actual method declaration
+            const methodPattern = new RegExp(`(?:private|public|protected)?\\s+static\\s+void\\s+${methodName}\\s*\\(`, 'i');
+            const match = methodPattern.exec(classBody);
+            
+            if (match) {
+                methodStart = match.index;
+                // Look backwards from method declaration to find the comment block or previous method
+                let contextStart = methodStart;
+                while (contextStart > 0) {
+                    contextStart--;
+                    // If we find a closing brace, we've gone too far back (into previous method)
+                    if (classBody[contextStart] === '}') {
+                        contextStart++;
+                        break;
+                    }
+                    // If we find a line with just whitespace and newline, we've found the start
+                    if (classBody.substring(contextStart - 1, contextStart + 1).match(/\n\s*\n/)) {
+                        break;
                     }
                 }
+                methodContext = classBody.substring(contextStart, methodStart).trim();
             }
-        }
 
-        console.log(`[VisbalExt.MetadataService] Extracted ${methods.length} test methods`);
-        return methods;
+            if (methodStart === -1) {
+                method.isTestMethod = false;
+                continue;
+            }
+
+            // Check for @isTest annotation in the context before the method
+            const hasIsTestAnnotation = /@istest\b/i.test(methodContext);
+
+            if (methodName === "testEnforceRuleParentDunsChange" || methodName === "testEnforceRuleParentDunsChangeMatchLowerToUpper") {
+                console.log(`[VisbalExt.MetadataService] extractTestMethods --  methodName:${methodName} methodContext:`, methodContext);
+            }
+
+            // Method is a test only if it has @isTest annotation before its declaration
+            method.isTestMethod = hasIsTestAnnotation;
+            
+            if (method.isTestMethod) {
+                console.log(`[VisbalExt.MetadataService] extractTestMethods -- Found test method: ${methodName}`);
+            }
+        }   
+
+        // Filter out non-test methods before returning
+        return methods.filter(method => method.isTestMethod);
     }
 
     /**
@@ -739,10 +769,6 @@ export class MetadataService {
                     try {
                         const timeA = new Date(a.StartTime).getTime();
                         const timeB = new Date(b.StartTime).getTime();
-                        console.log(`[VisbalExt.MetadataService] Sorting logs:a.StartTime: ${a.StartTime} b.StartTime: ${b.StartTime} -- timeA:${timeA} timeB:${timeB}` , {
-                            logA: { id: a.Id, time: new Date(a.StartTime).toISOString() },
-                            logB: { id: b.Id, time: new Date(b.StartTime).toISOString() }
-                        });
                         return timeB - timeA;
                     } catch (error) {
                         console.error('[VisbalExt.MetadataService] Error sorting logs:', error);

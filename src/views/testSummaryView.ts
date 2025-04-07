@@ -80,6 +80,12 @@ export class TestSummaryView implements vscode.WebviewViewProvider {
         }
     }
 
+    public clearView() {
+        if (this._view) {
+            this._view.webview.html = this._getInitialContent();
+        }
+    }
+
     private _getInitialContent(): string {
         return `<!DOCTYPE html>
         <html lang="en">

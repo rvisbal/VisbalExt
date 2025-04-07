@@ -5,6 +5,7 @@ import { TestClass } from '../types/testClass';
 import { TestMethod } from './metadataService';
 import { execAsync } from '../utils/execUtils';
 import { SfdxService } from './sfdxService';
+import { OrgUtils } from '../utils/orgUtils';
 
 interface OrgTestClasses {
     testClasses: TestClass[];
@@ -45,10 +46,6 @@ export class StorageService {
         }
     }
 
-    private async getCurrentOrgAlias(): Promise<string> {
-        this.currentOrgAlias = await this._sfdxService.getCurrentOrgAlias();
-        return this.currentOrgAlias ;
-    }
 
     private readCache(): TestClassesCache {
         try {
@@ -77,7 +74,7 @@ export class StorageService {
 
     public async getTestClasses(): Promise<TestClass[]> {
         try {
-            const orgAlias = await this.getCurrentOrgAlias();
+            const orgAlias = await OrgUtils.getCurrentOrgAlias();
             const cache = this.readCache();
             return cache[orgAlias]?.testClasses || [];
         } catch (error) {
@@ -88,7 +85,7 @@ export class StorageService {
 
     public async saveTestClasses(testClasses: TestClass[]): Promise<void> {
         try {
-            const orgAlias = await this.getCurrentOrgAlias();
+            const orgAlias = await OrgUtils.getCurrentOrgAlias();
             const cache = this.readCache();
             
             cache[orgAlias] = {
@@ -151,7 +148,7 @@ export class StorageService {
 
     public async clearStorage(): Promise<void> {
         try {
-            const orgAlias = await this.getCurrentOrgAlias();
+            const orgAlias = await OrgUtils.getCurrentOrgAlias();
             const cache = this.readCache();
             delete cache[orgAlias];
             this.writeCache(cache);
