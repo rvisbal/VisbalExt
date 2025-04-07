@@ -81,6 +81,7 @@ interface TestProgressState {
     finishDownloadingLog: boolean;
     status: TestStatus;
     downloadLog: boolean;
+    hasDebugTrace: boolean;
 }
 
 export class TestClassExplorerView implements vscode.WebviewViewProvider {
@@ -655,7 +656,7 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
         runMode: 'sequential' | 'parallel'
     }) {
         try {
-
+           
             // Clear previous test runs from the results view
             this._testRunResultsView.clearResults();
             this._testSummaryView.clearView();
@@ -673,6 +674,10 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
             }
             else {
 
+                const hasDebugTrace = await OrgUtils.hasExistingDebugTraceFlag();
+                console.log('[VisbalExt.TestClassExplorerView] _runSelectedTests -- hasDebugTrace:', hasDebugTrace);
+            
+                    
                 this._statusBarService.showMessage(`$(beaker~spin) Running ${totalCount} selected tests in ${tests.runMode} mode...`);
                 
                 const sfExtension = vscode.extensions.getExtension('salesforce.salesforcedx-vscode-core');
@@ -809,13 +814,13 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                     }
                     else {
                         
-                            results = await this._runTestSelectedParallel(tests);
-                            //combine the results and update the test summary view at the bottom of the test side panel view
-                            if (results.length > 0) {
-                                const combinedSummary = results.map(result => result.summary);
-                                const allTests = results.reduce((acc, result) => acc.concat(result.tests), []);
-                                this._testSummaryView.updateSummary(combinedSummary, allTests);
-                            }
+                        results = await this._runTestSelectedParallel(tests, hasDebugTrace);
+                        //combine the results and update the test summary view at the bottom of the test side panel view
+                        if (results.length > 0) {
+                            const combinedSummary = results.map(result => result.summary);
+                            const allTests = results.reduce((acc, result) => acc.concat(result.tests), []);
+                            this._testSummaryView.updateSummary(combinedSummary, allTests);
+                        }
                     }
                    
                     //#region PARALLEL MODE
@@ -824,10 +829,7 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                     
                 } else {
                     //#region SEQUENTIAL MODE
-                    // Run tests sequentially
-                    results = await this._runTestSelectedSequentially(tests);
-                    console.log(`[VisbalExt.TestClassExplorerView] _runSelectedTests -- runMode:${tests.runMode} -- testResultsLoaded results:`, results);
-                    //#endregion SEQUENTIAL MODE
+                 
                     const SEQUENTIAL_OLD_WAY = false;
                     if (SEQUENTIAL_OLD_WAY) {
                          //#region SEQUENTIAL MODE
@@ -1014,13 +1016,18 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                         //#endregion SEQUENTIAL MODE
                     }
                     else {
-                     //combine the results and update the test summary view at the bottom of the test side panel view
-                    if (results.length > 0) {
-                        const combinedSummary = results.map(result => result.summary);
-                        const allTests = results.reduce((acc, result) => acc.concat(result.tests), []);
-                        this._testSummaryView.updateSummary(combinedSummary, allTests);
+                        // Run tests sequentially
+                        results = await this._runTestSelectedSequentially(tests, hasDebugTrace);
+                        console.log(`[VisbalExt.TestClassExplorerView] _runSelectedTests -- runMode:${tests.runMode} -- testResultsLoaded results:`, results);
+                   
+                        //combine the results and update the test summary view at the bottom of the test side panel view
+                        if (results.length > 0) {
+                            const combinedSummary = results.map(result => result.summary);
+                            const allTests = results.reduce((acc, result) => acc.concat(result.tests), []);
+                            this._testSummaryView.updateSummary(combinedSummary, allTests);
                         }
                     }
+                     //#endregion SEQUENTIAL MODE
                 }
 
                 console.log(`[VisbalExt.TestClassExplorerView] _runSelectedTests -- runMode:${tests.runMode} -- testResultsLoaded results:`, results);
@@ -1057,7 +1064,7 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
             if (result.status === 'fulfilled' && result.value) {
                 console.log('Promise resolved:', result.value);
                 const { progress } = result.value;
-                if (progress?.runTest?.testRunId) {
+                if (progress.hasDebugTrace && progress?.runTest?.testRunId) {
                     try {
                         // Get log ID
                         const logId = await this._sfdxService.getTestLogId(progress.runTest.testRunId);
@@ -1097,7 +1104,7 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
         classes: string[], 
         methods: { className: string, methodName: string }[],
         runMode: 'sequential' | 'parallel'
-    }) {
+    }, hasDebugTrace: boolean) {
         try {
             const downloadLog = false;
             this._isRunning = true;
@@ -1145,7 +1152,8 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                         initiateDownloadingLog: false,
                         finishDownloadingLog: false,
                         status: TestStatus.running,
-                        downloadLog: false
+                        downloadLog: false,
+                        hasDebugTrace: hasDebugTrace
                     });
                     this._testRunResultsView.updateMethodStatus(className, methodName, 'pending');
                 }
@@ -1433,7 +1441,7 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
         classes: string[], 
         methods: { className: string, methodName: string }[],
         runMode: 'sequential' | 'parallel'
-    }) {
+    }, hasDebugTrace: boolean) {
         try {
             this._isRunning = true;
             this._abortController = new AbortController();
@@ -1485,7 +1493,8 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                         initiateDownloadingLog: false,
                         finishDownloadingLog: false,
                         status: TestStatus.running,
-                        downloadLog: false
+                        downloadLog: false,
+                        hasDebugTrace: hasDebugTrace
                     });
                     this._testRunResultsView.updateMethodStatus(className, methodName, 'running');
                     console.log(`[VisbalExt.TestClassExplorerView] _runTestSelectedSequentially -- Running: ${className}.${methodName} -- iteration:${countIteration}`);
@@ -1511,7 +1520,7 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                                     console.log(`[VisbalExt.TestClassExplorer] _runTestSelectedSequentially -- getTestRunResult -- ${className}.${methodName} -- iteration:${countIteration} result:`, testResult);
                                 }
 
-                                if (!progress.logId && !progress.initiateLogId) {
+                                if (progress.hasDebugTrace && !progress.logId && !progress.initiateLogId) {
                                     progress.initiateLogId = true;
                                     const logId = await this._sfdxService.getTestLogId(progress.testRunId);
                                     progress.logId = logId;

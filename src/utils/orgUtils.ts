@@ -37,6 +37,14 @@ interface LogResult {
     log: string;
 }
 
+interface TraceFlag {
+    Id: string;
+    LogType: string;
+    StartDate: string;
+    ExpirationDate: string;
+    DebugLevelId: string;
+}
+
 export class OrgUtils {
     private static _downloadedLogs: Set<string> = new Set<string>();
     private static _downloadedLogPaths: Map<string, string> = new Map<string, string>();
@@ -44,7 +52,10 @@ export class OrgUtils {
     private static _context: vscode.ExtensionContext;
     private static _sfdxService: SfdxService;
     private static _orgAliasCache: { alias: string; timestamp: number } | null = null;
+    private static _currentUserIdCache: { userId: string; timestamp: number } | null = null;
     private static readonly CACHE_EXPIRATION = 15 * 60 * 1000; // 15 minutes in milliseconds
+
+    
 
     /**
      * Initialize the OrgUtils class with necessary data
@@ -191,18 +202,45 @@ export class OrgUtils {
     }
 
      //#region Organization Management
-     public static async getCurrentOrgAlias(): Promise<string> {
+    public static async getCurrentOrgAlias(): Promise<string> {
         try {
+            console.log('[VisbalExt.OrgUtils] getCurrentOrgAlias -- this._orgAliasCache:', this._orgAliasCache);
+            if (this._orgAliasCache) {
+                console.log('[VisbalExt.OrgUtils] getCurrentOrgAlias -- Date.now() - this._orgAliasCache.timestamp:', Date.now() - this._orgAliasCache.timestamp);
+            }
             if (this._orgAliasCache && (Date.now() - this._orgAliasCache.timestamp) < this.CACHE_EXPIRATION) {
+                console.log('[VisbalExt.OrgUtils] getCurrentOrgAlias -- CACHED');
                 return this._orgAliasCache.alias;
             }
-
+            
             const alias = await this.sfdxService.getCurrentOrgAlias();
             this._orgAliasCache = {
                 alias,
                 timestamp: Date.now()
             };
+            console.log('[VisbalExt.OrgUtils] getCurrentOrgAlias -- SFDX & CACHED');
             return alias;
+        } catch (error) {
+            console.error('[VisbalExt.OrgUtils] getCurrentOrgAlias Error:', error);
+            throw error;
+        }
+    }
+
+
+    public static async getCurrentUserId(): Promise<string> {
+        try {
+            if (this._currentUserIdCache && (Date.now() - this._currentUserIdCache.timestamp) < this.CACHE_EXPIRATION) {
+                return this._currentUserIdCache.userId;
+            }
+            
+            //sf org display
+            console.log('[VisbalExt.OrgUtils] getCurrentUserId -- Getting current user ID');
+            const userId = await this.sfdxService.getCurrentUserId();
+            this._currentUserIdCache = {
+                userId,
+                timestamp: Date.now()
+            };
+            return userId;
         } catch (error) {
             console.error('[VisbalExt.OrgUtils] getCurrentOrgAlias Error:', error);
             throw error;
@@ -383,6 +421,65 @@ export class OrgUtils {
             throw error;
         }
     }
+
+
+    public static async getExistingDebugTraceFlag(userId: string): Promise<{ existingTraceFlag: TraceFlag | null, existingDebugLevelId: string | null }> {
+        let result = {
+            existingTraceFlag: null as TraceFlag | null,
+            existingDebugLevelId: null as string | null
+        };
+        
+        const selectedOrg = await OrgUtils.getSelectedOrg();
+        try {
+            console.log('[VisbalExt.OrgUtils] getExistingDebugTraceFlag -7 -- Checking for existing trace flags');
+            const query = `SELECT Id, LogType, StartDate, ExpirationDate, DebugLevelId FROM TraceFlag WHERE LogType='DEVELOPER_LOG' AND TracedEntityId='${userId}'`;
+            
+            try {
+                const records =  await this.sfdxService.executeSoqlQuery(query, false, true);
+                //const traceFlagResult = await this._executeCommand(`sf data query --query "${query}" --use-tooling-api --target-org ${selectedOrg?.alias} --json`);
+                //console.log(`[VisbalExt.OrgUtils] getExistingDebugTraceFlag -8 -- Trace flag query result: ${traceFlagResult}`);
+                //const traceFlagJson = JSON.parse(traceFlagResult);
+                
+                if (records && records.length > 0) {
+                    result.existingTraceFlag = records[0];
+                    if (result.existingTraceFlag) {
+                        result.existingDebugLevelId = result.existingTraceFlag.DebugLevelId;
+                        console.log(`[VisbalExt.OrgUtils] getExistingDebugTraceFlag -9 -- Found existing trace flag: ${result.existingTraceFlag.Id}, debug level: ${result.existingDebugLevelId}`);
+                    }
+                }
+            } catch (error) {
+                console.error('[VisbalExt.OrgUtils] getExistingDebugTraceFlag -10 -- Error checking trace flags with new CLI format:', error);
+                
+                try {
+                    const traceFlagResult = await this._executeCommand(`sfdx force:data:soql:query --query "${query}" --usetoolingapi --target-org ${selectedOrg?.alias} --json`);
+                    console.log(`[VisbalExt.OrgUtils] getExistingDebugTraceFlag -11 -- Trace flag query result (old format): ${traceFlagResult}`);
+                    const traceFlagJson = JSON.parse(traceFlagResult);
+                    
+                    if (traceFlagJson.result && traceFlagJson.result.records && traceFlagJson.result.records.length > 0) {
+                        result.existingTraceFlag = traceFlagJson.result.records[0];
+                        if (result.existingTraceFlag) {
+                            result.existingDebugLevelId = result.existingTraceFlag.DebugLevelId;
+                            console.log(`[VisbalExt.OrgUtils] getExistingDebugTraceFlag -12 -- Found existing trace flag (old format): ${result.existingTraceFlag.Id}, debug level: ${result.existingDebugLevelId}`);
+                        }
+                    }
+                } catch (oldError) {
+                    console.error('[VisbalExt.OrgUtils] getExistingDebugTraceFlag -13 -- Error checking trace flags with old CLI format:', oldError);
+                }
+            }
+        } catch (error) {
+            console.error('[VisbalExt.OrgUtils] getExistingDebugTraceFlag -14 -- Error checking existing trace flag:', error);
+        }
+        return result;
+    }
+
+    public static async hasExistingDebugTraceFlag(): Promise<boolean> {
+        const userId = await this.getCurrentUserId();
+        console.log('[VisbalExt.OrgUtils] hasExistingDebugTraceFlag -- userId:', userId);
+        const traceResult = await OrgUtils.getExistingDebugTraceFlag(userId);
+        console.log('[VisbalExt.OrgUtils] hasExistingDebugTraceFlag -- traceResult:', traceResult);
+        return !!traceResult.existingTraceFlag;
+    }
+
 
     private static get sfdxService(): SfdxService {
         if (!this._sfdxService) {

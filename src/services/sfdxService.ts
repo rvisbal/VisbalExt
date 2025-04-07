@@ -47,7 +47,7 @@ export class SfdxService {
                 if (error) {
                     // If we have stdout even with an error, we might want to use it
                     if (stdout) {
-                        console.log(`[VisbalExt.SfdxService] _executeCommand command:${command} --Warning: Command had error but returned stdout:`, stdout);
+                        //console.log(`[VisbalExt.SfdxService] _executeCommand command:${command} --Warning: Command had error but returned stdout:`, stdout);
                         resolve({ stdout: stdout.toString(), stderr: stderr?.toString() || '' });
                         return;
                     }
@@ -90,7 +90,7 @@ export class SfdxService {
     public async getCurrentUserId(): Promise<string> {
         let userId = '';
         try {
-            // Try with new CLI format first
+            console.log('[VisbalExt.SfdxService] getCurrentUserId -- Getting current user ID');
             try {
                 let command = 'sf org display user';
                 
@@ -100,7 +100,7 @@ export class SfdxService {
                 }
                 command += ' --json';
                 
-                //console.log('[VisbalExt.SfdxService] getCurrentUserId command:', command);
+                console.log('[VisbalExt.SfdxService] getCurrentUserId command:', command);
                 const userIdResult = await this._executeCommand(command);
                 //console.log(`[VisbalExt.SfdxService] getCurrentUserId User ID result: ${userIdResult}`);
                 const userIdJson = JSON.parse(userIdResult.stdout);
@@ -134,7 +134,7 @@ export class SfdxService {
     //#region Organization Management
     public async getCurrentOrgAlias(): Promise<string> {
         try {
-            //console.log('[VisbalExt.SfdxService] getCurrentOrgAlias -- BEGIN', this.orgAliasCache);
+            console.log('[VisbalExt.SfdxService] getCurrentOrgAlias -- BEGIN');
          
 
             //console.log('[VisbalExt.SfdxService] getCurrentOrgAlias -- NOT CACHED Getting current org alias');

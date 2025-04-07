@@ -657,44 +657,9 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
             let existingTraceFlag = null;
             let existingDebugLevelId = null;
             
-            try {
-                console.log('[VisbalExt.VisbalLogView] _turnOnDebugLog -11 Checking for existing trace flags');
-                const query = `SELECT Id, LogType, StartDate, ExpirationDate, DebugLevelId FROM TraceFlag WHERE LogType='DEVELOPER_LOG' AND TracedEntityId='${userId}'`;
-                let records =  await this._sfdxService.executeSoqlQuery(query,false, true);
-                // Try with new CLI format first
-                try {
-
-                    
-                    if (records && records.length > 0) {
-                        existingTraceFlag = records[0];
-                        existingDebugLevelId = existingTraceFlag.DebugLevelId;
-                        console.log(`[VisbalExt.VisbalLogView] _turnOnDebugLog -12 Found existing trace flag: ${existingTraceFlag.Id}, debug level: ${existingDebugLevelId}`);
-                    }
-                } catch (error) {
-                    console.error('[VisbalExt.VisbalLogView] _turnOnDebugLog -13 Error checking trace flags with new CLI format:', error);
-                    
-                    // Try with old CLI format
-                    try {
-                        let records: any[] = [];
-                        let existingTraceFlag: any;
-                        let existingDebugLevelId: string | undefined;
-                        
-                        records = await this._sfdxService.executeSoqlQuery(query, false, true);
-                        
-                        if (records && records.length > 0) {
-                            existingTraceFlag = records[0];
-                            existingDebugLevelId = existingTraceFlag.DebugLevelId;
-                            console.log(`[VisbalExt.VisbalLogView] _turnOnDebugLog -14 Found existing trace flag (old format): ${existingTraceFlag.Id}, debug level: ${existingDebugLevelId}`);
-                        }
-                    } catch (oldError) {
-                        console.error('[VisbalExt.VisbalLogView] _turnOnDebugLog -15 Error checking trace flags with old CLI format:', oldError);
-                        // Continue anyway, we'll create a new trace flag
-                    }
-                }
-            } catch (error) {
-                console.error('[VisbalExt.VisbalLogView] _turnOnDebugLog -16 Error checking existing trace flag:', error);
-                // Continue anyway, we'll create a new trace flag
-            }
+            const traceResult = await OrgUtils.getExistingDebugTraceFlag(userId);
+            existingTraceFlag = traceResult.existingTraceFlag;
+            existingDebugLevelId = traceResult.existingDebugLevelId;
 
             // Use existing debug level if available, otherwise create a new one
             let debugLevelId = existingDebugLevelId;
@@ -1252,7 +1217,7 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
                 try {
                       //#region ALTERNATIVA                        
                     console.log('[VisbalExt.VisbalLogView] _applyDebugConfig -3 -- ALTERNATIVA Getting user ID with new CLI format');
-                    userId = await this._sfdxService.getCurrentUserId();
+                    userId = await OrgUtils.getCurrentUserId();
                     console.log(`[VisbalExt.VisbalLogView] _applyDebugConfig -4 -- ALTERNATIVA Current user ID: ${userId}`);
                     //#endregion  ALTERNATIVA
                 } catch (error) {

@@ -72,6 +72,7 @@ export class CacheService {
 
     public async getCachedLogs(): Promise<SalesforceLog[]> {
         try {
+            console.log('[VisbalExt.CacheService] getCachedLogs -- BEGIN');
             const orgAlias = await OrgUtils.getCurrentOrgAlias();
             const cache = this.readCache();
             return cache[orgAlias]?.logs || [];
