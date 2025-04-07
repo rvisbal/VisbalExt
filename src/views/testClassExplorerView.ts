@@ -12,6 +12,7 @@ import { OrgUtils } from '../utils/orgUtils';
 
 import { TestRunResultsView } from './testRunResultsView';
 import { TestSummaryView } from './testSummaryView';
+import { SalesforceApiService } from '../services/salesforceApiService';
 
 enum TestStatus {
     pending = 'pending',
@@ -99,13 +100,15 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
     private _sfdxService: SfdxService;
     private _abortController: AbortController | null = null;
     private _isRunning: boolean = false;
+    private _salesforceApiService: SalesforceApiService;
 
     constructor(
         extensionUri: vscode.Uri,
         statusBarService: StatusBarService,
         private readonly _context: vscode.ExtensionContext,
         testRunResultsView: TestRunResultsView,
-        testSummaryView: TestSummaryView
+        testSummaryView: TestSummaryView,
+        salesforceApiService: SalesforceApiService
     ) {
         this._extensionUri = extensionUri;
         this._statusBarService = statusBarService;
@@ -116,6 +119,13 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
         this._testRunResultsView = testRunResultsView;
         this._testSummaryView = testSummaryView;
         this._sfdxService = new SfdxService();
+        this._salesforceApiService = salesforceApiService;
+        
+        // Initialize Salesforce API
+        this._salesforceApiService.initialize().catch(error => {
+            console.error('[VisbalExt.TestClassExplorerView] Failed to initialize Salesforce API:', error);
+            vscode.window.showErrorMessage('Failed to initialize Salesforce API service');
+        });
     }
 
     public resolveWebviewView(
@@ -1227,6 +1237,14 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                                 
                                 if (runTest.testRunId) {
                                      console.log(`[VisbalExt.TestClassExplorerView] _runTestSelectedParallel -- getTestRunResult ${progress.className}.${progress.methodName} -- STARTS`);
+
+                                    //get the test run result
+                                    await this._salesforceApiService.initialize();
+                                    const apiResult = await this._salesforceApiService.getApexTestStatus(runTest.testRunId);
+                                    console.log(`[VisbalExt.TestClassExplorerView] _runTestSelectedParallel -- API_RESULT ${progress.className}.${progress.methodName} -- runResult:`, apiResult);
+                  
+
+                                     
                                     // Get test run result
                                     const runResult = await this._sfdxService.getTestRunResult(runTest.testRunId);
                                     console.log(`[VisbalExt.TestClassExplorerView] _runTestSelectedParallel -- getTestRunResult ${progress.className}.${progress.methodName} -- runResult:`, runResult);
