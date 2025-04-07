@@ -188,7 +188,7 @@ export class TestRunResultsProvider implements vscode.TreeDataProvider<TestItem>
         }
     }
 
-    updateMethodStatus(className: string, methodName: string, status: 'running' | 'success' | 'failed' | 'downloading', logId?: string, error?: string) {
+    updateMethodStatus(className: string, methodName: string, status: 'running' | 'success' | 'failed' | 'downloading' | 'pending', logId?: string, error?: string) {
         const startTime = Date.now();
         console.log(`[VisbalExt.TestRunResultsProvider] updateMethodStatus -- Updating method status: ${className}.${methodName} -> ${status} at ${new Date(startTime).toISOString()}`);
         
@@ -234,7 +234,7 @@ export class TestRunResultsProvider implements vscode.TreeDataProvider<TestItem>
         }
     }
 
-    updateClassStatus(className: string, status: 'running' | 'success' | 'failed' | 'downloading') {
+    updateClassStatus(className: string, status: 'running' | 'success' | 'failed' | 'downloading' | 'pending') {
         const startTime = Date.now();
         console.log(`[VisbalExt.TestRunResultsProvider] updateClassStatus -- Updating class status: ${className} -> ${status} at ${new Date(startTime).toISOString()}`);
         
@@ -291,11 +291,11 @@ export class TestRunResultsView {
         this.provider.addTestRun(className, methods);
     }
 
-    updateMethodStatus(className: string, methodName: string, status: 'running' | 'success' | 'failed' | 'downloading', logId?: string, error?: string) {
+    updateMethodStatus(className: string, methodName: string, status: 'running' | 'success' | 'failed' | 'downloading' | 'pending', logId?: string, error?: string) {
         this.provider.updateMethodStatus(className, methodName, status, logId, error);
     }
 
-    updateClassStatus(className: string, status: 'running' | 'success' | 'failed' | 'downloading') {
+    updateClassStatus(className: string, status: 'running' | 'success' | 'failed' | 'downloading' | 'pending') {
         this.provider.updateClassStatus(className, status);
     }
 

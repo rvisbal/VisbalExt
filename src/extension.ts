@@ -92,7 +92,8 @@ export function activate(context: vscode.ExtensionContext) {
         statusBarService,
         context,
         testRunResultsView,
-        testSummaryView
+        testSummaryView,
+        salesforceApi
     );
 
     // Register test class explorer view commands

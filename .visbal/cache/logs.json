@@ -1,1 +1,12 @@
-{}
+{
+  "MIGRAR_TESTER_2": {
+    "logs": [],
+    "lastFetchTime": 1743708736858,
+    "downloadedLogs": [],
+    "downloadedLogPaths": {},
+    "selectedOrg": {
+      "alias": "SECURITY_REVIEW",
+      "timestamp": "2025-04-03T19:32:13.454Z"
+    }
+  }
+}

@@ -38,6 +38,17 @@
         "expirationDate": "2025-04-17"
       },
       {
+        "username": "test-jx5rvz8y5hu0@example.com",
+        "alias": "CURSOR_MERGE",
+        "instanceUrl": "https://drive-fun-1519-dev-ed.scratch.my.salesforce.com",
+        "isDefault": false,
+        "type": "scratchOrg",
+        "clientId": "PlatformCLI",
+        "clientSecret": "Unknown",
+        "redirectUri": "Unknown",
+        "expirationDate": "2025-05-07"
+      },
+      {
         "username": "test-06oz9kqpewkk@example.com",
         "alias": "CURSOR_TICKET",
         "instanceUrl": "https://fun-power-8424-dev-ed.scratch.my.salesforce.com",
@@ -318,5 +329,5 @@
       }
     ]
   },
-  "timestamp": 1743627184420
+  "timestamp": 1744060307876
 }
