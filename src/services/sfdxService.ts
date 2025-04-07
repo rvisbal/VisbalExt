@@ -1212,8 +1212,23 @@ export class SfdxService {
             console.log('[VisbalExt.SfdxService] Executing SOQL query:', query);
             
             // Execute the query using the Salesforce CLI
-            let command = `sf data query --query "${query}" --json`;
+            let command = `sf data query  `;
             const selectedOrg = await OrgUtils.getSelectedOrg();
+            //if query includes breakpoint, new line, or other special characters then use the advance query
+            const advanceQuery = query.includes('breakpoint') || query.includes('\n') || query.includes(' ');
+            if (advanceQuery)  {
+                //delete the query.txt file if it exists
+                if (fs.existsSync('query.txt')) {
+                    fs.unlinkSync('query.txt');
+                }
+                //write the query into a file and athis command
+                fs.writeFileSync('query.txt', query);
+                command += ` --file query.txt`;
+            }
+            else {
+                command += ` --query "${query}"`;
+            }
+
             if (!useDefaultOrg && selectedOrg?.alias) {
                 command += ` --target-org ${selectedOrg.alias}`;
             }
