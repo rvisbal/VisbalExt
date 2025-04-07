@@ -601,7 +601,16 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                     try {
                         //update the "Running Task" treeview status
                         this._testRunResultsView.updateMethodStatus(testClass, t.MethodName, 'downloading');
-                        const logId = await this._metadataService.getTestLogId(result.testRunId);
+                        let logId = '';
+                        if (t.Id) {
+                            logId = await this._orgUtils.getLogId(t.Id);
+        
+                        }
+                        
+                        if (!logId) {
+                            logId = await this._metadataService.getTestLogId(result.testRunId);
+                        }
+            
                         if (logId) {
                             this._testRunResultsView.updateMethodStatus(testClass, t.MethodName, 'downloading', logId);
                             console.log(`[VisbalExt.TestClassExplorer] _runTest Processing log for test: ${t.ApexClass?.Name || 'Unknown'}`);
@@ -1086,13 +1095,36 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
             if (result.status === 'fulfilled' && result.value) {
                 console.log('Promise resolved:', result.value);
                 const { progress } = result.value;
+                console.log(`[VisbalExt.TestClassExplorerView] _runTestSelectedParallel -- fulfilled -- progress:`, progress);
                 if (progress.hasDebugTrace && progress?.runTest?.testRunId) {
                     try {
-                        // Get log ID
-                        const logId = await this._sfdxService.getTestLogId(progress.runTest.testRunId);
-                        console.log(`[VisbalExt.TestClassExplorerView] _processPromises -- getTestLogId ${progress.className}.${progress.methodName} -- logId:`, logId);
-                        progress.logId = logId;
-                        progress.finishGettingLogId = true;
+                        //SELECT Id, ApexClass.Name, MethodName, Message, StackTrace, Outcome, ApexLogId FROM ApexTestResult WHERE ApexClass.Name='DoNotAdd_BasicTest' AND MethodName='testEnforceRuleWithExistingRecordsKeepUniqueOFF_List' AND Id='07MG1000008rUZgMAM'
+                        let logId = '';
+
+                        const getLogByApexTestResult = true;
+                        if (getLogByApexTestResult) {
+                            //get the testId from the runResult
+
+                            let testId = progress.runResult.tests[0].Id;
+                            console.log(`[VisbalExt.TestClassExplorerView] _runTestSelectedParallel -- testId:`, testId);
+                            //SELECT Id, ApexClass.Name, MethodName, Message, StackTrace, Outcome, ApexLogId FROM ApexTestResult
+                            const apiResult = await this._sfdxService.executeSoqlQuery(`SELECT Id, ApexClass.Name, MethodName, Message, StackTrace, Outcome, ApexLogId FROM ApexTestResult WHERE Id = '${testId}'`);
+                            console.log(`[VisbalExt.TestClassExplorerView] _runTestSelectedParallel -- API_RESULT ${progress.className}.${progress.methodName} -- runResult:`, apiResult);
+                            if (apiResult.length > 0) {
+                                logId = apiResult[0].ApexLogId;
+                                progress.logId = logId;
+                                progress.finishGettingLogId = true;
+                            }
+                        }
+                        
+                        if (logId ==  '') {
+                            
+                            // Get log ID
+                            logId = await this._sfdxService.getTestLogId(progress.runTest.testRunId);
+                            console.log(`[VisbalExt.TestClassExplorerView] _processPromises -- getTestLogId ${progress.className}.${progress.methodName} -- logId:`, logId);
+                            progress.logId = logId;
+                            progress.finishGettingLogId = true;
+                        }
                         
                         // Download log
                         if (logId) {
@@ -1239,11 +1271,7 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                                      console.log(`[VisbalExt.TestClassExplorerView] _runTestSelectedParallel -- getTestRunResult ${progress.className}.${progress.methodName} -- STARTS`);
 
                                     //get the test run result
-                                    await this._salesforceApiService.initialize();
-                                    const apiResult = await this._salesforceApiService.getApexTestStatus(runTest.testRunId);
-                                    console.log(`[VisbalExt.TestClassExplorerView] _runTestSelectedParallel -- API_RESULT ${progress.className}.${progress.methodName} -- runResult:`, apiResult);
-                  
-
+                            
                                      
                                     // Get test run result
                                     const runResult = await this._sfdxService.getTestRunResult(runTest.testRunId);
@@ -1251,11 +1279,21 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                                     progress.runResult = runResult;
                                     progress.finishGettingTestResult = true;
 
+                                    if (progress.runResult && progress.runResult) {
+                                        progress.initiateLogId = true;
+                                        let logId = await this._orgUtils.getLogIdFromProgress(progress.runResult);
+                                        if (logId) {
+                                            progress.logId = logId;
+                                            progress.finishGettingLogId = true;
+                                            console.log(`[VisbalExt.TestClassExplorerView] _runTestSelectedParallel -- getTestRunResult ${progress.className}.${progress.methodName} -- logId:`, logId);
+                                        }
+                                    }
+
                                     if (progress.runResult && progress.runResult.summary) {
                                         if (progress.runResult.summary.outcome === 'Pass' || progress.runResult.summary.outcome === 'Passed') {
-                                            this._testRunResultsView.updateMethodStatus(progress.className, progress.methodName, 'success', undefined);
+                                            this._testRunResultsView.updateMethodStatus(progress.className, progress.methodName, 'success', progress.logId);
                                         } else if (progress.runResult.summary.outcome === 'Fail' || progress.runResult.summary.outcome === 'Failed') {
-                                            this._testRunResultsView.updateMethodStatus(progress.className, progress.methodName, 'failed', undefined);
+                                            this._testRunResultsView.updateMethodStatus(progress.className, progress.methodName, 'failed', progress.logId);
                                         }
                                     }
                                     
@@ -1393,6 +1431,9 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                     const combinedSummary = results.map(result => result.summary);
                     const allTests = results.reduce((acc, result) => acc.concat(result.tests), []);
                     this._testSummaryView.updateSummary(combinedSummary, allTests);
+                   
+             
+                 
                 }
               
                 
@@ -1548,6 +1589,15 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                                     //allTestResults.push(testResult);
                                     progress.finishGettingTestResult = true;
                                     console.log(`[VisbalExt.TestClassExplorer] _runTestSelectedSequentially -- getTestRunResult -- ${className}.${methodName} -- iteration:${countIteration} result:`, testResult);
+                                }
+
+                                if (progress.hasDebugTrace && progress.runResult && progress.runResult) {
+                                    progress.initiateLogId = true;
+                                    let logId = await this._orgUtils.getLogIdFromProgress(progress.runResult);
+                                    if (logId) {
+                                        progress.logId = logId;
+                                        progress.finishGettingLogId = true;
+                                    }
                                 }
 
                                 if (progress.hasDebugTrace && !progress.logId && !progress.initiateLogId) {

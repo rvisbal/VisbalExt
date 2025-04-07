@@ -576,18 +576,37 @@ export class SalesforceApiService {
     public async getApexTestStatus(testRunId: string): Promise<any> {
         try {
             if (!this._instance) {
+                await this.initialize();
+            }
+            
+            if (!this._instance) {
                 throw new Error('Salesforce API service not initialized');
             }
 
-            const query = encodeURIComponent(
-                `SELECT Id, Status, StartTime, EndTime, ApexClassId, MethodName, Message, StackTrace, Outcome, ApexLogId ` +
-                `FROM ApexTestResult WHERE AsyncApexJobId = '${testRunId}'`
-            );
+            const instance = this._instance;  // Create a non-null reference
 
-            const response = await this._instance.get(`/tooling/query?q=${query}`);
+            // Get test results directly from ApexTestResult
+            const response = await instance.get(`/tooling/sobjects/ApexTestResult/${testRunId}`);
+            
             console.log(`[VisbalExt.SalesforceApiService] getApexTestStatus -- Retrieved status for test run: ${testRunId}`);
-            return response.data.records;
+            return response.data;
         } catch (error: any) {
+            if (error.response?.status === 400) {
+                // Try alternative endpoint for test results
+                try {
+                    if (!this._instance) {
+                        throw new Error('Salesforce API service not initialized');
+                    }
+                    const query = encodeURIComponent(
+                        `SELECT Id, ApexClass.Name, MethodName, Message, StackTrace, Outcome, ApexLogId FROM ApexTestResult WHERE TestRunId = '${testRunId}' `
+                    );
+                    const response = await this._instance.get(`/tooling/query?q=${query}`);
+                    return response.data.records;
+                } catch (retryError: any) {
+                    console.error('[VisbalExt.SalesforceApiService] getApexTestStatus -- Retry failed:', retryError);
+                    throw retryError;
+                }
+            }
             console.error('[VisbalExt.SalesforceApiService] getApexTestStatus -- Error:', error);
             throw error;
         }
