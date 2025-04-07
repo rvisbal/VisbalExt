@@ -1281,7 +1281,7 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
 
                                     if (progress.runResult && progress.runResult) {
                                         progress.initiateLogId = true;
-                                        let logId = await this._orgUtils.getLogIdFromProgress(progress.runResult);
+                                        let logId = await this._orgUtils.getLogIdFromProgress(progress);
                                         if (logId) {
                                             progress.logId = logId;
                                             progress.finishGettingLogId = true;
@@ -1590,22 +1590,23 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                                     progress.finishGettingTestResult = true;
                                     console.log(`[VisbalExt.TestClassExplorer] _runTestSelectedSequentially -- getTestRunResult -- ${className}.${methodName} -- iteration:${countIteration} result:`, testResult);
                                 }
-
-                                if (progress.hasDebugTrace && progress.runResult && progress.runResult) {
+                                console.log(`[VisbalExt.TestClassExplorerView] _runTestSelectedSequentially -- getTestRunResult -- ${className}.${methodName} -- iteration:${countIteration} progress.hasDebugTrace:${progress.hasDebugTrace} progress.runResult:`, progress.runResult);
+                                if (progress.hasDebugTrace && progress.runResult) {
                                     progress.initiateLogId = true;
-                                    let logId = await this._orgUtils.getLogIdFromProgress(progress.runResult);
+                                    let logId = await this._orgUtils.getLogIdFromProgress(progress);
+                                    console.log(`[VisbalExt.TestClassExplorerView] _runTestSelectedSequentially -- SOQL_LOG -- ${className}.${methodName} -- iteration:${countIteration} logId:`, logId);
                                     if (logId) {
                                         progress.logId = logId;
                                         progress.finishGettingLogId = true;
                                     }
                                 }
 
-                                if (progress.hasDebugTrace && !progress.logId && !progress.initiateLogId) {
+                                if (progress.hasDebugTrace && !progress.logId) {
                                     progress.initiateLogId = true;
                                     const logId = await this._sfdxService.getTestLogId(progress.testRunId);
                                     progress.logId = logId;
                                     progress.finishGettingLogId = true;
-                                    console.log(`[VisbalExt.TestClassExplorer] _runTestSelectedSequentially -- getTestLogId -- ${className}.${methodName} -- iteration:${countIteration} logId:`, logId);
+                                    console.log(`[VisbalExt.TestClassExplorer] _runTestSelectedSequentially -- LOG_SFDX -- ${className}.${methodName} -- iteration:${countIteration} logId:`, logId);
 
                                     if (progress.logId && !progress.initiateDownloadingLog) {
                                         if (progress.downloadLog) {
