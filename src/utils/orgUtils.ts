@@ -325,6 +325,51 @@ export class OrgUtils {
         }
     }
 
+    public static async getLogIdFromProgress(progress: any): Promise<string> {
+        let result = '';
+        try {
+            console.log(`[VisbalExt.OrgUtils] getLogIdFromProgress -- progress:`, progress);
+            if (progress.runResult && progress.runResult.tests && progress.runResult.tests.length > 0) {
+                let testId = progress.runResult.tests[0].Id;
+                console.log(`[VisbalExt.OrgUtils] getLogIdFromProgress -- testId:`, testId);
+                const apiResult = await this._sfdxService.executeSoqlQuery(`SELECT Id, ApexClass.Name, MethodName, Message, StackTrace, Outcome, ApexLogId FROM ApexTestResult WHERE Id = '${testId}'`);
+                console.log(`[VisbalExt.OrgUtils] getLogIdFromProgress  -- API_RESULT ${progress.className}.${progress.methodName} -- runResult:`, apiResult);
+                if (apiResult.length > 0) {
+                    result = apiResult[0].ApexLogId || '';
+                }
+            }
+            else {
+                console.log(`[VisbalExt.OrgUtils] getLogIdFromProgress -- progress.runResult:`, progress.runResult);
+                console.log(`[VisbalExt.OrgUtils] getLogIdFromProgress -- progress.runResult.tests:`, progress.runResult.tests);
+                console.log(`[VisbalExt.OrgUtils] getLogIdFromProgress -- progress.runResult.tests.length:`, progress.runResult.tests.length);
+            }
+        } catch (error: any) {
+            vscode.window.showErrorMessage(`Failed to get log id for ${progress.className}.${progress.methodName}: ${error.message}`);
+            throw error;
+        }
+        return result;
+    }
+
+    public static async getLogId(testId: string): Promise<string> {
+        let result = '';
+        try {
+            if (testId) {
+                console.log(`[VisbalExt.OrgUtils] getLogId -- testId:`, testId);
+                const apiResult = await this._sfdxService.executeSoqlQuery(`SELECT Id, ApexClass.Name, MethodName, Message, StackTrace, Outcome, ApexLogId FROM ApexTestResult WHERE Id = '${testId}'`);
+                console.log(`[VisbalExt.OrgUtils] getLogId -- API_RESULT -- runResult:`, apiResult);
+                if (apiResult.length > 0) {
+                    result = apiResult[0].ApexLogId || '';
+                }
+            }
+        } catch (error: any) {
+            vscode.window.showErrorMessage(`Failed to get log id for : ${error.message}`);
+            throw error;
+        }
+        return result;
+    }
+
+
+
     /**
      * Opens a log in the editor
      * @param logId The ID of the log to open
