@@ -153,7 +153,7 @@ export class OrgUtils {
             console.log('[VisbalExt.OrgUtils] listOrgs -- Returning groups:', groups);
             return groups;
         } catch (error: any) {
-            console.error('[VisbalExt.OrgUtils] listOrgs -- Error fetching org list:', error);
+            OrgUticonsolls.logError('[VisbalExt.OrgUtils] listOrgs -- Error fetching org list:', error as Error);
             throw new Error(`Failed to fetch org list: ${error.message}`);
         }
     }
@@ -168,7 +168,7 @@ export class OrgUtils {
             await execAsync(`sf config set target-org=${username}`);
             console.log('[VisbalExt.OrgUtils] setDefaultOrg -- Successfully set default org');
         } catch (error: any) {
-            console.error('[VisbalExt.OrgUtils] setDefaultOrg -- Error setting default org:', error);
+            OrgUtils.logError('[VisbalExt.OrgUtils] setDefaultOrg -- Error setting default org:', error as Error);
             throw new Error(`Failed to set default org: ${error.message}`);
         }
     }
@@ -182,7 +182,7 @@ export class OrgUtils {
             console.log('[VisbalExt.OrgUtils] setSelectedOrg -- Successfully set selected org');
         }
         catch (error: any) {
-            console.error('[VisbalExt.OrgUtils] setSelectedOrg -- Error setting selected org:', error);
+            OrgUtils.logError('[VisbalExt.OrgUtils] setSelectedOrg -- Error setting selected org:', error as Error);
             throw new Error(`Failed to set selected org: ${error.message}`);
         }
     }
@@ -196,7 +196,7 @@ export class OrgUtils {
             return selectedOrg;
         }
         catch (error: any) {
-            console.error('[VisbalExt.OrgUtils] getSelectedOrg -- Error getting selected org:', error);
+            OrgUtils.logError('[VisbalExt.OrgUtils] getSelectedOrg -- Error getting selected org:', error as Error);
             return null;
         }
     }
@@ -221,7 +221,11 @@ export class OrgUtils {
             console.log('[VisbalExt.OrgUtils] getCurrentOrgAlias -- SFDX & CACHED');
             return alias;
         } catch (error) {
-            console.error('[VisbalExt.OrgUtils] getCurrentOrgAlias Error:', error);
+            if (error instanceof Error) {
+                OrgUtils.logError('[VisbalExt.OrgUtils] getCurrentOrgAlias Error:', error);
+            } else {
+                console.error('Unexpected error type:', error);
+            }
             throw error;
         }
     }
@@ -242,7 +246,11 @@ export class OrgUtils {
             };
             return userId;
         } catch (error) {
-            console.error('[VisbalExt.OrgUtils] getCurrentOrgAlias Error:', error);
+            if (error instanceof Error) {
+                OrgUtils.logError('[VisbalExt.OrgUtils] getCurrentOrgAlias Error:', error);
+            } else {
+                console.error('Unexpected error type:', error);
+            }
             throw error;
         }
     }
@@ -256,7 +264,7 @@ export class OrgUtils {
             await execAsync('sf org open');
             console.log('[VisbalExt.OrgUtils] openDefaultOrg -- Successfully opened default org');
         } catch (error: any) {
-            console.error('[VisbalExt.OrgUtils] openDefaultOrg -- Error opening default org:', error);
+            OrgUtils.logError('[VisbalExt.OrgUtils] openDefaultOrg -- Error opening default org:', error as Error);
             throw new Error(`Failed to open default org: ${error.message}`);
         }
     }
@@ -269,7 +277,7 @@ export class OrgUtils {
             await execAsync(`sf org open --target-org ${selectedOrg?.alias}`);
             console.log('[VisbalExt.OrgUtils] openSelectedOrg -- Successfully opened selected org');
         } catch (error: any) {
-            console.error('[VisbalExt.OrgUtils] openSelectedOrg -- Error opening selected org:', error);
+            OrgUtils.logError('[VisbalExt.OrgUtils] openSelectedOrg -- Error opening selected org:', error as Error);
             throw new Error(`Failed to open selected org: ${error.message}`);
         }
     }
@@ -320,7 +328,11 @@ export class OrgUtils {
             const result = await this.sfdxService.getLogContent(logId);
             return result;
         } catch (error) {
-            console.error('[VisbalExt.OrgUtils] _fetchLogContent Error:', error);
+            if (error instanceof Error) {
+                OrgUtils.logError('[VisbalExt.OrgUtils] _fetchLogContent Error:', error);
+            } else {
+                console.error('Unexpected error type:', error);
+            }
             throw error;
         }
     }
@@ -493,7 +505,11 @@ export class OrgUtils {
                     }
                 }
             } catch (error) {
-                console.error('[VisbalExt.OrgUtils] getExistingDebugTraceFlag -10 -- Error checking trace flags with new CLI format:', error);
+                if (error instanceof Error) {
+                    OrgUtils.logError('[VisbalExt.OrgUtils] getExistingDebugTraceFlag -10 -- Error checking trace flags with new CLI format:', error);
+                } else {
+                    console.error('Unexpected error type:', error);
+                }
                 
                 try {
                     const traceFlagResult = await this._executeCommand(`sfdx force:data:soql:query --query "${query}" --usetoolingapi --target-org ${selectedOrg?.alias} --json`);
@@ -508,11 +524,19 @@ export class OrgUtils {
                         }
                     }
                 } catch (oldError) {
-                    console.error('[VisbalExt.OrgUtils] getExistingDebugTraceFlag -13 -- Error checking trace flags with old CLI format:', oldError);
+                    if (oldError instanceof Error) {
+                        OrgUtils.logError('[VisbalExt.OrgUtils] getExistingDebugTraceFlag -13 -- Error checking trace flags with old CLI format:', oldError);
+                    } else {
+                        console.error('Unexpected error type:', oldError);
+                    }
                 }
             }
         } catch (error) {
-            console.error('[VisbalExt.OrgUtils] getExistingDebugTraceFlag -14 -- Error checking existing trace flag:', error);
+            if (error instanceof Error) {
+                OrgUtils.logError('[VisbalExt.OrgUtils] getExistingDebugTraceFlag -14 -- Error checking existing trace flag:', error);
+            } else {
+                console.error('Unexpected error type:', error);
+            }
         }
         return result;
     }
@@ -541,5 +565,53 @@ export class OrgUtils {
             this._sfdxService = new SfdxService();
         }
         return this._sfdxService;
+    }
+
+    public static logError(message: string, error: Error): void {
+        try {
+            //log the error to a file in the .visbal/error directory. if the directory does not exist, create it.
+            const errorDir = path.join(os.homedir(), '.visbal', 'error');
+            if (!fs.existsSync(errorDir)) {
+                fs.mkdirSync(errorDir, { recursive: true });
+            }
+            // the file name should contains if available in the message the prefix of the source ex: [VisbalExt.OrgUtils] getExistingDebugTraceFlag 
+            // prefix : [VisbalExt.OrgUtils] method : getExistingDebugTraceFlag > filename : `${prefix}.${method}${new Date().toISOString().replace(/:/g, '-')}.log`
+            const prefix = message.split(']')[0].trim();
+            const method = message.split(']')[1].trim();
+            const timestamp = new Date().toISOString().replace(/:/g, '-');
+            const errorFile = path.join(errorDir, `${prefix}.${method}${timestamp}.log`);
+            fs.writeFileSync(errorFile, `${message}\n${error.message}\n${error.stack}\n`);
+
+            //delete files older than 1 days
+            const files = fs.readdirSync(errorDir);
+            files.forEach(file => {
+                const fileDate = new Date(file.split('.')[2]);
+                if (fileDate < new Date(Date.now() - 1 * 24 * 60 * 60 * 1000)) {
+                    fs.unlinkSync(path.join(errorDir, file));
+                }
+            });
+        } catch (e) {
+            console.error(`[VisbalExt.OrgUtils] logError -- Error logging error:`, e as Error);
+        }
+        
+        console.error(`${message}`, error as Error);
+    }
+
+    public static logDebug(message: string, o?: unknown): void {
+        try {
+            //I would like to log the file in the .visbal/debug directory. if the directory does not exist, create it.
+            //all log should be on the same fileURLToPath, preced by the timestamp
+            const debugDir = path.join(os.homedir(), '.visbal', 'debug');
+            if (!fs.existsSync(debugDir)) {
+                fs.mkdirSync(debugDir, { recursive: true });
+            }
+            //the file wil be the same all the time, just append the message
+            const debugFile = path.join(debugDir, `debug.log`);
+            fs.appendFileSync(debugFile, `${message}\n${JSON.stringify(o)}\n`);
+        } catch (error) {
+            console.error('Error logging debug information:', error);
+        }
+
+        console.log(`${message}`, o);
     }
 } 
