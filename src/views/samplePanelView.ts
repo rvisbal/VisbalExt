@@ -1010,7 +1010,7 @@ export class SamplePanelView implements vscode.WebviewViewProvider {
                                 timestamp: new Date().getTime()
                             }
                             });
-                        } catch (error: any) {
+                        } catch (error) {
                             console.error('[VisbalExt.htmlTemplate] Failed to save org cache:', error);
                         }
                     }
@@ -1020,7 +1020,7 @@ export class SamplePanelView implements vscode.WebviewViewProvider {
                             vscode.postMessage({
                             command: 'loadOrgCache'
                             });
-                        } catch (error: any) {
+                        } catch (error) {
                             console.error('[VisbalExt.htmlTemplate] Failed to load org cache:', error);
                             return null;
                         }
