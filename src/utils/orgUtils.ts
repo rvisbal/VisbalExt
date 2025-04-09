@@ -131,7 +131,7 @@ export class OrgUtils {
             const parsedResult = JSON.parse(result.stdout);
             
 
-            OrgUtils.logDebug('[VisbalExt.OrgUtils] listOrgs -- Parsed orgs:', parsedResult);
+            OrgUtils.logDebug('[VisbalExt.OrgUtils] listOrgs -- Parsed orgs:', parsedResult?.result?.length || 0);
 
             const groups: OrgGroups = {
                 devHubs: this.getSectionArray(parsedResult.result.devHubs),

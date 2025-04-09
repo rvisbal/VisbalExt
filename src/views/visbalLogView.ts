@@ -2029,7 +2029,7 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
             let orgs;
 
             if (cachedData) {
-                OrgUtils.logDebug('[VisbalExt.VisbalLogView] _loadOrgList -- Using cached org list', cachedData);
+                OrgUtils.logDebug('[VisbalExt.VisbalLogView] _loadOrgList -- Using cached org list cachedData');
                 orgs = cachedData.orgs;
             } else {
                 OrgUtils.logDebug('[VisbalExt.VisbalLogView] _loadOrgList -- Fetching fresh org list');

@@ -308,7 +308,7 @@ export class SamplePanelView implements vscode.WebviewViewProvider {
             let orgs;
 
             if (cachedData) {
-                OrgUtils.logDebug('[VisbalExt.SamplePanelView] _loadOrgList -- Using cached org list:', cachedData);
+                OrgUtils.logDebug('[VisbalExt.SamplePanelView] _loadOrgList -- Using cached org list:cachedData');
                 orgs = cachedData.orgs;
             } else {
                 OrgUtils.logDebug('[VisbalExt.SamplePanelView] _loadOrgList -- Fetching fresh org list');

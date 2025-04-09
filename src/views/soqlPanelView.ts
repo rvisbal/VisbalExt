@@ -141,7 +141,7 @@ export class SoqlPanelView implements vscode.WebviewViewProvider {
             let orgs;
 
             if (cachedData) {
-                OrgUtils.logDebug('[VisbalExt.soqlPanel] _loadOrgList -- Using cached org list:', cachedData);
+                OrgUtils.logDebug('[VisbalExt.soqlPanel] _loadOrgList -- Using cached org list cachedData');
                 orgs = cachedData.orgs;
             } else {
                 OrgUtils.logDebug('[VisbalExt.soqlPanel] _loadOrgList -- Fetching fresh org list');
@@ -154,8 +154,8 @@ export class SoqlPanelView implements vscode.WebviewViewProvider {
             const selectedOrg = await OrgUtils.getSelectedOrg();
             OrgUtils.logDebug('[VisbalExt.soqlPanel] _loadOrgList -- Selected org:', selectedOrg);
 
-            OrgUtils.logDebug('[VisbalExt.soqlPanel] _loadOrgList -- orgs:', orgs);
-            OrgUtils.logDebug('[VisbalExt.soqlPanel] _loadOrgList -- cachedData:', cachedData);
+            OrgUtils.logDebug('[VisbalExt.soqlPanel] _loadOrgList -- orgs:orgs');
+            OrgUtils.logDebug('[VisbalExt.soqlPanel] _loadOrgList -- cachedData');
 
             // Send the categorized orgs to the webview
             this._view?.webview.postMessage({

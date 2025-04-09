@@ -222,7 +222,7 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
             if (!forceRefresh) {
                 // Try to get from storage first
                 testClasses = await this._storageService.getTestClasses();
-                OrgUtils.logDebug('[VisbalExt.TestClassExplorerView] _fetchTestClasses -- Using stored test classes', testClasses);
+                OrgUtils.logDebug('[VisbalExt.TestClassExplorerView] _fetchTestClasses -- Using stored test classes', testClasses?.length || 0);
                 if (testClasses.length > 0) {
                     OrgUtils.logDebug('[VisbalExt.TestClassExplorerView] _fetchTestClasses -- Using stored test classes');
                     this._statusBarService.hide();

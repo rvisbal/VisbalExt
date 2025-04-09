@@ -1552,7 +1552,7 @@ export function getHtmlForWebview(extensionUri: vscode.Uri, webview: vscode.Webv
                 timestamp: new Date().getTime()
               }
             });
-          } catch (error: any) {
+          } catch (error) {
             console.error('[VisbalExt.htmlTemplate] Failed to save org cache:', error);
           }
         }
@@ -1562,7 +1562,7 @@ export function getHtmlForWebview(extensionUri: vscode.Uri, webview: vscode.Webv
             vscode.postMessage({
               command: 'loadOrgCache'
             });
-          } catch (error: any) {
+          } catch (error) {
             console.error('[VisbalExt.htmlTemplate] Failed to load org cache:', error);
             return null;
           }
