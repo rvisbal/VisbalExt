@@ -3400,7 +3400,7 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
     }
 
     // Add public methods for running tests
-    public runTest(testClass: string, testMnpm clean paethod?: string) {
+    public runTest(testClass: string, testMethod?: string) {
         if (this._view) {
             this._view.webview.postMessage({
                 command: 'runTest',
