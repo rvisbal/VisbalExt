@@ -153,7 +153,7 @@ export class OrgUtils {
             console.log('[VisbalExt.OrgUtils] listOrgs -- Returning groups:', groups);
             return groups;
         } catch (error: any) {
-            OrgUticonsolls.logError('[VisbalExt.OrgUtils] listOrgs -- Error fetching org list:', error as Error);
+            OrgUtils.logError('[VisbalExt.OrgUtils] listOrgs -- Error fetching org list:', error as Error);
             throw new Error(`Failed to fetch org list: ${error.message}`);
         }
     }
@@ -597,7 +597,7 @@ export class OrgUtils {
         console.error(`${message}`, error as Error);
     }
 
-    public static logDebug(message: string, o?: unknown): void {
+    public static logDebug(message: string, o?: unknown, o2?: unknown): void {
         try {
             //I would like to log the file in the .visbal/debug directory. if the directory does not exist, create it.
             //all log should be on the same fileURLToPath, preced by the timestamp
@@ -607,9 +607,9 @@ export class OrgUtils {
             }
             //the file wil be the same all the time, just append the message
             const debugFile = path.join(debugDir, `debug.log`);
-            fs.appendFileSync(debugFile, `${message}\n${JSON.stringify(o)}\n`);
+            fs.appendFileSync(debugFile, `${message}\n${JSON.stringify(o)}\n${JSON.stringify(o2)}\n`);
         } catch (error) {
-            console.error('Error logging debug information:', error);
+            console.error('[VisbalExt.OrgUtils] logDebug -- Error logging debug information:', error);
         }
 
         console.log(`${message}`, o);

@@ -3,7 +3,7 @@
    - Change all instances of console.log to OrgUtils.logDebug.
    - Change all instances of console.error to OrgUtils.logError.
    - **Do not** make changes inside the _getHtmlForWebview method, as it uses innerHTML and is incompatible with this change.
-   - When refactoring, **do not** add parameters to the message. For example:
+   - When refactoring, **do not** add parameters to the message, but DON NOT transform the current message to achive this. For example:
      - **Correct:** ('Test failed:', t.Outcome);
      - **Invalid:** ('Test failed: ${testClass.name}');
      - **Correct:** ... test item:, classItem.label);
