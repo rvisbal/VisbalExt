@@ -48,7 +48,7 @@ export class SfdxService {
                         resolve({ stdout: stdout.toString(), stderr: stderr?.toString() || '' });
                         return;
                     }
-                    OrgUtils.logError('[VisbalExt.SfdxService] -- _executeCommand', error instanceof Error ? error : new Error(String(error)));
+                    OrgUtils.logError('[VisbalExt.SfdxService] -- _executeCommand', error);
                     reject(error);
                     return;
                 }
@@ -101,8 +101,8 @@ export class SfdxService {
                 const userIdResult = await this._executeCommand(command);
                 const userIdJson = JSON.parse(userIdResult.stdout);
                 userId = userIdJson.result.id;
-            } catch (error) {
-                OrgUtils.logError('[VisbalExt.SfdxService] -- getCurrentUserId', error instanceof Error ? error : new Error(String(error)));
+            } catch (error: any) {
+                OrgUtils.logError('[VisbalExt.SfdxService] -- getCurrentUserId', error);
                 let command = 'sfdx force:user:display';
                 
                 const selectedOrg = await OrgUtils.getSelectedOrg();
@@ -119,8 +119,8 @@ export class SfdxService {
             }
 
             return userId;
-        } catch (error) {
-            OrgUtils.logError('[VisbalExt.SfdxService] -- getCurrentUserId', error instanceof Error ? error : new Error(String(error)));
+        } catch (error: any) {
+            OrgUtils.logError('[VisbalExt.SfdxService] -- getCurrentUserId', error);
             throw error;
         }
     }
@@ -146,10 +146,10 @@ export class SfdxService {
                 return alias;
             }
             throw new Error('No default org set');
-        } catch (error: unknown) {
-            const err = error instanceof Error ? error : new Error(String(error));
-            OrgUtils.logError('[VisbalExt.SfdxService] -- getCurrentOrgAlias', err);
-            throw err;
+        } catch (error: any) {
+            
+            OrgUtils.logError('[VisbalExt.SfdxService] -- getCurrentOrgAlias', error);
+            throw error;
         }
     }
 
@@ -227,10 +227,10 @@ export class SfdxService {
 
             OrgUtils.logDebug('[VisbalExt.SfdxService] listOrgs -- Successfully organized org list', organizedOrgs);
             return organizedOrgs;
-        } catch (error: unknown) {
-            const err = error instanceof Error ? error : new Error(String(error));
-            OrgUtils.logError('[VisbalExt.SfdxService] -- listOrgs', err);
-            throw new Error(`Failed to retrieve org list: ${err.message}`);
+        } catch (error: any) {
+            
+            OrgUtils.logError('[VisbalExt.SfdxService] -- listOrgs', error);
+            throw new Error(`Failed to retrieve org list: ${error.message}`);
         }
     }
 
@@ -258,9 +258,9 @@ export class SfdxService {
                 
                 OrgUtils.logDebug('[VisbalExt.SfdxService] -- updateDebugLevel', `command: ${command}`);
                 await this._executeCommand(command);
-            } catch (error: unknown) {
-                const err = error instanceof Error ? error : new Error(String(error));
-                OrgUtils.logError('[VisbalExt.SfdxService] -- updateDebugLevel', err);
+            } catch (error: any) {
+                
+                OrgUtils.logError('[VisbalExt.SfdxService] -- updateDebugLevel', error);
                 
                 // Try with old CLI format
                 let command = `sfdx force:data:record:update --sobjecttype DebugLevel --sobjectid ${debugLevelId} --values "${debugLevelFields}" --usetoolingapi`;
@@ -274,9 +274,8 @@ export class SfdxService {
                 OrgUtils.logDebug('[VisbalExt.SfdxService] -- updateDebugLevel', `command (old format): ${command}`);
                 await this._executeCommand(command);
             }
-        } catch (error: unknown) {
-            const err = error instanceof Error ? error : new Error(String(error));
-            OrgUtils.logError('[VisbalExt.SfdxService] -- updateDebugLevel', err);
+        } catch (error: any) {
+            OrgUtils.logError('[VisbalExt.SfdxService] -- updateDebugLevel', error);
             throw new Error('Failed to update debug level');
         }
     }
@@ -305,8 +304,8 @@ export class SfdxService {
                 return parsedResult.result.id;
             }
             throw new Error('Failed to create debug level');
-        } catch (error) {
-            OrgUtils.logError('[VisbalExt.SfdxService] Error creating debug level:', error instanceof Error ? error : new Error(String(error)));
+        } catch (error: any) {
+            OrgUtils.logError('[VisbalExt.SfdxService] Error creating debug level:', error);
             throw error;
         }
     }
@@ -324,8 +323,8 @@ export class SfdxService {
                 return records[0];
             }
             return null;
-        } catch (error) {
-            OrgUtils.logError('[VisbalExt.SfdxService] Error getting trace flag:', error instanceof Error ? error : new Error(String(error)));
+        } catch (error: any) {
+            OrgUtils.logError('[VisbalExt.SfdxService] Error getting trace flag:', error);
             throw error;
         }
     }
@@ -349,16 +348,16 @@ export class SfdxService {
             try {
                 OrgUtils.logDebug(`[VisbalExt.SfdxService] Deleting trace flag with command: ${command}`);
                 await this._executeCommand(command);
-            } catch (error) {
-                OrgUtils.logError('[VisbalExt.SfdxService] Error deleting trace flag with new CLI format:', error instanceof Error ? error : new Error(String(error)));
+            } catch (error: any) {
+                OrgUtils.logError('[VisbalExt.SfdxService] Error deleting trace flag with new CLI format:', error);
                 
                 // Try with old CLI format
                 command = `sfdx force:data:record:delete --sobjecttype TraceFlag --sobjectid ${traceFlagId} --usetoolingapi --json`;
                 OrgUtils.logDebug(`[VisbalExt.SfdxService] Deleting trace flag with command (old format): ${command}`);
                 await this._executeCommand(command);
             }
-        } catch (error) {
-            OrgUtils.logError('[VisbalExt.SfdxService] Error deleting trace flag:', error instanceof Error ? error : new Error(String(error)));
+        } catch (error: any) {
+            OrgUtils.logError('[VisbalExt.SfdxService] Error deleting trace flag:', error);
             throw new Error('Failed to delete trace flag');
         }
     }
@@ -388,8 +387,8 @@ export class SfdxService {
                 const result = await this._executeCommand(command);
                 const json = JSON.parse(result.stdout);
                 return json.result.id;
-            } catch (error) {
-                OrgUtils.logError('[VisbalExt.SfdxService] Error creating trace flag with new CLI format:', error instanceof Error ? error : new Error(String(error)));
+            } catch (error: any) {
+                OrgUtils.logError('[VisbalExt.SfdxService] Error creating trace flag with new CLI format:', error);
                 
                 // Try with old CLI format
                 let command = `sfdx force:data:record:create --sobjecttype TraceFlag --values "${debugValues}" --usetoolingapi`;
@@ -405,8 +404,8 @@ export class SfdxService {
                 const json = JSON.parse(result.stdout);
                 return json.result.id;
             }
-        } catch (error) {
-            OrgUtils.logError('[VisbalExt.SfdxService] Error creating trace flag:', error instanceof Error ? error : new Error(String(error)));
+        } catch (error: any) {
+            OrgUtils.logError('[VisbalExt.SfdxService] Error creating trace flag:', error);
             throw new Error('Failed to create trace flag');
         }
     }
@@ -466,8 +465,8 @@ export class SfdxService {
             }
             
             throw new Error('Failed to get log content using any available method');
-        } catch (error) {
-            OrgUtils.logError('[VisbalExt.SfdxService] Error getting log content:', error instanceof Error ? error : new Error(String(error)));
+        } catch (error: any) {
+            OrgUtils.logError('[VisbalExt.SfdxService] Error getting log content:', error);
             throw error;
         }
     }
@@ -489,8 +488,8 @@ export class SfdxService {
             
             const result = await this._executeCommand(command);
             return result.stdout;
-        } catch (error) {
-            OrgUtils.logError('[VisbalExt.SfdxService] Failed to list Apex logs:', error instanceof Error ? error : new Error(String(error)));
+        } catch (error: any) {
+            OrgUtils.logError('[VisbalExt.SfdxService] Failed to list Apex logs:', error);
             throw error;
         }
     }
@@ -584,7 +583,7 @@ export class SfdxService {
                         OrgUtils.logDebug('[VisbalExt.SfdxService] Direct output with old CLI format failed', oldDirectOutputError);
                     }
                 }
-            } catch (error) {
+            } catch (error: any) {
                 OrgUtils.logDebug('[VisbalExt.SfdxService] Direct file output approach failed, falling back to standard methods', error);
             }
             
@@ -648,7 +647,7 @@ export class SfdxService {
                 // If we couldn't find the log content in the expected places, try direct CLI output
                 OrgUtils.logDebug('[VisbalExt.SfdxService] Could not find log content in JSON response, trying direct CLI output');
                 throw new Error('Log content not found in expected format');
-            } catch (error) {
+            } catch (error: any) {
                 OrgUtils.logDebug('[VisbalExt.SfdxService] Failed with new CLI format or parsing, trying old format', error);
                 // If the new command fails, try the old format
                 try {
@@ -702,7 +701,7 @@ export class SfdxService {
             
             // This should not be reached due to the throws above, but just in case
         } catch (error: any) {
-            OrgUtils.logError(`[VisbalExt.SfdxService] Error fetching log with ID ${logId}:`, error instanceof Error ? error : new Error(String(error)) );
+            OrgUtils.logError(`[VisbalExt.SfdxService] Error fetching log with ID ${logId}:`, error );
             throw error;
         }
     }
@@ -721,8 +720,8 @@ export class SfdxService {
             await this._executeCommand(
                 `sf data delete record --sobject ApexLog --record-id ${logId} --json --target-org ${selectedOrg.alias}`
             );
-        } catch (error) {
-            OrgUtils.logError('[VisbalExt.SfdxService] Error deleting log:', error instanceof Error ? error : new Error(String(error)));
+        } catch (error: any) {
+            OrgUtils.logError('[VisbalExt.SfdxService] Error deleting log:', error);
             throw error;
         }
     }
@@ -746,8 +745,8 @@ export class SfdxService {
             await this._executeCommand(
                 `sf data delete bulk --sobject ApexLog --ids ${idList} --json --target-org ${selectedOrg.alias}`
             );
-        } catch (error) {
-            OrgUtils.logError('[VisbalExt.SfdxService] Error deleting logs in bulk:', error instanceof Error ? error : new Error(String(error)));
+        } catch (error: any) {
+            OrgUtils.logError('[VisbalExt.SfdxService] Error deleting logs in bulk:', error);
             throw error;
         }
     }
@@ -794,7 +793,7 @@ export class SfdxService {
                 const queryData = await this._executeCommand(command);
                 OrgUtils.logDebug('[VisbalExt.SfdxService] Successfully executed SOQL query with new CLI format');
                 queryResult = JSON.parse(queryData.stdout);
-            } catch (error) {
+            } catch (error: any) {
                 OrgUtils.logDebug('[VisbalExt.SfdxService] Failed with new CLI format, trying old format', error);
                 // If the new command fails, try the old format
                 try {
@@ -833,7 +832,7 @@ export class SfdxService {
             OrgUtils.logDebug(`[VisbalExt.SfdxService] Returning ${formattedLogs.length} formatted logs from SOQL query`);
             return formattedLogs;
         } catch (error: any) {
-            OrgUtils.logError('[VisbalExt.SfdxService] Error:', error instanceof Error ? error : new Error(String(error)));
+            OrgUtils.logError('[VisbalExt.SfdxService] Error:', error);
             throw error;
         }
     }
@@ -870,8 +869,8 @@ export class SfdxService {
                     
                     deletedCount += batch.length;
                     OrgUtils.logDebug(`[VisbalExt.SfdxService] Deleted batch of ${batch.length} logs with new CLI format, total: ${deletedCount}`);
-                } catch (error) {
-                    OrgUtils.logError(`[VisbalExt.SfdxService] Error deleting batch of logs with new CLI format:`, error instanceof Error ? error : new Error(String(error)));
+                } catch (error: any) {
+                    OrgUtils.logError(`[VisbalExt.SfdxService] Error deleting batch of logs with new CLI format:`, error);
                     
                     // Try with old CLI format
                     try {
@@ -899,8 +898,8 @@ export class SfdxService {
                         // Continue with other batches
                     }
                 }
-            } catch (error) {
-                OrgUtils.logError(`[VisbalExt.SfdxService] Error deleting batch of logs:`, error instanceof Error ? error : new Error(String(error)));
+            } catch (error: any) {
+                OrgUtils.logError(`[VisbalExt.SfdxService] Error deleting batch of logs:`, error);
                 // Continue with other batches
             }
         }
@@ -932,7 +931,7 @@ export class SfdxService {
                 status: 'Active'
             }));
         } catch (error: any) {
-            OrgUtils.logError('[VisbalExt.SfdxService] Failed to list Apex classes:', error instanceof Error ? error : new Error(String(error)));
+            OrgUtils.logError('[VisbalExt.SfdxService] Failed to list Apex classes:', error);
             throw new Error(`Failed to list Apex classes: ${error.message}`);
         }
     }
@@ -977,9 +976,9 @@ export class SfdxService {
             OrgUtils.logDebug(`[VisbalExt.SfdxService] runTests -- _executeCommand: ${command}`);
             const output = await this._executeCommand(command);
             const endTime = Date.now();
-           //console.log(`[VisbalExt.MetadataService] runTests -- ${methodLabel} TIME COMPLETED: ${endTime - startTime}ms`);
+           //OrgUtils.logDebug(`[VisbalExt.MetadataService] runTests -- ${methodLabel} TIME COMPLETED: ${endTime - startTime}ms`);
             const result = OrgUtils.parseResultJson(output.stdout);
-            //console.log(`[VisbalExt.SfdxService] runTests -- ${methodLabel} -- hasError: ${result.hasError} -- isJson: ${result.isJson} -- RETURN RESULT:`, result);
+            //OrgUtils.logDebug(`[VisbalExt.SfdxService] runTests -- ${methodLabel} -- hasError: ${result.hasError} -- isJson: ${result.isJson} -- RETURN RESULT:`, result);
             if (result.isJson && result.content && 'result' in result.content) {
                 return result.content.result;
             }
@@ -1186,7 +1185,7 @@ export class SfdxService {
 
             return logList.result[0].Id;
         } catch (error: any) {
-            OrgUtils.logError('[VisbalExt.SfdxService] getTestLogId -- error:', error instanceof Error ? error : new Error(String(error)));
+            OrgUtils.logError('[VisbalExt.SfdxService] getTestLogId -- error:', error);
             throw error;
         }
     }
@@ -1258,7 +1257,7 @@ export class SfdxService {
                 throw new Error(errorMessage);
             }
         } catch (error: any) {
-            OrgUtils.logError('[VisbalExt.SfdxService] Error executing SOQL query:', error instanceof Error ? error : new Error(String(error)));
+            OrgUtils.logError('[VisbalExt.SfdxService] Error executing SOQL query:', error);
             
             // Format error message for better readability
             let userMessage = error.message;
@@ -1300,7 +1299,7 @@ export class SfdxService {
             try {
                 await vscode.workspace.fs.delete(vscode.Uri.file(tempFile));
             } catch (error: any) {
-                OrgUtils.logError('[VisbalExt.SfdxService] Failed to delete temporary file:', error instanceof Error ? error : new Error(String(error)));
+                OrgUtils.logError('[VisbalExt.SfdxService] Failed to delete temporary file:', error);
             }
 
             if (result.status === 0) {
@@ -1316,7 +1315,7 @@ export class SfdxService {
                 throw new Error(result.message || 'Failed to execute anonymous Apex');
             }
         } catch (error: any) {
-            OrgUtils.logError('[VisbalExt.SfdxService] Error executing anonymous Apex:', error instanceof Error ? error : new Error(String(error)));
+            OrgUtils.logError('[VisbalExt.SfdxService] Error executing anonymous Apex:', error);
             throw error;
         }
     }
@@ -1340,7 +1339,7 @@ export class SfdxService {
                     return records.map((record: any) => record.Id);
                 }
             } catch (error: any) {
-                OrgUtils.logError('[VisbalExt.SfdxService] Error querying ApexLog IDs with new CLI format:', error instanceof Error ? error : new Error(String(error)));
+                OrgUtils.logError('[VisbalExt.SfdxService] Error querying ApexLog IDs with new CLI format:', error);
                 
                 // Try with old CLI format
                 const command = 'sfdx force:data:soql:query --query "SELECT Id FROM ApexLog" --usetoolingapi --json';
@@ -1355,7 +1354,7 @@ export class SfdxService {
             
             return [];
         } catch (error: any) {
-            OrgUtils.logError('[VisbalExt.SfdxService] Error querying ApexLog IDs:', error instanceof Error ? error : new Error(String(error)));
+            OrgUtils.logError('[VisbalExt.SfdxService] Error querying ApexLog IDs:', error);
             throw error;
         }
     }
@@ -1366,7 +1365,7 @@ export class SfdxService {
             return result.stdout;
         } catch (error: any) {
             const errorMessage = error instanceof Error ? error.message : String(error);
-            OrgUtils.logError('Error executing SFDX command:', error instanceof Error ? error : new Error(String(error)));
+            OrgUtils.logError('Error executing SFDX command:', error);
             throw new Error(`Failed to execute SFDX command: ${errorMessage}`);
         }
     }

@@ -85,7 +85,7 @@ export class OrgUtils {
             const validStatuses = ['Active', 'Connected', 'Connected (Scratch Org)'];
             for (const org of orgs) {
                 if (!org || typeof org !== 'object') {
-                    //console.log('[VisbalExt.OrgUtils] getSectionArray -- Skipping invalid org entry:', org);
+                    //OrgUtils.logDebug('[VisbalExt.OrgUtils] getSectionArray -- Skipping invalid org entry:', org);
                     continue;
                 }
                 
@@ -93,7 +93,7 @@ export class OrgUtils {
                 const validconnectedStatus = (org.connectedStatus && validStatuses.includes(org.connectedStatus));
                 // Skip orgs that can't be connected to
                 if (!validStatus && !validconnectedStatus) {
-                    //console.log(`[VisbalExt.OrgUtils] getSectionArray -- SKIP: ${org.alias} status:${org.status} connectedStatus:${org.connectedStatus}`);
+                    //OrgUtils.logDebug(`[VisbalExt.OrgUtils] getSectionArray -- SKIP: ${org.alias} status:${org.status} connectedStatus:${org.connectedStatus}`);
                     continue;
                 }
 
@@ -123,15 +123,15 @@ export class OrgUtils {
      */
     public static async listOrgs(): Promise<OrgGroups> {
         try {
-            console.log('[VisbalExt.OrgUtils] listOrgs -- Fetching org list');
+            OrgUtils.logDebug('[VisbalExt.OrgUtils] listOrgs -- Fetching org list');
             const command = 'sf org list --json --all';
             const result = await execAsync(command);
-            //console.log('[VisbalExt.OrgUtils] listOrgs -- Raw result:', result.stdout);
+            //OrgUtils.logDebug('[VisbalExt.OrgUtils] listOrgs -- Raw result:', result.stdout);
             
             const parsedResult = JSON.parse(result.stdout);
             
 
-            console.log('[VisbalExt.OrgUtils] listOrgs -- Parsed orgs:', parsedResult);
+            OrgUtils.logDebug('[VisbalExt.OrgUtils] listOrgs -- Parsed orgs:', parsedResult);
 
             const groups: OrgGroups = {
                 devHubs: this.getSectionArray(parsedResult.result.devHubs),
@@ -143,14 +143,14 @@ export class OrgUtils {
 
             
 
-            console.log('[VisbalExt.OrgUtils] listOrgs -- Successfully categorized orgs:', {
+            OrgUtils.logDebug('[VisbalExt.OrgUtils] listOrgs -- Successfully categorized orgs:', {
                 devHubs: groups.devHubs.length,
                 sandboxes: groups.sandboxes.length,
                 scratchOrgs: groups.scratchOrgs.length,
                 nonScratchOrgs: groups.nonScratchOrgs.length,
                 other: groups.other.length
             });
-            console.log('[VisbalExt.OrgUtils] listOrgs -- Returning groups:', groups);
+            OrgUtils.logDebug('[VisbalExt.OrgUtils] listOrgs -- Returning groups:', groups);
             return groups;
         } catch (error: any) {
             OrgUtils.logError('[VisbalExt.OrgUtils] listOrgs -- Error fetching org list:', error as Error);
@@ -164,9 +164,9 @@ export class OrgUtils {
      */
     public static async setDefaultOrg(username: string): Promise<void> {
         try {
-            console.log(`[VisbalExt.OrgUtils] setDefaultOrg -- Setting default org: ${username}`);
+            OrgUtils.logDebug(`[VisbalExt.OrgUtils] setDefaultOrg -- Setting default org: ${username}`);
             await execAsync(`sf config set target-org=${username}`);
-            console.log('[VisbalExt.OrgUtils] setDefaultOrg -- Successfully set default org');
+            OrgUtils.logDebug('[VisbalExt.OrgUtils] setDefaultOrg -- Successfully set default org');
         } catch (error: any) {
             OrgUtils.logError('[VisbalExt.OrgUtils] setDefaultOrg -- Error setting default org:', error as Error);
             throw new Error(`Failed to set default org: ${error.message}`);
@@ -175,11 +175,11 @@ export class OrgUtils {
 
     public static async setSelectedOrg(alias: string): Promise<void> {
         try {
-            console.log(`[VisbalExt.OrgUtils] setSelectedOrg -- Setting selected org: ${alias}`);
+            OrgUtils.logDebug(`[VisbalExt.OrgUtils] setSelectedOrg -- Setting selected org: ${alias}`);
             const cacheService = new CacheService(this._context);
             const selectedOrg: SelectedOrg = { alias, timestamp: new Date().toISOString() };
             await cacheService.saveCachedOrg(selectedOrg);
-            console.log('[VisbalExt.OrgUtils] setSelectedOrg -- Successfully set selected org');
+            OrgUtils.logDebug('[VisbalExt.OrgUtils] setSelectedOrg -- Successfully set selected org');
         }
         catch (error: any) {
             OrgUtils.logError('[VisbalExt.OrgUtils] setSelectedOrg -- Error setting selected org:', error as Error);
@@ -189,10 +189,10 @@ export class OrgUtils {
 
     public static async getSelectedOrg(): Promise<SelectedOrg | null> {
         try {
-            console.log('[VisbalExt.OrgUtils] getSelectedOrg -- Fetching selected org');
+            OrgUtils.logDebug('[VisbalExt.OrgUtils] getSelectedOrg -- Fetching selected org');
             const cacheService = new CacheService(this._context);
             const selectedOrg = await cacheService.getCachedOrg();
-            console.log('[VisbalExt.OrgUtils] getSelectedOrg -- Retrieved org:', selectedOrg);
+            OrgUtils.logDebug('[VisbalExt.OrgUtils] getSelectedOrg -- Retrieved org:', selectedOrg);
             return selectedOrg;
         }
         catch (error: any) {
@@ -204,12 +204,12 @@ export class OrgUtils {
      //#region Organization Management
     public static async getCurrentOrgAlias(): Promise<string> {
         try {
-            console.log('[VisbalExt.OrgUtils] getCurrentOrgAlias -- this._orgAliasCache:', this._orgAliasCache);
+            OrgUtils.logDebug('[VisbalExt.OrgUtils] getCurrentOrgAlias -- this._orgAliasCache:', this._orgAliasCache);
             if (this._orgAliasCache) {
-                console.log('[VisbalExt.OrgUtils] getCurrentOrgAlias -- Date.now() - this._orgAliasCache.timestamp:', Date.now() - this._orgAliasCache.timestamp);
+                OrgUtils.logDebug('[VisbalExt.OrgUtils] getCurrentOrgAlias -- Date.now() - this._orgAliasCache.timestamp:', Date.now() - this._orgAliasCache.timestamp);
             }
             if (this._orgAliasCache && (Date.now() - this._orgAliasCache.timestamp) < this.CACHE_EXPIRATION) {
-                console.log('[VisbalExt.OrgUtils] getCurrentOrgAlias -- CACHED');
+                OrgUtils.logDebug('[VisbalExt.OrgUtils] getCurrentOrgAlias -- CACHED');
                 return this._orgAliasCache.alias;
             }
             
@@ -218,13 +218,13 @@ export class OrgUtils {
                 alias,
                 timestamp: Date.now()
             };
-            console.log('[VisbalExt.OrgUtils] getCurrentOrgAlias -- SFDX & CACHED');
+            OrgUtils.logDebug('[VisbalExt.OrgUtils] getCurrentOrgAlias -- SFDX & CACHED');
             return alias;
-        } catch (error) {
+        } catch (error: any) {
             if (error instanceof Error) {
                 OrgUtils.logError('[VisbalExt.OrgUtils] getCurrentOrgAlias Error:', error);
             } else {
-                console.error('Unexpected error type:', error);
+                OrgUtils.logError('Unexpected error type:', error);
             }
             throw error;
         }
@@ -238,18 +238,18 @@ export class OrgUtils {
             }
             
             //sf org display
-            console.log('[VisbalExt.OrgUtils] getCurrentUserId -- Getting current user ID');
+            OrgUtils.logDebug('[VisbalExt.OrgUtils] getCurrentUserId -- Getting current user ID');
             const userId = await this.sfdxService.getCurrentUserId();
             this._currentUserIdCache = {
                 userId,
                 timestamp: Date.now()
             };
             return userId;
-        } catch (error) {
+        } catch (error: any) {
             if (error instanceof Error) {
                 OrgUtils.logError('[VisbalExt.OrgUtils] getCurrentOrgAlias Error:', error);
             } else {
-                console.error('Unexpected error type:', error);
+                OrgUtils.logError('Unexpected error type:', error);
             }
             throw error;
         }
@@ -260,9 +260,9 @@ export class OrgUtils {
      */
     public static async openDefaultOrg(): Promise<void> {
         try {
-            console.log('[VisbalExt.OrgUtils] openDefaultOrg -- Opening default org');
+            OrgUtils.logDebug('[VisbalExt.OrgUtils] openDefaultOrg -- Opening default org');
             await execAsync('sf org open');
-            console.log('[VisbalExt.OrgUtils] openDefaultOrg -- Successfully opened default org');
+            OrgUtils.logDebug('[VisbalExt.OrgUtils] openDefaultOrg -- Successfully opened default org');
         } catch (error: any) {
             OrgUtils.logError('[VisbalExt.OrgUtils] openDefaultOrg -- Error opening default org:', error as Error);
             throw new Error(`Failed to open default org: ${error.message}`);
@@ -271,11 +271,11 @@ export class OrgUtils {
 
     public static async openSelectedOrg(): Promise<void> {
         try {
-            console.log('[VisbalExt.OrgUtils] openSelectedOrg -- Opening selected org');
+            OrgUtils.logDebug('[VisbalExt.OrgUtils] openSelectedOrg -- Opening selected org');
             const selectedOrg = await this.getSelectedOrg();
-            console.log('[VisbalExt.OrgUtils] openSelectedOrg -- Retrieved selectedOrg:', selectedOrg);
+            OrgUtils.logDebug('[VisbalExt.OrgUtils] openSelectedOrg -- Retrieved selectedOrg:', selectedOrg);
             await execAsync(`sf org open --target-org ${selectedOrg?.alias}`);
-            console.log('[VisbalExt.OrgUtils] openSelectedOrg -- Successfully opened selected org');
+            OrgUtils.logDebug('[VisbalExt.OrgUtils] openSelectedOrg -- Successfully opened selected org');
         } catch (error: any) {
             OrgUtils.logError('[VisbalExt.OrgUtils] openSelectedOrg -- Error opening selected org:', error as Error);
             throw new Error(`Failed to open selected org: ${error.message}`);
@@ -309,8 +309,8 @@ export class OrgUtils {
             result.content = JSON.parse(content);
             result.isJson = true;
         } catch (error: any) {
-           console.log(`[VisbalExt.OrgUtils] parseResultJson isJsonType -- error:`, error);
-           console.log(`[VisbalExt.OrgUtils] parseResultJson isJsonType -- content:`, content);
+           OrgUtils.logDebug(`[VisbalExt.OrgUtils] parseResultJson isJsonType -- error:`, error);
+           OrgUtils.logDebug(`[VisbalExt.OrgUtils] parseResultJson isJsonType -- content:`, content);
            result.hasError = true;
            result.error = error as Error;
         } finally {
@@ -327,11 +327,11 @@ export class OrgUtils {
         try {
             const result = await this.sfdxService.getLogContent(logId);
             return result;
-        } catch (error) {
+        } catch (error: any) {
             if (error instanceof Error) {
                 OrgUtils.logError('[VisbalExt.OrgUtils] _fetchLogContent Error:', error);
             } else {
-                console.error('Unexpected error type:', error);
+                OrgUtils.logError('Unexpected error type:', error);
             }
             throw error;
         }
@@ -340,20 +340,20 @@ export class OrgUtils {
     public static async getLogIdFromProgress(progress: any): Promise<string> {
         let result = '';
         try {
-            console.log(`[VisbalExt.OrgUtils] getLogIdFromProgress -- progress:`, progress);
+            OrgUtils.logDebug(`[VisbalExt.OrgUtils] getLogIdFromProgress -- progress:`, progress);
             if (progress.runResult && progress.runResult.tests && progress.runResult.tests.length > 0) {
                 let testId = progress.runResult.tests[0].Id;
-                console.log(`[VisbalExt.OrgUtils] getLogIdFromProgress -- testId:`, testId);
+                OrgUtils.logDebug(`[VisbalExt.OrgUtils] getLogIdFromProgress -- testId:`, testId);
                 const apiResult = await this._sfdxService.executeSoqlQuery(`SELECT Id, ApexClass.Name, MethodName, Message, StackTrace, Outcome, ApexLogId FROM ApexTestResult WHERE Id = '${testId}'`);
-                console.log(`[VisbalExt.OrgUtils] getLogIdFromProgress  -- API_RESULT ${progress.className}.${progress.methodName} -- runResult:`, apiResult);
+                OrgUtils.logDebug(`[VisbalExt.OrgUtils] getLogIdFromProgress  -- API_RESULT ${progress.className}.${progress.methodName} -- runResult:`, apiResult);
                 if (apiResult.length > 0) {
                     result = apiResult[0].ApexLogId || '';
                 }
             }
             else {
-                console.log(`[VisbalExt.OrgUtils] getLogIdFromProgress -- progress.runResult:`, progress.runResult);
-                console.log(`[VisbalExt.OrgUtils] getLogIdFromProgress -- progress.runResult.tests:`, progress.runResult.tests);
-                console.log(`[VisbalExt.OrgUtils] getLogIdFromProgress -- progress.runResult.tests.length:`, progress.runResult.tests.length);
+                OrgUtils.logDebug(`[VisbalExt.OrgUtils] getLogIdFromProgress -- progress.runResult:`, progress.runResult);
+                OrgUtils.logDebug(`[VisbalExt.OrgUtils] getLogIdFromProgress -- progress.runResult.tests:`, progress.runResult.tests);
+                OrgUtils.logDebug(`[VisbalExt.OrgUtils] getLogIdFromProgress -- progress.runResult.tests.length:`, progress.runResult.tests.length);
             }
         } catch (error: any) {
             vscode.window.showErrorMessage(`Failed to get log id for ${progress.className}.${progress.methodName}: ${error.message}`);
@@ -366,9 +366,9 @@ export class OrgUtils {
         let result = '';
         try {
             if (testId) {
-                console.log(`[VisbalExt.OrgUtils] getLogId -- testId:`, testId);
+                OrgUtils.logDebug(`[VisbalExt.OrgUtils] getLogId -- testId:`, testId);
                 const apiResult = await this._sfdxService.executeSoqlQuery(`SELECT Id, ApexClass.Name, MethodName, Message, StackTrace, Outcome, ApexLogId FROM ApexTestResult WHERE Id = '${testId}'`);
-                console.log(`[VisbalExt.OrgUtils] getLogId -- API_RESULT -- runResult:`, apiResult);
+                OrgUtils.logDebug(`[VisbalExt.OrgUtils] getLogId -- API_RESULT -- runResult:`, apiResult);
                 if (apiResult.length > 0) {
                     result = apiResult[0].ApexLogId || '';
                 }
@@ -390,7 +390,7 @@ export class OrgUtils {
      */
     public static async openLog(logId: string, extensionUri: vscode.Uri, tab: string): Promise<void> {
         try {
-            console.log(`[VisbalExt.OrgUtils] openLog -- Opening log: ${logId} with tab: ${tab}`);
+            OrgUtils.logDebug(`[VisbalExt.OrgUtils] openLog -- Opening log: ${logId} with tab: ${tab}`);
             // Check if we have a local copy of the log
             const localFilePath = this._downloadedLogPaths.get(logId);
             if (localFilePath && fs.existsSync(localFilePath)) {
@@ -438,7 +438,7 @@ export class OrgUtils {
             const logsDir = vscode.workspace.workspaceFolders?.[0]
                 ? path.join(vscode.workspace.workspaceFolders[0].uri.fsPath, '.visbal', 'logs')
                 : path.join(os.homedir(), '.visbal', 'logs');
-            console.log('[VisbalExt.OrgUtils] downloadLog -- logsDir:', logsDir);
+            OrgUtils.logDebug('[VisbalExt.OrgUtils] downloadLog -- logsDir:', logsDir);
 
             // Ensure directory exists
             await fs.promises.mkdir(logsDir, { recursive: true });
@@ -450,29 +450,29 @@ export class OrgUtils {
             const sanitizedStatus = status.replace(/[\/\\:*?"<>|]/g, '_');
             const logFilename = `${sanitizedLogId}_${sanitizedOperation}_${sanitizedStatus}_${size}_${timestamp}.log`;
             const targetFilePath = path.join(logsDir, logFilename);
-            console.log('[VisbalExt.OrgUtils] downloadLog -- targetFilePath:', targetFilePath);
+            OrgUtils.logDebug('[VisbalExt.OrgUtils] downloadLog -- targetFilePath:', targetFilePath);
 
             // Fetch and save log content
             const logContent = await this._fetchLogContent(logId);
-            console.log('[VisbalExt.OrgUtils] downloadLog -- finish fetch:');
+            OrgUtils.logDebug('[VisbalExt.OrgUtils] downloadLog -- finish fetch:');
             await fs.promises.writeFile(targetFilePath, logContent);
-            console.log('[VisbalExt.OrgUtils] downloadLog -- finish writing file:');
+            OrgUtils.logDebug('[VisbalExt.OrgUtils] downloadLog -- finish writing file:');
 
             // Update tracking
             this._downloadedLogs.add(logId);
             this._downloadedLogPaths.set(logId, targetFilePath);
-            console.log('[VisbalExt.OrgUtils] downloadLog -- _downloadedLogs:', this._downloadedLogs);
-            console.log('[VisbalExt.OrgUtils] downloadLog -- _downloadedLogPaths:', this._downloadedLogPaths);
+            OrgUtils.logDebug('[VisbalExt.OrgUtils] downloadLog -- _downloadedLogs:', this._downloadedLogs);
+            OrgUtils.logDebug('[VisbalExt.OrgUtils] downloadLog -- _downloadedLogPaths:', this._downloadedLogPaths);
 
 
             statusBarService.showSuccess('Log downloaded successfully');    
-            console.log('[VisbalExt.OrgUtils] downloadLog -- statusBarService.showSuccess');
+            OrgUtils.logDebug('[VisbalExt.OrgUtils] downloadLog -- statusBarService.showSuccess');
 
             // Open the log file
             const document = await vscode.workspace.openTextDocument(targetFilePath);
             await vscode.window.showTextDocument(document);
         } catch (error: any) {
-            console.log('[VisbalExt.OrgUtils] downloadLog -- error:', error);
+            OrgUtils.logDebug('[VisbalExt.OrgUtils] downloadLog -- error:', error);
             statusBarService.showError(`Error downloading log: ${error.message}`);
             vscode.window.showErrorMessage(`Failed to download log: ${error.message}`);
             throw error;
@@ -488,54 +488,54 @@ export class OrgUtils {
         
         const selectedOrg = await OrgUtils.getSelectedOrg();
         try {
-            console.log('[VisbalExt.OrgUtils] getExistingDebugTraceFlag -7 -- Checking for existing trace flags');
+            OrgUtils.logDebug('[VisbalExt.OrgUtils] getExistingDebugTraceFlag -7 -- Checking for existing trace flags');
             const query = `SELECT Id, LogType, StartDate, ExpirationDate, DebugLevelId FROM TraceFlag WHERE LogType='DEVELOPER_LOG' AND TracedEntityId='${userId}'`;
             
             try {
                 const records =  await this.sfdxService.executeSoqlQuery(query, false, true);
                 //const traceFlagResult = await this._executeCommand(`sf data query --query "${query}" --use-tooling-api --target-org ${selectedOrg?.alias} --json`);
-                //console.log(`[VisbalExt.OrgUtils] getExistingDebugTraceFlag -8 -- Trace flag query result: ${traceFlagResult}`);
+                //OrgUtils.logDebug(`[VisbalExt.OrgUtils] getExistingDebugTraceFlag -8 -- Trace flag query result: ${traceFlagResult}`);
                 //const traceFlagJson = JSON.parse(traceFlagResult);
                 
                 if (records && records.length > 0) {
                     result.existingTraceFlag = records[0];
                     if (result.existingTraceFlag) {
                         result.existingDebugLevelId = result.existingTraceFlag.DebugLevelId;
-                        console.log(`[VisbalExt.OrgUtils] getExistingDebugTraceFlag -9 -- Found existing trace flag: ${result.existingTraceFlag.Id}, debug level: ${result.existingDebugLevelId}`);
+                        OrgUtils.logDebug(`[VisbalExt.OrgUtils] getExistingDebugTraceFlag -9 -- Found existing trace flag: ${result.existingTraceFlag.Id}, debug level: ${result.existingDebugLevelId}`);
                     }
                 }
-            } catch (error) {
+            } catch (error: any) {
                 if (error instanceof Error) {
                     OrgUtils.logError('[VisbalExt.OrgUtils] getExistingDebugTraceFlag -10 -- Error checking trace flags with new CLI format:', error);
                 } else {
-                    console.error('Unexpected error type:', error);
+                    OrgUtils.logError('Unexpected error type:', error);
                 }
                 
                 try {
                     const traceFlagResult = await this._executeCommand(`sfdx force:data:soql:query --query "${query}" --usetoolingapi --target-org ${selectedOrg?.alias} --json`);
-                    console.log(`[VisbalExt.OrgUtils] getExistingDebugTraceFlag -11 -- Trace flag query result (old format): ${traceFlagResult}`);
+                    OrgUtils.logDebug(`[VisbalExt.OrgUtils] getExistingDebugTraceFlag -11 -- Trace flag query result (old format): ${traceFlagResult}`);
                     const traceFlagJson = JSON.parse(traceFlagResult);
                     
                     if (traceFlagJson.result && traceFlagJson.result.records && traceFlagJson.result.records.length > 0) {
                         result.existingTraceFlag = traceFlagJson.result.records[0];
                         if (result.existingTraceFlag) {
                             result.existingDebugLevelId = result.existingTraceFlag.DebugLevelId;
-                            console.log(`[VisbalExt.OrgUtils] getExistingDebugTraceFlag -12 -- Found existing trace flag (old format): ${result.existingTraceFlag.Id}, debug level: ${result.existingDebugLevelId}`);
+                            OrgUtils.logDebug(`[VisbalExt.OrgUtils] getExistingDebugTraceFlag -12 -- Found existing trace flag (old format): ${result.existingTraceFlag.Id}, debug level: ${result.existingDebugLevelId}`);
                         }
                     }
-                } catch (oldError) {
+                } catch (oldError: any) {
                     if (oldError instanceof Error) {
                         OrgUtils.logError('[VisbalExt.OrgUtils] getExistingDebugTraceFlag -13 -- Error checking trace flags with old CLI format:', oldError);
                     } else {
-                        console.error('Unexpected error type:', oldError);
+                        OrgUtils.logError('Unexpected error type:', oldError);
                     }
                 }
             }
-        } catch (error) {
+        } catch (error: any) {
             if (error instanceof Error) {
                 OrgUtils.logError('[VisbalExt.OrgUtils] getExistingDebugTraceFlag -14 -- Error checking existing trace flag:', error);
             } else {
-                console.error('Unexpected error type:', error);
+                OrgUtils.logError('Unexpected error type:', error);
             }
         }
         return result;
@@ -543,9 +543,9 @@ export class OrgUtils {
 
     public static async hasExistingDebugTraceFlag(): Promise<boolean> {
         const userId = await this.getCurrentUserId();
-        console.log('[VisbalExt.OrgUtils] hasExistingDebugTraceFlag -- userId:', userId);
+        OrgUtils.logDebug('[VisbalExt.OrgUtils] hasExistingDebugTraceFlag -- userId:', userId);
         const traceResult = await OrgUtils.getExistingDebugTraceFlag(userId);
-        console.log('[VisbalExt.OrgUtils] hasExistingDebugTraceFlag -- traceResult:', traceResult);
+        OrgUtils.logDebug('[VisbalExt.OrgUtils] hasExistingDebugTraceFlag -- traceResult:', traceResult);
         
         if (!traceResult.existingTraceFlag) {
             return false;
@@ -555,7 +555,7 @@ export class OrgUtils {
         const expirationDate = new Date(traceResult.existingTraceFlag.ExpirationDate);
         const isActive = expirationDate > now;
         
-        console.log(`[VisbalExt.OrgUtils] hasExistingDebugTraceFlag -- isActive: ${isActive}, expires: ${expirationDate}`);
+        OrgUtils.logDebug(`[VisbalExt.OrgUtils] hasExistingDebugTraceFlag -- isActive: ${isActive}, expires: ${expirationDate}`);
         return isActive;
     }
 
@@ -633,13 +633,13 @@ export class OrgUtils {
                     logMessage += `[${timestamp}] ${JSON.stringify(o2)}\n`;
                 }
                 fs.appendFileSync(debugFile, logMessage);
-            } catch (error) {
+            } catch (error: any) {
                 console.error('[VisbalExt.OrgUtils] logDebug -- Error logging debug information:', error);
             }
         }
 
         if (displayInConsole) {
-            console.log(`${message}`, o);
+           console.log(`${message}`, o);
         }
     }
 } 

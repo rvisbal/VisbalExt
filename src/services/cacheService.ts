@@ -36,13 +36,13 @@ export class CacheService {
 
         // Ensure .visbal/cache directory exists
         if (!fs.existsSync(this.cachePath)) {
-            console.log('[VisbalExt.CacheService] Creating .visbal/cache directory');
+            OrgUtils.logDebug('[VisbalExt.CacheService] Creating .visbal/cache directory');
             fs.mkdirSync(this.cachePath, { recursive: true });
         }
 
         // Initialize cache file if it doesn't exist
         if (!fs.existsSync(this.logCacheFile)) {
-            console.log('[VisbalExt.CacheService] Initializing logs.json');
+            OrgUtils.logDebug('[VisbalExt.CacheService] Initializing logs.json');
             this.writeCache({});
         }
     }
@@ -54,8 +54,8 @@ export class CacheService {
                 return JSON.parse(data);
             }
             return {};
-        } catch (error) {
-            console.error('[VisbalExt.CacheService] Error reading cache:', error);
+        } catch (error: any) {
+            OrgUtils.logError('[VisbalExt.CacheService] Error reading cache:', error);
             return {};
         }
     }
@@ -63,21 +63,21 @@ export class CacheService {
     private writeCache(cache: LogCache): void {
         try {
             fs.writeFileSync(this.logCacheFile, JSON.stringify(cache, null, 2));
-            console.log('[VisbalExt.CacheService] Cache saved to:', this.logCacheFile);
-        } catch (error) {
-            console.error('[VisbalExt.CacheService] Error writing cache:', error);
+            OrgUtils.logDebug('[VisbalExt.CacheService] Cache saved to:', this.logCacheFile);
+        } catch (error: any) {
+            OrgUtils.logError('[VisbalExt.CacheService] Error writing cache:', error);
             throw error;
         }
     }
 
     public async getCachedLogs(): Promise<SalesforceLog[]> {
         try {
-            console.log('[VisbalExt.CacheService] getCachedLogs -- BEGIN');
+            OrgUtils.logDebug('[VisbalExt.CacheService] getCachedLogs -- BEGIN');
             const orgAlias = await OrgUtils.getCurrentOrgAlias();
             const cache = this.readCache();
             return cache[orgAlias]?.logs || [];
-        } catch (error) {
-            console.error('[VisbalExt.CacheService] Error reading cached logs:', error);
+        } catch (error: any) {
+            OrgUtils.logError('[VisbalExt.CacheService] Error reading cached logs:', error);
             return [];
         }
     }
@@ -100,9 +100,9 @@ export class CacheService {
             cache[orgAlias].lastFetchTime = Date.now();
 
             this.writeCache(cache);
-            console.log(`[VisbalExt.CacheService] Logs cached for org ${orgAlias}`);
-        } catch (error) {
-            console.error('[VisbalExt.CacheService] Error caching logs:', error);
+            OrgUtils.logDebug(`[VisbalExt.CacheService] Logs cached for org ${orgAlias}`);
+        } catch (error: any) {
+            OrgUtils.logError('[VisbalExt.CacheService] Error caching logs:', error);
             throw error;
         }
     }
@@ -110,11 +110,11 @@ export class CacheService {
     public async getCachedOrg(): Promise<{ alias: string; timestamp: string } | null> {
         try {
             const orgAlias = await OrgUtils.getCurrentOrgAlias();
-            console.log('[VisbalExt.CacheService] getCachedOrg -- orgAlias:', orgAlias);
+            OrgUtils.logDebug('[VisbalExt.CacheService] getCachedOrg -- orgAlias:', orgAlias);
             const cache = this.readCache();
             return cache[orgAlias]?.selectedOrg || null;
-        } catch (error) {
-            console.error('[VisbalExt.CacheService] Error reading cached org:', error);
+        } catch (error: any) {
+            OrgUtils.logError('[VisbalExt.CacheService] Error reading cached org:', error);
             return null;
         }
     }
@@ -122,7 +122,7 @@ export class CacheService {
     public async saveCachedOrg(selectedOrg: { alias: string; timestamp: string }): Promise<void> {
         try {
             const orgAlias = await OrgUtils.getCurrentOrgAlias();
-            console.log('[VisbalExt.CacheService] getCasaveCachedOrgchedOrg -- orgAlias:', orgAlias);
+            OrgUtils.logDebug('[VisbalExt.CacheService] getCasaveCachedOrgchedOrg -- orgAlias:', orgAlias);
             const cache = this.readCache();
             
             if (!cache[orgAlias]) {
@@ -138,9 +138,9 @@ export class CacheService {
             cache[orgAlias].lastFetchTime = Date.now();
 
             this.writeCache(cache);
-            console.log(`[VisbalExt.CacheService] Selected org cached: ${selectedOrg.alias}`);
-        } catch (error) {
-            console.error('[VisbalExt.CacheService] Error caching selected org:', error);
+            OrgUtils.logDebug(`[VisbalExt.CacheService] Selected org cached: ${selectedOrg.alias}`);
+        } catch (error: any) {
+            OrgUtils.logError('[VisbalExt.CacheService] Error caching selected org:', error);
             throw error;
         }
     }
@@ -150,8 +150,8 @@ export class CacheService {
             const orgAlias = await OrgUtils.getCurrentOrgAlias();
             const cache = this.readCache();
             return cache[orgAlias]?.lastFetchTime || 0;
-        } catch (error) {
-            console.error('[VisbalExt.CacheService] Error reading last fetch time:', error);
+        } catch (error: any) {
+            OrgUtils.logError('[VisbalExt.CacheService] Error reading last fetch time:', error);
             return 0;
         }
     }
@@ -161,8 +161,8 @@ export class CacheService {
             const orgAlias = await OrgUtils.getCurrentOrgAlias();
             const cache = this.readCache();
             return new Set(cache[orgAlias]?.downloadedLogs || []);
-        } catch (error) {
-            console.error('[VisbalExt.CacheService] Error reading downloaded logs:', error);
+        } catch (error: any) {
+            OrgUtils.logError('[VisbalExt.CacheService] Error reading downloaded logs:', error);
             return new Set();
         }
     }
@@ -172,8 +172,8 @@ export class CacheService {
             const orgAlias = await OrgUtils.getCurrentOrgAlias();
             const cache = this.readCache();
             return new Map(Object.entries(cache[orgAlias]?.downloadedLogPaths || {}));
-        } catch (error) {
-            console.error('[VisbalExt.CacheService] Error reading downloaded log paths:', error);
+        } catch (error: any) {
+            OrgUtils.logError('[VisbalExt.CacheService] Error reading downloaded log paths:', error);
             return new Map();
         }
     }
@@ -196,9 +196,9 @@ export class CacheService {
             cache[orgAlias].downloadedLogPaths = Object.fromEntries(downloadedLogPaths);
 
             this.writeCache(cache);
-            console.log(`[VisbalExt.CacheService] Downloaded logs saved for org ${orgAlias}`);
-        } catch (error) {
-            console.error('[VisbalExt.CacheService] Error saving downloaded logs:', error);
+            OrgUtils.logDebug(`[VisbalExt.CacheService] Downloaded logs saved for org ${orgAlias}`);
+        } catch (error: any) {
+            OrgUtils.logError('[VisbalExt.CacheService] Error saving downloaded logs:', error);
             throw error;
         }
     }
@@ -209,9 +209,9 @@ export class CacheService {
             const cache = this.readCache();
             delete cache[orgAlias];
             this.writeCache(cache);
-            console.log(`[VisbalExt.CacheService] Cache cleared for org ${orgAlias}`);
-        } catch (error) {
-            console.error('[VisbalExt.CacheService] Error clearing cache:', error);
+            OrgUtils.logDebug(`[VisbalExt.CacheService] Cache cleared for org ${orgAlias}`);
+        } catch (error: any) {
+            OrgUtils.logError('[VisbalExt.CacheService] Error clearing cache:', error);
             throw error;
         }
     }
@@ -219,9 +219,9 @@ export class CacheService {
     public async clearAllCache(): Promise<void> {
         try {
             this.writeCache({});
-            console.log('[VisbalExt.CacheService] All cache cleared');
-        } catch (error) {
-            console.error('[VisbalExt.CacheService] Error clearing all cache:', error);
+            OrgUtils.logDebug('[VisbalExt.CacheService] All cache cleared');
+        } catch (error: any) {
+            OrgUtils.logError('[VisbalExt.CacheService] Error clearing all cache:', error);
             throw error;
         }
     }

@@ -1,4 +1,5 @@
 import * as vscode from 'vscode';
+import { OrgUtils } from '../utils/orgUtils';
 
 interface TestMethod {
     methodName: string;
@@ -38,7 +39,7 @@ export class TestResultsView implements vscode.WebviewViewProvider {
         webviewView.webview.onDidReceiveMessage(async (data) => {
             switch (data.type) {
                 case 'ready':
-                    console.log('Test results view is ready');
+                    OrgUtils.logDebug('Test results view is ready');
                     break;
             }
         });

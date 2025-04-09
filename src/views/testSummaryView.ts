@@ -1,4 +1,5 @@
 import * as vscode from 'vscode';
+import { OrgUtils } from '../utils/orgUtils';
 
 interface TestMethod {
     methodName: string;
@@ -68,7 +69,7 @@ export class TestSummaryView implements vscode.WebviewViewProvider {
     }
 
     public updateSummary(summary: TestSummary | TestSummary[], tests: TestResult[]) {
-        console.log('[VisbalExt.TestSummaryView] updateSummary -- summary:', summary);
+        OrgUtils.logDebug('[VisbalExt.TestSummaryView] updateSummary -- summary:', summary);
         if (this._view) {
             // Check if we have multiple summaries
             if (Array.isArray(summary)) {

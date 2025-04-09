@@ -3,6 +3,7 @@ import axios, { AxiosInstance, AxiosRequestConfig } from 'axios';
 import { exec } from 'child_process';
 import { promisify } from 'util';
 import { statusBarService } from './statusBarService';
+import { OrgUtils } from '../utils/orgUtils';
 
 const execAsync = promisify(exec);
 
@@ -20,14 +21,14 @@ export class SalesforceApiService {
      */
     public async initialize(): Promise<boolean> {
         try {
-            console.log('[VisbalExt.SalesforceApiService] initialize -- Initializing Salesforce API service');
+            OrgUtils.logDebug('[VisbalExt.SalesforceApiService] initialize -- Initializing Salesforce API service');
             statusBarService.showProgress('Initializing Salesforce API...');
             
             // Get authentication details from Salesforce CLI
             const authDetails = await this._getAuthDetailsFromCli();
             
             if (!authDetails) {
-                console.error('[VisbalExt.SalesforceApiService] initialize -- Failed to get auth details from CLI');
+                OrgUtils.logDebug('[VisbalExt.SalesforceApiService] initialize -- Failed to get auth details from CLI');
                 statusBarService.showError('Failed to get auth details from CLI');
                 return false;
             }
@@ -44,11 +45,11 @@ export class SalesforceApiService {
                 }
             });
             
-            console.log('[VisbalExt.SalesforceApiService] initialize -- Successfully initialized Salesforce API service');
+            OrgUtils.logDebug('[VisbalExt.SalesforceApiService] initialize -- Successfully initialized Salesforce API service');
             statusBarService.showSuccess('Salesforce API initialized');
             return true;
         } catch (error: any) {
-            console.error('[VisbalExt.SalesforceApiService] initialize -- Error:', error);
+            OrgUtils.logError('[VisbalExt.SalesforceApiService] initialize -- Error:', error);
             statusBarService.showError(`Failed to initialize Salesforce API: ${error.message}`);
             vscode.window.showErrorMessage(`Failed to initialize Salesforce API: ${error.message}`);
             return false;
@@ -76,16 +77,16 @@ export class SalesforceApiService {
                 `/tooling/query?q=${encodedQuery}` : 
                 `/query?q=${encodedQuery}`;
             
-            console.log(`[VisbalExt.SalesforceApiService] query -- Executing SOQL query: ${soql}`);
+            OrgUtils.logDebug(`[VisbalExt.SalesforceApiService] query -- Executing SOQL query: ${soql}`);
             
             // Execute the query
             const response = await this._instance!.get(endpoint);
             
-            console.log(`[VisbalExt.SalesforceApiService] query -- Query returned ${response.data.records?.length || 0} records`);
+            OrgUtils.logDebug(`[VisbalExt.SalesforceApiService] query -- Query returned ${response.data.records?.length || 0} records`);
             statusBarService.showSuccess('SOQL query completed');
             return response.data;
         } catch (error: any) {
-            console.error('[VisbalExt.SalesforceApiService] query -- Error:', error);
+            OrgUtils.logError('[VisbalExt.SalesforceApiService] query -- Error:', error);
             statusBarService.showError(`Query error: ${error.message}`);
             throw error;
         }
@@ -118,15 +119,15 @@ export class SalesforceApiService {
                 endpoint += `?fields=${encodeURIComponent(fields)}`;
             }
             
-            console.log(`[VisbalExt.SalesforceApiService] getRecord -- Getting record: ${objectType}/${recordId}`);
+            OrgUtils.logDebug(`[VisbalExt.SalesforceApiService] getRecord -- Getting record: ${objectType}/${recordId}`);
             
             // Execute the request
             const response = await this._instance!.get(endpoint);
             
-            console.log(`[VisbalExt.SalesforceApiService] getRecord -- Successfully retrieved record: ${objectType}/${recordId}`);
+            OrgUtils.logDebug(`[VisbalExt.SalesforceApiService] getRecord -- Successfully retrieved record: ${objectType}/${recordId}`);
             return response.data;
         } catch (error: any) {
-            console.error('[VisbalExt.SalesforceApiService] getRecord -- Error:', error);
+            OrgUtils.logError('[VisbalExt.SalesforceApiService] getRecord -- Error:', error);
             throw new Error(`Failed to get record: ${error.message}`);
         }
     }
@@ -152,15 +153,15 @@ export class SalesforceApiService {
             // Build the endpoint URL
             const endpoint = `${baseEndpoint}/${objectType}`;
             
-            console.log(`[VisbalExt.SalesforceApiService] createRecord -- Creating record: ${objectType}`);
+            OrgUtils.logDebug(`[VisbalExt.SalesforceApiService] createRecord -- Creating record: ${objectType}`);
             
             // Execute the request
             const response = await this._instance!.post(endpoint, data);
             
-            console.log(`[VisbalExt.SalesforceApiService] createRecord -- Successfully created record: ${response.data.id}`);
+            OrgUtils.logDebug(`[VisbalExt.SalesforceApiService] createRecord -- Successfully created record: ${response.data.id}`);
             return response.data;
         } catch (error: any) {
-            console.error('[VisbalExt.SalesforceApiService] createRecord -- Error:', error);
+            OrgUtils.logError('[VisbalExt.SalesforceApiService] createRecord -- Error:', error);
             throw new Error(`Failed to create record: ${error.message}`);
         }
     }
@@ -187,15 +188,15 @@ export class SalesforceApiService {
             // Build the endpoint URL
             const endpoint = `${baseEndpoint}/${objectType}/${recordId}`;
             
-            console.log(`[VisbalExt.SalesforceApiService] updateRecord -- Updating record: ${objectType}/${recordId}`);
+            OrgUtils.logDebug(`[VisbalExt.SalesforceApiService] updateRecord -- Updating record: ${objectType}/${recordId}`);
             
             // Execute the request
             const response = await this._instance!.patch(endpoint, data);
             
-            console.log(`[VisbalExt.SalesforceApiService] updateRecord -- Successfully updated record: ${objectType}/${recordId}`);
+            OrgUtils.logDebug(`[VisbalExt.SalesforceApiService] updateRecord -- Successfully updated record: ${objectType}/${recordId}`);
             return response.data;
         } catch (error: any) {
-            console.error('[VisbalExt.SalesforceApiService] updateRecord -- Error:', error);
+            OrgUtils.logError('[VisbalExt.SalesforceApiService] updateRecord -- Error:', error);
             throw new Error(`Failed to update record: ${error.message}`);
         }
     }
@@ -221,14 +222,14 @@ export class SalesforceApiService {
             // Build the endpoint URL
             const endpoint = `${baseEndpoint}/${objectType}/${recordId}`;
             
-            console.log(`[VisbalExt.SalesforceApiService] deleteRecord -- Deleting record: ${objectType}/${recordId}`);
+            OrgUtils.logDebug(`[VisbalExt.SalesforceApiService] deleteRecord -- Deleting record: ${objectType}/${recordId}`);
             
             // Execute the request
             await this._instance!.delete(endpoint);
             
-            console.log(`[VisbalExt.SalesforceApiService] deleteRecord -- Successfully deleted record: ${objectType}/${recordId}`);
+            OrgUtils.logDebug(`[VisbalExt.SalesforceApiService] deleteRecord -- Successfully deleted record: ${objectType}/${recordId}`);
         } catch (error: any) {
-            console.error('[VisbalExt.SalesforceApiService] deleteRecord -- Error:', error);
+            OrgUtils.logError('[VisbalExt.SalesforceApiService] deleteRecord -- Error:', error);
             throw new Error(`Failed to delete record: ${error.message}`);
         }
     }
@@ -280,17 +281,17 @@ export class SalesforceApiService {
      */
     private async _getAuthDetailsFromCli(): Promise<{ accessToken: string, instanceUrl: string } | null> {
         try {
-            console.log('[VisbalExt.SalesforceApiService] _getAuthDetailsFromCli -- Getting auth details from CLI');
+            OrgUtils.logDebug('[VisbalExt.SalesforceApiService] _getAuthDetailsFromCli -- Getting auth details from CLI');
             
             // Try with new CLI format first
             try {
                 const { stdout: orgInfo } = await execAsync('sf org display --json');
-                console.log('[VisbalExt.SalesforceApiService] _getAuthDetailsFromCli -- Successfully got org info with new CLI format');
+                OrgUtils.logDebug('[VisbalExt.SalesforceApiService] _getAuthDetailsFromCli -- Successfully got org info with new CLI format');
                 
                 const orgData = JSON.parse(orgInfo);
                 
                 if (!orgData.result || !orgData.result.accessToken || !orgData.result.instanceUrl) {
-                    console.error('[VisbalExt.SalesforceApiService] _getAuthDetailsFromCli -- Invalid org data from new CLI format:', orgData);
+                    OrgUtils.logError('[VisbalExt.SalesforceApiService] _getAuthDetailsFromCli -- Invalid org data from new CLI format:', orgData);
                     throw new Error('Invalid org data from new CLI format');
                 }
                 
@@ -298,17 +299,17 @@ export class SalesforceApiService {
                     accessToken: orgData.result.accessToken,
                     instanceUrl: orgData.result.instanceUrl
                 };
-            } catch (error) {
-                console.log('[VisbalExt.SalesforceApiService] _getAuthDetailsFromCli -- Failed with new CLI format, trying old format', error);
+            } catch (error: any) {
+                OrgUtils.logDebug('[VisbalExt.SalesforceApiService] _getAuthDetailsFromCli -- Failed with new CLI format, trying old format', error);
                 
                 // If the new command fails, try the old format
                 const { stdout: orgInfo } = await execAsync('sfdx force:org:display --json');
-                console.log('[VisbalExt.SalesforceApiService] _getAuthDetailsFromCli -- Successfully got org info with old CLI format');
+                OrgUtils.logDebug('[VisbalExt.SalesforceApiService] _getAuthDetailsFromCli -- Successfully got org info with old CLI format');
                 
                 const orgData = JSON.parse(orgInfo);
                 
                 if (!orgData.result || !orgData.result.accessToken || !orgData.result.instanceUrl) {
-                    console.error('[VisbalExt.SalesforceApiService] _getAuthDetailsFromCli -- Invalid org data from old CLI format:', orgData);
+                    OrgUtils.logError('[VisbalExt.SalesforceApiService] _getAuthDetailsFromCli -- Invalid org data from old CLI format:', orgData);
                     return null;
                 }
                 
@@ -318,7 +319,7 @@ export class SalesforceApiService {
                 };
             }
         } catch (error: any) {
-            console.error('[VisbalExt.SalesforceApiService] _getAuthDetailsFromCli -- Error:', error);
+            OrgUtils.logError('[VisbalExt.SalesforceApiService] _getAuthDetailsFromCli -- Error:', error);
             return null;
         }
     }
@@ -362,11 +363,11 @@ export class SalesforceApiService {
                 }))
             });
             
-            console.log(`[VisbalExt.SalesforceApiService] retrieveMetadata -- Retrieved ${metadataType} metadata`);
+            OrgUtils.logDebug(`[VisbalExt.SalesforceApiService] retrieveMetadata -- Retrieved ${metadataType} metadata`);
             statusBarService.showSuccess('Metadata retrieval completed');
             return response.data;
         } catch (error: any) {
-            console.error('[VisbalExt.SalesforceApiService] retrieveMetadata -- Error:', error);
+            OrgUtils.logError('[VisbalExt.SalesforceApiService] retrieveMetadata -- Error:', error);
             statusBarService.showError(`Metadata retrieval error: ${error.message}`);
             throw error;
         }
@@ -394,11 +395,11 @@ export class SalesforceApiService {
                 }]
             });
             
-            console.log(`[VisbalExt.SalesforceApiService] deployMetadata -- Deployed ${metadataType} metadata`);
+            OrgUtils.logDebug(`[VisbalExt.SalesforceApiService] deployMetadata -- Deployed ${metadataType} metadata`);
             statusBarService.showSuccess('Metadata deployment completed');
             return response.data;
         } catch (error: any) {
-            console.error('[VisbalExt.SalesforceApiService] deployMetadata -- Error:', error);
+            OrgUtils.logError('[VisbalExt.SalesforceApiService] deployMetadata -- Error:', error);
             statusBarService.showError(`Metadata deployment error: ${error.message}`);
             throw error;
         }
@@ -418,11 +419,11 @@ export class SalesforceApiService {
             const endpoint = '/tooling/sobjects';
             const response = await this._instance.get(endpoint);
             
-            console.log('[VisbalExt.SalesforceApiService] listMetadataTypes -- Retrieved metadata types');
+            OrgUtils.logDebug('[VisbalExt.SalesforceApiService] listMetadataTypes -- Retrieved metadata types');
             statusBarService.showSuccess('Metadata types retrieved');
             return response.data.sobjects;
         } catch (error: any) {
-            console.error('[VisbalExt.SalesforceApiService] listMetadataTypes -- Error:', error);
+            OrgUtils.logError('[VisbalExt.SalesforceApiService] listMetadataTypes -- Error:', error);
             statusBarService.showError(`Failed to list metadata types: ${error.message}`);
             throw error;
         }
@@ -452,11 +453,11 @@ export class SalesforceApiService {
                 compositeRequest: requests
             });
             
-            console.log('[VisbalExt.SalesforceApiService] executeComposite -- Composite request completed');
+            OrgUtils.logDebug('[VisbalExt.SalesforceApiService] executeComposite -- Composite request completed');
             statusBarService.showSuccess('Composite request completed');
             return response.data;
         } catch (error: any) {
-            console.error('[VisbalExt.SalesforceApiService] executeComposite -- Error:', error);
+            OrgUtils.logError('[VisbalExt.SalesforceApiService] executeComposite -- Error:', error);
             statusBarService.showError(`Composite request error: ${error.message}`);
             throw error;
         }
@@ -502,11 +503,11 @@ export class SalesforceApiService {
                 state: 'UploadComplete'
             });
             
-            console.log(`[VisbalExt.SalesforceApiService] createBulkJob -- Created bulk job: ${jobId}`);
+            OrgUtils.logDebug(`[VisbalExt.SalesforceApiService] createBulkJob -- Created bulk job: ${jobId}`);
             statusBarService.showSuccess('Bulk job created and data uploaded');
             return jobId;
         } catch (error: any) {
-            console.error('[VisbalExt.SalesforceApiService] createBulkJob -- Error:', error);
+            OrgUtils.logError('[VisbalExt.SalesforceApiService] createBulkJob -- Error:', error);
             statusBarService.showError(`Bulk job error: ${error.message}`);
             throw error;
         }
@@ -524,10 +525,10 @@ export class SalesforceApiService {
             
             const response = await this._instance.get(`/jobs/ingest/${jobId}`);
             
-            console.log(`[VisbalExt.SalesforceApiService] checkBulkJobStatus -- Job ${jobId} status: ${response.data.state}`);
+            OrgUtils.logDebug(`[VisbalExt.SalesforceApiService] checkBulkJobStatus -- Job ${jobId} status: ${response.data.state}`);
             return response.data;
         } catch (error: any) {
-            console.error('[VisbalExt.SalesforceApiService] checkBulkJobStatus -- Error:', error);
+            OrgUtils.logError('[VisbalExt.SalesforceApiService] checkBulkJobStatus -- Error:', error);
             throw error;
         }
     }
@@ -558,11 +559,11 @@ export class SalesforceApiService {
             const response = await this._instance.post('/tooling/runTestsAsynchronous', testRequest);
             const testRunId = response.data;
 
-            console.log(`[VisbalExt.SalesforceApiService] runApexTests -- Test run started with ID: ${testRunId}`);
+            OrgUtils.logDebug(`[VisbalExt.SalesforceApiService] runApexTests -- Test run started with ID: ${testRunId}`);
             statusBarService.showSuccess('Test run started');
             return testRunId;
         } catch (error: any) {
-            console.error('[VisbalExt.SalesforceApiService] runApexTests -- Error:', error);
+            OrgUtils.logError('[VisbalExt.SalesforceApiService] runApexTests -- Error:', error);
             statusBarService.showError(`Failed to start test run: ${error.message}`);
             throw error;
         }
@@ -588,7 +589,7 @@ export class SalesforceApiService {
             // Get test results directly from ApexTestResult
             const response = await instance.get(`/tooling/sobjects/ApexTestResult/${testRunId}`);
             
-            console.log(`[VisbalExt.SalesforceApiService] getApexTestStatus -- Retrieved status for test run: ${testRunId}`);
+            OrgUtils.logDebug(`[VisbalExt.SalesforceApiService] getApexTestStatus -- Retrieved status for test run: ${testRunId}`);
             return response.data;
         } catch (error: any) {
             if (error.response?.status === 400) {
@@ -603,11 +604,11 @@ export class SalesforceApiService {
                     const response = await this._instance.get(`/tooling/query?q=${query}`);
                     return response.data.records;
                 } catch (retryError: any) {
-                    console.error('[VisbalExt.SalesforceApiService] getApexTestStatus -- Retry failed:', retryError);
+                    OrgUtils.logError('[VisbalExt.SalesforceApiService] getApexTestStatus -- Retry failed:', retryError);
                     throw retryError;
                 }
             }
-            console.error('[VisbalExt.SalesforceApiService] getApexTestStatus -- Error:', error);
+            OrgUtils.logError('[VisbalExt.SalesforceApiService] getApexTestStatus -- Error:', error);
             throw error;
         }
     }
@@ -627,11 +628,11 @@ export class SalesforceApiService {
 
             const response = await this._instance.get(`/tooling/sobjects/ApexLog/${logId}/Body`);
             
-            console.log(`[VisbalExt.SalesforceApiService] getApexTestLog -- Retrieved log: ${logId}`);
+            OrgUtils.logDebug(`[VisbalExt.SalesforceApiService] getApexTestLog -- Retrieved log: ${logId}`);
             statusBarService.showSuccess('Test log retrieved');
             return response.data;
         } catch (error: any) {
-            console.error('[VisbalExt.SalesforceApiService] getApexTestLog -- Error:', error);
+            OrgUtils.logError('[VisbalExt.SalesforceApiService] getApexTestLog -- Error:', error);
             statusBarService.showError(`Failed to retrieve test log: ${error.message}`);
             throw error;
         }

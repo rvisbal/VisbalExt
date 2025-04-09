@@ -1,4 +1,5 @@
 import * as vscode from 'vscode';
+import { OrgUtils } from '../utils/orgUtils';
 
 export enum LogLevel {
     DEBUG = 'DEBUG',
@@ -58,7 +59,7 @@ export class LoggingService {
         if (!this.shouldLog(LogLevel.INFO)) return;
         
         const formattedMessage = this.formatMessage(component, message);
-        console.log(formattedMessage, ...args);
+        OrgUtils.logDebug(formattedMessage, ...args);
         this.outputChannel.appendLine(formattedMessage + (args.length ? ' ' + JSON.stringify(args) : ''));
         
         if (this.debugConsoleView) {
@@ -70,7 +71,7 @@ export class LoggingService {
         if (!this.shouldLog(LogLevel.WARN)) return;
         
         const formattedMessage = this.formatMessage(component, message);
-        console.warn(formattedMessage, ...args);
+        OrgUtils.logDebug(formattedMessage, ...args);
         this.outputChannel.appendLine(formattedMessage + (args.length ? ' ' + JSON.stringify(args) : ''));
         
         if (this.debugConsoleView) {

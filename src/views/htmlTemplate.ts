@@ -1251,7 +1251,7 @@ export function getHtmlTemplate(
                         }, 2000);
                         
                         console.log('[VisbalExt.htmlTemplate:WebView] Content copied successfully');
-                    } catch (error) {
+                    } catch (error: any) {
                         console.error('[VisbalExt.htmlTemplate:WebView] Error copying content:', error);
                         vscode.postMessage({
                             command: 'showError',
