@@ -569,8 +569,14 @@ export class OrgUtils {
 
     public static logError(message: string, error: Error): void {
         try {
+
+            const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
+            if (!workspaceFolder) {
+                throw new Error('No workspace folder found');
+            }
+
             //log the error to a file in the .visbal/error directory. if the directory does not exist, create it.
-            const errorDir = path.join(os.homedir(), '.visbal', 'error');
+            const errorDir = path.join(workspaceFolder.uri.fsPath, '.visbal', 'error');
             if (!fs.existsSync(errorDir)) {
                 fs.mkdirSync(errorDir, { recursive: true });
             }
@@ -599,15 +605,29 @@ export class OrgUtils {
 
     public static logDebug(message: string, o?: unknown, o2?: unknown): void {
         try {
+
+            const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
+            if (!workspaceFolder) {
+                throw new Error('No workspace folder found');
+            }
+
             //I would like to log the file in the .visbal/debug directory. if the directory does not exist, create it.
             //all log should be on the same fileURLToPath, preced by the timestamp
-            const debugDir = path.join(os.homedir(), '.visbal', 'debug');
+            const debugDir = path.join(workspaceFolder.uri.fsPath, '.visbal', 'debug');
             if (!fs.existsSync(debugDir)) {
                 fs.mkdirSync(debugDir, { recursive: true });
             }
-            //the file wil be the same all the time, just append the message
+            //the file wil be the same all the time, just append the message with timestamp
             const debugFile = path.join(debugDir, `debug.log`);
-            fs.appendFileSync(debugFile, `${message}\n${JSON.stringify(o)}\n${JSON.stringify(o2)}\n`);
+            const timestamp = new Date().toISOString();
+            let logMessage = `[${timestamp}] ${message}\n`;
+            if (o !== undefined) {
+                logMessage += `[${timestamp}] ${JSON.stringify(o)}\n`;
+            }
+            if (o2 !== undefined) {
+                logMessage += `[${timestamp}] ${JSON.stringify(o2)}\n`;
+            }
+            fs.appendFileSync(debugFile, logMessage);
         } catch (error) {
             console.error('[VisbalExt.OrgUtils] logDebug -- Error logging debug information:', error);
         }
