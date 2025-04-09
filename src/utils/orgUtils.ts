@@ -568,70 +568,78 @@ export class OrgUtils {
     }
 
     public static logError(message: string, error: Error): void {
-        try {
+        const config = vscode.workspace.getConfiguration('visbalExt.logging');
+        const saveToFile = config.get<boolean>('saveToFile', true);
+        const displayInConsole = config.get<boolean>('displayInConsole', true);
 
-            const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
-            if (!workspaceFolder) {
-                throw new Error('No workspace folder found');
-            }
-
-            //log the error to a file in the .visbal/error directory. if the directory does not exist, create it.
-            const errorDir = path.join(workspaceFolder.uri.fsPath, '.visbal', 'error');
-            if (!fs.existsSync(errorDir)) {
-                fs.mkdirSync(errorDir, { recursive: true });
-            }
-            // the file name should contains if available in the message the prefix of the source ex: [VisbalExt.OrgUtils] getExistingDebugTraceFlag 
-            // prefix : [VisbalExt.OrgUtils] method : getExistingDebugTraceFlag > filename : `${prefix}.${method}${new Date().toISOString().replace(/:/g, '-')}.log`
-            const prefix = message.split(']')[0].trim();
-            const method = message.split(']')[1].trim();
-            const timestamp = new Date().toISOString().replace(/:/g, '-');
-            const errorFile = path.join(errorDir, `${prefix}.${method}${timestamp}.log`);
-            fs.writeFileSync(errorFile, `${message}\n${error.message}\n${error.stack}\n`);
-
-            //delete files older than 1 days
-            const files = fs.readdirSync(errorDir);
-            files.forEach(file => {
-                const fileDate = new Date(file.split('.')[2]);
-                if (fileDate < new Date(Date.now() - 1 * 24 * 60 * 60 * 1000)) {
-                    fs.unlinkSync(path.join(errorDir, file));
+        if (saveToFile) {
+            // Existing logic to save error to file
+            try {
+                const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
+                if (!workspaceFolder) {
+                    throw new Error('No workspace folder found');
                 }
-            });
-        } catch (e) {
-            console.error(`[VisbalExt.OrgUtils] logError -- Error logging error:`, e as Error);
+
+                const errorDir = path.join(workspaceFolder.uri.fsPath, '.visbal', 'error');
+                if (!fs.existsSync(errorDir)) {
+                    fs.mkdirSync(errorDir, { recursive: true });
+                }
+                const prefix = message.split(']')[0].trim();
+                const method = message.split(']')[1].trim();
+                const timestamp = new Date().toISOString().replace(/:/g, '-');
+                const errorFile = path.join(errorDir, `${prefix}.${method}${timestamp}.log`);
+                fs.writeFileSync(errorFile, `${message}\n${error.message}\n${error.stack}\n`);
+
+                const files = fs.readdirSync(errorDir);
+                files.forEach(file => {
+                    const fileDate = new Date(file.split('.')[2]);
+                    if (fileDate < new Date(Date.now() - 1 * 24 * 60 * 60 * 1000)) {
+                        fs.unlinkSync(path.join(errorDir, file));
+                    }
+                });
+            } catch (e) {
+                console.error(`[VisbalExt.OrgUtils] logError -- Error logging error:`, e as Error);
+            }
         }
-        
-        console.error(`${message}`, error as Error);
+
+        if (displayInConsole) {
+            console.error(`${message}`, error);
+        }
     }
 
     public static logDebug(message: string, o?: unknown, o2?: unknown): void {
-        try {
+        const config = vscode.workspace.getConfiguration('visbalExt.logging');
+        const saveToFile = config.get<boolean>('saveToFile', true);
+        const displayInConsole = config.get<boolean>('displayInConsole', true);
 
-            const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
-            if (!workspaceFolder) {
-                throw new Error('No workspace folder found');
-            }
+        if (saveToFile) {
+            try {
+                const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
+                if (!workspaceFolder) {
+                    throw new Error('No workspace folder found');
+                }
 
-            //I would like to log the file in the .visbal/debug directory. if the directory does not exist, create it.
-            //all log should be on the same fileURLToPath, preced by the timestamp
-            const debugDir = path.join(workspaceFolder.uri.fsPath, '.visbal', 'debug');
-            if (!fs.existsSync(debugDir)) {
-                fs.mkdirSync(debugDir, { recursive: true });
+                const debugDir = path.join(workspaceFolder.uri.fsPath, '.visbal', 'debug');
+                if (!fs.existsSync(debugDir)) {
+                    fs.mkdirSync(debugDir, { recursive: true });
+                }
+                const debugFile = path.join(debugDir, `debug.log`);
+                const timestamp = new Date().toISOString();
+                let logMessage = `[${timestamp}] ${message}\n`;
+                if (o !== undefined) {
+                    logMessage += `[${timestamp}] ${JSON.stringify(o)}\n`;
+                }
+                if (o2 !== undefined) {
+                    logMessage += `[${timestamp}] ${JSON.stringify(o2)}\n`;
+                }
+                fs.appendFileSync(debugFile, logMessage);
+            } catch (error) {
+                console.error('[VisbalExt.OrgUtils] logDebug -- Error logging debug information:', error);
             }
-            //the file wil be the same all the time, just append the message with timestamp
-            const debugFile = path.join(debugDir, `debug.log`);
-            const timestamp = new Date().toISOString();
-            let logMessage = `[${timestamp}] ${message}\n`;
-            if (o !== undefined) {
-                logMessage += `[${timestamp}] ${JSON.stringify(o)}\n`;
-            }
-            if (o2 !== undefined) {
-                logMessage += `[${timestamp}] ${JSON.stringify(o2)}\n`;
-            }
-            fs.appendFileSync(debugFile, logMessage);
-        } catch (error) {
-            console.error('[VisbalExt.OrgUtils] logDebug -- Error logging debug information:', error);
         }
 
-        console.log(`${message}`, o);
+        if (displayInConsole) {
+            console.log(`${message}`, o);
+        }
     }
 } 
