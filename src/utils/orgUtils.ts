@@ -54,6 +54,7 @@ export class OrgUtils {
     private static _orgAliasCache: { alias: string; timestamp: number } | null = null;
     private static _currentUserIdCache: { userId: string; timestamp: number } | null = null;
     private static readonly CACHE_EXPIRATION = 15 * 60 * 1000; // 15 minutes in milliseconds
+    
 
     
 
@@ -567,12 +568,13 @@ export class OrgUtils {
         return this._sfdxService;
     }
 
-    public static logError(message: string, error: Error): void {
+    public static logError(message: string, error: any): void {
         const config = vscode.workspace.getConfiguration('visbalExt.logging');
         const saveToFile = config.get<boolean>('saveToFile', true);
         const displayInConsole = config.get<boolean>('displayInConsole', true);
-
+        
         if (saveToFile) {
+            
             // Existing logic to save error to file
             try {
                 const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
@@ -584,16 +586,29 @@ export class OrgUtils {
                 if (!fs.existsSync(errorDir)) {
                     fs.mkdirSync(errorDir, { recursive: true });
                 }
-                const prefix = message.split(']')[0].trim();
-                const method = message.split(']')[1].trim();
+                const prefix = message.split(']')[0].replace(/[^a-zA-Z0-9-_]/g, '').trim();
+                const method = message.split(']')[1].replace(/[^a-zA-Z0-9-_]/g, '').trim();
                 const timestamp = new Date().toISOString().replace(/:/g, '-');
-                const errorFile = path.join(errorDir, `${prefix}.${method}${timestamp}.log`);
-                fs.writeFileSync(errorFile, `${message}\n${error.message}\n${error.stack}\n`);
+                const errorFile = path.join(errorDir, `${prefix}.${method}.${timestamp}.log`);
 
+                let fileContent = '';
+                if (error instanceof Error) {
+                    const errorMessage = error.message;
+                    const errorStack = error.stack;
+                    fileContent = `${message}\n${errorMessage}\n${errorStack}\n`;
+                } else {
+                    fileContent = `${message}\n${error}\n`;
+                }
+
+                fs.writeFileSync(errorFile, fileContent);
+
+                this.logDebug(`ERROR:${fileContent}`);
+
+                const deleteErrorLogsOlderThan = config.get<number>('deleteErrorLogsOlderThan', 1);
                 const files = fs.readdirSync(errorDir);
                 files.forEach(file => {
                     const fileDate = new Date(file.split('.')[2]);
-                    if (fileDate < new Date(Date.now() - 1 * 24 * 60 * 60 * 1000)) {
+                    if (fileDate < new Date(Date.now() - deleteErrorLogsOlderThan * 24 * 60 * 60 * 1000)) {
                         fs.unlinkSync(path.join(errorDir, file));
                     }
                 });
@@ -611,7 +626,7 @@ export class OrgUtils {
         const config = vscode.workspace.getConfiguration('visbalExt.logging');
         const saveToFile = config.get<boolean>('saveToFile', true);
         const displayInConsole = config.get<boolean>('displayInConsole', true);
-
+        const debugMaxLength = config.get<number>('debugMaxLength', 250); // Default value, can be configured
         if (saveToFile) {
             try {
                 const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
@@ -627,10 +642,12 @@ export class OrgUtils {
                 const timestamp = new Date().toISOString();
                 let logMessage = `[${timestamp}] ${message}\n`;
                 if (o !== undefined) {
-                    logMessage += `[${timestamp}] ${JSON.stringify(o)}\n`;
+                    const jsonString = JSON.stringify(o);
+                    logMessage += `[${timestamp}] ${jsonString.length > debugMaxLength ? jsonString.slice(0, debugMaxLength) + '...' : jsonString}\n`;
                 }
                 if (o2 !== undefined) {
-                    logMessage += `[${timestamp}] ${JSON.stringify(o2)}\n`;
+                    const jsonString = JSON.stringify(o2);
+                    logMessage += `[${timestamp}] ${jsonString.length > debugMaxLength ? jsonString.slice(0, debugMaxLength) + '...' : jsonString}\n`;
                 }
                 fs.appendFileSync(debugFile, logMessage);
             } catch (error: any) {

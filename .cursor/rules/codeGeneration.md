@@ -1,6 +1,6 @@
 * Change console.log for OrgUtils.logDebug
 * change console.error for OrgUtils.logError
-* the message shoould contains '[VisbalExt.TestClassExplorerView] -- _viewTestLog --message' where 
+* the message shoould contains '[VisbalExt.TestClassExplorerView] _viewTestLog --message' where 
     VisbalExt : name of the extension
     TestClassExplorerView : the class file name
     _viewTestLog :  the methods where the log line exists 

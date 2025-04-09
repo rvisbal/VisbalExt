@@ -2919,7 +2919,7 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
 					
 					
 					function refreshTestMethods(testClass) {
-                        console.log('[VisbalExt.TestClassExplorerView] -- refreshTestMethods -- Refreshing methods:', testClass);
+                        console.log('[VisbalExt.TestClassExplorerView] refreshTestMethods -- Refreshing methods:', testClass);
                         showLoading('Refreshing methods on class ' + testClass  );
                         hideError();
                         hideNotification();
@@ -2931,7 +2931,7 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                     }
                     
                     function runTest(testClass, testMethod) {
-                        console.log('[VisbalExt.TestClassExplorerView] -- runTest -- Running test:', testClass, testMethod);
+                        console.log('[VisbalExt.TestClassExplorerView] runTest -- Running test:', testClass, testMethod);
                         showLoading('running test  ' + testClass + '. ' + testMethod );
                         hideError();
                         hideNotification();
@@ -3377,25 +3377,25 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
 
     private async _viewTestLog(logId: string, testName: string) {
         try {
-            OrgUtils.logDebug('[VisbalExt.TestClassExplorerView] -- _viewTestLog -- Viewing test log:', { logId, testName });
+            OrgUtils.logDebug('[VisbalExt.TestClassExplorerView] _viewTestLog -- Viewing test log:', { logId, testName });
             const logContent = await this._metadataService.getTestLog(logId);
-            OrgUtils.logDebug('[VisbalExt.TestClassExplorerView] -- _viewTestLog --   Log content retrieved:', !!logContent);
+            OrgUtils.logDebug('[VisbalExt.TestClassExplorerView] _viewTestLog --   Log content retrieved:', !!logContent);
             
             if (logContent) {
                 // Create a temporary file with the log content
                 const tmpPath = join(vscode.workspace.rootPath || '', '.sf', 'logs', `${testName}-${new Date().getTime()}.log`);
-                OrgUtils.logDebug('[VisbalExt.TestClassExplorerView] -- _viewTestLog --   Creating log file at:', tmpPath);
+                OrgUtils.logDebug('[VisbalExt.TestClassExplorerView] _viewTestLog --   Creating log file at:', tmpPath);
                 
                 const document = await vscode.workspace.openTextDocument(vscode.Uri.parse('untitled:' + tmpPath));
                 const editor = await vscode.window.showTextDocument(document);
                 await editor.edit(editBuilder => {
                     editBuilder.insert(new vscode.Position(0, 0), logContent);
                 });
-                OrgUtils.logDebug('[VisbalExt.TestClassExplorerView] -- _viewTestLog --   Log file created and opened');
+                OrgUtils.logDebug('[VisbalExt.TestClassExplorerView] _viewTestLog --   Log file created and opened');
             }
         } catch (error: any) {
-            OrgUtils.logError(`VisbalExt.TestClassExplorerView] -- _viewTestLog -- testName:${testName} logId:${logId}   Error viewing test log:`, error);
-            vscode.window.showWarningMessage(`[VisbalExt.TestClassExplorerView] -- _viewTestLog --   Could not view log for test ${testName}: ${(error as Error).message}`);
+            OrgUtils.logError(`VisbalExt.TestClassExplorerView] _viewTestLog -- testName:${testName} logId:${logId}   Error viewing test log:`, error);
+            vscode.window.showWarningMessage(`[VisbalExt.TestClassExplorerView] _viewTestLog --   Could not view log for test ${testName}: ${(error as Error).message}`);
         }
     }
 

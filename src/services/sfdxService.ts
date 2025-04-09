@@ -48,13 +48,13 @@ export class SfdxService {
                         resolve({ stdout: stdout.toString(), stderr: stderr?.toString() || '' });
                         return;
                     }
-                    OrgUtils.logError('[VisbalExt.SfdxService] -- _executeCommand', error);
+                    OrgUtils.logError('[VisbalExt.SfdxService] _executeCommand', error);
                     reject(error);
                     return;
                 }
                 
                 if (stderr) {
-                    OrgUtils.logDebug('[VisbalExt.SfdxService] -- _executeCommand', `stderr: ${stderr}`);
+                    OrgUtils.logDebug('[VisbalExt.SfdxService] _executeCommand', `stderr: ${stderr}`);
                 }
                 
                 resolve({ stdout: stdout.toString(), stderr: stderr?.toString() || '' });
@@ -87,7 +87,7 @@ export class SfdxService {
     public async getCurrentUserId(): Promise<string> {
         let userId = '';
         try {
-            OrgUtils.logDebug('[VisbalExt.SfdxService] -- getCurrentUserId', 'Getting current user ID');
+            OrgUtils.logDebug('[VisbalExt.SfdxService] getCurrentUserId', 'Getting current user ID');
             try {
                 let command = 'sf org display user';
                 
@@ -97,12 +97,12 @@ export class SfdxService {
                 }
                 command += ' --json';
                 
-                OrgUtils.logDebug('[VisbalExt.SfdxService] -- getCurrentUserId', `command: ${command}`);
+                OrgUtils.logDebug('[VisbalExt.SfdxService] getCurrentUserId', `command: ${command}`);
                 const userIdResult = await this._executeCommand(command);
                 const userIdJson = JSON.parse(userIdResult.stdout);
                 userId = userIdJson.result.id;
             } catch (error: any) {
-                OrgUtils.logError('[VisbalExt.SfdxService] -- getCurrentUserId', error);
+                OrgUtils.logError('[VisbalExt.SfdxService] getCurrentUserId', error);
                 let command = 'sfdx force:user:display';
                 
                 const selectedOrg = await OrgUtils.getSelectedOrg();
@@ -112,15 +112,15 @@ export class SfdxService {
                 command += ' --json';
                 
                 const userIdResult = await this._executeCommand(command);
-                OrgUtils.logDebug('[VisbalExt.SfdxService] -- getCurrentUserId', `User ID result (old format): ${userIdResult.stdout}`);
+                OrgUtils.logDebug('[VisbalExt.SfdxService] getCurrentUserId', `User ID result (old format): ${userIdResult.stdout}`);
                 const userIdJson = JSON.parse(userIdResult.stdout);
                 userId = userIdJson.result.id;
-                OrgUtils.logDebug('[VisbalExt.SfdxService] -- getCurrentUserId', `Current user ID (old format): ${userId}`);
+                OrgUtils.logDebug('[VisbalExt.SfdxService] getCurrentUserId', `Current user ID (old format): ${userId}`);
             }
 
             return userId;
         } catch (error: any) {
-            OrgUtils.logError('[VisbalExt.SfdxService] -- getCurrentUserId', error);
+            OrgUtils.logError('[VisbalExt.SfdxService] getCurrentUserId', error);
             throw error;
         }
     }
@@ -129,7 +129,7 @@ export class SfdxService {
     //#region Organization Management
     public async getCurrentOrgAlias(): Promise<string> {
         try {
-            OrgUtils.logDebug('[VisbalExt.SfdxService] -- getCurrentOrgAlias', 'BEGIN');
+            OrgUtils.logDebug('[VisbalExt.SfdxService] getCurrentOrgAlias', 'BEGIN');
             const command = 'sf org display --json';
             const orgInfo = await this._executeCommand(command);
             const result = JSON.parse(orgInfo.stdout);
@@ -141,14 +141,14 @@ export class SfdxService {
                     throw new Error('No org alias or username found');
                 }
                 
-                OrgUtils.logDebug('[VisbalExt.SfdxService] -- getCurrentOrgAlias', `CACHED & RETURN alias: `, alias);
+                OrgUtils.logDebug('[VisbalExt.SfdxService] getCurrentOrgAlias', `CACHED & RETURN alias: `, alias);
                 
                 return alias;
             }
             throw new Error('No default org set');
         } catch (error: any) {
             
-            OrgUtils.logError('[VisbalExt.SfdxService] -- getCurrentOrgAlias', error);
+            OrgUtils.logError('[VisbalExt.SfdxService] getCurrentOrgAlias', error);
             throw error;
         }
     }
@@ -159,9 +159,9 @@ export class SfdxService {
      */
     public async listOrgs(): Promise<any> {
         try {
-            OrgUtils.logDebug('[VisbalExt.SfdxService] -- listOrgs', 'Fetching org list');
+            OrgUtils.logDebug('[VisbalExt.SfdxService] listOrgs', 'Fetching org list');
             const command = 'sf org list --all --json';
-            OrgUtils.logDebug(`[VisbalExt.SfdxService] -- listOrgs command: ${command}`, command);
+            OrgUtils.logDebug(`[VisbalExt.SfdxService] listOrgs command: ${command}`, command);
             const resultStr = await this._executeCommand(command);
             const result = JSON.parse(resultStr.stdout);
             OrgUtils.logDebug('[VisbalExt.SfdxService] listOrgs -- result:', result);
@@ -229,7 +229,7 @@ export class SfdxService {
             return organizedOrgs;
         } catch (error: any) {
             
-            OrgUtils.logError('[VisbalExt.SfdxService] -- listOrgs', error);
+            OrgUtils.logError('[VisbalExt.SfdxService] listOrgs', error);
             throw new Error(`Failed to retrieve org list: ${error.message}`);
         }
     }
@@ -256,11 +256,11 @@ export class SfdxService {
                 }
                 command += ' --json';
                 
-                OrgUtils.logDebug('[VisbalExt.SfdxService] -- updateDebugLevel', `command: ${command}`);
+                OrgUtils.logDebug('[VisbalExt.SfdxService] updateDebugLevel', `command: ${command}`);
                 await this._executeCommand(command);
             } catch (error: any) {
                 
-                OrgUtils.logError('[VisbalExt.SfdxService] -- updateDebugLevel', error);
+                OrgUtils.logError('[VisbalExt.SfdxService] updateDebugLevel', error);
                 
                 // Try with old CLI format
                 let command = `sfdx force:data:record:update --sobjecttype DebugLevel --sobjectid ${debugLevelId} --values "${debugLevelFields}" --usetoolingapi`;
@@ -271,11 +271,11 @@ export class SfdxService {
                 }
                 command += ' --json';
                 
-                OrgUtils.logDebug('[VisbalExt.SfdxService] -- updateDebugLevel', `command (old format): ${command}`);
+                OrgUtils.logDebug('[VisbalExt.SfdxService] updateDebugLevel', `command (old format): ${command}`);
                 await this._executeCommand(command);
             }
         } catch (error: any) {
-            OrgUtils.logError('[VisbalExt.SfdxService] -- updateDebugLevel', error);
+            OrgUtils.logError('[VisbalExt.SfdxService] updateDebugLevel', error);
             throw new Error('Failed to update debug level');
         }
     }

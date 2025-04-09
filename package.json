@@ -244,6 +244,16 @@
           "type": "boolean",
           "default": true,
           "description": "Enable or disable displaying logs and errors in the console."
+        },
+        "visbalExt.logging.deleteErrorLogsOlderThan": {
+          "type": "number",
+          "default": 1,
+          "description": "Delete error logs older than this number of days"
+        },
+        "visbalExt.logging.debugMaxLength": {
+          "type": "number",
+          "default": 250,
+          "description": "Debug Max Length"
         }
       }
     }

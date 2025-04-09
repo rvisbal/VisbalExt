@@ -15,7 +15,7 @@
    - Remove the error variable from the message.
    - Ensure that the log messages contain the following format:
      
-     '[VisbalExt.TestClassExplorerView] -- _viewTestLog -- message'
+     '[VisbalExt.TestClassExplorerView] _viewTestLog -- message'
      
    - **VisbalExt:** Name of the extension.
    - **TestClassExplorerView:** Name of the class file.
