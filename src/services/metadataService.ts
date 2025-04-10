@@ -514,17 +514,20 @@ export class MetadataService {
     public async getTestLog(logId: string): Promise<string> {
         try {
             OrgUtils.logDebug('[VisbalExt.MetadataService] getTestLog -- Getting test log:', logId);
-            const result = await this.executeCliCommand(`sf apex get log --log-id ${logId} --json`);
-            const parsedResult = OrgUtils.parseResultJson(result);
+            const logResult = await this.executeCliCommand(`sf apex get log --log-id ${logId} --json`);
+            const parsedResult = OrgUtils.parseResultJson(logResult);
             OrgUtils.logDebug('[VisbalExt.MetadataService] getTestLog -- parsedResult:', parsedResult);
             if (!parsedResult.isJson || !parsedResult.content) {
-                return result;
+                return logResult;
             }
-            else if (parsedResult.content && parsedResult.content.result && parsedResult.content.result.length > 0) {
-                return parsedResult.content.result[0].log;
-            }
-            else {
-                return parsedResult.rawContent;
+            else if (parsedResult.content && parsedResult.content) {
+                const jsoResult = parsedResult.content;
+                if (jsoResult.result && jsoResult.result.length > 0) {
+                    return jsoResult.result[0].log;
+                }
+                else {
+                    return logResult;
+                }
             }
         } catch (error: any) {
             OrgUtils.logError('[VisbalExt.MetadataService] getTestLog -- Error getting test log:', error );
