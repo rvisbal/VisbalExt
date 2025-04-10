@@ -151,53 +151,10 @@ export function activate(context: vscode.ExtensionContext) {
       vscode.commands.registerCommand('visbal-ext.viewTestLog', async (logId: string, testName: string) => {
         try {
           OrgUtils.logDebug('[VisbalExt.Extension] Viewing test log:', { logId, testName });
-
-          // Check if this log is already being downloaded
-          if (TestItem.isDownloading(logId)) {
-            OrgUtils.logDebug('[VisbalExt.Extension] Log download already in progress:', logId);
-            return;
-          }
-
-          // Check if log file already exists in .visbal/logs/
-          const logDir = join(vscode.workspace.rootPath || '', '.visbal', 'logs');
-          const files = await vscode.workspace.findFiles(`**/${logId}*.log`);
+          const config = vscode.workspace.getConfiguration('visbal.apexLog');
+          const defaultView = config.get<string>('defaultView', 'user_debug');
+          OrgUtils.openLog(logId, context.extensionUri, defaultView, true);
           
-          if (files.length > 0) {
-            // Log file exists, open it
-            OrgUtils.logDebug('[VisbalExt.Extension] Found existing log file:', files[0].fsPath);
-            const document = await vscode.workspace.openTextDocument(files[0]);
-            await vscode.window.showTextDocument(document);
-            return;
-          }
-
-          // Log file not found, download it
-          OrgUtils.logDebug('[VisbalExt.Extension] Log file not found, downloading:', logId);
-          TestItem.setDownloading(logId, true);
-          
-          try {
-            const logContent = await metadataService.getTestLog(logId);
-            OrgUtils.logDebug('[VisbalExt.Extension] Log content retrieved:', !!logContent);
-            
-            if (logContent) {
-              // Create logs directory if it doesn't exist
-              if (!existsSync(logDir)) {
-                mkdirSync(logDir, { recursive: true });
-              }
-
-              // Create a file with the log ID in the name
-              const tmpPath = join(logDir, `${logId}-${testName}-${new Date().getTime()}.log`);
-              OrgUtils.logDebug('[VisbalExt.Extension] Creating log file at:', tmpPath);
-              
-              const document = await vscode.workspace.openTextDocument(vscode.Uri.parse('untitled:' + tmpPath));
-              const editor = await vscode.window.showTextDocument(document);
-              await editor.edit(editBuilder => {
-                editBuilder.insert(new vscode.Position(0, 0), logContent);
-              });
-              OrgUtils.logDebug('[VisbalExt.Extension] Log file created and opened');
-            }
-          } finally {
-            TestItem.setDownloading(logId, false);
-          }
         } catch (error: any) {
           TestItem.setDownloading(logId, false);
           OrgUtils.logError(`[VisbalExt.Extension] Error viewing test:${testName} log:${logId}`, error);

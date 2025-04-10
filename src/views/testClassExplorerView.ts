@@ -624,7 +624,9 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                             if (mainClassMap.size === 0) {
                                 OrgUtils.logDebug('[VisbalExt.TestClassExplorer] _runTest -- Downloading and opening log', logId);
                                 await this._orgUtils.downloadLog(logId);
-                                await this._orgUtils.openLog(logId, this._extensionUri, 'user_debug');
+                                const config = vscode.workspace.getConfiguration('visbal.apexLog');
+                                const defaultView = config.get<string>('defaultView', 'user_debug');
+                                await this._orgUtils.openLog(logId, this._extensionUri, defaultView);
                             } else {
                                 // For subsequent tests, just download in background
                                 OrgUtils.logDebug('[VisbalExt.TestClassExplorer] _runTest -- Downloading additional log', logId);
@@ -743,342 +745,345 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                 }
 
 
-                await this._runManyTes(tests, false);
+                const config = vscode.workspace.getConfiguration('visbal.apexTest');
+                const manualExecution = config.get<boolean>('manualExecution', true);
                 
-                const testingTest = true;
-                if (testingTest) {
+                if (!manualExecution) {
+                    await this._runManyTes(tests, false);
                     return;
                 }
+                else {
+                
+                    if (tests.runMode === 'parallel') {
+                        const PARALLEL_OLD_WAY = false;
+                        if (PARALLEL_OLD_WAY) {
+                            //#region PARALLEL_OLD_WAY
+                            // Run all tests in parallel and process results as they complete
+                            const mainClassMap = new Map<string, Boolean>();
+                            const allTestResults: any[] = [];
 
-                if (testingTest) {
-                    const PARALLEL_OLD_WAY = false;
-                    if (PARALLEL_OLD_WAY) {
-                        //#region PARALLEL_OLD_WAY
-                        // Run all tests in parallel and process results as they complete
-                        const mainClassMap = new Map<string, Boolean>();
-                        const allTestResults: any[] = [];
 
+                            // Create promises for all tests but process them as they complete
+                            const testPromises = [];
+                            for (const [className, methodNames] of classesWithMethods.entries()) {
+                                for (const methodName of methodNames) {
+                                    this._testRunResultsView.updateMethodStatus(className, methodName, 'running');
+                                    
+                                    // Execute test and process its result immediately
+                                    const testPromise = this._executeTest(className, methodName)
+                                        .then(async (result) => {
+                                            if (result && result.testRunId) {
+                                                try {
+                                                    const [testRunResult, logId] = await Promise.all([
+                                                        this._sfdxService.getTestRunResult(result.testRunId),
+                                                        this._sfdxService.getTestLogId(result.testRunId)
+                                                    ]);
+                                                    OrgUtils.logDebug('[VisbalExt.TestClassExplorerView] _runSelectedTests.parallel -- testRunResult', testRunResult);
+                                                    OrgUtils.logDebug('[VisbalExt.TestClassExplorerView] _runSelectedTests.parallel -- logId', logId);
 
-                        // Create promises for all tests but process them as they complete
-                        const testPromises = [];
-                        for (const [className, methodNames] of classesWithMethods.entries()) {
-                            for (const methodName of methodNames) {
-                                this._testRunResultsView.updateMethodStatus(className, methodName, 'running');
-                                
-                                // Execute test and process its result immediately
-                                const testPromise = this._executeTest(className, methodName)
-                                    .then(async (result) => {
-                                        if (result && result.testRunId) {
-                                            try {
+                                                    // Store the test result for summary
+                                                    if (testRunResult && testRunResult.summary) {
+                                                        allTestResults.push(testRunResult);
+                                                    }
+
+                                                    // Process each test in the result
+                                                    for (const test of testRunResult.tests) {
+                                                        const testClassName = test.ApexClass?.Name;
+                                                        if (!testClassName) continue;
+
+                                                        // Download log if available
+                                                        if (logId) {
+                                                            OrgUtils.logDebug(`[VisbalExt.TestClassExplorer] Processing log for test ${testClassName}.${test.MethodName}`);
+                                                            this._testRunResultsView.updateMethodStatus(testClassName, test.MethodName, 'downloading', logId);
+                                                            
+                                                            // Download log in background
+                                                            this._orgUtils.downloadLog(logId).catch(error => {
+                                                                OrgUtils.logError('[VisbalExt.TestClassExplorer] Error downloading log', error);
+                                                            });
+                                                        }
+
+                                                        // Initialize class status if not already set
+                                                        if (!mainClassMap.has(testClassName)) {
+                                                            mainClassMap.set(testClassName, true);
+                                                        }
+
+                                                        // Update method status
+                                                        if (test.Outcome === 'Pass' || test.Outcome === 'Passed') {
+                                                            this._testRunResultsView.updateMethodStatus(testClassName, test.MethodName, 'success', logId);
+                                                        } else if (test.Outcome === 'Fail' || test.Outcome === 'Failed') {
+                                                            this._testRunResultsView.updateMethodStatus(testClassName, test.MethodName, 'failed', logId);
+                                                            mainClassMap.set(testClassName, false);
+                                                        }
+
+                                                        // Update class status immediately
+                                                        this._testRunResultsView.updateClassStatus(
+                                                            testClassName, 
+                                                            mainClassMap.get(testClassName) ? 'success' : 'failed'
+                                                        );
+                                                    }
+
+                                                    // Update the webview with current results
+                                                    if (this._view && allTestResults.length > 0) {
+                                                        const combinedSummary = allTestResults.map(result => result.summary);
+                                                        const allTests = allTestResults.reduce((acc, result) => acc.concat(result.tests), []);
+                                                        this._testSummaryView.updateSummary(combinedSummary, allTests);
+                                                    }
+                                                } catch (error: any) {
+                                                    OrgUtils.logError('[VisbalExt.TestClassExplorer] _runSelectedTests.parallel -- Error processing test result', error as Error);
+                                                }
+                                            }
+                                        })
+                                        .catch(error => {
+                                            OrgUtils.logError('[VisbalExt.TestClassExplorer] _runSelectedTests.parallel -- Error executing test', error);
+                                            this._testRunResultsView.updateMethodStatus(className, methodName, 'failed');
+                                        });
+
+                                    testPromises.push(testPromise);
+                                }
+                            }
+
+                            // Wait for all tests to complete
+                            await Promise.all(testPromises);
+
+                            // Final update with all results
+                            if (allTestResults.length > 0) {
+                                const combinedSummary = allTestResults.map(result => result.summary);
+                                const allTests = allTestResults.reduce((acc, result) => acc.concat(result.tests), []);
+                                this._testSummaryView.updateSummary(combinedSummary, allTests);
+                            } else {
+                                OrgUtils.logDebug('[VisbalExt.TestClassExplorerView] _runSelectedTests.parallel -- No test results available');
+                            }
+                        //#endregion PARALLEL_OLD_WAY
+                        }
+                        else {
+                            
+                            results = await this._runTestSelectedParallel(tests, hasDebugTrace);
+                            //combine the results and update the test summary view at the bottom of the test side panel view
+                            if (results.length > 0) {
+                                const combinedSummary = results.map(result => result.summary);
+                                const allTests = results.reduce((acc, result) => acc.concat(result.tests), []);
+                                this._testSummaryView.updateSummary(combinedSummary, allTests);
+                            }
+                        }
+                    
+                        //#region PARALLEL MODE
+                        
+                        //#endregion PARALLEL MODE
+                        
+                    } else {
+                        //#region SEQUENTIAL MODE
+                    
+                        const SEQUENTIAL_OLD_WAY = false;
+                        if (SEQUENTIAL_OLD_WAY) {
+                            //#region SEQUENTIAL MODE
+                            // Run tests sequentially
+                            const errorMap = new Map<string, string>();
+                            const allTestResults: any[] = [];  // Store all test results
+                            OrgUtils.logDebug('[VisbalExt.TestClassExplorerView] _runSelectedTests.sequentially -- tests', tests);
+                            for (const { className, methodName } of tests.methods) {
+                                try {
+                                    this._testRunResultsView.updateMethodStatus(className, methodName, 'running');
+                                    OrgUtils.logDebug(`[VisbalExt.TestClassExplorerView] _runSelectedTests.sequentially -- Running test method ${className}.${methodName}`);
+                                    
+                                    // Create an async function to handle test execution and log downloading in parallel
+                                    const handleTestAndLog = async () => {
+                                        try {
+                                            const result = await this._sfdxService.runTests(className, methodName);
+                                            OrgUtils.logDebug('[VisbalExt.TestClassExplorerView] _runSelectedTests.sequentially -- runTests result', result);
+                                            if (result && result.testRunId) {
                                                 const [testRunResult, logId] = await Promise.all([
                                                     this._sfdxService.getTestRunResult(result.testRunId),
                                                     this._sfdxService.getTestLogId(result.testRunId)
                                                 ]);
-                                                OrgUtils.logDebug('[VisbalExt.TestClassExplorerView] _runSelectedTests.parallel -- testRunResult', testRunResult);
-                                                OrgUtils.logDebug('[VisbalExt.TestClassExplorerView] _runSelectedTests.parallel -- logId', logId);
+                                                OrgUtils.logDebug('[VisbalExt.TestClassExplorerView] _runSelectedTests.sequentially -- testRunResult', testRunResult);
+                                                OrgUtils.logDebug('[VisbalExt.TestClassExplorerView] _runSelectedTests.sequentially -- logId', logId);
 
                                                 // Store the test result for summary
                                                 if (testRunResult && testRunResult.summary) {
                                                     allTestResults.push(testRunResult);
                                                 }
 
-                                                // Process each test in the result
-                                                for (const test of testRunResult.tests) {
-                                                    const testClassName = test.ApexClass?.Name;
-                                                    if (!testClassName) continue;
+                                                const mainClassMap = new Map<string, Boolean>();
+                                                for (const t of testRunResult.tests) {
+                                                    try {
+                                                        if (logId) {
+                                                            OrgUtils.logDebug('[VisbalExt.TestClassExplorer] _runSelectedTests.sequentially  Processing log for test', t.ApexClass?.Name);
+                                                            this._testRunResultsView.updateMethodStatus(className, t.MethodName, 'downloading', logId);
+                                                            
+                                                            // Download log in background
+                                                            this._orgUtils.downloadLog(logId).catch(error => {
+                                                                OrgUtils.logDebug('[VisbalExt.TestClassExplorer] _runSelectedTests.sequentially  Error downloading log', error, logId);
+                                                            });
+                                                        }
 
-                                                    // Download log if available
-                                                    if (logId) {
-                                                        OrgUtils.logDebug(`[VisbalExt.TestClassExplorer] Processing log for test ${testClassName}.${test.MethodName}`);
-                                                        this._testRunResultsView.updateMethodStatus(testClassName, test.MethodName, 'downloading', logId);
-                                                        
-                                                        // Download log in background
-                                                        this._orgUtils.downloadLog(logId).catch(error => {
-                                                            OrgUtils.logError('[VisbalExt.TestClassExplorer] Error downloading log', error);
-                                                        });
+                                                        if (!mainClassMap.has(t.ApexClass.Name)) {
+                                                            mainClassMap.set(t.ApexClass.Name, true);
+                                                        }
+
+                                                        if (t.Outcome === 'Pass') {
+                                                            this._testRunResultsView.updateMethodStatus(className, t.MethodName, 'success', logId);
+                                                        } else {
+                                                            OrgUtils.logDebug('[VisbalExt.TestClassExplorer] _runSelectedTests.sequentially updateMethodStatus.failed logId:', logId);
+                                                            this._testRunResultsView.updateMethodStatus(className, t.methodName, 'failed', logId);
+                                                            mainClassMap.set(t.ApexClass.Name, false);
+                                                        }
+                                                    } catch (error: any) {
+                                                            OrgUtils.logError('[VisbalExt.TestClassExplorer] _runSelectedTests.sequentially updateMethodStatus.failed ERROR ON ${className}.${methodName}', error as Error);
+                                                        this._testRunResultsView.updateMethodStatus(className, t.MethodName, 'failed');
                                                     }
+                                                }
 
-                                                    // Initialize class status if not already set
-                                                    if (!mainClassMap.has(testClassName)) {
-                                                        mainClassMap.set(testClassName, true);
-                                                    }
-
-                                                    // Update method status
-                                                    if (test.Outcome === 'Pass' || test.Outcome === 'Passed') {
-                                                        this._testRunResultsView.updateMethodStatus(testClassName, test.MethodName, 'success', logId);
-                                                    } else if (test.Outcome === 'Fail' || test.Outcome === 'Failed') {
-                                                        this._testRunResultsView.updateMethodStatus(testClassName, test.MethodName, 'failed', logId);
-                                                        mainClassMap.set(testClassName, false);
-                                                    }
-
-                                                    // Update class status immediately
+                                                // Update class status after all methods are processed
+                                                for (const [className, isSuccess] of mainClassMap.entries()) {
                                                     this._testRunResultsView.updateClassStatus(
-                                                        testClassName, 
-                                                        mainClassMap.get(testClassName) ? 'success' : 'failed'
+                                                        className, 
+                                                        isSuccess ? 'success' : 'failed'
                                                     );
                                                 }
-
-                                                // Update the webview with current results
-                                                if (this._view && allTestResults.length > 0) {
-                                                    const combinedSummary = allTestResults.map(result => result.summary);
-                                                    const allTests = allTestResults.reduce((acc, result) => acc.concat(result.tests), []);
-                                                    this._testSummaryView.updateSummary(combinedSummary, allTests);
+                                            }
+                                        } catch (error: any) {
+                                            OrgUtils.logError('[VisbalExt.TestClassExplorer] _runSelectedTests.sequentially  Error in test execution', error);
+                                            errorMap.set(className, error.message);
+                                            // Check if this is an "already enqueued" error
+                                            if (error.message && (
+                                                error.message.includes('ALREADY_IN_PROCESS') || 
+                                                error.message.includes('Test already enqueued')
+                                            )) {
+                                                OrgUtils.logDebug(`[VisbalExt.TestClassExplorer] _runSelectedTests.sequentially  Test ${className}.${methodName} is already running, waiting for completion...`);
+                                                
+                                                // Update UI to show waiting status
+                                                this._testRunResultsView.updateMethodStatus(className, methodName, 'running');
+                                                
+                                                if (this._view) {
+                                                    this._view.webview.postMessage({
+                                                        command: 'showNotification',
+                                                        message: `Test ${className}.${methodName} is already running. Waiting for completion...`
+                                                    });
                                                 }
-                                            } catch (error: any) {
-                                                OrgUtils.logError('[VisbalExt.TestClassExplorer] _runSelectedTests.parallel -- Error processing test result', error as Error);
+                                                
+                                                // Extract the test run ID from the error message if available
+                                                const testRunIdMatch = error.message.match(/Test already enqueued (\w+)/);
+                                                if (testRunIdMatch && testRunIdMatch[1]) {
+                                                    const testRunId = testRunIdMatch[1];
+                                                    try {
+                                                        // Poll for test results with exponential backoff
+                                                        let retryCount = 0;
+                                                        const maxRetries = 5;
+                                                        const baseDelay = 2000; // Start with 2 second delay
+
+                                                        const pollWithBackoff = async () => {
+                                                            try {
+                                                                const testRunResult = await this._sfdxService.getTestRunResult(testRunId);
+                                                                const logId = await this._sfdxService.getTestLogId(testRunId);
+                                                                OrgUtils.logDebug('[VisbalExt.TestClassExplorerView] _runSelectedTests.sequentially POLL${className}.${methodName} testRunId:${testRunId} logId:${logId} testRunResult:', testRunResult);
+                                                                // If we get here, we have results
+                                                                for (const t of testRunResult.tests) {
+                                                                    if (t.MethodName === methodName) {
+                                                                        OrgUtils.logError('[VisbalExt.TestClassExplorer] _runSelectedTests.sequentially POLL updateMethodStatus.t.Outcome:', t.Outcome);
+                                                                        this._testRunResultsView.updateMethodStatus(
+                                                                            className,
+                                                                            methodName,
+                                                                            t.Outcome === 'Pass' ? 'success' : 'failed',
+                                                                            logId
+                                                                        );
+                                                                        break;
+                                                                    }
+                                                                }
+                                                                return;
+                                                            } catch (error: any) {
+                                                                retryCount++;
+                                                                if (retryCount < maxRetries) {
+                                                                    // Exponential backoff with jitter
+                                                                    const delay = baseDelay * Math.pow(2, retryCount) * (0.5 + Math.random());
+                                                                    OrgUtils.logDebug(`[VisbalExt.TestClassExplorer] _runSelectedTests POLL Retry ${retryCount}/${maxRetries} after ${delay}ms`);
+                                                                    await new Promise(resolve => setTimeout(resolve, delay));
+                                                                    return pollWithBackoff();
+                                                                }
+                                                                throw error;
+                                                            }
+                                                        };
+
+                                                        await pollWithBackoff();
+                                                    } catch (pollError: any) {
+                                                        OrgUtils.logError('[VisbalExt.TestClassExplorer] _runSelectedTests.sequentially POLL updateMethodStatus.failed pollError:', pollError);
+                                                        errorMap.set(className, pollError);
+
+                                                        this._testRunResultsView.updateMethodStatus(className, methodName, 'failed', errorMap.get(className));
+                                                        if (this._view) {
+                                                            this._view.webview.postMessage({
+                                                                command: 'error',
+                                                                message: `Error polling test results for ${className}.${methodName}: ${pollError.message}`
+                                                            });
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                            
+                                            // For other errors or if polling fails, mark as failed
+                                            OrgUtils.logDebug(`[VisbalExt.TestClassExplorer] _runSelectedTests.sequentially updateMethodStatus.failed ${className}.${methodName}`);
+                                            this._testRunResultsView.updateMethodStatus(className, methodName, 'failed', errorMap.get(className));
+                                            if (this._view) {
+                                                this._view.webview.postMessage({
+                                                    command: 'error',
+                                                    message: `Error running test ${className}.${methodName}: ${error.message}`
+                                                });
                                             }
                                         }
-                                    })
-                                    .catch(error => {
-                                        OrgUtils.logError('[VisbalExt.TestClassExplorer] _runSelectedTests.parallel -- Error executing test', error);
+                                    };
+
+                                    // Execute the async function without waiting
+                                    handleTestAndLog().catch(error => {
+                                        OrgUtils.logError('[VisbalExt.TestClassExplorer] _runSelectedTests.sequentially  Error in test execution', error as Error);
                                         this._testRunResultsView.updateMethodStatus(className, methodName, 'failed');
                                     });
 
-                                testPromises.push(testPromise);
-                            }
-                        }
-
-                        // Wait for all tests to complete
-                        await Promise.all(testPromises);
-
-                        // Final update with all results
-                        if (allTestResults.length > 0) {
-                            const combinedSummary = allTestResults.map(result => result.summary);
-                            const allTests = allTestResults.reduce((acc, result) => acc.concat(result.tests), []);
-                            this._testSummaryView.updateSummary(combinedSummary, allTests);
-                        } else {
-                            OrgUtils.logDebug('[VisbalExt.TestClassExplorerView] _runSelectedTests.parallel -- No test results available');
-                        }
-                      //#endregion PARALLEL_OLD_WAY
-                    }
-                    else {
-                        
-                        results = await this._runTestSelectedParallel(tests, hasDebugTrace);
-                        //combine the results and update the test summary view at the bottom of the test side panel view
-                        if (results.length > 0) {
-                            const combinedSummary = results.map(result => result.summary);
-                            const allTests = results.reduce((acc, result) => acc.concat(result.tests), []);
-                            this._testSummaryView.updateSummary(combinedSummary, allTests);
-                        }
-                    }
-                   
-                    //#region PARALLEL MODE
-                    
-                    //#endregion PARALLEL MODE
-                    
-                } else {
-                    //#region SEQUENTIAL MODE
-                 
-                    const SEQUENTIAL_OLD_WAY = false;
-                    if (SEQUENTIAL_OLD_WAY) {
-                         //#region SEQUENTIAL MODE
-                        // Run tests sequentially
-                        const errorMap = new Map<string, string>();
-                        const allTestResults: any[] = [];  // Store all test results
-                        OrgUtils.logDebug('[VisbalExt.TestClassExplorerView] _runSelectedTests.sequentially -- tests', tests);
-                        for (const { className, methodName } of tests.methods) {
-                            try {
-                                this._testRunResultsView.updateMethodStatus(className, methodName, 'running');
-                                OrgUtils.logDebug(`[VisbalExt.TestClassExplorerView] _runSelectedTests.sequentially -- Running test method ${className}.${methodName}`);
-                                
-                                // Create an async function to handle test execution and log downloading in parallel
-                                const handleTestAndLog = async () => {
-                                    try {
-                                        const result = await this._sfdxService.runTests(className, methodName);
-                                        OrgUtils.logDebug('[VisbalExt.TestClassExplorerView] _runSelectedTests.sequentially -- runTests result', result);
-                                        if (result && result.testRunId) {
-                                            const [testRunResult, logId] = await Promise.all([
-                                                this._sfdxService.getTestRunResult(result.testRunId),
-                                                this._sfdxService.getTestLogId(result.testRunId)
-                                            ]);
-                                            OrgUtils.logDebug('[VisbalExt.TestClassExplorerView] _runSelectedTests.sequentially -- testRunResult', testRunResult);
-                                            OrgUtils.logDebug('[VisbalExt.TestClassExplorerView] _runSelectedTests.sequentially -- logId', logId);
-
-                                            // Store the test result for summary
-                                            if (testRunResult && testRunResult.summary) {
-                                                allTestResults.push(testRunResult);
-                                            }
-
-                                            const mainClassMap = new Map<string, Boolean>();
-                                            for (const t of testRunResult.tests) {
-                                                try {
-                                                    if (logId) {
-                                                        OrgUtils.logDebug('[VisbalExt.TestClassExplorer] _runSelectedTests.sequentially  Processing log for test', t.ApexClass?.Name);
-                                                        this._testRunResultsView.updateMethodStatus(className, t.MethodName, 'downloading', logId);
-                                                        
-                                                        // Download log in background
-                                                        this._orgUtils.downloadLog(logId).catch(error => {
-                                                            OrgUtils.logDebug('[VisbalExt.TestClassExplorer] _runSelectedTests.sequentially  Error downloading log', error, logId);
-                                                        });
-                                                    }
-
-                                                    if (!mainClassMap.has(t.ApexClass.Name)) {
-                                                        mainClassMap.set(t.ApexClass.Name, true);
-                                                    }
-
-                                                    if (t.Outcome === 'Pass') {
-                                                        this._testRunResultsView.updateMethodStatus(className, t.MethodName, 'success', logId);
-                                                    } else {
-                                                        OrgUtils.logDebug('[VisbalExt.TestClassExplorer] _runSelectedTests.sequentially updateMethodStatus.failed logId:', logId);
-                                                        this._testRunResultsView.updateMethodStatus(className, t.methodName, 'failed', logId);
-                                                        mainClassMap.set(t.ApexClass.Name, false);
-                                                    }
-                                                } catch (error: any) {
-                                                        OrgUtils.logError('[VisbalExt.TestClassExplorer] _runSelectedTests.sequentially updateMethodStatus.failed ERROR ON ${className}.${methodName}', error as Error);
-                                                    this._testRunResultsView.updateMethodStatus(className, t.MethodName, 'failed');
-                                                }
-                                            }
-
-                                            // Update class status after all methods are processed
-                                            for (const [className, isSuccess] of mainClassMap.entries()) {
-                                                this._testRunResultsView.updateClassStatus(
-                                                    className, 
-                                                    isSuccess ? 'success' : 'failed'
-                                                );
-                                            }
-                                        }
                                     } catch (error: any) {
-                                        OrgUtils.logError('[VisbalExt.TestClassExplorer] _runSelectedTests.sequentially  Error in test execution', error);
-                                        errorMap.set(className, error.message);
-                                        // Check if this is an "already enqueued" error
-                                        if (error.message && (
-                                            error.message.includes('ALREADY_IN_PROCESS') || 
-                                            error.message.includes('Test already enqueued')
-                                        )) {
-                                            OrgUtils.logDebug(`[VisbalExt.TestClassExplorer] _runSelectedTests.sequentially  Test ${className}.${methodName} is already running, waiting for completion...`);
-                                            
-                                            // Update UI to show waiting status
-                                            this._testRunResultsView.updateMethodStatus(className, methodName, 'running');
-                                            
-                                            if (this._view) {
-                                                this._view.webview.postMessage({
-                                                    command: 'showNotification',
-                                                    message: `Test ${className}.${methodName} is already running. Waiting for completion...`
-                                                });
-                                            }
-                                            
-                                            // Extract the test run ID from the error message if available
-                                            const testRunIdMatch = error.message.match(/Test already enqueued (\w+)/);
-                                            if (testRunIdMatch && testRunIdMatch[1]) {
-                                                const testRunId = testRunIdMatch[1];
-                                                try {
-                                                    // Poll for test results with exponential backoff
-                                                    let retryCount = 0;
-                                                    const maxRetries = 5;
-                                                    const baseDelay = 2000; // Start with 2 second delay
+                                        OrgUtils.logError('[VisbalExt.TestClassExplorer] _runSelectedTests.sequentially  Error running test method', error as Error);
+                                        this._testRunResultsView.updateMethodStatus(className, methodName, 'failed');
+                                }
 
-                                                    const pollWithBackoff = async () => {
-                                                        try {
-                                                            const testRunResult = await this._sfdxService.getTestRunResult(testRunId);
-                                                            const logId = await this._sfdxService.getTestLogId(testRunId);
-                                                            OrgUtils.logDebug('[VisbalExt.TestClassExplorerView] _runSelectedTests.sequentially POLL${className}.${methodName} testRunId:${testRunId} logId:${logId} testRunResult:', testRunResult);
-                                                            // If we get here, we have results
-                                                            for (const t of testRunResult.tests) {
-                                                                if (t.MethodName === methodName) {
-                                                                    OrgUtils.logError('[VisbalExt.TestClassExplorer] _runSelectedTests.sequentially POLL updateMethodStatus.t.Outcome:', t.Outcome);
-                                                                    this._testRunResultsView.updateMethodStatus(
-                                                                        className,
-                                                                        methodName,
-                                                                        t.Outcome === 'Pass' ? 'success' : 'failed',
-                                                                        logId
-                                                                    );
-                                                                    break;
-                                                                }
-                                                            }
-                                                            return;
-                                                        } catch (error: any) {
-                                                            retryCount++;
-                                                            if (retryCount < maxRetries) {
-                                                                // Exponential backoff with jitter
-                                                                const delay = baseDelay * Math.pow(2, retryCount) * (0.5 + Math.random());
-                                                                OrgUtils.logDebug(`[VisbalExt.TestClassExplorer] _runSelectedTests POLL Retry ${retryCount}/${maxRetries} after ${delay}ms`);
-                                                                await new Promise(resolve => setTimeout(resolve, delay));
-                                                                return pollWithBackoff();
-                                                            }
-                                                            throw error;
-                                                        }
-                                                    };
-
-                                                    await pollWithBackoff();
-                                                } catch (pollError: any) {
-                                                    OrgUtils.logError('[VisbalExt.TestClassExplorer] _runSelectedTests.sequentially POLL updateMethodStatus.failed pollError:', pollError);
-                                                    errorMap.set(className, pollError);
-
-                                                    this._testRunResultsView.updateMethodStatus(className, methodName, 'failed', errorMap.get(className));
-                                                    if (this._view) {
-                                                        this._view.webview.postMessage({
-                                                            command: 'error',
-                                                            message: `Error polling test results for ${className}.${methodName}: ${pollError.message}`
-                                                        });
-                                                    }
-                                                }
-                                            }
-                                        }
-                                        
-                                        // For other errors or if polling fails, mark as failed
-                                        OrgUtils.logDebug(`[VisbalExt.TestClassExplorer] _runSelectedTests.sequentially updateMethodStatus.failed ${className}.${methodName}`);
-                                        this._testRunResultsView.updateMethodStatus(className, methodName, 'failed', errorMap.get(className));
-                                        if (this._view) {
-                                            this._view.webview.postMessage({
-                                                command: 'error',
-                                                message: `Error running test ${className}.${methodName}: ${error.message}`
-                                            });
-                                        }
-                                    }
-                                };
-
-                                // Execute the async function without waiting
-                                handleTestAndLog().catch(error => {
-                                    OrgUtils.logError('[VisbalExt.TestClassExplorer] _runSelectedTests.sequentially  Error in test execution', error as Error);
-                                    this._testRunResultsView.updateMethodStatus(className, methodName, 'failed');
-                                });
-
-                                } catch (error: any) {
-                                    OrgUtils.logError('[VisbalExt.TestClassExplorer] _runSelectedTests.sequentially  Error running test method', error as Error);
-                                    this._testRunResultsView.updateMethodStatus(className, methodName, 'failed');
+                            
                             }
 
-                        
+                            // After all tests are complete, combine the results and update the summary view
+                            if (allTestResults.length > 0) {
+                                // Combine all summaries
+                                const combinedSummary = allTestResults.map(result => result.summary);
+                                const allTests = allTestResults.reduce((acc, result) => acc.concat(result.tests), []);
+
+                                OrgUtils.logDebug('[VisbalExt.TestClassExplorerView] _runSelectedTests.sequentially -- Combined summary', combinedSummary);
+                                this._testSummaryView.updateSummary(combinedSummary, allTests);
+                            } else {
+                                OrgUtils.logDebug('[VisbalExt.TestClassExplorerView] _runSelectedTests.sequentially -- No test results available');
+                            }
+                            //#endregion SEQUENTIAL MODE
                         }
-
-                        // After all tests are complete, combine the results and update the summary view
-                        if (allTestResults.length > 0) {
-                            // Combine all summaries
-                            const combinedSummary = allTestResults.map(result => result.summary);
-                            const allTests = allTestResults.reduce((acc, result) => acc.concat(result.tests), []);
-
-                            OrgUtils.logDebug('[VisbalExt.TestClassExplorerView] _runSelectedTests.sequentially -- Combined summary', combinedSummary);
-                            this._testSummaryView.updateSummary(combinedSummary, allTests);
-                        } else {
-                            OrgUtils.logDebug('[VisbalExt.TestClassExplorerView] _runSelectedTests.sequentially -- No test results available');
+                        else {
+                            // Run tests sequentially
+                            results = await this._runTestSelectedSequentially(tests, hasDebugTrace);
+                            OrgUtils.logDebug('[VisbalExt.TestClassExplorerView] _runSelectedTests -- Sequential results', tests.runMode, results);
+                    
+                            //combine the results and update the test summary view at the bottom of the test side panel view
+                            if (results.length > 0) {
+                                const combinedSummary = results.map(result => result.summary);
+                                const allTests = results.reduce((acc, result) => acc.concat(result.tests), []);
+                                this._testSummaryView.updateSummary(combinedSummary, allTests);
+                            }
                         }
                         //#endregion SEQUENTIAL MODE
                     }
-                    else {
-                        // Run tests sequentially
-                        results = await this._runTestSelectedSequentially(tests, hasDebugTrace);
-                        OrgUtils.logDebug('[VisbalExt.TestClassExplorerView] _runSelectedTests -- Sequential results', tests.runMode, results);
-                   
-                        //combine the results and update the test summary view at the bottom of the test side panel view
-                        if (results.length > 0) {
-                            const combinedSummary = results.map(result => result.summary);
-                            const allTests = results.reduce((acc, result) => acc.concat(result.tests), []);
-                            this._testSummaryView.updateSummary(combinedSummary, allTests);
-                        }
-                    }
-                     //#endregion SEQUENTIAL MODE
-                }
 
-                OrgUtils.logDebug('[VisbalExt.TestClassExplorerView] _runSelectedTests -- runMode:${tests.runMode} -- testResultsLoaded Final results', results);
-                const combinedResult = this._combineTestResults(results);
-                OrgUtils.logDebug('[VisbalExt.TestClassExplorerView] _runSelectedTests -- runMode:${tests.runMode} -- testResultsLoaded Combined result', combinedResult);    
-                OrgUtils.logDebug('[VisbalExt.TestClassExplorerView] _runSelectedTests -- runMode:${tests.runMode} -- testResultsLoaded View exists?', this._view != null);
-                if (this._view) {
-                    this._view.webview.postMessage({
-                        command: 'testResultsLoaded',
-                        results: combinedResult
-                    });
-                }
+                    OrgUtils.logDebug('[VisbalExt.TestClassExplorerView] _runSelectedTests -- runMode:${tests.runMode} -- testResultsLoaded Final results', results);
+                    const combinedResult = this._combineTestResults(results);
+                    OrgUtils.logDebug('[VisbalExt.TestClassExplorerView] _runSelectedTests -- runMode:${tests.runMode} -- testResultsLoaded Combined result', combinedResult);    
+                    OrgUtils.logDebug('[VisbalExt.TestClassExplorerView] _runSelectedTests -- runMode:${tests.runMode} -- testResultsLoaded View exists?', this._view != null);
+                    if (this._view) {
+                        this._view.webview.postMessage({
+                            command: 'testResultsLoaded',
+                            results: combinedResult
+                        });
+                    }
+            }
                 
 
             }
@@ -1845,14 +1850,15 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
             }
 
 
-
+      
             this._testSummaryView.updateSummary(testRunResult.summary, testRunResult.tests);
             if (this._view) {
                 this._view.webview.postMessage({
-                    command: 'testResultsLoaded',
-                    results: testRunResult.summary
+                    command: 'finish'
                 });
             }
+ 
+
 
 
         } catch (error: any) {
@@ -1919,28 +1925,51 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
             }
 
             // Execute all tests
-            const result = await this._executeAllTest();
-            OrgUtils.logDebug('[VisbalExt.TestClassExplorerView] _runAllTests -- Test execution completed. Result:', result);
+            const testRunId = await this._sfdxService.runAllTests();
+            OrgUtils.logDebug('[VisbalExt.TestClassExplorerView] _runManyTes -- testRunId:', testRunId);  
 
-            if (result && result.testRunId) {
-                const testRunResult = await this._sfdxService.getTestRunResult(result.testRunId);
-                OrgUtils.logDebug('[VisbalExt.TestClassExplorerView] _runAllTests -- testRunResult:', testRunResult);
+            const testRunResult = await this._sfdxService.getTestRunResult(testRunId);
+            OrgUtils.logDebug('[VisbalExt.TestClassExplorerView] _runAllTests -- testRunResult:', testRunResult);
 
-                // Update test summary view
-                if (testRunResult?.summary) {
-                    OrgUtils.logDebug('[VisbalExt.TestClassExplorerView] _runAllTests -- Updating test summary view:', testRunResult.summary);
-                    this._testSummaryView.updateSummary(testRunResult.summary, testRunResult.tests);
+            let testIds = [];
+            for (const t of testRunResult.tests) {
+                OrgUtils.logDebug('[VisbalExt.TestClassExplorerView] _runAllTests -- t:', t);
+                let testStatus = TestStatus.running;
+                if (t.Outcome === 'Pass' || t.Outcome === 'Passed') {
+                    testStatus = TestStatus.success;
+                } else if (t.Outcome === 'Fail' || t.Outcome === 'Failed') {
+                    testStatus= TestStatus.failed;
                 }
-
-                // Update test results in webview
-                if (this._view) {
-                    OrgUtils.logDebug('[VisbalExt.TestClassExplorerView] _runAllTests -- Sending test results to webview');
-                    this._view.webview.postMessage({
-                        command: 'testResultsLoaded',
-                        results: testRunResult
-                    });
-                }
+                testIds.push(t.Id);
+                this._testRunResultsView.updateMethodStatus(t.ApexClass.Name, t.MethodName, testStatus, '' );
             }
+
+            //const logIds = await this._sfdxService.getTestLogId(testRunId);
+            const testIdsString = testIds.map(id => `'${id}'`).join(', ');
+            const apiResult = await this._sfdxService.executeSoqlQuery(`SELECT Id, ApexClass.Name, MethodName, Message, StackTrace, Outcome, ApexLogId FROM ApexTestResult WHERE Id IN (${testIdsString})`);
+            if (apiResult.length > 0) {
+                for (const t of apiResult) {
+                    OrgUtils.logDebug('[VisbalExt.TestClassExplorerView] _runAllTests -- t:', t);
+                    let testStatus = TestStatus.running;
+                    if (t.Outcome === 'Pass' || t.Outcome === 'Passed') {
+                        testStatus = TestStatus.success;
+                    } else if (t.Outcome === 'Fail' || t.Outcome === 'Failed') {
+                        testStatus= TestStatus.failed;
+                    }
+                    this._testRunResultsView.updateMethodStatus(t.ApexClass.Name, t.MethodName, testStatus, t.ApexLogId);
+                }       
+            }
+
+
+
+            this._testSummaryView.updateSummary(testRunResult.summary, testRunResult.tests);
+            if (this._view) {
+                this._view.webview.postMessage({
+                    command: 'finish'
+                });
+            }
+
+          
         } catch (error: any) {
             OrgUtils.logError('[VisbalExt.TestClassExplorerView] _runAllTests -- Error during test execution:', error);
             vscode.window.showErrorMessage(`Error running all tests: ${error.message}`);
@@ -2761,7 +2790,6 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                             return;
                         }
                         
-                        showLoading('Runing selected test ' + testsToRun.classes.length);
                         hideError();
                         hideNotification();
                         
@@ -3296,6 +3324,9 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                                     }
                                 }
                                 break;
+                            case 'finish':
+                                hideLoading();
+                                break;
                             case 'error':
                                 hideLoading();
                                 console.error('[VisbalExt.TestClassExplorerView] Error:', message.message);
@@ -3494,21 +3525,12 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
     private async _viewTestLog(logId: string, testName: string) {
         try {
             OrgUtils.logDebug('[VisbalExt.TestClassExplorerView] _viewTestLog -- Viewing test log:', { logId, testName });
-            const logContent = await this._metadataService.getTestLog(logId);
-            OrgUtils.logDebug('[VisbalExt.TestClassExplorerView] _viewTestLog --   Log content retrieved:', !!logContent);
-            
-            if (logContent) {
-                // Create a temporary file with the log content
-                const tmpPath = join(vscode.workspace.rootPath || '', '.sf', 'logs', `${testName}-${new Date().getTime()}.log`);
-                OrgUtils.logDebug('[VisbalExt.TestClassExplorerView] _viewTestLog --   Creating log file at:', tmpPath);
-                
-                const document = await vscode.workspace.openTextDocument(vscode.Uri.parse('untitled:' + tmpPath));
-                const editor = await vscode.window.showTextDocument(document);
-                await editor.edit(editBuilder => {
-                    editBuilder.insert(new vscode.Position(0, 0), logContent);
-                });
-                OrgUtils.logDebug('[VisbalExt.TestClassExplorerView] _viewTestLog --   Log file created and opened');
-            }
+            //
+            //const logContent = await this._sfdxService.getLogContent(logId);
+            const config = vscode.workspace.getConfiguration('visbal.apexLog');
+            const defaultView = config.get<string>('defaultView', 'user_debug');
+            OrgUtils.openLog(logId, this._extensionUri, defaultView, true);
+          
         } catch (error: any) {
             OrgUtils.logError(`VisbalExt.TestClassExplorerView] _viewTestLog -- testName:${testName} logId:${logId}   Error viewing test log:`, error);
             vscode.window.showWarningMessage(`[VisbalExt.TestClassExplorerView] _viewTestLog --   Could not view log for test ${testName}: ${(error as Error).message}`);

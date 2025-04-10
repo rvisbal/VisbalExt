@@ -519,6 +519,7 @@ export class MetadataService {
         try {
             OrgUtils.logDebug('[VisbalExt.MetadataService] getTestLog -- Getting test log:', logId);
             const logResult = await this.executeCliCommand(`sf apex get log --log-id ${logId} --json`);
+            OrgUtils.logDebug('[VisbalExt.MetadataService] getTestLog -- logResult:', logResult);
             const parsedResult = OrgUtils.parseResultJson(logResult);
             OrgUtils.logDebug('[VisbalExt.MetadataService] getTestLog -- parsedResult:', parsedResult);
             if (!parsedResult.isJson ) {

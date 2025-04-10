@@ -44,7 +44,7 @@ export class SfdxService {
         return new Promise((resolve, reject) => {
             child_process.exec(command, { maxBuffer: MAX_BUFFER_SIZE }, (error, stdout, stderr) => {
                 if (!command.includes('sf apex list log')) {
-                    OrgUtils.logDebug(`[VisbalExt.SfdxService] _executeCommand command:${command} -- stdout:`, stdout);
+                    OrgUtils.logDebug(`[VisbalExt.SfdxService] _executeCommand command:${command} -- stdout:`);
                 }
                 if (error) {
                     // If we have stdout even with an error, we might want to use it
@@ -541,10 +541,10 @@ export class SfdxService {
                 
                 // Try with new CLI format first
                 try {
-                    const selectedOrg = await OrgUtils.getSelectedOrg();  
-                    const command = `sf apex get log -i ${logId} > "${tempFilePath}" --target-org ${selectedOrg?.alias}`;
-                    OrgUtils.logDebug(`[VisbalExt.SfdxService] Executing direct output command: ${command}`);
-                    const result = await this._executeCommand(command);
+                    //const selectedOrg = await OrgUtils.getSelectedOrg();  
+                    //const command = `sf apex get log -i ${logId} > "${tempFilePath}" --target-org ${selectedOrg?.alias}`;
+                    //OrgUtils.logDebug(`[VisbalExt.SfdxService] Executing direct output command: ${command}`);
+                    //const result = await this._executeCommand(command);
                     
                     // Check if the file was created and has content
                     if (fs.existsSync(tempFilePath) && fs.statSync(tempFilePath).size > 0) {
@@ -566,6 +566,7 @@ export class SfdxService {
                     // Try with old CLI format
                     try {
                         const command = `sfdx force:apex:log:get --logid ${logId} > "${tempFilePath}"`;
+                        
                         OrgUtils.logDebug(`[VisbalExt.SfdxService] Executing direct output command with old format: ${command}`);
                         const result = await this._executeCommand(command);
                         
@@ -598,7 +599,11 @@ export class SfdxService {
             OrgUtils.logDebug('[VisbalExt.SfdxService] Trying to fetch log content with new CLI format');
             try {
                 const selectedOrg = await OrgUtils.getSelectedOrg();
-                const command = `sf apex get log -i ${logId} --json --target-org ${selectedOrg?.alias}`;
+                let command = `sf apex get log -i ${logId}`;
+                if (!useDefaultOrg && selectedOrg?.alias) {
+                    command += ` --target-org ${selectedOrg.alias}`;
+                }
+                command += ' --json';
                 OrgUtils.logDebug(`[VisbalExt.SfdxService] Executing: ${command}`);
                 const result = await this._executeCommand(command);
                 OrgUtils.logDebug('[VisbalExt.SfdxService] Successfully fetched log content with new CLI format');

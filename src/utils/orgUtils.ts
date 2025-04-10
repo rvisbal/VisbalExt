@@ -324,9 +324,9 @@ export class OrgUtils {
      * @param logId ID of the log to fetch
      * @returns Promise<string> Log content
      */
-    private static async _fetchLogContent(logId: string): Promise<string> {
+    private static async _fetchLogContent(logId: string, useDefaultOrg: boolean = false): Promise<string> {
         try {
-            const result = await this.sfdxService.getLogContent(logId);
+            const result = await this.sfdxService.getLogContent(logId, useDefaultOrg);
             return result;
         } catch (error: any) {
             if (error instanceof Error) {
@@ -389,28 +389,35 @@ export class OrgUtils {
      * @param extensionUri The extension's URI for creating the detail view
      * @param tab The tab to open initially (e.g., 'overview', 'timeline', 'execution', etc.)
      */
-    public static async openLog(logId: string, extensionUri: vscode.Uri, tab: string): Promise<void> {
+    public static async openLog(logId: string, extensionUri: vscode.Uri, tab: string, useDefaultOrg: boolean = false): Promise<void> {
         try {
             OrgUtils.logDebug(`[VisbalExt.OrgUtils] openLog -- Opening log: ${logId} with tab: ${tab}`);
             // Check if we have a local copy of the log
             const localFilePath = this._downloadedLogPaths.get(logId);
             if (localFilePath && fs.existsSync(localFilePath)) {
+               
                 const view = LogDetailView.createOrShow(extensionUri, localFilePath, logId);
+                if (tab != '') {
                 // Change to the requested tab after creation
-                view.changeTab(tab);
+                    view.changeTab(tab);
+                }
+                
                 return;
             }
 
             // Fetch and save the log content
-            const logContent = await this._fetchLogContent(logId);
+            const logContent = await this._fetchLogContent(logId, useDefaultOrg);
             const sanitizedLogId = logId.replace(/[\/\\:*?"<>|]/g, '_');
             const timestamp = new Date().toISOString().replace(/:/g, '-');
             const tempFile = path.join(os.tmpdir(), `sf_${sanitizedLogId}_${timestamp}.log`);
             
             await fs.promises.writeFile(tempFile, logContent);
-            const view = LogDetailView.createOrShow(extensionUri, tempFile, logId);
-            // Change to the requested tab after creation
-            view.changeTab(tab);
+            
+                const view = LogDetailView.createOrShow(extensionUri, tempFile, logId);
+                if (tab != '') {
+                    // Change to the requested tab after creation
+                    view.changeTab(tab);
+                }
 
             // Mark as downloaded
             this._downloadedLogs.add(logId);
@@ -569,7 +576,7 @@ export class OrgUtils {
     }
 
     public static logError(message: string, error: any): void {
-        const config = vscode.workspace.getConfiguration('visbalExt.logging');
+        const config = vscode.workspace.getConfiguration('visbal.logging');
         const saveToFile = config.get<boolean>('saveToFile', true);
         const displayInConsole = config.get<boolean>('displayInConsole', true);
         
@@ -623,7 +630,7 @@ export class OrgUtils {
     }
 
     public static logDebug(message: string, o?: unknown, o2?: unknown): void {
-        const config = vscode.workspace.getConfiguration('visbalExt.logging');
+        const config = vscode.workspace.getConfiguration('visbal.logging');
         const saveToFile = config.get<boolean>('saveToFile', true);
         const displayInConsole = config.get<boolean>('displayInConsole', true);
         const debugMaxLength = config.get<number>('debugMaxLength', 250); // Default value, can be configured

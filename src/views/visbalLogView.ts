@@ -2190,8 +2190,9 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
                 logId: logId, 
                 status: 'downloading' 
             });
-
-            await OrgUtils.openLog(logId, this._extensionUri, 'user_debug');
+            const config = vscode.workspace.getConfiguration('visbal.apexLog');
+            const defaultView = config.get<string>('defaultView', 'user_debug');
+            await OrgUtils.openLog(logId, this._extensionUri, defaultView);
 
             this._view?.webview.postMessage({ 
                 command: 'downloadStatus', 
