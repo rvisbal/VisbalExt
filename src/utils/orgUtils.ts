@@ -297,11 +297,11 @@ export class OrgUtils {
         }
     }
 
-    public static parseResultJson(content: string): { isJson: boolean; hasError: boolean; content: LogResult[] | null, rawContent: string } {
+    public static parseResultJson(content: string): { isJson: boolean; hasError: boolean; content: null, rawContent: string } {
         const result = {
             isJson: false,
             hasError: false,
-            content: null as LogResult[] | null,
+            content: null,
             rawContent: content,
             error: null as Error | null
         };

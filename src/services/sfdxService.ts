@@ -29,6 +29,10 @@ interface LogResult {
     };
 }
 
+interface ResultContent {
+    result?: any;
+}
+
 export class SfdxService {
     
     private readonly CACHE_EXPIRATION = 15 * 60 * 1000; // 15 minutes in milliseconds
@@ -977,12 +981,11 @@ export class SfdxService {
             const output = await this._executeCommand(command);
             const endTime = Date.now();
            //OrgUtils.logDebug(`[VisbalExt.MetadataService] runTests -- ${methodLabel} TIME COMPLETED: ${endTime - startTime}ms`);
-            const result = OrgUtils.parseResultJson(output.stdout);
+            const result: { isJson: boolean; content: ResultContent | null; rawContent: string } = OrgUtils.parseResultJson(output.stdout);
             //OrgUtils.logDebug(`[VisbalExt.SfdxService] runTests -- ${methodLabel} -- hasError: ${result.hasError} -- isJson: ${result.isJson} -- RETURN RESULT:`, result);
             if (result.isJson && result.content && 'result' in result.content) {
                 return result.content.result;
-            }
-            else {
+            } else {
                 return result.rawContent;
             }
         } catch (error: any) {

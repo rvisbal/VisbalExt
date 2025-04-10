@@ -26,6 +26,10 @@ export interface TestMethod {
     isTestMethod: boolean;
 }
 
+interface JsoResult {
+    result?: Array<{ log: string }>;
+}
+
 export class MetadataService {
     private _sfdxService: SfdxService;
 	  
@@ -517,12 +521,13 @@ export class MetadataService {
             const logResult = await this.executeCliCommand(`sf apex get log --log-id ${logId} --json`);
             const parsedResult = OrgUtils.parseResultJson(logResult);
             OrgUtils.logDebug('[VisbalExt.MetadataService] getTestLog -- parsedResult:', parsedResult);
-            if (!parsedResult.isJson || !parsedResult.content) {
+            if (!parsedResult.isJson ) {
                 return logResult;
             }
             else if (parsedResult.content && parsedResult.content) {
-                const jsoResult = parsedResult.content;
-                if (jsoResult.result && jsoResult.result.length > 0) {
+                const jsoResult: JsoResult = parsedResult.content;
+                //check if jsoResult has property result and if it is an array and has length
+                if (jsoResult.result && Array.isArray(jsoResult.result) && jsoResult.result.length > 0) {
                     return jsoResult.result[0].log;
                 }
                 else {
@@ -533,6 +538,8 @@ export class MetadataService {
             OrgUtils.logError('[VisbalExt.MetadataService] getTestLog -- Error getting test log:', error );
             throw error;
         }
+        // Add a default return statement to handle any unexpected paths
+        return '';
     }
 
     public async getTestRunResult(testRunId: string): Promise<any> {
