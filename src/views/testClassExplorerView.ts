@@ -148,7 +148,9 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
             OrgUtils.logDebug('[VisbalExt.TestClassExplorerView] resolveWebviewView -- Received message from webview', data);
             switch (data.command) {
                 case 'fetchTestClasses':
+                    OrgUtils.logDebug(`[VisbalExt.TestClassExplorerView] resolveWebviewView -- Fetched test classes forceRefresh:${data.forceRefresh} refreshMethods:${data.refreshMethods}`);
                     await this._fetchTestClasses(data.forceRefresh);
+                   
                     if (data.refreshMethods) {
                         // Clear stored test methods for all classes
                         const testClasses = await this._storageService.getTestClasses();
@@ -355,12 +357,13 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                         message: `Loading ${totalClasses} test classes into explorer...`
                     });
                 }
-
+                
+                /*
                 // Process classes in batches
                 for (let i = 0; i < testClasses.length; i += BATCH_SIZE) {
                     const batch = testClasses.slice(i, i + BATCH_SIZE);
                     const batchPromises = batch.map(async (testClass) => {
-                        const result = await this._addTestToExplorer(testClass);
+                        const result = await this._addTestToExplorer(testClass, refreshMethods);
                         processedClasses++;
                         
                         // Update progress after each class is processed
@@ -382,14 +385,14 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                     // Log batch completion
                     OrgUtils.logDebug(`[VisbalExt.TestClassExplorerView] Completed batch ${Math.floor(i/BATCH_SIZE) + 1} (${processedClasses}/${totalClasses} classes)`);
                 }
-
-                // Show completion message
-                if (this._view) {
+                  // Show completion message
+                 if (this._view) {
                     this._view.webview.postMessage({
                         command: 'showNotification',
                         message: `Completed loading ${totalClasses} test classes into explorer`
                     });
-                }
+                }    
+                */
             }
 
             if (this._view) {
@@ -416,7 +419,7 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
         }
     }
 
-    private async _addTestToExplorer(testClass: TestClass) {
+    private async _addTestToExplorer(testClass: TestClass, loadMethods: boolean = false) {
         OrgUtils.logDebug('[VisbalExt.TestClassExplorerView] _addTestToExplorer -- Adding test class', testClass.name);
         
         // Create test item for the class
@@ -430,14 +433,17 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
         // If no methods present, try to fetch them
         if (!testClass.methods || testClass.methods.length === 0) {
             OrgUtils.logDebug('[VisbalExt.TestClassExplorerView] _addTestToExplorer -- No methods found for class', testClass.name, ', fetching them');
-            try {
-                const methods = await this._metadataService.getTestMethodsForClass(testClass.name);
-                OrgUtils.logDebug('[VisbalExt.TestClassExplorerView] _addTestToExplorer -- Fetched methods', methods);
-                await this._storageService.saveTestMethodsForClass(testClass.name, methods);
-                testClass.methods = methods.map(m => m.name);
-                OrgUtils.logDebug(`[VisbalExt.TestClassExplorerView] _addTestToExplorer -- Fetched ${methods.length} methods for class ${testClass.name}`);
-            } catch (error: any) {
-                OrgUtils.logError('[VisbalExt.TestClassExplorerView] _addTestToExplorer -- Error fetching methods for class', error as Error);
+            if (loadMethods) {
+                try {
+                    
+                    const methods = await this._metadataService.getTestMethodsForClass(testClass.name);
+                    OrgUtils.logDebug('[VisbalExt.TestClassExplorerView] _addTestToExplorer -- Fetched methods', methods);
+                    await this._storageService.saveTestMethodsForClass(testClass.name, methods);
+                    testClass.methods = methods.map(m => m.name);
+                    OrgUtils.logDebug(`[VisbalExt.TestClassExplorerView] _addTestToExplorer -- Fetched ${methods.length} methods for class ${testClass.name}`);
+                } catch (error: any) {
+                    OrgUtils.logError('[VisbalExt.TestClassExplorerView] _addTestToExplorer -- Error fetching methods for class', error as Error);
+                }
             }
         }
 
@@ -736,7 +742,15 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                     this._testRunResultsView.addTestRun(className, methodNames);
                 }
 
-                if (tests.runMode === 'parallel') {
+
+                await this._runManyTes(tests, false);
+                
+                const testingTest = true;
+                if (testingTest) {
+                    return;
+                }
+
+                if (testingTest) {
                     const PARALLEL_OLD_WAY = false;
                     if (PARALLEL_OLD_WAY) {
                         //#region PARALLEL_OLD_WAY
@@ -1567,7 +1581,7 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                         downloadLog: false,
                         hasDebugTrace: hasDebugTrace
                     });
-                    this._testRunResultsView.updateMethodStatus(className, methodName, 'running');
+                    this._testRunResultsView.updateMethodStatus(className, methodName, TestStatus.running);
                     OrgUtils.logDebug(`[VisbalExt.TestClassExplorerView] _runTestSelectedSequentially -- Running: ${className}.${methodName} -- iteration:${countIteration}`);
                     const progress = testProgress.get(methodId);
                     if (progress) {
@@ -1770,6 +1784,108 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                 });
             }
         }
+    }
+
+
+    private async _runManyTes(tests: { 
+        classes: string[], 
+        methods: { className: string, methodName: string }[],
+        runMode: 'sequential' | 'parallel'
+    }, hasDebugTrace: boolean) {
+        try {
+            this._isRunning = true;
+            this._abortController = new AbortController();
+            const signal = this._abortController.signal;
+
+            // Update UI to show running state
+            if (this._view) {
+                this._view.webview.postMessage({
+                    command: 'testRunStarted'
+                });
+            }
+
+            for (const { className, methodName } of tests.methods) {
+                this._testRunResultsView.updateMethodStatus(className, methodName, TestStatus.running);
+            }
+
+            //run many test using the format sf apex run test --tests ns.TestA.excitingMethod --tests ns.TestA.boringMethod --tests ns.TestB
+            const testRunId = await this._sfdxService.runManyTests(tests);
+            OrgUtils.logDebug('[VisbalExt.TestClassExplorerView] _runManyTes -- testRunId:', testRunId);  
+
+            const testRunResult = await this._sfdxService.getTestRunResult(testRunId);
+            OrgUtils.logDebug('[VisbalExt.TestClassExplorerView] _runAllTests -- testRunResult:', testRunResult);
+
+            let testIds = [];
+            for (const t of testRunResult.tests) {
+                OrgUtils.logDebug('[VisbalExt.TestClassExplorerView] _runAllTests -- t:', t);
+                let testStatus = TestStatus.running;
+                if (t.Outcome === 'Pass' || t.Outcome === 'Passed') {
+                    testStatus = TestStatus.success;
+                } else if (t.Outcome === 'Fail' || t.Outcome === 'Failed') {
+                    testStatus= TestStatus.failed;
+                }
+                testIds.push(t.Id);
+                this._testRunResultsView.updateMethodStatus(t.ApexClass.Name, t.MethodName, testStatus, '' );
+            }
+
+            //const logIds = await this._sfdxService.getTestLogId(testRunId);
+            const testIdsString = testIds.map(id => `'${id}'`).join(', ');
+            const apiResult = await this._sfdxService.executeSoqlQuery(`SELECT Id, ApexClass.Name, MethodName, Message, StackTrace, Outcome, ApexLogId FROM ApexTestResult WHERE Id IN (${testIdsString})`);
+            if (apiResult.length > 0) {
+                for (const t of apiResult) {
+                    OrgUtils.logDebug('[VisbalExt.TestClassExplorerView] _runAllTests -- t:', t);
+                    let testStatus = TestStatus.running;
+                    if (t.Outcome === 'Pass' || t.Outcome === 'Passed') {
+                        testStatus = TestStatus.success;
+                    } else if (t.Outcome === 'Fail' || t.Outcome === 'Failed') {
+                        testStatus= TestStatus.failed;
+                    }
+                    this._testRunResultsView.updateMethodStatus(t.ApexClass.Name, t.MethodName, testStatus, t.ApexLogId);
+                }       
+            }
+
+
+
+            this._testSummaryView.updateSummary(testRunResult.summary, testRunResult.tests);
+            if (this._view) {
+                this._view.webview.postMessage({
+                    command: 'testResultsLoaded',
+                    results: testRunResult.summary
+                });
+            }
+
+
+        } catch (error: any) {
+            OrgUtils.logError('[VisbalExt.TestClassExplorerView] _runManyTes Error running selected tests:', error);
+            if (error.message === 'Test execution aborted by user') {
+                if (this._view) {
+                    this._view.webview.postMessage({
+                        command: 'testRunAborted'
+                    });
+                }
+            } else {
+                if (this._view) {
+                    this._view.webview.postMessage({
+                        command: 'error',
+                        message: `Error: ${error.message}`
+                    });
+                }
+            }
+            return [];
+        } finally {
+            this._isRunning = false;
+            this._abortController = null;
+            if (this._view) {
+                this._view.webview.postMessage({
+                    command: 'testRunFinished'
+                });
+            }
+        }
+
+
+        OrgUtils.logDebug('[VisbalExt.TestClassExplorerView] _runManyTes -- tests:', tests);
+
+
     }
 
     private getMethodId(className: string, methodName: string) {

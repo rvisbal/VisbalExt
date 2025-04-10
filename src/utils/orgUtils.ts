@@ -656,7 +656,12 @@ export class OrgUtils {
         }
 
         if (displayInConsole) {
-           console.log(`${message}`, o);
+            if (o !== undefined) {
+                console.log(`${message}`, o);
+            }
+            else {
+                console.log(`${message}`);
+            }
         }
     }
 } 

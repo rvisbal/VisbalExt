@@ -962,7 +962,7 @@ export class SfdxService {
         const startTime = Date.now();
         try {
             OrgUtils.logDebug(`[VisbalExt.SfdxService] runTests -- START at ${new Date(startTime).toISOString()}`);
-            OrgUtils.logDebug(`[VisbalExt.SfdxService] runTests -- RUNNIND class: ${testClass}${testMethod ? `, method: ${testMethod}` : ''}`);
+            OrgUtils.logDebug(`[VisbalExt.SfdxService] runTests -- RUNNING class: ${testClass}${testMethod ? `, method: ${testMethod}` : ''}`);
             
             let command = testMethod
                 ? `sf apex run test --tests ${testClass}.${testMethod} --json`
@@ -970,7 +970,7 @@ export class SfdxService {
             
             const selectedOrg = await OrgUtils.getSelectedOrg();
             OrgUtils.logDebug(`[VisbalExt.SfdxService] runTests -- Selected org:`, selectedOrg);
-            if (!useDefaultOrg && selectedOrg?.alias) {
+            if (!useDefaultOrg && selectedOrg && selectedOrg?.alias) {
                 command += ` --target-org ${selectedOrg.alias}`;
             }
             OrgUtils.logDebug(`[VisbalExt.SfdxService] runTests -- _executeCommand: ${command}`);
@@ -1000,6 +1000,55 @@ export class SfdxService {
         }
     }
 
+    public async runManyTests(tests : { 
+        classes: string[], 
+        methods: { className: string, methodName: string }[],
+        runMode: 'sequential' | 'parallel'
+    }, useDefaultOrg: boolean = false): Promise<any> {
+        const startTime = Date.now();
+        try {
+            OrgUtils.logDebug(`[VisbalExt.SfdxService] runManyTests -- START at ${new Date(startTime).toISOString()}`);
+            OrgUtils.logDebug(`[VisbalExt.SfdxService] runManyTests -- RUNNING TESTS: `,tests);
+            
+            let command = `sf apex run test --tests ${tests.methods.map(m => `${m.className}.${m.methodName}`).join(' --tests ')}`;
+            OrgUtils.logDebug(`[VisbalExt.SfdxService] runManyTests -- command: ${command}`);
+            const selectedOrg = await OrgUtils.getSelectedOrg();
+            OrgUtils.logDebug(`[VisbalExt.SfdxService] runManyTests -- selectedOrg.alias:${selectedOrg?.alias} -- Selected org:`, selectedOrg);
+            if (!useDefaultOrg && selectedOrg && selectedOrg?.alias) {
+                command += ` --target-org ${selectedOrg.alias}`;
+                OrgUtils.logDebug(`[VisbalExt.SfdxService] runManyTests -- command: ${command}`);
+            }
+            if (tests.runMode === 'sequential') {
+                command += ' --synchronous';
+            }
+            OrgUtils.logDebug(`[VisbalExt.SfdxService] runManyTests -- _executeCommand: ${command}`);
+            const output = await this._executeCommand(command);
+            const endTime = Date.now();
+            OrgUtils.logDebug(`[VisbalExt.MetadataService] runManyTests -- TIME COMPLETED: ${endTime - startTime}ms`, output);
+
+            //extract the id out of >  Run "sf apex get test -i 707Sv00000ZArpD -o test-1p6s0vbccpcu@example.com" to retrieve test results
+            //consider that after -o can be variable text
+            //const id = output.stdout.match(/Run "sf apex get test -i (\d+) -o (.*)" to retrieve test results/)?.[1];
+            //OrgUtils.logDebug(`[VisbalExt.SfdxService] runManyTests -- id: ${id}`);
+
+            const id2 = output.stdout.match(/Run "sf apex get test -i ([\w-]+) -o (.*)" to retrieve test results/)?.[1];
+            OrgUtils.logDebug(`[VisbalExt.SfdxService] runManyTests -- id2: ${id2}`);
+
+            return id2;
+        } catch (error: any) {
+            const endTime = Date.now();
+            //
+            if (error.stdout) {
+                const parsedStdout = JSON.parse(error.stdout);
+                OrgUtils.logError(`[VisbalExt.MetadataService] runManyTests ERROR parsedStdout: `, parsedStdout);
+                throw new Error(`Failed to run tests: ${parsedStdout.message}`);
+            }
+            else {
+                OrgUtils.logError(`[VisbalExt.SfdxService] runManyTests -- Test execution failed after ${endTime - startTime}ms:`, error);
+                throw new Error(`Failed to run tests: ${error.message}`);
+            }
+        }
+    }
 
     public async runAllTests(useDefaultOrg: boolean = false, synchronous: boolean = false): Promise<any> {
         const startTime = Date.now();
@@ -1012,7 +1061,7 @@ export class SfdxService {
             if (synchronous) {
                 command += ` --synchronous`;
             }
-            if (!useDefaultOrg && selectedOrg?.alias) {
+            if (!useDefaultOrg && selectedOrg && selectedOrg?.alias) {
                 command += ` --target-org ${selectedOrg.alias}`;
             }
             command += ' --json --wait 0'; // Add --wait 0 to get immediate response with testRunId
@@ -1108,7 +1157,7 @@ export class SfdxService {
             if (selectedOrg?.alias) {
                 command += ` --target-org ${selectedOrg.alias}`;
             }
-            command += ' --json';
+            command += ` --json`;
             OrgUtils.logDebug(`[VisbalExt.SfdxService] getTestRunResult Executing command: ${command}`);
             const result = await this._executeCommand(command);
             const parsedResult = OrgUtils.parseResultJson(result.stdout);
@@ -1190,6 +1239,8 @@ export class SfdxService {
         }
     }
 
+
+
     //#endregion
 
     //#region SOQL Operations
@@ -1204,7 +1255,7 @@ export class SfdxService {
             let command = `sf data query  `;
             const selectedOrg = await OrgUtils.getSelectedOrg();
             //if query includes breakpoint, new line, or other special characters then use the advance query
-            const advanceQuery = query.includes('breakpoint') || query.includes('\n') || query.includes(' ');
+            const advanceQuery = query.includes('breakpoint') || query.includes('\n') || query.includes(' ') || query.includes('(') || query.length > 200;
             if (advanceQuery)  {
                 // Ensure .visbal directory exists
                 if (!fs.existsSync('.visbal')) {
@@ -1223,7 +1274,7 @@ export class SfdxService {
                 command += ` --query "${query}"`;
             }
 
-            if (!useDefaultOrg && selectedOrg?.alias) {
+            if (!useDefaultOrg && selectedOrg && selectedOrg?.alias) {
                 command += ` --target-org ${selectedOrg.alias}`;
             }
             if (useToolingApi) {
