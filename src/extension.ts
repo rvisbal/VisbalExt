@@ -119,12 +119,14 @@ export function activate(context: vscode.ExtensionContext) {
     );
 
     // Register test class explorer view
+    OrgUtils.logDebug('[VisbalExt.Extension] Register TestClassExplorerView');
     context.subscriptions.push(
         vscode.window.registerWebviewViewProvider(
             TestClassExplorerView.viewType,
             testClassExplorerView
         )
     );
+
 
     // Register test run results view
     const treeView = vscode.window.createTreeView('testRunResults', {

@@ -1077,8 +1077,8 @@ export class SfdxService {
             const output = await this._executeCommand(command);
             const result = JSON.parse(output.stdout).result;
             OrgUtils.logDebug('[VisbalExt.SfdxService] runAllTests -- Initial result:', result);
-            
-            // Store the final test result
+            return result;
+            /*
             let finalTestResult = result;
             
             // If we have a testRunId, poll for progress
@@ -1134,6 +1134,7 @@ export class SfdxService {
             OrgUtils.logDebug('[VisbalExt.SfdxService] runAllTests -- FINAL RESULT:', finalTestResult);
             
             return finalTestResult;
+             */
         } catch (error: any) {
             const endTime = Date.now();
             if (error.stdout) {
@@ -1146,6 +1147,7 @@ export class SfdxService {
                 throw new Error(`Failed to run tests: ${error.message}`);
             }
         }
+           
     }
 
     /**

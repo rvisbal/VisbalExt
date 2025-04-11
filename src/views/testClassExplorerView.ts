@@ -1904,6 +1904,7 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
 
             // Clear previous test runs from the results view
             this._testRunResultsView.clearResults();
+            this._testSummaryView.clearView();
 
             // Update status bar
             this._statusBarService.showMessage(`$(beaker~spin) Running all tests in ${runMode} mode...`);
@@ -1925,10 +1926,63 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
             }
 
             // Execute all tests
-            const testRunId = await this._sfdxService.runAllTests();
-            OrgUtils.logDebug('[VisbalExt.TestClassExplorerView] _runManyTes -- testRunId:', testRunId);  
+            const runTest  = await this._sfdxService.runAllTests();
+            OrgUtils.logDebug('[VisbalExt.TestClassExplorerView] _runManyTes -- testRunId:', runTest.testRunId);  
 
-            const testRunResult = await this._sfdxService.getTestRunResult(testRunId);
+            let countIteration = 0;
+            let allTestCompleted = false;
+            while (!allTestCompleted) {
+                
+                let allQueueItemsCompleted = true;
+                let queueItemsStatus = [];
+                const queueItems = await this._sfdxService.executeSoqlQuery(`SELECT ApexClassId, ApexClass.Name, Status, ExtendedStatus, TestRunResultId  FROM ApexTestQueueItem WHERE ParentJobId='${runTest.testRunId}' `);
+                if (queueItems.length > 0) {
+                    for (const q of queueItems) {
+                        
+                        queueItemsStatus.push(q);
+                        if (q.Status === 'Completed') {
+                            this._testRunResultsView.updateMethodStatus(q.ApexClass.Name, '', TestStatus.success);
+                        }
+                        else {
+                            allQueueItemsCompleted = false;
+                            // add the ApexClass.Name to the testRunResultsView
+                            this._testRunResultsView.updateMethodStatus(q.ApexClass.Name, '', TestStatus.running);
+                            // if there is item on the storage service on that class, add it to the testRunResultsView
+                            const methods = await this._storageService.getTestMethodsForClass(q.ApexClass.Name);
+                            if (methods.length > 0) {
+                                for (const m of methods) {
+                                    this._testRunResultsView.updateMethodStatus(q.ApexClass.Name, m.name, TestStatus.running);
+                                }
+                            }
+                        }
+                    }
+                    this._testSummaryView.showProgress(queueItemsStatus);
+                }
+
+                const resultItems = await this._sfdxService.executeSoqlQuery(`SELECT ApexClassId, ApexClass.Name, MethodName, Outcome, ApexLogId, Message, StackTrace, QueueItemId  FROM ApexTestQueueItem WHERE ParentJobId='${runTest.testRunId}' `);
+                if (resultItems.length > 0) {
+                    for (const r of resultItems) {
+                        let testStatus = TestStatus.running;
+                        if (r.Outcome === 'Pass' || r.Outcome === 'Passed') {
+                            testStatus = TestStatus.success;
+                        } else if (r.Outcome === 'Fail' || r.Outcome === 'Failed') {
+                            testStatus= TestStatus.failed;
+                        }
+                        this._testRunResultsView.updateMethodStatus(r.ApexClass.Name, r.MethodName, testStatus, r.ApexLogId);
+                    }
+                }
+
+                if (countIteration > 10) {
+                    if (allQueueItemsCompleted) {
+                        allTestCompleted = true;
+                    } 
+                }
+
+                //make a delay of 20 seconds
+                await new Promise(resolve => setTimeout(resolve, 20000));
+            }
+            
+            const testRunResult = await this._sfdxService.getTestRunResult(runTest.testRunId);
             OrgUtils.logDebug('[VisbalExt.TestClassExplorerView] _runAllTests -- testRunResult:', testRunResult);
 
             let testIds = [];
@@ -1944,6 +1998,7 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                 this._testRunResultsView.updateMethodStatus(t.ApexClass.Name, t.MethodName, testStatus, '' );
             }
 
+            /*
             //const logIds = await this._sfdxService.getTestLogId(testRunId);
             const testIdsString = testIds.map(id => `'${id}'`).join(', ');
             const apiResult = await this._sfdxService.executeSoqlQuery(`SELECT Id, ApexClass.Name, MethodName, Message, StackTrace, Outcome, ApexLogId FROM ApexTestResult WHERE Id IN (${testIdsString})`);
@@ -1959,8 +2014,9 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                     this._testRunResultsView.updateMethodStatus(t.ApexClass.Name, t.MethodName, testStatus, t.ApexLogId);
                 }       
             }
+            */
 
-
+            this._testSummaryView.clearView();
 
             this._testSummaryView.updateSummary(testRunResult.summary, testRunResult.tests);
             if (this._view) {
