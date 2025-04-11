@@ -35,13 +35,13 @@ export class StorageService {
 
         // Ensure .visbal/cache directory exists
         if (!fs.existsSync(this.storagePath)) {
-            console.log('[VisbalExt.StorageService] Creating .visbal/cache directory');
+            OrgUtils.logDebug('[VisbalExt.StorageService] Creating .visbal/cache directory');
             fs.mkdirSync(this.storagePath, { recursive: true });
         }
 
         // Initialize storage file if it doesn't exist
         if (!fs.existsSync(this.testClassesFile)) {
-            console.log('[VisbalExt.StorageService] Initializing testClasses.json');
+            OrgUtils.logDebug('[VisbalExt.StorageService] Initializing testClasses.json');
             this.saveTestClasses([]);
         }
     }
@@ -49,15 +49,15 @@ export class StorageService {
 
     private readCache(): TestClassesCache {
         try {
-            console.log('[VisbalExt.StorageService] readCache testClassesFile:', this.testClassesFile);
+            OrgUtils.logDebug('[VisbalExt.StorageService] readCache testClassesFile:', this.testClassesFile);
             if (fs.existsSync(this.testClassesFile)) {
                 const data = fs.readFileSync(this.testClassesFile, 'utf8');
-                //console.log('[VisbalExt.StorageService] readCache data:', data);
+                //OrgUtils.logDebug('[VisbalExt.StorageService] readCache data:', data);
                 return JSON.parse(data);
             }
             return {};
-        } catch (error) {
-            console.error('[VisbalExt.StorageService] Error reading cache:', error);
+        } catch (error: any) {
+            OrgUtils.logError('[VisbalExt.StorageService] Error reading cache:', error);
             return {};
         }
     }
@@ -65,9 +65,9 @@ export class StorageService {
     private writeCache(cache: TestClassesCache): void {
         try {
             fs.writeFileSync(this.testClassesFile, JSON.stringify(cache, null, 2));
-            console.log('[VisbalExt.StorageService] Cache saved to:', this.testClassesFile);
-        } catch (error) {
-            console.error('[VisbalExt.StorageService] Error writing cache:', error);
+            OrgUtils.logDebug('[VisbalExt.StorageService] Cache saved to:', this.testClassesFile);
+        } catch (error: any) {
+            OrgUtils.logError('[VisbalExt.StorageService] Error writing cache:', error);
             throw error;
         }
     }
@@ -77,8 +77,8 @@ export class StorageService {
             const orgAlias = await OrgUtils.getCurrentOrgAlias();
             const cache = this.readCache();
             return cache[orgAlias]?.testClasses || [];
-        } catch (error) {
-            console.error('[VisbalExt.StorageService] Error reading test classes:', error);
+        } catch (error: any) {
+            OrgUtils.logError('[VisbalExt.StorageService] Error reading test classes:', error);
             return [];
         }
     }
@@ -93,9 +93,9 @@ export class StorageService {
             };
 
             this.writeCache(cache);
-            console.log(`[VisbalExt.StorageService] Test classes saved for org ${orgAlias}`);
-        } catch (error) {
-            console.error('[VisbalExt.StorageService] Error saving test classes:', error);
+            OrgUtils.logDebug(`[VisbalExt.StorageService] Test classes saved for org ${orgAlias}`);
+        } catch (error: any) {
+            OrgUtils.logError('[VisbalExt.StorageService] Error saving test classes:', error);
             throw error;
         }
     }
@@ -138,10 +138,10 @@ export class StorageService {
             if (testClass) {
                 testClass.methods = [];
                 await this.saveTestClasses(testClasses);
-                console.log(`[VisbalExt.StorageService] Test methods cleared for class ${className}`);
+                OrgUtils.logDebug(`[VisbalExt.StorageService] Test methods cleared for class ${className}`);
             }
-        } catch (error) {
-            console.error(`[VisbalExt.StorageService] Error clearing test methods for class ${className}:`, error);
+        } catch (error: any) {
+            OrgUtils.logError(`[VisbalExt.StorageService] Error clearing test methods for class ${className}:`, error);
             throw error;
         }
     }
@@ -152,9 +152,9 @@ export class StorageService {
             const cache = this.readCache();
             delete cache[orgAlias];
             this.writeCache(cache);
-            console.log(`[VisbalExt.StorageService] Storage cleared for org ${orgAlias}`);
-        } catch (error) {
-            console.error('[VisbalExt.StorageService] Error clearing storage:', error);
+            OrgUtils.logDebug(`[VisbalExt.StorageService] Storage cleared for org ${orgAlias}`);
+        } catch (error: any) {
+            OrgUtils.logError('[VisbalExt.StorageService] Error clearing storage:', error);
             throw error;
         }
     }
@@ -162,10 +162,36 @@ export class StorageService {
     public async clearAllStorage(): Promise<void> {
         try {
             this.writeCache({});
-            console.log('[VisbalExt.StorageService] All storage cleared');
-        } catch (error) {
-            console.error('[VisbalExt.StorageService] Error clearing all storage:', error);
+            OrgUtils.logDebug('[VisbalExt.StorageService] All storage cleared');
+        } catch (error: any) {
+            OrgUtils.logError('[VisbalExt.StorageService] Error clearing all storage:', error);
             throw error;
         }
+    }
+
+    public async addTestMethod(className: string, methodName: string): Promise<void> {
+        const testClasses = await this.getTestClasses();
+        const testClass = testClasses.find(tc => tc.name === className);
+        
+        if (testClass) {
+            if (!testClass.methods) {
+                testClass.methods = [];
+            }
+            if (methodName && !testClass.methods.includes(methodName)) {
+                testClass.methods.push(methodName);
+            }
+        } else {
+            testClasses.push({
+                name: className,
+                id: className,
+                methods: methodName ? [methodName] : [],
+                attributes: {
+                    fileName: `${className}.cls`,
+                    fullName: className
+                }
+            });
+        }
+
+        await this.saveTestClasses(testClasses);
     }
 } 

@@ -234,6 +234,37 @@
           "type": "boolean",
           "default": true,
           "description": "Enable/disable the Sample Panel module"
+        },
+        "visbal.logging.saveToFile": {
+          "type": "boolean",
+          "default": false,
+          "description": "Enable or disable saving logs and errors to a file."
+        },
+        "visbal.logging.displayInConsole": {
+          "type": "boolean",
+          "default": false,
+          "description": "Enable or disable displaying logs and errors in the console."
+        },
+        "visbal.logging.deleteErrorLogsOlderThan": {
+          "type": "number",
+          "default": 1,
+          "description": "Delete error logs older than this number of days"
+        },
+        "visbal.logging.debugMaxLength": {
+          "type": "number",
+          "default": 250,
+          "description": "Debug Max Length"
+        },
+        "visbal.apexTest.manualExecution": {
+          "type": "boolean",
+          "default": false,
+          "description": "Enable/disable manual test execution"
+        }
+        ,
+        "visbal.apexLog.defaultView": {
+          "type": "string",
+          "default": "user_debug",
+          "description": "default view for log analyzer"
         }
       }
     }

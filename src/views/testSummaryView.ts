@@ -1,4 +1,5 @@
 import * as vscode from 'vscode';
+import { OrgUtils } from '../utils/orgUtils';
 
 interface TestMethod {
     methodName: string;
@@ -45,6 +46,34 @@ interface TestSummary {
     username?: string;
 }
 
+interface QueueItem {
+    ApexClassId: string;
+    ApexClass: string;
+    ApexClassName: string;
+    Status: string;
+    ExtendedStatus: string;
+    TestRunResultId: string;
+}
+
+interface ApexTestRunResult {
+    Id: string;
+    CreatedDate: string;
+    AsyncApexJobId: string;
+    UserId: string;
+    JobName: string;
+    IsAllTests: boolean;
+    Source: string;
+    StartTime: string;
+    EndTime: string;
+    TestTime: string;
+    Status: string;
+    ClassesEnqueued: number;
+    ClassesCompleted: number;
+    MethodsEnqueued: number;
+    MethodsCompleted: number;
+    MethodsFailed: number;
+}
+
 export class TestSummaryView implements vscode.WebviewViewProvider {
     public static readonly viewType = 'visbal-test-summary';
     private _view?: vscode.WebviewView;
@@ -68,7 +97,7 @@ export class TestSummaryView implements vscode.WebviewViewProvider {
     }
 
     public updateSummary(summary: TestSummary | TestSummary[], tests: TestResult[]) {
-        console.log('[VisbalExt.TestSummaryView] updateSummary -- summary:', summary);
+        OrgUtils.logDebug('[VisbalExt.TestSummaryView] updateSummary -- summary:', summary);
         if (this._view) {
             // Check if we have multiple summaries
             if (Array.isArray(summary)) {
@@ -76,6 +105,15 @@ export class TestSummaryView implements vscode.WebviewViewProvider {
             } else {
                 this._view.webview.html = this._getWebviewContent(summary, tests);
             }
+            this._view.show?.(true); // Reveal the view
+        }
+    }
+
+
+    public showProgress(progress: QueueItem[], jobResults: any[]) {
+        // 
+        if (this._view) {
+            this._view.webview.html = this._getWebviewContentForProgress(progress, jobResults);
             this._view.show?.(true); // Reveal the view
         }
     }
@@ -449,5 +487,80 @@ export class TestSummaryView implements vscode.WebviewViewProvider {
             </div>
         </body>
         </html>`;
+    }
+
+    private _getWebviewContentForProgress(progress: QueueItem[], jobResults?: ApexTestRunResult[]): string {
+        const jobResult = jobResults && jobResults.length > 0 ? jobResults[0] : null;
+        return `<!DOCTYPE html>
+        <html lang="en">
+        <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <style>
+                body {
+                    font-family: var(--vscode-font-family);
+                    padding: 10px;
+                    color: var(--vscode-foreground);
+                }   
+                .progress-container {
+                    margin-bottom: 20px;
+                    padding: 15px;
+                    background-color: var(--vscode-editor-background);
+                    border: 1px solid var(--vscode-panel-border);
+                    border-radius: 4px;
+                }
+                .progress-item {
+                    margin: 5px 0;
+                    display: flex;
+                    justify-content: space-between;
+                    align-items: center;
+                }
+                .label {
+                    color: var(--vscode-descriptionForeground);
+                    margin-right: 10px;
+                }   
+                .value {
+                    color: var(--vscode-foreground);
+                }
+                .success {
+                    color: var(--vscode-testing-iconPassed);
+                }   
+                .failure {
+                    color: var(--vscode-testing-iconFailed);
+                }
+                .running {
+                    color: var(--vscode-testing-iconRunning);
+                }
+                .processing {
+                    color: var(--vscode-testing-iconQueued);
+                }
+            </style>
+        </head>
+        <body>
+            <div class="progress-container">
+                ${jobResult ? `
+                    <div class="progress-item">
+                        <span class="label">Status:</span>
+                        <span class="value ${jobResult.Status === 'Completed' ? 'success' : jobResult.Status === 'Processing' ? 'processing' : jobResult.Status === 'Running' ? 'running' : 'failure'}">${jobResult.Status}</span>
+                    </div>
+                    <div class="progress-item">
+                        <span class="label">Methods:</span>
+                        <span class="value">Completed: ${jobResult.MethodsCompleted} / Enqueued: ${jobResult.MethodsEnqueued} / Failed: ${jobResult.MethodsFailed}</span>
+                    </div>
+                ` : ''}
+            </div>
+            <div class="progress-container">
+                ${progress.map(p => {
+                    return `
+                        <div class="progress-item">     
+                            <span class="label">${p.ApexClassName}</span>
+                            <span class="value ${p.Status === 'Completed' ? 'success' : p.Status === 'Processing' ? 'processing' : p.Status === 'Running' ? 'running' : 'failure'}">${p.Status}</span>
+                            ${p.ExtendedStatus ? `<span class="value">${p.ExtendedStatus}</span>` : ''}
+                        </div>
+                    `;
+                }).join('')}
+            </div>
+        </body>
+        </html>`;   
     }
 } 

@@ -8,6 +8,7 @@ import { salesforceApi } from './services/salesforceApiService';
 import { statusBarService } from './services/statusBarService';
 import { SoqlPanelView } from './views/soqlPanelView';
 import { MetadataService } from './services/metadataService';
+import { OrgUtils } from './utils/orgUtils';
 
 import { DebugConsoleView } from './views/debugConsoleView';
 import { TestSummaryView } from './views/testSummaryView';
@@ -31,7 +32,7 @@ export function activate(context: vscode.ExtensionContext) {
   outputChannel = vscode.window.createOutputChannel('Visbal Extension');
   context.subscriptions.push(outputChannel);
 
-  console.log('[VisbalExt.Extension] Activating extension');
+  OrgUtils.logDebug('[VisbalExt.Extension] Activating extension');
   outputChannel.appendLine('[VisbalExt.Extension] Activating extension');
   
   // Initialize status bar
@@ -46,7 +47,7 @@ export function activate(context: vscode.ExtensionContext) {
   context.subscriptions.push(statusBarService);
 
   // Initialize debug console view
-  console.log('[VisbalExt.Extension] Initializing DebugConsoleView');
+  OrgUtils.logDebug('[VisbalExt.Extension] Initializing DebugConsoleView');
   outputChannel.appendLine('[VisbalExt.Extension] Initializing DebugConsoleView');
   const debugConsoleView = new DebugConsoleView(context.extensionUri);
 
@@ -75,17 +76,17 @@ export function activate(context: vscode.ExtensionContext) {
   // Initialize views based on configuration
   if (isModuleEnabled('testExplorer')) {
     // Initialize test run results view first
-    console.log('[VisbalExt.Extension] Initializing TestRunResultsView');
+    OrgUtils.logDebug('[VisbalExt.Extension] Initializing TestRunResultsView');
     outputChannel.appendLine('[VisbalExt.Extension] Initializing TestRunResultsView');
     testRunResultsView = new TestRunResultsView(context);
 
     // Initialize test results view
-    console.log('[VisbalExt.Extension] Initializing TestSummaryView');
+    OrgUtils.logDebug('[VisbalExt.Extension] Initializing TestSummaryView');
     outputChannel.appendLine('[VisbalExt.Extension] Initializing TestSummaryView');
     const testSummaryView = new TestSummaryView(context.extensionUri);
 
     // Initialize test class explorer view with test results view
-    console.log('[VisbalExt.Extension] Initializing TestClassExplorerView');
+    OrgUtils.logDebug('[VisbalExt.Extension] Initializing TestClassExplorerView');
     outputChannel.appendLine('[VisbalExt.Extension] Initializing TestClassExplorerView');
     const testClassExplorerView = new TestClassExplorerView(
         context.extensionUri,
@@ -118,12 +119,14 @@ export function activate(context: vscode.ExtensionContext) {
     );
 
     // Register test class explorer view
+    OrgUtils.logDebug('[VisbalExt.Extension] Register TestClassExplorerView');
     context.subscriptions.push(
         vscode.window.registerWebviewViewProvider(
             TestClassExplorerView.viewType,
             testClassExplorerView
         )
     );
+
 
     // Register test run results view
     const treeView = vscode.window.createTreeView('testRunResults', {
@@ -149,61 +152,14 @@ export function activate(context: vscode.ExtensionContext) {
     context.subscriptions.push(
       vscode.commands.registerCommand('visbal-ext.viewTestLog', async (logId: string, testName: string) => {
         try {
-          console.log('[VisbalExt.Extension] Viewing test log:', { logId, testName });
-
-          // Check if this log is already being downloaded
-          if (TestItem.isDownloading(logId)) {
-            console.log('[VisbalExt.Extension] Log download already in progress:', logId);
-            return;
-          }
-
-          // Check if log file already exists in .visbal/logs/
-          const logDir = join(vscode.workspace.rootPath || '', '.visbal', 'logs');
-          const files = await vscode.workspace.findFiles(`**/${logId}*.log`);
+          OrgUtils.logDebug('[VisbalExt.Extension] Viewing test log:', { logId, testName });
+          const config = vscode.workspace.getConfiguration('visbal.apexLog');
+          const defaultView = config.get<string>('defaultView', 'user_debug');
+          OrgUtils.openLog(logId, context.extensionUri, defaultView, true);
           
-          if (files.length > 0) {
-            // Log file exists, open it
-            console.log('[VisbalExt.Extension] Found existing log file:', files[0].fsPath);
-            const document = await vscode.workspace.openTextDocument(files[0]);
-            await vscode.window.showTextDocument(document);
-            return;
-          }
-
-          // Log file not found, download it
-          console.log('[VisbalExt.Extension] Log file not found, downloading:', logId);
-          TestItem.setDownloading(logId, true);
-          
-          try {
-            const logContent = await metadataService.getTestLog(logId);
-            console.log('[VisbalExt.Extension] Log content retrieved:', !!logContent);
-            
-            if (logContent) {
-              // Create logs directory if it doesn't exist
-              if (!existsSync(logDir)) {
-                mkdirSync(logDir, { recursive: true });
-              }
-
-              // Create a file with the log ID in the name
-              const tmpPath = join(logDir, `${logId}-${testName}-${new Date().getTime()}.log`);
-              console.log('[VisbalExt.Extension] Creating log file at:', tmpPath);
-              
-              const document = await vscode.workspace.openTextDocument(vscode.Uri.parse('untitled:' + tmpPath));
-              const editor = await vscode.window.showTextDocument(document);
-              await editor.edit(editBuilder => {
-                editBuilder.insert(new vscode.Position(0, 0), logContent);
-              });
-              console.log('[VisbalExt.Extension] Log file created and opened');
-            }
-          } finally {
-            TestItem.setDownloading(logId, false);
-          }
-        } catch (error) {
+        } catch (error: any) {
           TestItem.setDownloading(logId, false);
-          console.error('[VisbalExt.Extension] Error viewing test log:', {
-            testName,
-            logId,
-            error: error
-          });
+          OrgUtils.logError(`[VisbalExt.Extension] Error viewing test:${testName} log:${logId}`, error);
           vscode.window.showWarningMessage(`Could not view log for test ${testName}: ${(error as Error).message}`);
         }
       })
@@ -431,7 +387,7 @@ export function activate(context: vscode.ExtensionContext) {
 
   // Update debug event handlers
   vscode.debug.onDidStartDebugSession(() => {
-    console.log('[VisbalExt.Extension] Debug session started');
+    OrgUtils.logDebug('[VisbalExt.Extension] Debug session started');
     outputChannel.appendLine('[Debug] Debug session started');
     debugConsoleView.clear();
     debugConsoleView.addOutput('Debug session started', 'info');

@@ -89,7 +89,7 @@ export class SoqlPanelView implements vscode.WebviewViewProvider {
                 return;
             }
 
-            console.log(`[VisbalExt.soqlPanel] executeSOQL Executing on ${selectedOrg?.alias} org SOQL:`, soql);
+            OrgUtils.logDebug(`[VisbalExt.soqlPanel] executeSOQL Executing on ${selectedOrg?.alias} org SOQL:`, soql);
             const m = `SOQL started on : ${selectedOrg.alias}`
             // Show loading state
             this._view?.webview.postMessage({
@@ -97,7 +97,7 @@ export class SoqlPanelView implements vscode.WebviewViewProvider {
             });
 
             const result = await this._sfdxService.executeSoqlQuery(soql, useToolingApi, useToolingApi);
-            console.log('[VisbalExt.soqlPanel] executeSOQL Execution result:', result);
+            OrgUtils.logDebug('[VisbalExt.soqlPanel] executeSOQL Execution result:', result);
 
             if (!result || result.length === 0) {
                 this._view?.webview.postMessage({
@@ -118,7 +118,7 @@ export class SoqlPanelView implements vscode.WebviewViewProvider {
                 command: 'stopLoading',
             });
         } catch (error: any) {
-            console.error('[VisbalExt.soqlPanel] executeSOQL Error executing SOQL:', error);
+            OrgUtils.logError('[VisbalExt.soqlPanel] executeSOQL Error executing SOQL:', error);
             this._view?.webview.postMessage({
                 command: 'error',
                 message: `Error executing query: ${error.message}`
@@ -134,17 +134,17 @@ export class SoqlPanelView implements vscode.WebviewViewProvider {
 	//#region LISTBOX
     private async _loadOrgList(): Promise<void> {
         try {
-            console.log('[VisbalExt.soqlPanel] _loadOrgList -- Loading org list');
+            OrgUtils.logDebug('[VisbalExt.soqlPanel] _loadOrgList -- Loading org list');
             
             // Try to get from cache first
             const cachedData = await this._orgListCacheService.getCachedOrgList();
             let orgs;
 
             if (cachedData) {
-                console.log('[VisbalExt.soqlPanel] _loadOrgList -- Using cached org list:', cachedData);
+                OrgUtils.logDebug('[VisbalExt.soqlPanel] _loadOrgList -- Using cached org list cachedData');
                 orgs = cachedData.orgs;
             } else {
-                console.log('[VisbalExt.soqlPanel] _loadOrgList -- Fetching fresh org list');
+                OrgUtils.logDebug('[VisbalExt.soqlPanel] _loadOrgList -- Fetching fresh org list');
                 orgs = await OrgUtils.listOrgs();
                 // Save to cache
                 await this._orgListCacheService.saveOrgList(orgs);
@@ -152,10 +152,10 @@ export class SoqlPanelView implements vscode.WebviewViewProvider {
 
             // Get the selected org
             const selectedOrg = await OrgUtils.getSelectedOrg();
-            console.log('[VisbalExt.soqlPanel] _loadOrgList -- Selected org:', selectedOrg);
+            OrgUtils.logDebug('[VisbalExt.soqlPanel] _loadOrgList -- Selected org:', selectedOrg);
 
-            console.log('[VisbalExt.soqlPanel] _loadOrgList -- orgs:', orgs);
-            console.log('[VisbalExt.soqlPanel] _loadOrgList -- cachedData:', cachedData);
+            OrgUtils.logDebug('[VisbalExt.soqlPanel] _loadOrgList -- orgs:orgs');
+            OrgUtils.logDebug('[VisbalExt.soqlPanel] _loadOrgList -- cachedData');
 
             // Send the categorized orgs to the webview
             this._view?.webview.postMessage({
@@ -166,7 +166,7 @@ export class SoqlPanelView implements vscode.WebviewViewProvider {
             });
 
         } catch (error: any) {
-            console.error('[VisbalExt.soqlPanel] _loadOrgList -- Error loading org list:', error);
+            OrgUtils.logError('[VisbalExt.soqlPanel] _loadOrgList -- Error loading org list:', error);
 
         }  finally {
             this._view?.webview.postMessage({
@@ -182,7 +182,7 @@ export class SoqlPanelView implements vscode.WebviewViewProvider {
      */
     private async _refreshOrgList(): Promise<void> {
         if (this._isRefreshing) {
-            console.log('[VisbalExt.soqlPanel] _refreshOrgList -- Refresh already in progress');
+            OrgUtils.logDebug('[VisbalExt.soqlPanel] _refreshOrgList -- Refresh already in progress');
             this._view?.webview.postMessage({
                 command: 'info',
                 message: 'Organization list refresh already in progress...'
@@ -192,7 +192,7 @@ export class SoqlPanelView implements vscode.WebviewViewProvider {
 
         try {
             this._isRefreshing = true;
-            console.log('[VisbalExt.soqlPanel] _refreshOrgList -- Refreshing org list');
+            OrgUtils.logDebug('[VisbalExt.soqlPanel] _refreshOrgList -- Refreshing org list');
             
             this._view?.webview.postMessage({
                 command: 'startLoading',
@@ -200,12 +200,12 @@ export class SoqlPanelView implements vscode.WebviewViewProvider {
             });
 
             const orgs = await OrgUtils.listOrgs();
-            console.log('[VisbalExt.soqlPanel] _refreshOrgList -- orgs Save to the cache');
+            OrgUtils.logDebug('[VisbalExt.soqlPanel] _refreshOrgList -- orgs Save to the cache');
             // Save to cache
             await this._orgListCacheService.saveOrgList(orgs);
             
             const selectedOrg = await OrgUtils.getSelectedOrg();
-            console.log('[VisbalExt.soqlPanel] _loadOrgList -- Selected org:', selectedOrg);
+            OrgUtils.logDebug('[VisbalExt.soqlPanel] _loadOrgList -- Selected org:', selectedOrg);
 
             // Send the categorized orgs to the webview
             this._view?.webview.postMessage({
@@ -215,9 +215,9 @@ export class SoqlPanelView implements vscode.WebviewViewProvider {
                 selectedOrg: selectedOrg?.alias
             });
             
-            console.log('[VisbalExt.soqlPanel] _refreshOrgList -- Successfully sent org list to webview');
+            OrgUtils.logDebug('[VisbalExt.soqlPanel] _refreshOrgList -- Successfully sent org list to webview');
         } catch (error: any) {
-            console.error('[VisbalExt.soqlPanel] _refreshOrgList -- Error refreshing org list:', error);
+            OrgUtils.logError('[VisbalExt.soqlPanel] _refreshOrgList -- Error refreshing org list:', error);
             this._view?.webview.postMessage({
                 command: 'error',
                 message: `Error refreshing organization list: ${error.message}`
@@ -229,7 +229,7 @@ export class SoqlPanelView implements vscode.WebviewViewProvider {
 
     private async _setSelectedOrg(username: string): Promise<void> {
         try {
-            console.log(`[VisbalExt.soqlPanel] _setSelectedOrg -- Setting selected org: ${username}`);
+            OrgUtils.logDebug(`[VisbalExt.soqlPanel] _setSelectedOrg -- Setting selected org: ${username}`);
             this._view?.webview.postMessage({
                 command: 'startLoading',
                 message: `Setting selected organization...`
@@ -242,7 +242,7 @@ export class SoqlPanelView implements vscode.WebviewViewProvider {
             });
         }
         catch (error: any) {
-            console.error('[VisbalExt.soqlPanel] _setSelectedOrg -- Error setting selected org:', error);
+            OrgUtils.logError('[VisbalExt.soqlPanel] _setSelectedOrg -- Error setting selected org:', error);
             this._view?.webview.postMessage({
                 command: 'error',
                 message: `Failed to set selected organization: ${error.message}`

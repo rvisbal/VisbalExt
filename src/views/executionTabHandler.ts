@@ -1,4 +1,5 @@
 import * as vscode from 'vscode';
+import { OrgUtils } from '../utils/orgUtils';
 
 /**
  * Class to handle the execution tab functionality
@@ -573,7 +574,7 @@ export class ExecutionTabHandler {
      * @returns Array of execution path entries
      */
     public static extractExecutionPath(executionLines: string[]): any[] {
-        console.log('[VisbalExt.ExecutionTabHandler] extractExecutionPath -- Extracting execution path data');
+        OrgUtils.logDebug('[VisbalExt.ExecutionTabHandler] extractExecutionPath -- Extracting execution path data');
         
         // Stack to keep track of open execution units
         const stack: any[] = [];
@@ -806,7 +807,7 @@ export class ExecutionTabHandler {
         // Calculate self time for all root units
         rootUnits.forEach(unit => calculateSelfTime(unit));
         
-        console.log(`[VisbalExt.ExecutionTabHandler] extractExecutionPath -- Extracted ${rootUnits.length} root execution units`);
+        OrgUtils.logDebug(`[VisbalExt.ExecutionTabHandler] extractExecutionPath -- Extracted ${rootUnits.length} root execution units`);
         
         return rootUnits;
     }

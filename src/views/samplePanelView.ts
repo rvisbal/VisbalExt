@@ -15,7 +15,7 @@ export class SamplePanelView implements vscode.WebviewViewProvider {
     private _apexFiles: string[] = [];
 
     constructor(private readonly _context: vscode.ExtensionContext) {
-        console.log('[VisbalExt.SamplePanelView] Initializing SamplePanelView');
+        OrgUtils.logDebug('[VisbalExt.SamplePanelView] Initializing SamplePanelView');
         this._metadataService = new MetadataService();
         this._orgListCacheService = new OrgListCacheService(_context);
         this._sfdxService = new SfdxService();
@@ -31,7 +31,7 @@ export class SamplePanelView implements vscode.WebviewViewProvider {
 
             // If src/apex directory doesn't exist or is empty, copy template files
             if (templateFiles.length === 0) {
-                console.log('[VisbalExt.SamplePanelView] _loadApexFiles -- No template files found, copying template files');
+                OrgUtils.logDebug('[VisbalExt.SamplePanelView] _loadApexFiles -- No template files found, copying template files');
             } else {
                 this._apexFiles = templateFiles.map(file => file.fsPath);
             }
@@ -53,7 +53,7 @@ export class SamplePanelView implements vscode.WebviewViewProvider {
                 });
             }
         } catch (error: any) {
-            console.error('[VisbalExt.SamplePanelView] Error loading apex files:', error);
+            OrgUtils.logError('[VisbalExt.SamplePanelView] Error loading apex files:', error);
         }
     }
 
@@ -75,25 +75,25 @@ export class SamplePanelView implements vscode.WebviewViewProvider {
                 // Check if file already exists
                 try {
                     await vscode.workspace.fs.stat(targetUri);
-                    console.log(`[VisbalExt.SamplePanelView] File already exists: ${fileName}`);
+                    OrgUtils.logDebug(`[VisbalExt.SamplePanelView] File already exists: ${fileName}`);
                     continue;
                 } catch {
                     // File doesn't exist, proceed with copy
                     const content = await vscode.workspace.fs.readFile(templateFile);
                     await vscode.workspace.fs.writeFile(targetUri, content);
-                    console.log(`[VisbalExt.SamplePanelView] Copied template file: ${fileName}`);
+                    OrgUtils.logDebug(`[VisbalExt.SamplePanelView] Copied template file: ${fileName}`);
                 }
             }
             */
         } catch (error: any) {
-            console.error('[VisbalExt.SamplePanelView] Error copying template files:', error);
+            OrgUtils.logError('[VisbalExt.SamplePanelView] Error copying template files:', error);
             throw error;
         }
     }
 
     private async _updateTemplates() {
         try {
-            console.log('[VisbalExt.SamplePanelView] Updating template files');
+            OrgUtils.logDebug('[VisbalExt.SamplePanelView] Updating template files');
             await this._copyTemplateFiles();
             await this._loadApexFiles();
             if (this._view) {
@@ -103,7 +103,7 @@ export class SamplePanelView implements vscode.WebviewViewProvider {
                 });
             }
         } catch (error: any) {
-            console.error('[VisbalExt.SamplePanelView] Error updating templates:', error);
+            OrgUtils.logError('[VisbalExt.SamplePanelView] Error updating templates:', error);
             if (this._view) {
                 this._view.webview.postMessage({
                     command: 'error',
@@ -116,17 +116,17 @@ export class SamplePanelView implements vscode.WebviewViewProvider {
     private async _loadApexFileContent(filePath: string) {
         try {
             const content = await vscode.workspace.fs.readFile(vscode.Uri.file(filePath));
-            //console.log('[VisbalExt.SamplePanelView] _loadApexFileContent -- Content:', content.toString());
+            //OrgUtils.logDebug('[VisbalExt.SamplePanelView] _loadApexFileContent -- Content:', content.toString());
             return content.toString();
         } catch (error: any) {
-            console.error('[VisbalExt.SamplePanelView] Error reading file:', error);
+            OrgUtils.logError('[VisbalExt.SamplePanelView] Error reading file:', error);
             throw error;
         }
     }
 
     private async _saveApexFileContent(filePath: string, content: string) {
         try {
-            console.log('[VisbalExt.SamplePanelView] Saving file:', filePath);
+            OrgUtils.logDebug('[VisbalExt.SamplePanelView] Saving file:', filePath);
             await vscode.workspace.fs.writeFile(
                 vscode.Uri.file(filePath),
                 Buffer.from(content, 'utf8')
@@ -138,7 +138,7 @@ export class SamplePanelView implements vscode.WebviewViewProvider {
                 });
             }
         } catch (error: any) {
-            console.error('[VisbalExt.SamplePanelView] Error saving file:', error);
+            OrgUtils.logError('[VisbalExt.SamplePanelView] Error saving file:', error);
             if (this._view) {
                 this._view.webview.postMessage({
                     command: 'error',
@@ -154,7 +154,7 @@ export class SamplePanelView implements vscode.WebviewViewProvider {
         context: vscode.WebviewViewResolveContext,
         token: vscode.CancellationToken
     ): void | Thenable<void> {
-        console.log('[VisbalExt.SamplePanelView] resolveWebviewView -- Resolving webview view');
+        OrgUtils.logDebug('[VisbalExt.SamplePanelView] resolveWebviewView -- Resolving webview view');
         this._view = webviewView;
 
         // Set options for the webview
@@ -173,7 +173,7 @@ export class SamplePanelView implements vscode.WebviewViewProvider {
 
         // Handle messages from the webview
         webviewView.webview.onDidReceiveMessage(async (message) => {
-            console.log(`[VisbalExt.SamplePanelView] resolveWebviewView -- Received message: ${message.command}`);
+            OrgUtils.logDebug(`[VisbalExt.SamplePanelView] resolveWebviewView -- Received message: ${message.command}`);
             
             switch (message.command) {
                 case 'executeApex':
@@ -200,9 +200,9 @@ export class SamplePanelView implements vscode.WebviewViewProvider {
                     break;
                 case 'loadApexFile':
                     try {
-                        console.log('[VisbalExt.SamplePanelView] loadApexFile -- Loading file:', message.filePath);
+                        OrgUtils.logDebug('[VisbalExt.SamplePanelView] loadApexFile -- Loading file:', message.filePath);
                         const content = await this._loadApexFileContent(message.filePath);
-                        console.log('[VisbalExt.SamplePanelView] loadApexFile -- Content:', content.length);
+                        OrgUtils.logDebug('[VisbalExt.SamplePanelView] loadApexFile -- Content:', content.length);
                         this._view?.webview.postMessage({
                             command: 'apexFileContent',
                             content: content
@@ -247,10 +247,10 @@ export class SamplePanelView implements vscode.WebviewViewProvider {
                 return;
             }
 
-            console.log(`[VisbalExt.SamplePanelView] executeAnonymousApex -- Executing on ${selectedOrg?.alias} org code:`, code);
+            OrgUtils.logDebug(`[VisbalExt.SamplePanelView] executeAnonymousApex -- Executing on ${selectedOrg?.alias} org code:`, code);
 
             const result = await this._sfdxService.executeAnonymousApex(code);
-            console.log('[VisbalExt.SamplePanelView] Execution result:', result);
+            OrgUtils.logDebug('[VisbalExt.SamplePanelView] Execution result:', result);
 
             if (result.success) {
                 // First send the execution result to update the results content
@@ -286,7 +286,7 @@ export class SamplePanelView implements vscode.WebviewViewProvider {
                 });
             }
         } catch (error: any) {
-            console.error('[VisbalExt.SamplePanelView] executeAnonymousApex Error:', error);
+            OrgUtils.logError('[VisbalExt.SamplePanelView] executeAnonymousApex Error:', error);
             this._view?.webview.postMessage({
                 command: 'error',
                 message: `Error executing code: ${error.message}`
@@ -301,17 +301,17 @@ export class SamplePanelView implements vscode.WebviewViewProvider {
     //#region LISTBOX
     private async _loadOrgList(): Promise<void> {
         try {
-            console.log('[VisbalExt.SamplePanelView] _loadOrgList -- Loading org list');
+            OrgUtils.logDebug('[VisbalExt.SamplePanelView] _loadOrgList -- Loading org list');
             
             // Try to get from cache first
             const cachedData = await this._orgListCacheService.getCachedOrgList();
             let orgs;
 
             if (cachedData) {
-                console.log('[VisbalExt.SamplePanelView] _loadOrgList -- Using cached org list:', cachedData);
+                OrgUtils.logDebug('[VisbalExt.SamplePanelView] _loadOrgList -- Using cached org list:cachedData');
                 orgs = cachedData.orgs;
             } else {
-                console.log('[VisbalExt.SamplePanelView] _loadOrgList -- Fetching fresh org list');
+                OrgUtils.logDebug('[VisbalExt.SamplePanelView] _loadOrgList -- Fetching fresh org list');
                 orgs = await OrgUtils.listOrgs();
                 // Save to cache
                 await this._orgListCacheService.saveOrgList(orgs);
@@ -319,10 +319,10 @@ export class SamplePanelView implements vscode.WebviewViewProvider {
 
             // Get the selected org
             const selectedOrg = await OrgUtils.getSelectedOrg();
-            console.log('[VisbalExt.SamplePanelView] _loadOrgList -- Selected org:', selectedOrg);
+            OrgUtils.logDebug('[VisbalExt.SamplePanelView] _loadOrgList -- Selected org:', selectedOrg);
 
-            console.log('[VisbalExt.SamplePanelView] _loadOrgList -- orgs:', orgs);
-            console.log('[VisbalExt.SamplePanelView] _loadOrgList -- cachedData:', cachedData);
+            OrgUtils.logDebug('[VisbalExt.SamplePanelView] _loadOrgList -- orgs:', orgs);
+            OrgUtils.logDebug('[VisbalExt.SamplePanelView] _loadOrgList -- cachedData:', cachedData);
 
             // Send the categorized orgs to the webview
             this._view?.webview.postMessage({
@@ -333,7 +333,7 @@ export class SamplePanelView implements vscode.WebviewViewProvider {
             });
 
         } catch (error: any) {
-            console.error('[VisbalExt.SamplePanelView] _loadOrgList -- Error loading org list:', error);
+            OrgUtils.logError('[VisbalExt.SamplePanelView] _loadOrgList -- Error loading org list:', error);
 
         }
 		finally {
@@ -350,7 +350,7 @@ export class SamplePanelView implements vscode.WebviewViewProvider {
      */
     private async _refreshOrgList(): Promise<void> {
         if (this._isRefreshing) {
-            console.log('[VisbalExt.SamplePanelView] _refreshOrgList -- Refresh already in progress');
+            OrgUtils.logDebug('[VisbalExt.SamplePanelView] _refreshOrgList -- Refresh already in progress');
             this._view?.webview.postMessage({
                 command: 'info',
                 message: 'Organization list refresh already in progress...'
@@ -360,7 +360,7 @@ export class SamplePanelView implements vscode.WebviewViewProvider {
 
         try {
             this._isRefreshing = true;
-            console.log('[VisbalExt.SamplePanelView] _refreshOrgList -- Refreshing org list');
+            OrgUtils.logDebug('[VisbalExt.SamplePanelView] _refreshOrgList -- Refreshing org list');
             
             this._view?.webview.postMessage({
                 command: 'startLoading',
@@ -368,12 +368,12 @@ export class SamplePanelView implements vscode.WebviewViewProvider {
             });
 
             const orgs = await OrgUtils.listOrgs();
-            console.log('[VisbalExt.SamplePanelView] _refreshOrgList -- orgs Save to the cache');
+            OrgUtils.logDebug('[VisbalExt.SamplePanelView] _refreshOrgList -- orgs Save to the cache');
             // Save to cache
             await this._orgListCacheService.saveOrgList(orgs);
             
             const selectedOrg = await OrgUtils.getSelectedOrg();
-            console.log('[VisbalExt.SamplePanelView] _loadOrgList -- Selected org:', selectedOrg);
+            OrgUtils.logDebug('[VisbalExt.SamplePanelView] _loadOrgList -- Selected org:', selectedOrg);
 
             // Send the categorized orgs to the webview
             this._view?.webview.postMessage({
@@ -383,9 +383,9 @@ export class SamplePanelView implements vscode.WebviewViewProvider {
                 selectedOrg: selectedOrg?.alias
             });
             
-            console.log('[VisbalExt.SamplePanelView] _refreshOrgList -- Successfully sent org list to webview');
+            OrgUtils.logDebug('[VisbalExt.SamplePanelView] _refreshOrgList -- Successfully sent org list to webview');
         } catch (error: any) {
-            console.error('[VisbalExt.SamplePanelView] _refreshOrgList -- Error refreshing org list:', error);
+            OrgUtils.logError('[VisbalExt.SamplePanelView] _refreshOrgList -- Error refreshing org list:', error);
           
         } finally {
             this._isRefreshing = false;
@@ -397,13 +397,13 @@ export class SamplePanelView implements vscode.WebviewViewProvider {
 
     private async _setSelectedOrg(username: string): Promise<void> {
         try {
-            console.log(`[VisbalExt.SamplePanelView] _setSelectedOrg -- Setting selected org: ${username}`);
+            OrgUtils.logDebug(`[VisbalExt.SamplePanelView] _setSelectedOrg -- Setting selected org: ${username}`);
             //this._showLoading(`Setting selected org to ${username}...`);
             
             await OrgUtils.setSelectedOrg(username);
         }
         catch (error: any) {
-            console.error('[VisbalExt.SamplePanelView] _setSelectedOrg -- Error setting selected org:', error);
+            OrgUtils.logError('[VisbalExt.SamplePanelView] _setSelectedOrg -- Error setting selected org:', error);
             //this._showError(`Failed to set selected org: ${error.message}`);
         }  finally {
             this._view?.webview.postMessage({
