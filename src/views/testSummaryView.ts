@@ -49,9 +49,29 @@ interface TestSummary {
 interface QueueItem {
     ApexClassId: string;
     ApexClass: string;
+    ApexClassName: string;
     Status: string;
     ExtendedStatus: string;
     TestRunResultId: string;
+}
+
+interface ApexTestRunResult {
+    Id: string;
+    CreatedDate: string;
+    AsyncApexJobId: string;
+    UserId: string;
+    JobName: string;
+    IsAllTests: boolean;
+    Source: string;
+    StartTime: string;
+    EndTime: string;
+    TestTime: string;
+    Status: string;
+    ClassesEnqueued: number;
+    ClassesCompleted: number;
+    MethodsEnqueued: number;
+    MethodsCompleted: number;
+    MethodsFailed: number;
 }
 
 export class TestSummaryView implements vscode.WebviewViewProvider {
@@ -90,10 +110,10 @@ export class TestSummaryView implements vscode.WebviewViewProvider {
     }
 
 
-    public showProgress(progress: QueueItem[]) {
+    public showProgress(progress: QueueItem[], jobResults: any[]) {
         // 
         if (this._view) {
-            this._view.webview.html = this._getWebviewContentForProgress(progress);
+            this._view.webview.html = this._getWebviewContentForProgress(progress, jobResults);
             this._view.show?.(true); // Reveal the view
         }
     }
@@ -469,7 +489,8 @@ export class TestSummaryView implements vscode.WebviewViewProvider {
         </html>`;
     }
 
-    private _getWebviewContentForProgress(progress: QueueItem[]): string {
+    private _getWebviewContentForProgress(progress: QueueItem[], jobResults?: ApexTestRunResult[]): string {
+        const jobResult = jobResults && jobResults.length > 0 ? jobResults[0] : null;
         return `<!DOCTYPE html>
         <html lang="en">
         <head>
@@ -510,16 +531,31 @@ export class TestSummaryView implements vscode.WebviewViewProvider {
                 .running {
                     color: var(--vscode-testing-iconRunning);
                 }
+                .processing {
+                    color: var(--vscode-testing-iconQueued);
+                }
             </style>
         </head>
         <body>
             <div class="progress-container">
+                ${jobResult ? `
+                    <div class="progress-item">
+                        <span class="label">Status:</span>
+                        <span class="value ${jobResult.Status === 'Completed' ? 'success' : jobResult.Status === 'Processing' ? 'processing' : jobResult.Status === 'Running' ? 'running' : 'failure'}">${jobResult.Status}</span>
+                    </div>
+                    <div class="progress-item">
+                        <span class="label">Methods:</span>
+                        <span class="value">Completed: ${jobResult.MethodsCompleted} / Enqueued: ${jobResult.MethodsEnqueued} / Failed: ${jobResult.MethodsFailed}</span>
+                    </div>
+                ` : ''}
+            </div>
+            <div class="progress-container">
                 ${progress.map(p => {
                     return `
                         <div class="progress-item">     
-                            <span class="label">${p.ApexClass}</span>
-                            <span class="value ${p.Status === 'Completed' ? 'success' : p.Status === 'Running' ? 'running' : 'failure'}">${p.Status}</span>
-                            <span class="value">${p.ExtendedStatus}</span>
+                            <span class="label">${p.ApexClassName}</span>
+                            <span class="value ${p.Status === 'Completed' ? 'success' : p.Status === 'Processing' ? 'processing' : p.Status === 'Running' ? 'running' : 'failure'}">${p.Status}</span>
+                            ${p.ExtendedStatus ? `<span class="value">${p.ExtendedStatus}</span>` : ''}
                         </div>
                     `;
                 }).join('')}
