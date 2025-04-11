@@ -237,12 +237,12 @@
         },
         "visbal.logging.saveToFile": {
           "type": "boolean",
-          "default": true,
+          "default": false,
           "description": "Enable or disable saving logs and errors to a file."
         },
         "visbal.logging.displayInConsole": {
           "type": "boolean",
-          "default": true,
+          "default": false,
           "description": "Enable or disable displaying logs and errors in the console."
         },
         "visbal.logging.deleteErrorLogsOlderThan": {
