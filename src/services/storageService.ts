@@ -168,4 +168,30 @@ export class StorageService {
             throw error;
         }
     }
+
+    public async addTestMethod(className: string, methodName: string): Promise<void> {
+        const testClasses = await this.getTestClasses();
+        const testClass = testClasses.find(tc => tc.name === className);
+        
+        if (testClass) {
+            if (!testClass.methods) {
+                testClass.methods = [];
+            }
+            if (methodName && !testClass.methods.includes(methodName)) {
+                testClass.methods.push(methodName);
+            }
+        } else {
+            testClasses.push({
+                name: className,
+                id: className,
+                methods: methodName ? [methodName] : [],
+                attributes: {
+                    fileName: `${className}.cls`,
+                    fullName: className
+                }
+            });
+        }
+
+        await this.saveTestClasses(testClasses);
+    }
 } 

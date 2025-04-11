@@ -1029,20 +1029,29 @@ export class SfdxService {
             if (tests.runMode === 'sequential') {
                 command += ' --synchronous';
             }
+            command += ' --json';
             OrgUtils.logDebug(`[VisbalExt.SfdxService] runManyTests -- _executeCommand: ${command}`);
             const output = await this._executeCommand(command);
             const endTime = Date.now();
             OrgUtils.logDebug(`[VisbalExt.MetadataService] runManyTests -- TIME COMPLETED: ${endTime - startTime}ms`, output);
+
+            const parsedResult = OrgUtils.parseResultJson(output.stdout);
+            if (parsedResult.isJson && parsedResult.content) {
+                return parsedResult.content;
+            }else {
+                const id2 = output.stdout.match(/Run "sf apex get test -i ([\w-]+) -o (.*)" to retrieve test results/)?.[1];
+                OrgUtils.logDebug(`[VisbalExt.SfdxService] runManyTests -- id2: ${id2}`);
+                return id2;
+            }
 
             //extract the id out of >  Run "sf apex get test -i 707Sv00000ZArpD -o test-1p6s0vbccpcu@example.com" to retrieve test results
             //consider that after -o can be variable text
             //const id = output.stdout.match(/Run "sf apex get test -i (\d+) -o (.*)" to retrieve test results/)?.[1];
             //OrgUtils.logDebug(`[VisbalExt.SfdxService] runManyTests -- id: ${id}`);
 
-            const id2 = output.stdout.match(/Run "sf apex get test -i ([\w-]+) -o (.*)" to retrieve test results/)?.[1];
-            OrgUtils.logDebug(`[VisbalExt.SfdxService] runManyTests -- id2: ${id2}`);
+            
 
-            return id2;
+           
         } catch (error: any) {
             const endTime = Date.now();
             //
