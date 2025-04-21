@@ -127,13 +127,12 @@ export class OrgUtils {
             OrgUtils.logDebug('[VisbalExt.OrgUtils] listOrgs -- Fetching org list');
             const command = 'sf org list --json --all';
             const result = await execAsync(command);
-            //OrgUtils.logDebug('[VisbalExt.OrgUtils] listOrgs -- Raw result:', result.stdout);
+            OrgUtils.logDebug(`[VisbalExt.OrgUtils] listOrgs -- command${command} Raw result:`, result);
             
             const parsedResult = JSON.parse(result.stdout);
-            
-
-            OrgUtils.logDebug('[VisbalExt.OrgUtils] listOrgs -- Parsed orgs:', parsedResult?.result?.length || 0);
-
+            OrgUtils.logDebug(`[VisbalExt.OrgUtils] listOrgs -- command${command} parsedResult:`, parsedResult);
+            OrgUtils.logDebug('[VisbalExt.OrgUtils] listOrgs -- parsedResult?.result?.length:', parsedResult?.result?.length || 0);
+            OrgUtils.logDebug('[VisbalExt.OrgUtils] listOrgs -- parsedResult?.result:', parsedResult?.result);
             const groups: OrgGroups = {
                 devHubs: this.getSectionArray(parsedResult.result.devHubs),
                 sandboxes: this.getSectionArray(parsedResult.result.sandboxes),
@@ -141,8 +140,6 @@ export class OrgUtils {
                 nonScratchOrgs: this.getSectionArray(parsedResult.result.nonScratchOrgs),
                 other: this.getSectionArray(parsedResult.result.other)
             };
-
-            
 
             OrgUtils.logDebug('[VisbalExt.OrgUtils] listOrgs -- Successfully categorized orgs:', {
                 devHubs: groups.devHubs.length,
