@@ -17,6 +17,8 @@ import { TestRunResultsView, TestItem } from './views/testRunResultsView';
 
 import { join } from 'path';
 import { existsSync, mkdirSync } from 'fs';
+import { GitService } from './services/gitService';
+import { GitHistoryView } from './views/gitHistoryView';
 
 let outputChannel: vscode.OutputChannel;
 
@@ -403,6 +405,30 @@ export function activate(context: vscode.ExtensionContext) {
     outputChannel.appendLine(`[Debug] ${event.event}: ${JSON.stringify(event.body)}`);
     debugConsoleView.addOutput(`${event.event}: ${JSON.stringify(event.body)}`, 'info');
   });
+
+  const gitService = new GitService(context);
+  
+  context.subscriptions.push(
+    vscode.commands.registerCommand('visbal-ext.showGitHistoryForSelection', () => {
+      const editor = vscode.window.activeTextEditor;
+      if (!editor) {
+        vscode.window.showErrorMessage('No active editor');
+        return;
+      }
+
+      const selection = editor.selection;
+      if (selection.isEmpty) {
+        vscode.window.showErrorMessage('No text selected');
+        return;
+      }
+
+      const filePath = editor.document.uri.fsPath;
+      const startLine = selection.start.line + 1; // Convert to 1-based line numbers
+      const endLine = selection.end.line + 1;
+
+      GitHistoryView.createOrShow(context, gitService, filePath, startLine, endLine);
+    })
+  );
 
   outputChannel.appendLine('[VisbalExt.Extension] Visbal Extension activated successfully');
   outputChannel.show();

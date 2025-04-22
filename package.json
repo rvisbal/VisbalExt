@@ -190,6 +190,11 @@
         "title": "Rerun All Tests",
         "category": "Visbal",
         "icon": "$(refresh)"
+      },
+      {
+        "command": "visbal-ext.showGitHistoryForSelection",
+        "title": "Show Git History for Selection",
+        "category": "Visbal"
       }
     ],
     "menus": {
@@ -208,6 +213,13 @@
         {
           "command": "visbal-ext.showLogSummary",
           "when": "resourceExtname == .log",
+          "group": "navigation"
+        }
+      ],
+      "editor/context": [
+        {
+          "command": "visbal-ext.showGitHistoryForSelection",
+          "when": "editorHasSelection",
           "group": "navigation"
         }
       ]

@@ -16,26 +16,15 @@
     "sandboxes": [],
     "scratchOrgs": [
       {
-        "username": "test-01t97ziikk4o@example.com",
-        "alias": "CURSOR_BUG",
-        "instanceUrl": "https://inspiration-speed-1463-dev-ed.scratch.my.salesforce.com",
+        "username": "test-w0xyevhrjh9u@example.com",
+        "alias": "AUTOMATED_QA",
+        "instanceUrl": "https://velocity-inspiration-1706-dev-ed.scratch.my.salesforce.com",
         "isDefault": false,
         "type": "scratchOrg",
         "clientId": "PlatformCLI",
         "clientSecret": "Unknown",
         "redirectUri": "Unknown",
-        "expirationDate": "2025-04-16"
-      },
-      {
-        "username": "test-omwbwsafsvwg@example.com",
-        "alias": "CURSOR_CODE_REVIEW",
-        "instanceUrl": "https://speed-fun-8256-dev-ed.scratch.my.salesforce.com",
-        "isDefault": false,
-        "type": "scratchOrg",
-        "clientId": "PlatformCLI",
-        "clientSecret": "Unknown",
-        "redirectUri": "Unknown",
-        "expirationDate": "2025-04-17"
+        "expirationDate": "2025-05-13"
       },
       {
         "username": "test-jx5rvz8y5hu0@example.com",
@@ -58,28 +47,6 @@
         "clientSecret": "Unknown",
         "redirectUri": "Unknown",
         "expirationDate": "2025-04-24"
-      },
-      {
-        "username": "test-4gthzj2ultof@example.com",
-        "alias": "CUSTOMER_DEBUG",
-        "instanceUrl": "https://momentum-saas-6904-dev-ed.scratch.my.salesforce.com",
-        "isDefault": false,
-        "type": "scratchOrg",
-        "clientId": "PlatformCLI",
-        "clientSecret": "Unknown",
-        "redirectUri": "Unknown",
-        "expirationDate": "2025-04-18"
-      },
-      {
-        "username": "test-s2mwur9wr83g@example.com",
-        "alias": "HIERARCHY_RELEASE",
-        "instanceUrl": "https://app-customer-6904-dev-ed.scratch.my.salesforce.com",
-        "isDefault": false,
-        "type": "scratchOrg",
-        "clientId": "PlatformCLI",
-        "clientSecret": "Unknown",
-        "redirectUri": "Unknown",
-        "expirationDate": "2025-04-10"
       },
       {
         "username": "test-1p6s0vbccpcu@example.com",
@@ -329,5 +296,5 @@
       }
     ]
   },
-  "timestamp": 1744329193007
+  "timestamp": 1745259914401
 }
