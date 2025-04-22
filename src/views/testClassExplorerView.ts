@@ -3766,7 +3766,7 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
         </html>`;
     }
 
-    private _getNonce() {
+    private _getNonce(): string {
         let text = '';
         const possible = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
         for (let i = 0; i < 32; i++) {

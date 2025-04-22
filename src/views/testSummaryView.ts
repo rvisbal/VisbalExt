@@ -98,6 +98,10 @@ export class TestSummaryView implements vscode.WebviewViewProvider {
 
     public updateSummary(summary: TestSummary | TestSummary[], tests: TestResult[]) {
         OrgUtils.logDebug('[VisbalExt.TestSummaryView] updateSummary -- summary:', summary);
+        OrgUtils.logDebug('[VisbalExt.TestSummaryView] updateSummary -- tests:', tests);
+        const failedTests = tests.filter(test => test.Outcome?.toLowerCase() === 'fail' || test.outcome?.toLowerCase() === 'fail');
+        OrgUtils.logDebug('[VisbalExt.TestSummaryView] _getWebviewContent -- failedTests:', failedTests);
+
         if (this._view) {
             // Check if we have multiple summaries
             if (Array.isArray(summary)) {
@@ -164,6 +168,10 @@ export class TestSummaryView implements vscode.WebviewViewProvider {
         const totalTests = aggregateSummary.testsRan;
         const passRate = totalTests > 0 ? ((aggregateSummary.passing / totalTests) * 100).toFixed(1) + '%' : '0%';
         const failRate = totalTests > 0 ? ((aggregateSummary.failing / totalTests) * 100).toFixed(1) + '%' : '0%';
+
+         //test filter for failed tests
+         const failedTests = tests.filter(test => test.Outcome?.toLowerCase() === 'fail' || test.outcome?.toLowerCase() === 'fail');
+         OrgUtils.logDebug('[VisbalExt.TestSummaryView] _getWebviewContentForMultipleTests -- failedTests:', failedTests);
 
         return `<!DOCTYPE html>
         <html lang="en">
@@ -292,11 +300,11 @@ export class TestSummaryView implements vscode.WebviewViewProvider {
                 <div class="summary-item">
                     <span class="label">Total Time:</span>
                     <span class="value">${aggregateSummary.testTotalTime}s</span>
-                </div>
+                </div>C
             </div>
 
             <div class="test-results-grid">
-                ${tests.filter(test => test.Message || test.StackTrace).map(test => {
+                ${failedTests.filter(test => test.Message || test.StackTrace).map(test => {
                     const formattedMessage = test.Message?.trim().replace(/^System\.[^:]+:/, '').trim() || '';
                     const formattedStackTrace = test.StackTrace?.split('\n')
                         .map(line => line.trim())
@@ -306,13 +314,13 @@ export class TestSummaryView implements vscode.WebviewViewProvider {
 
                     return `
                     <div class="test-result">
-                        <div class="header ${test.Outcome?.toLowerCase() === 'pass' ? 'success' : 'failure'}">
+                        <div class="header failure">
                             ${test.FullName || 'Unknown Test'}
                         </div>
                         <div class="content">
                             <div class="summary-item">
                                 <span class="label">Status:</span>
-                                <span class="value ${test.Outcome?.toLowerCase() === 'pass' ? 'success' : 'failure'}">${test.Outcome || 'Unknown'}</span>
+                                <span class="value failure">${test.Outcome || 'Failed'}</span>
                             </div>
                             ${formattedMessage ? `
                                 <div class="error-message">${formattedMessage}</div>
@@ -329,6 +337,8 @@ export class TestSummaryView implements vscode.WebviewViewProvider {
     }
 
     private _getWebviewContent(summary: TestSummary, tests: TestResult[]): string {
+        const failedTests = tests.filter(test => test.Outcome?.toLowerCase() === 'fail' || test.outcome?.toLowerCase() === 'fail');
+        OrgUtils.logDebug('[VisbalExt.TestSummaryView] _getWebviewContent -- failedTests:', failedTests);
         return `<!DOCTYPE html>
         <html lang="en">
         <head>
@@ -369,6 +379,10 @@ export class TestSummaryView implements vscode.WebviewViewProvider {
                     padding: 10px;
                     border: 1px solid var(--vscode-panel-border);
                     border-radius: 4px;
+                    cursor: pointer;
+                }
+                .test-result:hover {
+                    background-color: var(--vscode-list-hoverBackground);
                 }
                 .test-result .label {
                     display: block;
@@ -448,9 +462,10 @@ export class TestSummaryView implements vscode.WebviewViewProvider {
                     <span class="label">Username:</span>
                     <span class="value">${summary.username || 'N/A'}</span>
                 </div>
+
             </div>
             <div class="test-results-container">
-                ${tests.map(test => {
+                ${failedTests.map(test => {
                     // Format the error message and stack trace
                     let formattedMessage = '';
                     let formattedStackTrace = '';
@@ -469,7 +484,7 @@ export class TestSummaryView implements vscode.WebviewViewProvider {
                             formattedStackTrace = test.StackTrace || '';
                         }
                     }
-
+                    
                     return `
                     <div class="test-result">
                         <span class="label">Class:</span>
@@ -532,16 +547,19 @@ export class TestSummaryView implements vscode.WebviewViewProvider {
                     color: var(--vscode-testing-iconRunning);
                 }
                 .processing {
-                    color: var(--vscode-testing-iconQueued);
+                    color: var(--vscode-foreground);
+                }
+                .queued {
+                    color: var(--vscode-foreground);
                 }
             </style>
         </head>
-        <body>
+        <body>B
             <div class="progress-container">
                 ${jobResult ? `
                     <div class="progress-item">
                         <span class="label">Status:</span>
-                        <span class="value ${jobResult.Status === 'Completed' ? 'success' : jobResult.Status === 'Processing' ? 'processing' : jobResult.Status === 'Running' ? 'running' : 'failure'}">${jobResult.Status}</span>
+                        <span class="value ${jobResult.Status === 'Completed' && jobResult.MethodsFailed > 0 ? 'failure' : jobResult.Status === 'Completed' ? 'success' : jobResult.Status === 'Processing' ? 'processing' : jobResult.Status === 'Running' ? 'running' : jobResult.Status === 'Queued' ? 'queued' : 'failure'}">${jobResult.Status}</span>
                     </div>
                     <div class="progress-item">
                         <span class="label">Methods:</span>
@@ -554,7 +572,7 @@ export class TestSummaryView implements vscode.WebviewViewProvider {
                     return `
                         <div class="progress-item">     
                             <span class="label">${p.ApexClassName}</span>
-                            <span class="value ${p.Status === 'Completed' ? 'success' : p.Status === 'Processing' ? 'processing' : p.Status === 'Running' ? 'running' : 'failure'}">${p.Status}</span>
+                            <span class="value ${p.Status === 'Completed' && p.ExtendedStatus?.includes('failed=') ? 'failure' : p.Status === 'Completed' ? 'success' : p.Status === 'Processing' ? 'processing' : p.Status === 'Running' ? 'running' : p.Status === 'Queued' ? 'queued' : 'failure'}">${p.Status}</span>
                             ${p.ExtendedStatus ? `<span class="value">${p.ExtendedStatus}</span>` : ''}
                         </div>
                     `;
