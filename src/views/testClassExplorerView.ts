@@ -129,12 +129,12 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
 
         // Register command for toggling class selection
         this._context.subscriptions.push(
-            vscode.commands.registerCommand('visbal-ext.toggleClassSelection', async (className: string, methodName?: string, selected?: boolean) => {
+            vscode.commands.registerCommand('visbal-ext.selectTestMethod', async (className: string, methodName?: string, selected?: boolean) => {
                 if (!this._view) return;
 
                 // Ensure the test class is loaded
                 //await this._fetchTestClasses(false, true);
-
+                
                 // Post message to webview to toggle selection
                 this._view.webview.postMessage({
                     command: 'toggleClassSelection',
@@ -142,6 +142,7 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                     methodName: methodName,
                     selected: selected
                 });
+           
 
                 // Show the view
                 this._view.show(true);
@@ -2903,11 +2904,9 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                             (testClassesList && testClassesList.children.length > 0) ||
                             (methodsLists && methodsLists.length > 0)
                         )) {
-                            console.log('[VisbalExt.TestClassExplorerView] Skipping fetch - content already exists and forceRefresh is false');
                             return;
                         }
 
-                        console.log('[VisbalExt.TestClassExplorerView] Fetching test classes...', { forceRefresh, refreshMethods, refreshMode });
                         showLoading('Loading test classes');
                         hideError();
                         hideNotification();
@@ -3018,6 +3017,7 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                         saveState(); // Save state after selection changes
                     }
                     
+                    
                     function toggleMethodSelection(className, methodName, checkbox) {
                         const isChecked = checkbox.checked;
                         const key = className + '.' + methodName;
@@ -3084,11 +3084,9 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                     }
 
                     function renderTestClasses(testClasses) {
-                        console.log('[VisbalExt.TestClassExplorerView] Rendering test classes:', testClasses);
                         testClassesList.innerHTML = '';
                         
                         if (!testClasses || testClasses.length === 0) {
-                            console.log('[VisbalExt.TestClassExplorerView] No test classes to render');
                             noTestClasses.classList.remove('hidden');
                             return;
                         }
@@ -3096,7 +3094,6 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                         noTestClasses.classList.add('hidden');
                         
                         testClasses.forEach(function(testClass) {
-                            console.log('[VisbalExt.TestClassExplorerView] Rendering test class:', testClass);
                             const li = document.createElement('li');
                             li.className = 'test-class-item';
                             li.dataset.className = testClass.name;
@@ -3189,7 +3186,6 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                     }
                     
                     function loadTestMethods(className, methodsListElement) {
-                        console.log('[VisbalExt.TestClassExplorerView] Loading test methods for ' + className + '...');
                         
                         // Add loading indicator to the methods list
                         const loadingItem = document.createElement('li');
@@ -3216,7 +3212,6 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                     }
                     
                     function renderTestMethods(className, testMethods) {
-                        console.log('[VisbalExt.TestClassExplorerView] Rendering test methods for ' + className + ':', testMethods);
                         
                         // Find the methods list element for this class
                         const classItem = document.querySelector('.test-class-item[data-class-name="' + className + '"]');
@@ -3337,7 +3332,6 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
 					
 					
 					function refreshTestMethods(testClass) {
-                        console.log('[VisbalExt.TestClassExplorerView] refreshTestMethods -- Refreshing methods:', testClass);
                         showLoading('Refreshing methods on class ' + testClass  );
                         hideError();
                         hideNotification();
@@ -3349,7 +3343,6 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                     }
                     
                     function runTest(testClass, testMethod) {
-                        console.log('[VisbalExt.TestClassExplorerView] runTest -- Running test:', testClass, testMethod);
                         showLoading('running test  ' + testClass + '. ' + testMethod );
                         hideError();
                         hideNotification();
@@ -3365,15 +3358,6 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                         const testItem = document.querySelector(selector);
                         if (testItem) {
                             const runButton = testItem.querySelector('.run');
-                            //const statusIcon = testItem.querySelector('.test-status');
-                            
-                            //if (runButton) {
-                            //    runButton.style.display = 'none';
-                            //}
-                            
-                            //if (statusIcon) {
-                            //    statusIcon.innerHTML = '<svg class="test-status running" width="14" height="14" viewBox="0 0 16 16"><path fill="currentColor" d="M14.5 8c0 3.584-2.916 6.5-6.5 6.5S1.5 11.584 1.5 8 4.416 1.5 8 1.5 14.5 4.416 14.5 8zM8 2.5A5.5 5.5 0 1 0 13.5 8 5.506 5.506 0 0 0 8 2.5z"/></svg>';
-                            //}
                         }
 
                         vscode.postMessage({ 
@@ -3566,22 +3550,18 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                     // Handle messages from the extension
                     window.addEventListener('message', event => {
                         const message = event.data;
-                        console.log('[VisbalExt.TestClassExplorerView] Received message from extension:', message);
                         
                         switch (message.command) {
                             case 'testClassesLoaded':
                                 hideLoading();
-                                console.log('[VisbalExt.TestClassExplorerView] Test classes loaded:', message.testClasses);
                                 renderTestClasses(message.testClasses);
                                 break;
                             case 'testMethodsLoaded':
 								hideLoading();
-                                console.log('[VisbalExt.TestClassExplorerView] Test methods loaded:', message.testMethods);
                                 renderTestMethods(message.className, message.testMethods);
                                 break;
                             case 'testResultsLoaded':
                                 hideLoading();
-                                console.log('[VisbalExt.TestClassExplorerView] Test results loaded:', message.results);
                                 handleTestResults(message.results);
                                 break;
                             case 'confirmationResult':
@@ -3603,11 +3583,9 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                                 break;
                             case 'error':
                                 hideLoading();
-                                console.error('[VisbalExt.TestClassExplorerView] Error:', message.message);
                                 showError(message.message);
                                 break;
                             case 'showNotification':
-                                console.log('[VisbalExt.TestClassExplorerView] Notification:', message.message);
                                 showNotification(message.message);
                                 break;
                             case 'testRunStarted':
@@ -3623,6 +3601,51 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                                 break;
                             case 'openTestFile':
                                 this._openTestFile(message.className, message.methodName);
+                                break;
+                            case 'testRunFinished':
+                            case 'testRunAborted':
+                                abortButton.style.display = 'none';
+                                runSelectedButton.disabled = false;
+                                runAllButton.disabled = false;
+                                break
+                            case 'toggleClassSelection':
+                                const classItem = document.querySelector('[data-class-name="' + message.className + '"]');
+                                if (classItem) {
+                                    const checkbox = classItem.querySelector('input[type="checkbox"]');
+                                    if (checkbox && !message.methodName) {
+                                        checkbox.checked = message.selected ?? !checkbox.checked;
+                                        checkbox.dispatchEvent(new Event('change'));
+                                    }
+
+                                    // Expand the class to show methods
+                                    const expandButton = classItem.querySelector('.expand-button');
+                                    if (expandButton && !classItem.classList.contains('expanded')) {
+                                        expandButton.click();
+                                    }
+
+                                    // If method is specified, select it as well
+                                    if (message.methodName) {
+                                      
+                                         // Check all method checkboxes for this class
+                                        const methodCheckboxes = document.querySelectorAll('.method-checkbox[data-class="' + message.className + '"]');
+                                        methodCheckboxes.forEach(methodCheckbox => {
+                                            const methodName = methodCheckbox.dataset.method;
+                                            if (methodName === message.methodName) {
+                                                methodCheckbox.checked = message.selected ?? !methodCheckbox.checked;
+                                                methodCheckbox.dispatchEvent(new Event('change'));
+                                            }
+                                        });
+
+                                    }
+
+                                    // Scroll into view
+                                    classItem.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                                }
+                                break;
+                            case 'testRunStarted':
+                                abortButton.style.display = 'inline-block';
+                                runSelectedButton.disabled = true;
+                                runAllButton.disabled = true;
                                 break;
                             case 'testRunFinished':
                             case 'testRunAborted':
@@ -3711,6 +3734,7 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                         saveState(); // Save state after selection change
                     };
 
+
                     const originalToggleMethodSelection = toggleMethodSelection;
                     toggleMethodSelection = function(className, methodName, checkbox) {
                         originalToggleMethodSelection(className, methodName, checkbox);
@@ -3763,64 +3787,8 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                         });
                     });
 
-                    // Handle test run state messages
-                    window.addEventListener('message', event => {
-                        const message = event.data;
-                        switch (message.command) {
-                            // ... existing cases ...
-                            case 'testRunStarted':
-                                abortButton.style.display = 'inline-block';
-                                runSelectedButton.disabled = true;
-                                runAllButton.disabled = true;
-                                break;
-                            case 'testRunFinished':
-                            case 'testRunAborted':
-                                abortButton.style.display = 'none';
-                                runSelectedButton.disabled = false;
-                                runAllButton.disabled = false;
-                                break;
-                        }
-                    });
-
-                    // Add handler for toggling class selection
-                    window.addEventListener('message', event => {
-                        const message = event.data;
-                        switch (message.command) {
-                            case 'toggleClassSelection':
-                                const classItem = document.querySelector(\`[data-class-name="\${message.className}"]\`);
-                                if (classItem) {
-                                    const checkbox = classItem.querySelector('input[type="checkbox"]');
-                                    if (checkbox) {
-                                        checkbox.checked = message.selected ?? !checkbox.checked;
-                                        checkbox.dispatchEvent(new Event('change'));
-                                    }
-
-                                    // Expand the class to show methods
-                                    const expandButton = classItem.querySelector('.expand-button');
-                                    if (expandButton && !classItem.classList.contains('expanded')) {
-                                        expandButton.click();
-                                    }
-
-                                    // If method is specified, select it as well
-                                    if (message.methodName) {
-                                        setTimeout(() => {
-                                            const methodItem = document.querySelector(\`[data-method-name="\${message.methodName}"]\`);
-                                            if (methodItem) {
-                                                const methodCheckbox = methodItem.querySelector('input[type="checkbox"]');
-                                                if (methodCheckbox) {
-                                                    methodCheckbox.checked = message.selected ?? !methodCheckbox.checked;
-                                                    methodCheckbox.dispatchEvent(new Event('change'));
-                                                }
-                                            }
-                                        }, 500); // Wait for class expansion
-                                    }
-
-                                    // Scroll into view
-                                    classItem.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                                }
-                                break;
-                        }
-                    });
+					
+					
                 })();
             </script>
         </body>

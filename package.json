@@ -197,8 +197,8 @@
         "category": "Visbal"
       },
       {
-        "command": "visbal-ext.toggleClassSelection",
-        "title": "Toggle Test Class Selection",
+        "command": "visbal-ext.selectTestMethod",
+        "title": "Select Test Method Selection",
         "category": "Visbal"
       }
     ],

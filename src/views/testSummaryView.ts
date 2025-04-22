@@ -110,7 +110,7 @@ export class TestSummaryView implements vscode.WebviewViewProvider {
             const className = test.ApexClass?.Name || test.FullName?.split('.')[0] || '';
             const methodName = test.MethodName || test.methodName;
             if (className) {
-                vscode.commands.executeCommand('visbal-ext.toggleClassSelection', className, methodName, true);
+                vscode.commands.executeCommand('visbal-ext.selectTestMethod', className, methodName, true);
             }
         });
 
@@ -312,7 +312,7 @@ export class TestSummaryView implements vscode.WebviewViewProvider {
                 <div class="summary-item">
                     <span class="label">Total Time:</span>
                     <span class="value">${aggregateSummary.testTotalTime}s</span>
-                </div>C
+                </div>
             </div>
 
             <div class="test-results-grid">
@@ -566,7 +566,7 @@ export class TestSummaryView implements vscode.WebviewViewProvider {
                 }
             </style>
         </head>
-        <body>B
+        <body>
             <div class="progress-container">
                 ${jobResult ? `
                     <div class="progress-item">
