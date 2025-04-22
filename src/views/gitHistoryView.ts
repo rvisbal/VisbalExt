@@ -62,6 +62,19 @@ export class GitHistoryView {
     private async updateContent(filePath: string, startLine: number, endLine: number) {
         try {
             const history = await this.gitService.getHistoryForSelection(filePath, startLine, endLine);
+            //update the history date format to be YYYY-MM-DD HH:MM AM/PM
+            history.forEach(commit => {
+                const date = new Date(commit.date);
+                const year = date.getFullYear();
+                const month = String(date.getMonth() + 1).padStart(2, '0');
+                const day = String(date.getDate()).padStart(2, '0');
+                const time = date.toLocaleString('en-US', { 
+                    hour: 'numeric',
+                    minute: '2-digit',
+                    hour12: true 
+                });
+                commit.date = `${year}-${month}-${day} ${time}`;
+            });
             this._currentHistory = history;
             this._panel.webview.html = this._getWebviewContent(history);
         } catch (error: any) {
@@ -110,11 +123,16 @@ export class GitHistoryView {
                     display: block;
                 }
                 .commit-list {
-                    height: 200px;
+                    height: 250px;
+                    min-height: 100px;
+                    max-height: 80vh;
                     display: flex;
                     flex-direction: column;
                     border-top: 1px solid var(--vscode-panel-border);
                     background-color: var(--vscode-sideBar-background);
+                    position: relative;
+                    resize: vertical;
+                    overflow: auto;
                 }
                 .list-header {
                     display: grid;
@@ -129,6 +147,26 @@ export class GitHistoryView {
                     font-family: var(--vscode-font-family);
                     font-size: var(--vscode-font-size);
                     letter-spacing: 0.04em;
+                    position: relative;
+                    cursor: ns-resize;
+                }
+                .list-header:hover {
+                    background-color: var(--vscode-editorGroupHeader-tabsBackground);
+                    opacity: 0.9;
+                }
+                .list-header::before {
+                    content: '';
+                    position: absolute;
+                    top: 0;
+                    left: 0;
+                    right: 0;
+                    height: 4px;
+                    background: var(--vscode-focusBorder);
+                    opacity: 0;
+                    transition: opacity 0.2s;
+                }
+                .list-header:hover::before {
+                    opacity: 1;
                 }
                 .list-content {
                     overflow-y: auto;
@@ -266,7 +304,7 @@ export class GitHistoryView {
                 </div>
             </div>
             <div class="commit-list">
-                <div class="list-header">
+                <div class="list-header" title="Drag to resize">
                     <div>Version</div>
                     <div>Date</div>
                     <div>Author</div>
@@ -276,7 +314,7 @@ export class GitHistoryView {
                     ${history.map((commit, index) => `
                         <div class="commit-item" data-index="${index}" onclick="selectCommit(${index})">
                             <span class="commit-hash">${commit.hash.substring(0, 7)}</span>
-                            <span class="commit-date">${new Date(commit.date).toLocaleString()}</span>
+                            <span class="commit-date">${commit.date}</span>
                             <span class="commit-author">${commit.author}</span>
                             <span class="commit-message">${commit.message}</span>
                         </div>
@@ -346,6 +384,38 @@ export class GitHistoryView {
                 // Select the first commit by default
                 if (${history.length} > 0) {
                     selectCommit(0);
+                }
+
+                // Add resize functionality
+                const resizer = document.querySelector('.list-header');
+                const commitList = document.querySelector('.commit-list');
+
+                let startY = 0;
+                let startHeight = 0;
+
+                function initResize(e) {
+                    e.preventDefault(); // Prevent text selection while dragging
+                    startY = e.clientY;
+                    startHeight = parseInt(document.defaultView?.getComputedStyle(commitList).height || '250', 10);
+                    
+                    document.documentElement.addEventListener('mousemove', resize);
+                    document.documentElement.addEventListener('mouseup', stopResize);
+                }
+
+                function resize(e) {
+                    const newHeight = startHeight - (e.clientY - startY);
+                    if (commitList && newHeight >= 100 && newHeight <= window.innerHeight * 0.8) {
+                        commitList.style.height = newHeight + 'px';
+                    }
+                }
+
+                function stopResize() {
+                    document.documentElement.removeEventListener('mousemove', resize);
+                    document.documentElement.removeEventListener('mouseup', stopResize);
+                }
+
+                if (resizer) {
+                    resizer.addEventListener('mousedown', initResize);
                 }
             </script>
         </body>
