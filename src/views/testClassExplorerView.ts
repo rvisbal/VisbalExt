@@ -126,6 +126,27 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
             OrgUtils.logError('[VisbalExt.TestClassExplorerView] constructor -- Failed to initialize Salesforce API', error);
             vscode.window.showErrorMessage('Failed to initialize Salesforce API service');
         });
+
+        // Register command for toggling class selection
+        this._context.subscriptions.push(
+            vscode.commands.registerCommand('visbal-ext.toggleClassSelection', async (className: string, methodName?: string, selected?: boolean) => {
+                if (!this._view) return;
+
+                // Ensure the test class is loaded
+                //await this._fetchTestClasses(false, true);
+
+                // Post message to webview to toggle selection
+                this._view.webview.postMessage({
+                    command: 'toggleClassSelection',
+                    className: className,
+                    methodName: methodName,
+                    selected: selected
+                });
+
+                // Show the view
+                this._view.show(true);
+            })
+        );
     }
 
     public resolveWebviewView(
@@ -3757,6 +3778,46 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                                 abortButton.style.display = 'none';
                                 runSelectedButton.disabled = false;
                                 runAllButton.disabled = false;
+                                break;
+                        }
+                    });
+
+                    // Add handler for toggling class selection
+                    window.addEventListener('message', event => {
+                        const message = event.data;
+                        switch (message.command) {
+                            case 'toggleClassSelection':
+                                const classItem = document.querySelector(\`[data-class-name="\${message.className}"]\`);
+                                if (classItem) {
+                                    const checkbox = classItem.querySelector('input[type="checkbox"]');
+                                    if (checkbox) {
+                                        checkbox.checked = message.selected ?? !checkbox.checked;
+                                        checkbox.dispatchEvent(new Event('change'));
+                                    }
+
+                                    // Expand the class to show methods
+                                    const expandButton = classItem.querySelector('.expand-button');
+                                    if (expandButton && !classItem.classList.contains('expanded')) {
+                                        expandButton.click();
+                                    }
+
+                                    // If method is specified, select it as well
+                                    if (message.methodName) {
+                                        setTimeout(() => {
+                                            const methodItem = document.querySelector(\`[data-method-name="\${message.methodName}"]\`);
+                                            if (methodItem) {
+                                                const methodCheckbox = methodItem.querySelector('input[type="checkbox"]');
+                                                if (methodCheckbox) {
+                                                    methodCheckbox.checked = message.selected ?? !methodCheckbox.checked;
+                                                    methodCheckbox.dispatchEvent(new Event('change'));
+                                                }
+                                            }
+                                        }, 500); // Wait for class expansion
+                                    }
+
+                                    // Scroll into view
+                                    classItem.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                                }
                                 break;
                         }
                     });

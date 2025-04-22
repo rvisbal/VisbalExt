@@ -25,6 +25,9 @@ interface TestResult {
     FullName?: string;
     TestRunId?: string;
     TestRunResultId?: string;
+    ApexClass?: {
+        Name: string;
+    };
 }
 
 interface TestSummary {
@@ -101,6 +104,15 @@ export class TestSummaryView implements vscode.WebviewViewProvider {
         OrgUtils.logDebug('[VisbalExt.TestSummaryView] updateSummary -- tests:', tests);
         const failedTests = tests.filter(test => test.Outcome?.toLowerCase() === 'fail' || test.outcome?.toLowerCase() === 'fail');
         OrgUtils.logDebug('[VisbalExt.TestSummaryView] _getWebviewContent -- failedTests:', failedTests);
+
+        // Update test selection for failing tests
+        failedTests.forEach(test => {
+            const className = test.ApexClass?.Name || test.FullName?.split('.')[0] || '';
+            const methodName = test.MethodName || test.methodName;
+            if (className) {
+                vscode.commands.executeCommand('visbal-ext.toggleClassSelection', className, methodName, true);
+            }
+        });
 
         if (this._view) {
             // Check if we have multiple summaries

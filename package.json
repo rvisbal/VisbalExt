@@ -195,6 +195,11 @@
         "command": "visbal-ext.showGitHistoryForSelection",
         "title": "Show Git History for Selection",
         "category": "Visbal"
+      },
+      {
+        "command": "visbal-ext.toggleClassSelection",
+        "title": "Toggle Test Class Selection",
+        "category": "Visbal"
       }
     ],
     "menus": {
