@@ -91,10 +91,13 @@ export class GitHistoryView {
                     margin: 0;
                     color: var(--vscode-editor-foreground);
                     background-color: var(--vscode-editor-background);
-                    font-family: var(--vscode-font-family);
+                    font-family: var(--vscode-editor-font-family);
+                    font-size: var(--vscode-editor-font-size);
+                    -webkit-font-smoothing: antialiased;
                     height: 100vh;
                     display: flex;
                     flex-direction: column;
+                    line-height: 1.4;
                 }
                 .diff-view {
                     flex: 1;
@@ -120,9 +123,12 @@ export class GitHistoryView {
                     padding: 8px 10px;
                     background-color: var(--vscode-editorGroupHeader-tabsBackground);
                     border-bottom: 1px solid var(--vscode-panel-border);
-                    font-weight: bold;
+                    font-weight: 600;
                     color: var(--vscode-sideBarSectionHeader-foreground);
                     flex-shrink: 0;
+                    font-family: var(--vscode-font-family);
+                    font-size: var(--vscode-font-size);
+                    letter-spacing: 0.04em;
                 }
                 .list-content {
                     overflow-y: auto;
@@ -136,6 +142,9 @@ export class GitHistoryView {
                     grid-template-columns: 100px 150px 150px 1fr;
                     gap: 10px;
                     align-items: center;
+                    font-family: var(--vscode-editor-font-family);
+                    font-size: var(--vscode-editor-font-size);
+                    line-height: 1.4;
                 }
                 .commit-item:hover {
                     background-color: var(--vscode-list-hoverBackground);
@@ -151,26 +160,26 @@ export class GitHistoryView {
                 }
                 .commit-hash {
                     font-family: var(--vscode-editor-font-family);
+                    font-size: var(--vscode-editor-font-size);
                     color: var(--vscode-textPreformat-foreground);
+                    font-weight: normal;
                 }
-                .commit-date {
+                .commit-date, .commit-author {
+                    font-family: var(--vscode-font-family);
+                    font-size: var(--vscode-font-size);
                     color: var(--vscode-descriptionForeground);
-                }
-                .commit-author {
-                    color: var(--vscode-descriptionForeground);
-                    white-space: nowrap;
-                    overflow: hidden;
-                    text-overflow: ellipsis;
                 }
                 .commit-message {
-                    flex: 1;
-                    padding-left: 1em;
+                    font-family: var(--vscode-font-family);
+                    font-size: var(--vscode-font-size);
+                    color: var(--vscode-foreground);
                 }
                 .diff-container {
                     display: flex;
                     height: 100%;
                     font-family: var(--vscode-editor-font-family);
                     font-size: var(--vscode-editor-font-size);
+                    background-color: var(--vscode-editor-background);
                 }
                 .diff-side {
                     flex: 1;
@@ -185,50 +194,61 @@ export class GitHistoryView {
                     position: sticky;
                     top: 0;
                     z-index: 1;
-                    padding: 5px 10px;
-                    background-color: var(--vscode-editor-background);
+                    padding: 8px 12px;
+                    background-color: var(--vscode-editorGroupHeader-tabsBackground);
                     border-bottom: 1px solid var(--vscode-panel-border);
                     font-family: var(--vscode-font-family);
+                    font-size: var(--vscode-font-size);
                     color: var(--vscode-descriptionForeground);
+                    font-weight: 500;
                 }
                 .diff-content {
-                    padding: 0 10px;
+                    padding: 0;
+                    font-family: "JetBrains Mono", Consolas, "Courier New", monospace;
+                    font-size: 13px;
+                    line-height: 1.5;
                 }
                 .line {
                     display: flex;
-                    min-height: 20px;
-                    line-height: 20px;
-                    font-family: var(--vscode-editor-font-family);
-                    font-size: var(--vscode-editor-font-size);
+                    min-height: 21px;
+                    line-height: 21px;
+                    font-family: inherit;
+                    font-size: inherit;
                     white-space: pre;
-                    padding: 1px 0;
+                    width: 100%;
+                    box-sizing: border-box;
                 }
                 .line:hover {
                     background-color: var(--vscode-editor-hoverHighlightBackground);
                 }
                 .line-number {
+                    font-family: inherit;
+                    font-size: inherit;
                     color: var(--vscode-editorLineNumber-foreground);
                     text-align: right;
-                    padding-right: 1em;
-                    min-width: 3em;
+                    padding: 0 1em;
+                    min-width: 4ch;
+                    background-color: var(--vscode-editor-background);
+                    border-right: 1px solid var(--vscode-panel-border);
                     user-select: none;
                     opacity: 0.7;
                 }
                 .line-content {
-                    flex: 1;
-                    padding-left: 1em;
+                    padding: 0 0.5em;
+                    font-family: inherit;
+                    font-size: inherit;
                 }
                 .addition {
-                    background-color: var(--vscode-diffEditor-insertedLineBackground);
+                    background-color: rgba(40, 200, 40, 0.15);
                 }
                 .addition:hover {
-                    background-color: var(--vscode-diffEditor-insertedTextBackground);
+                    background-color: rgba(40, 200, 40, 0.25);
                 }
                 .deletion {
-                    background-color: var(--vscode-diffEditor-removedLineBackground);
+                    background-color: rgba(200, 40, 40, 0.15);
                 }
                 .deletion:hover {
-                    background-color: var(--vscode-diffEditor-removedTextBackground);
+                    background-color: rgba(200, 40, 40, 0.25);
                 }
             </style>
         </head>
