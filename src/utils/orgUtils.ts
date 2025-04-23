@@ -361,6 +361,16 @@ export class OrgUtils {
         return result;
     }
 
+
+    public static async openTheLogFromTestId(testId: string) {
+        const logId = await this.getLogId(testId);
+        if (logId) {
+            await this.openLog(logId, vscode.Uri.file(logId), 'overview');
+        }
+
+    }
+
+
     public static async getLogId(testId: string): Promise<string> {
         let result = '';
         try {

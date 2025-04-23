@@ -15,6 +15,7 @@ interface TestResult {
     Message?: string;
     StackTrace?: string;
     Duration?: string;
+    Id?: string;
     // camelCase versions (from internal usage)
     methodName?: string;
     outcome?: string;
@@ -100,12 +101,22 @@ export class TestSummaryView implements vscode.WebviewViewProvider {
             switch (message.command) {
                 case 'openTestFile':
                     try {
+                        OrgUtils.logDebug(`[VisbalExt.TestSummaryView] openTestFile.openTestFile -- className: ${message.className} -- methodName: ${message.methodName}`);
                         await OrgUtils.openTestFile(message.className, message.methodName);
                     } catch (error: any) {
                         OrgUtils.logError('[VisbalExt.TestSummaryView] Error opening test file:', error);
                         vscode.window.showErrorMessage(`Error opening test file: ${error.message}`);
                     }
                     break;
+                case 'openLogFile':
+                    try {
+                        OrgUtils.logDebug('[VisbalExt.TestSummaryView] openLogFile.openTheLogFromTestId -- testId:', message.testId);
+                        await OrgUtils.openTheLogFromTestId(message.testId);
+                    } catch (error: any) {
+                        OrgUtils.logError('[VisbalExt.TestSummaryView] Error opening log file:', error);
+                        vscode.window.showErrorMessage(`Error opening log file: ${error.message}`);
+                    }
+                    break;  
             }
         });
 
@@ -303,6 +314,12 @@ export class TestSummaryView implements vscode.WebviewViewProvider {
                 .test-name:hover {
                     text-decoration: underline;
                 }
+                .clickable {
+                    cursor: pointer;
+                }
+                .clickable:hover {
+                    background-color: var(--vscode-list-hoverBackground);
+                }
             </style>
             <script>
                 const vscode = acquireVsCodeApi();
@@ -312,6 +329,13 @@ export class TestSummaryView implements vscode.WebviewViewProvider {
                         command: 'openTestFile',
                         className: className,
                         methodName: methodName
+                    });
+                }
+
+                function openLogFile(testId) {
+                    vscode.postMessage({
+                        command: 'openLogFile',
+                        testId: testId
                     });
                 }
             </script>
@@ -362,10 +386,10 @@ export class TestSummaryView implements vscode.WebviewViewProvider {
 
                     return `
                     <div class="test-result">
-                        <div class="header failure">
+                        <div class="header failure clickable" onclick="openTestFile('${className}', '')">
                             <span class="test-name" onclick="openTestFile('${className}', '${methodName}')">${test.FullName || 'Unknown Test'}</span>
                         </div>
-                        <div class="content">
+                        <div class="content clickable" onclick="openLogFile('${test.Id}')">
                             <div class="summary-item">
                                 <span class="label">Status:</span>
                                 <span class="value failure">${test.Outcome || 'Failed'}</span>
@@ -465,6 +489,12 @@ export class TestSummaryView implements vscode.WebviewViewProvider {
                 .test-name:hover {
                     text-decoration: underline;
                 }
+                .clickable {
+                    cursor: pointer;
+                }
+                .clickable:hover {
+                    background-color: var(--vscode-list-hoverBackground);
+                }
             </style>
             <script>
                 const vscode = acquireVsCodeApi();
@@ -474,6 +504,13 @@ export class TestSummaryView implements vscode.WebviewViewProvider {
                         command: 'openTestFile',
                         className: className,
                         methodName: methodName
+                    });
+                }
+
+                function openLogFile(testId) {
+                    vscode.postMessage({
+                        command: 'openLogFile',
+                        testId: testId
                     });
                 }
             </script>
@@ -556,15 +593,15 @@ export class TestSummaryView implements vscode.WebviewViewProvider {
                     return `
                     <div class="test-result">
                         <span class="label">Class:</span>
-                        <span class="test-name" onclick="openTestFile('${className}', '${methodName}')">${test.FullName}</span>
-                        ${formattedMessage ? `
-                            <span class="label">Error Message:</span>
-                            <div class="error-message">${formattedMessage}</div>
-                        ` : ''}
-                        ${formattedStackTrace ? `
-                            <span class="label">Stack Trace:</span>
-                            <div class="stack-trace">${formattedStackTrace}</div>
-                        ` : ''}
+                        <span class="test-name clickable" onclick="openTestFile('${className}', '${methodName}')">${test.FullName}</span>
+                        <div class="content clickable" onclick="openLogFile('${test.Id}')">
+                            ${formattedMessage ? `
+                                <div class="error-message">${formattedMessage}</div>
+                            ` : ''}
+                            ${formattedStackTrace ? `
+                                <div class="stack-trace" >${formattedStackTrace}</div>
+                            ` : ''}
+                        </div>
                     </div>
                 `}).join('')}
             </div>
@@ -639,7 +676,7 @@ export class TestSummaryView implements vscode.WebviewViewProvider {
                 ${progress.map(p => {
                     return `
                         <div class="progress-item">     
-                            <span class="label">${p.ApexClassName}</span>
+                            <span class="label"  onclick="openTestFile('${p.ApexClassName}', '', event)">${p.ApexClassName}</span>
                             <span class="value ${p.Status === 'Completed' && p.ExtendedStatus?.includes('failed=') ? 'failure' : p.Status === 'Completed' ? 'success' : p.Status === 'Processing' ? 'processing' : p.Status === 'Running' ? 'running' : p.Status === 'Queued' ? 'queued' : 'failure'}">${p.Status}</span>
                             ${p.ExtendedStatus ? `<span class="value">${p.ExtendedStatus}</span>` : ''}
                         </div>
