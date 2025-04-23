@@ -505,20 +505,27 @@ export class TestSummaryView implements vscode.WebviewViewProvider {
                 .collapse-icon {
                     margin-right: 8px;
                     color: var(--vscode-foreground);
-                    font-size: 12px;
-                    width: 16px;
-                    height: 16px;
+                    font-size: 10px;
+                    min-width: 12px;
+                    width: 12px;
+                    height: 12px;
                     display: flex;
                     align-items: center;
                     justify-content: center;
                     border: 1px solid var(--vscode-foreground);
-                    border-radius: 3px;
+                    border-radius: 2px;
+                    line-height: 12px;
+                    flex-shrink: 0;
                 }
                 .test-result.expanded .collapse-icon::before {
-                    content: '-';
+                    content: '─';
+                    position: relative;
+                    top: -1px;
                 }
                 .collapse-icon::before {
                     content: '+';
+                    position: relative;
+                    top: -1px;
                 }
                 .test-result:hover {
                     background-color: var(--vscode-list-hoverBackground);
@@ -539,6 +546,9 @@ export class TestSummaryView implements vscode.WebviewViewProvider {
                     color: var(--vscode-textLink-foreground);
                     text-decoration: none;
                     font-size: 12px;
+                    overflow: hidden;
+                    text-overflow: ellipsis;
+                    white-space: nowrap;
                 }
                 .test-name:hover {
                     text-decoration: underline;
@@ -653,7 +663,7 @@ export class TestSummaryView implements vscode.WebviewViewProvider {
                     return `
                     <div class="test-result" onclick="toggleCollapse(this)">
                         <div class="header failure clickable">
-                            <div style="display: flex; align-items: center;">
+                            <div style="display: flex; align-items: center; min-width: 0;">
                                 <span class="collapse-icon"></span>
                                 <span class="test-name" onclick="openTestFile('${className}', '${methodName}', event)">${test.FullName}</span>
                             </div>
