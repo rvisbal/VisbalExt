@@ -135,8 +135,8 @@ export class TestSummaryView implements vscode.WebviewViewProvider {
             const className = test.ApexClass?.Name || test.FullName?.split('.')[0] || '';
             const methodName = test.MethodName || test.methodName;
             OrgUtils.logDebug(`[VisbalExt.TestSummaryView] updateSummary selectTestMethod -- className:${className} -- methodName:${methodName}`);
-            if (className) {
-                vscode.commands.executeCommand('visbal-ext.selectTestMethod', className, methodName, true);
+            if (className && methodName) {
+                OrgUtils.selectTestMethod( className, methodName);
             }
         });
 
@@ -215,9 +215,8 @@ export class TestSummaryView implements vscode.WebviewViewProvider {
         failedTests.forEach(test => {
             const className = test.ApexClass?.Name || test.FullName?.split('.')[0] || '';
             const methodName = test.MethodName || test.methodName;
-            OrgUtils.logDebug(`[VisbalExt.TestSummaryView] _getWebviewContentForMultipleTests selectTestMethod -- className:${className} -- methodName:${methodName}`);
-            if (className) {
-                vscode.commands.executeCommand('visbal-ext.selectTestMethod', className, methodName, true);
+            if (className && methodName) {
+                OrgUtils.selectTestMethod(className, methodName);
             }
         });
 

@@ -135,10 +135,17 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
 
                 // Ensure the test class is loaded
                 //await this._fetchTestClasses(false, true);
-                
                 // Post message to webview to toggle selection
                 this._view.webview.postMessage({
                     command: 'toggleClassSelection',
+                    className: className,
+                    methodName: methodName,
+                    selected: selected
+                });
+
+                // Post message to webview to toggle selection
+                this._view.webview.postMessage({
+                    command: 'selectTestMethod',
                     className: className,
                     methodName: methodName,
                     selected: selected
@@ -1750,7 +1757,7 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                             } else if (t.Outcome === 'Fail' || t.Outcome === 'Failed') {
                                 progress.status = TestStatus.failed;
                                 OrgUtils.logDebug(`[VisbalExt.TestClassExplorerView] _runTestSelectedSequentially selectTestMethod -- className:${className} -- methodName:${ t.MethodName}`);
-                                vscode.commands.executeCommand('visbal-ext.selectTestMethod', className, t.MethodName, true);
+                                OrgUtils.selectTestMethod( className, t.MethodName);
                             }
                             OrgUtils.logDebug(`[VisbalExt.TestClassExplorerView] _runTestSelectedSequentially -- updateMethodStatus -- iteration:${countIteration} className:${className} methodName:${t.MethodName} status:${progress.status} logId:${progress.logId}`);
                             this._testRunResultsView.updateMethodStatus(className, t.MethodName, progress.status, progress.logId);
@@ -2080,6 +2087,7 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
         try {
             OrgUtils.logDebug('[VisbalExt.TestClassExplorerView] _runAllTests -- runMode:', runMode);
 
+
             // Clear previous test runs from the results view
             this._testRunResultsView.clearResults();
             this._testSummaryView.clearView();
@@ -2104,7 +2112,7 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
 
             // Execute all tests
             const runTest  = await this._sfdxService.runAllTests();
-            OrgUtils.logDebug('[VisbalExt.TestClassExplorerView] _runManyTes -- testRunId:', runTest.testRunId);  
+            OrgUtils.logDebug('[VisbalExt.TestClassExplorerView] _runAllTests -- testRunId:', runTest.testRunId);  
             //#region COLLECT_TEST_RESULTS_ALL_RUNN
             let countIteration = 0;
             let allTestCompleted = false;
@@ -2172,7 +2180,7 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                             } else if (r.Outcome === 'Fail' || r.Outcome === 'Failed') {
                                 testStatus = TestStatus.failed;
                                 OrgUtils.logDebug(`[VisbalExt.TestRunResultsProvider] _runAllTests selectTestMethod -- className:${className} -- methodName:${r.MethodName}`);
-                                vscode.commands.executeCommand('visbal-ext.selectTestMethod', className, r.MethodName, true);
+                                OrgUtils.selectTestMethod(className, r.MethodName);
                             }
                             this._testRunResultsView.updateMethodStatus(className, r.MethodName, testStatus, r.ApexLogId);
                         }
@@ -2218,30 +2226,14 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                 } else if (t.Outcome === 'Fail' || t.Outcome === 'Failed') {
                     testStatus= TestStatus.failed;
                     OrgUtils.logDebug(`[VisbalExt.TestClassExplorerView] _runAllTests selectTestMethod -- className:${t.ApexClass.Name} -- methodName:${ t.MethodName}`);
-                    vscode.commands.executeCommand('visbal-ext.selectTestMethod', t.ApexClass.Name, t.MethodName, true);
+                    OrgUtils.selectTestMethod(t.ApexClass.Name, t.MethodName);
                 }
                 testIds.push(t.Id);
                 this._testRunResultsView.updateMethodStatus(t.ApexClass.Name, t.MethodName, testStatus, '' );
             }
 
+ 
             /*
-            //const logIds = await this._sfdxService.getTestLogId(testRunId);
-            const testIdsString = testIds.map(id => `'${id}'`).join(', ');
-            const apiResult = await this._sfdxService.executeSoqlQuery(`SELECT Id, ApexClass.Name, MethodName, Message, StackTrace, Outcome, ApexLogId FROM ApexTestResult WHERE Id IN (${testIdsString})`);
-            if (apiResult.length > 0) {
-                for (const t of apiResult) {
-                    OrgUtils.logDebug('[VisbalExt.TestClassExplorerView] _runAllTests -- t:', t);
-                    let testStatus = TestStatus.running;
-                    if (t.Outcome === 'Pass' || t.Outcome === 'Passed') {
-                        testStatus = TestStatus.success;
-                    } else if (t.Outcome === 'Fail' || t.Outcome === 'Failed') {
-                        testStatus= TestStatus.failed;
-                    }
-                    this._testRunResultsView.updateMethodStatus(t.ApexClass.Name, t.MethodName, testStatus, t.ApexLogId);
-                }       
-            }
-            */
-
             this._testSummaryView.clearView();
 
             this._testSummaryView.updateSummary(testRunResult.summary, testRunResult.tests);
@@ -2250,6 +2242,7 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                     command: 'finish'
                 });
             }
+                */
             //#endregion COLLECT_TEST_RESULTS_ALL_RUNN
           
         } catch (error: any) {
@@ -3614,7 +3607,21 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                                 abortButton.style.display = 'none';
                                 runSelectedButton.disabled = false;
                                 runAllButton.disabled = false;
-                                break
+                                break;
+                            case 'selectTestMethod':
+                                const key = message.className + '.' + message.methodName;
+                                if (!selectedTests.classes) {
+                                    selectedTests.classes = {};
+                                }
+                                if (!selectedTests.methods) {
+                                    selectedTests.methods = {};
+                                }
+                                if (!selectedTests.methods[key]) {
+                                    selectedTests.methods[key] = true;
+                                    selectedTests.count++;
+                                    saveState();
+                                }
+                                break;
                             case 'toggleClassSelection':
                                 const classItem = document.querySelector('[data-class-name="' + message.className + '"]');
                                 if (classItem) {
@@ -3644,7 +3651,8 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                                         });
 
                                     }
-                                     if (!message.methodName) {
+
+                                    if (!message.methodName) {
                                         // Scroll into view
                                         classItem.scrollIntoView({ behavior: 'smooth', block: 'center' });
                                     }

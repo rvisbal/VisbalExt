@@ -258,7 +258,7 @@ export class TestRunResultsProvider implements vscode.TreeDataProvider<TestItem>
                     classItem.updateStatus(newStatus);
                     if (newStatus === 'failed') {
                         OrgUtils.logDebug(`[VisbalExt.TestRunResultsProvider] updateMethodStatus selectTestMethod -- className:${className} -- methodName:${methodName}`);
-                        vscode.commands.executeCommand('visbal-ext.selectTestMethod', className, methodName, true);
+                        OrgUtils.selectTestMethod(className, methodName);
                     }
                 }
                 

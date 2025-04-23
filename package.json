@@ -276,12 +276,18 @@
           "type": "boolean",
           "default": false,
           "description": "Enable/disable manual test execution"
-        }
-        ,
+        },
         "visbal.apexLog.defaultView": {
           "type": "string",
           "default": "user_debug",
           "description": "default view for log analyzer"
+        },
+        "visbal.selectedTests": {
+          "type": "object",
+          "default": {
+            "methods": {}
+          },
+          "description": "Selected test methods for tracking failed tests"
         }
       }
     }

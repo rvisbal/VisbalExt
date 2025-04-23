@@ -45,6 +45,9 @@ interface TraceFlag {
     DebugLevelId: string;
 }
 
+interface SelectedTestsConfig {
+    methods: { [key: string]: boolean };
+}
 
 export class OrgUtils {
     private static _downloadedLogs: Set<string> = new Set<string>();
@@ -715,6 +718,13 @@ export class OrgUtils {
             // Set the cursor at the method
             editor.selection = new vscode.Selection(position, position);
         }
+    }
+
+
+    public static async selectTestMethod(className: string, methodName: string): Promise<void> {
+        vscode.commands.executeCommand('visbal-ext.selectTestMethod', className, methodName, true);
+        const key = className + '.' + methodName;
+        OrgUtils.logDebug(`[VisbalExt.OrgUtils] selectTestMethod -- Updated configuration for ${key}`);
     }
 
 } 
