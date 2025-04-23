@@ -676,12 +676,24 @@ export class TestSummaryView implements vscode.WebviewViewProvider {
                     color: var(--vscode-testing-iconRunning);
                 }
                 .processing {
-                    color: var(--vscode-foreground);
+                    color: #e2c62c;
                 }
                 .queued {
                     color: var(--vscode-foreground);
                 }
             </style>
+            <script>
+                const vscode = acquireVsCodeApi();
+                
+                function openTestFile(className, methodName) {
+                    vscode.postMessage({
+                        command: 'openTestFile',
+                        className: className,
+                        methodName: methodName
+                    });
+                }
+
+            </script>
         </head>
         <body>
             <div class="progress-container">
@@ -700,8 +712,11 @@ export class TestSummaryView implements vscode.WebviewViewProvider {
                 ${progress.map(p => {
                     return `
                         <div class="progress-item">     
-                            <span class="label" onclick="openTestFile('${p.ApexClassName}', '', event)">${p.ApexClassName}</span>
-                            <span class="value ${p.Status === 'Completed' && (p.ExtendedStatus?.includes('failed=') || (jobResult && jobResult.MethodsFailed > 0)) ? 'failure' : p.Status === 'Completed' ? 'success' : p.Status === 'Processing' ? 'processing' : p.Status === 'Running' ? 'running' : p.Status === 'Queued' ? 'queued' : 'failure'}">${p.Status}</span>
+                            <span class="label" onclick="openTestFile('${p.ApexClassName}', '')">${p.ApexClassName}</span>
+                            <span class="value ${p.Status === 'Completed' && p.ExtendedStatus ? (() => {
+                                const [passed, total] = p.ExtendedStatus.split('/').map(n => parseInt(n));
+                                return passed < total ? 'failure' : 'success';
+                            })() : p.Status === 'Processing' ? 'processing' : p.Status === 'Running' ? 'running' : p.Status === 'Queued' ? 'queued' : 'failure'}">${p.Status}</span>
                             ${p.ExtendedStatus ? `<span class="value">${p.ExtendedStatus}</span>` : ''}
                         </div>
                     `;
