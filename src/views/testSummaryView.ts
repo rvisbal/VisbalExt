@@ -470,6 +470,47 @@ export class TestSummaryView implements vscode.WebviewViewProvider {
                     border: 1px solid var(--vscode-panel-border);
                     border-radius: 4px;
                 }
+                .test-result .content {
+                    display: none;
+                    margin-top: 10px;
+                    padding-top: 10px;
+                }
+                .test-result.expanded .content {
+                    display: block;
+                }
+                .error-message {
+                    color: var(--vscode-testing-message-error-foreground);
+                    margin: 7px 0;
+                    padding: 7px;
+                    background-color: var(--vscode-testing-message-error-background);
+                    border-radius: 4px;
+                }
+                .stack-trace {
+                    margin: 7px 0;
+                    padding: 7px;
+                    background-color: var(--vscode-editor-background);
+                    border-radius: 4px;
+                    font-family: var(--vscode-editor-font-family);
+                    white-space: pre-wrap;
+                    max-height: 150px;
+                    overflow-y: auto;
+                    border: 1px solid var(--vscode-panel-border);
+                }
+                .section-label {
+                    color: var(--vscode-descriptionForeground);
+                    font-weight: bold;
+                    margin: 7px 0 8px 0;
+                    padding-bottom: 5px;
+                }
+                .collapse-icon {
+                    margin-right: 8px;
+                    color: var(--vscode-foreground);
+                    font-size: 12px;
+                    transition: transform 0.2s;
+                }
+                .test-result.expanded .collapse-icon {
+                    transform: rotate(90deg);
+                }
                 .test-result:hover {
                     background-color: var(--vscode-list-hoverBackground);
                 }
@@ -484,34 +525,11 @@ export class TestSummaryView implements vscode.WebviewViewProvider {
                     white-space: pre-wrap;
                     font-family: var(--vscode-editor-font-family);
                 }
-                .error-message {
-                    color: var(--vscode-testing-message-error-foreground);
-                    margin: 7px 0;
-                    padding: 5px;
-                    background-color: var(--vscode-testing-message-error-background);
-                    border-radius: 4px;
-                }
-                .stack-trace {
-                    margin: 7px 0;
-                    padding: 7px;
-                    background-color: var(--vscode-editor-background);
-                    border-radius: 4px;
-                    font-family: var(--vscode-editor-font-family);
-                    white-space: pre-wrap;
-                    max-height: 200px;
-                    overflow-y: auto;
-                    border: 1px solid var(--vscode-panel-border);
-                }
-                .section-label {
-                    color: var(--vscode-descriptionForeground);
-                    font-weight: bold;
-                    margin: 7px 0 7px 0;
-                    padding-bottom: 5px;
-                }
                 .test-name {
                     cursor: pointer;
                     color: var(--vscode-textLink-foreground);
                     text-decoration: none;
+                    font-size: 12px;
                 }
                 .test-name:hover {
                     text-decoration: underline;
@@ -526,7 +544,8 @@ export class TestSummaryView implements vscode.WebviewViewProvider {
             <script>
                 const vscode = acquireVsCodeApi();
                 
-                function openTestFile(className, methodName) {
+                function openTestFile(className, methodName, event) {
+                    event.stopPropagation();
                     vscode.postMessage({
                         command: 'openTestFile',
                         className: className,
@@ -534,11 +553,16 @@ export class TestSummaryView implements vscode.WebviewViewProvider {
                     });
                 }
 
-                function openLogFile(testId) {
+                function openLogFile(testId, event) {
+                    event.stopPropagation();
                     vscode.postMessage({
                         command: 'openLogFile',
                         testId: testId
                     });
+                }
+
+                function toggleCollapse(element) {
+                    element.classList.toggle('expanded');
                 }
             </script>
         </head>
@@ -618,11 +642,14 @@ export class TestSummaryView implements vscode.WebviewViewProvider {
                     const methodName = test.MethodName || test.methodName || '';
                     
                     return `
-                    <div class="test-result">
-                        <div class="header failure clickable" onclick="openTestFile('${className}', '')">
-                            <span class="test-name" onclick="openTestFile('${className}', '${methodName}')">${test.FullName}</span>
+                    <div class="test-result" onclick="toggleCollapse(this)">
+                        <div class="header failure clickable">
+                            <div style="display: flex; align-items: center;">
+                                <span class="collapse-icon">▶</span>
+                                <span class="test-name" onclick="openTestFile('${className}', '${methodName}', event)">${test.FullName}</span>
+                            </div>
                         </div>
-                        <div class="content clickable" onclick="openLogFile('${test.Id}')">
+                        <div class="content clickable" onclick="openLogFile('${test.Id}', event)">
                             ${formattedMessage ? `
                                 <div class="section-label">Error Message</div>
                                 <div class="error-message">${formattedMessage}</div>
