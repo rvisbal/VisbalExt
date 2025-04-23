@@ -658,9 +658,13 @@ export class TestSummaryView implements vscode.WebviewViewProvider {
                 .label {
                     color: var(--vscode-descriptionForeground);
                     margin-right: 10px;
+                    flex: 1;
                 }   
                 .value {
                     color: var(--vscode-foreground);
+                    min-width: 80px;
+                    text-align: right;
+                    margin-left: 10px;
                 }
                 .success {
                     color: var(--vscode-testing-iconPassed);
@@ -696,8 +700,8 @@ export class TestSummaryView implements vscode.WebviewViewProvider {
                 ${progress.map(p => {
                     return `
                         <div class="progress-item">     
-                            <span class="label"  onclick="openTestFile('${p.ApexClassName}', '', event)">${p.ApexClassName}</span>
-                            <span class="value ${p.Status === 'Completed' && p.ExtendedStatus?.includes('failed=') ? 'failure' : p.Status === 'Completed' ? 'success' : p.Status === 'Processing' ? 'processing' : p.Status === 'Running' ? 'running' : p.Status === 'Queued' ? 'queued' : 'failure'}">${p.Status}</span>
+                            <span class="label" onclick="openTestFile('${p.ApexClassName}', '', event)">${p.ApexClassName}</span>
+                            <span class="value ${p.Status === 'Completed' && (p.ExtendedStatus?.includes('failed=') || (jobResult && jobResult.MethodsFailed > 0)) ? 'failure' : p.Status === 'Completed' ? 'success' : p.Status === 'Processing' ? 'processing' : p.Status === 'Running' ? 'running' : p.Status === 'Queued' ? 'queued' : 'failure'}">${p.Status}</span>
                             ${p.ExtendedStatus ? `<span class="value">${p.ExtendedStatus}</span>` : ''}
                         </div>
                     `;
