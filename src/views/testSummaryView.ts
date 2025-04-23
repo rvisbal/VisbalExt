@@ -127,7 +127,7 @@ export class TestSummaryView implements vscode.WebviewViewProvider {
     public updateSummary(summary: TestSummary | TestSummary[], tests: TestResult[]) {
         OrgUtils.logDebug('[VisbalExt.TestSummaryView] updateSummary -- summary:', summary);
         OrgUtils.logDebug('[VisbalExt.TestSummaryView] updateSummary -- tests:', tests);
-        const failedTests = tests.filter(test => test.Outcome?.toLowerCase() === 'fail' || test.outcome?.toLowerCase() === 'fail');
+        const failedTests = tests.filter(test => test.Outcome?.toLowerCase() === 'fail' || test.outcome?.toLowerCase() === 'failed');
         OrgUtils.logDebug('[VisbalExt.TestSummaryView] updateSummary _getWebviewContent -- failedTests:', failedTests);
 
         // Update test selection for failing tests
@@ -208,7 +208,7 @@ export class TestSummaryView implements vscode.WebviewViewProvider {
         const failRate = totalTests > 0 ? ((aggregateSummary.failing / totalTests) * 100).toFixed(1) + '%' : '0%';
 
         //test filter for failed tests
-        const failedTests = tests.filter(test => test.Outcome?.toLowerCase() === 'fail' || test.outcome?.toLowerCase() === 'fail');
+        const failedTests = tests.filter(test => test.Outcome?.toLowerCase() === 'fail' || test.outcome?.toLowerCase() === 'failed');
         OrgUtils.logDebug('[VisbalExt.TestSummaryView] _getWebviewContentForMultipleTests -- failedTests:', failedTests);
         
         // Update test selection for failing tests
@@ -427,7 +427,7 @@ export class TestSummaryView implements vscode.WebviewViewProvider {
     }
 
     private _getWebviewContent(summary: TestSummary, tests: TestResult[]): string {
-        const failedTests = tests.filter(test => test.Outcome?.toLowerCase() === 'fail' || test.outcome?.toLowerCase() === 'fail');
+        const failedTests = tests.filter(test => test.Outcome?.toLowerCase() === 'fail' || test.outcome?.toLowerCase() === 'failed');
         OrgUtils.logDebug('[VisbalExt.TestSummaryView] _getWebviewContent -- failedTests:', failedTests);
         return `<!DOCTYPE html>
         <html lang="en">
@@ -546,7 +546,7 @@ export class TestSummaryView implements vscode.WebviewViewProvider {
             <div class="summary-container">
                 <div class="summary-item">
                     <span class="label">Outcome:</span>
-                    <span class="value ${summary.outcome?.toLowerCase() === 'fail' ? 'failure' : 'success'}">${summary.outcome || 'N/A'}</span>
+                    <span class="value ${(summary.outcome?.toLowerCase() === 'fail' || summary.outcome?.toLowerCase() === 'failed') ? 'failure' : 'success'}">${summary.outcome || 'N/A'}</span>
                 </div>
                 <div class="summary-item">
                     <span class="label">Tests Run:</span>
