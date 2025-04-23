@@ -277,22 +277,28 @@ export class TestSummaryView implements vscode.WebviewViewProvider {
                 }
                 .error-message {
                     color: var(--vscode-testing-message-error-foreground);
-                    margin: 5px 0;
-                    padding: 5px;
+                    margin: 7px 0;
+                    padding: 7px;
                     background-color: var(--vscode-testing-message-error-background);
-                    border-radius: 3px;
+                    border-radius: 4px;
                 }
                 .stack-trace {
-                    margin-top: 10px;
-                    padding: 10px;
+                    margin: 7px 0;
+                    padding: 7px;
                     background-color: var(--vscode-editor-background);
                     border-radius: 4px;
                     font-family: var(--vscode-editor-font-family);
                     white-space: pre-wrap;
                     max-height: 150px;
                     overflow-y: auto;
-                    font-size: 0.9em;
                     border: 1px solid var(--vscode-panel-border);
+                }
+                .section-label {
+                    color: var(--vscode-descriptionForeground);
+                    font-weight: bold;
+                    margin: 7px 0 8px 0;
+                    padding-bottom: 5px;
+
                 }
                 .progress-bar {
                     height: 4px;
@@ -395,9 +401,11 @@ export class TestSummaryView implements vscode.WebviewViewProvider {
                                 <span class="value failure">${test.Outcome || 'Failed'}</span>
                             </div>
                             ${formattedMessage ? `
+                                <div class="section-label">Error Message</div>
                                 <div class="error-message">${formattedMessage}</div>
                             ` : ''}
                             ${formattedStackTrace ? `
+                                <div class="section-label">Stack Trace</div>
                                 <div class="stack-trace">${formattedStackTrace}</div>
                             ` : ''}
                         </div>
@@ -466,9 +474,16 @@ export class TestSummaryView implements vscode.WebviewViewProvider {
                     white-space: pre-wrap;
                     font-family: var(--vscode-editor-font-family);
                 }
+                .error-message {
+                    color: var(--vscode-testing-message-error-foreground);
+                    margin: 7px 0;
+                    padding: 5px;
+                    background-color: var(--vscode-testing-message-error-background);
+                    border-radius: 4px;
+                }
                 .stack-trace {
-                    margin-top: 10px;
-                    padding: 10px;
+                    margin: 7px 0;
+                    padding: 7px;
                     background-color: var(--vscode-editor-background);
                     border-radius: 4px;
                     font-family: var(--vscode-editor-font-family);
@@ -477,9 +492,11 @@ export class TestSummaryView implements vscode.WebviewViewProvider {
                     overflow-y: auto;
                     border: 1px solid var(--vscode-panel-border);
                 }
-                .error-message {
-                    color: var(--vscode-testing-message-error-foreground);
-                    margin-bottom: 10px;
+                .section-label {
+                    color: var(--vscode-descriptionForeground);
+                    font-weight: bold;
+                    margin: 7px 0 7px 0;
+                    padding-bottom: 5px;
                 }
                 .test-name {
                     cursor: pointer;
@@ -592,14 +609,17 @@ export class TestSummaryView implements vscode.WebviewViewProvider {
                     
                     return `
                     <div class="test-result">
-                        <span class="label">Class:</span>
-                        <span class="test-name clickable" onclick="openTestFile('${className}', '${methodName}')">${test.FullName}</span>
+                        <div class="header failure clickable" onclick="openTestFile('${className}', '')">
+                            <span class="test-name" onclick="openTestFile('${className}', '${methodName}')">${test.FullName}</span>
+                        </div>
                         <div class="content clickable" onclick="openLogFile('${test.Id}')">
                             ${formattedMessage ? `
+                                <div class="section-label">Error Message</div>
                                 <div class="error-message">${formattedMessage}</div>
                             ` : ''}
                             ${formattedStackTrace ? `
-                                <div class="stack-trace" >${formattedStackTrace}</div>
+                                <div class="section-label">Stack Trace</div>
+                                <div class="stack-trace">${formattedStackTrace}</div>
                             ` : ''}
                         </div>
                     </div>
