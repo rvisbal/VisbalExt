@@ -45,6 +45,7 @@ interface TraceFlag {
     DebugLevelId: string;
 }
 
+
 export class OrgUtils {
     private static _downloadedLogs: Set<string> = new Set<string>();
     private static _downloadedLogPaths: Map<string, string> = new Map<string, string>();
@@ -668,4 +669,42 @@ export class OrgUtils {
             }
         }
     }
+
+
+    public static async openTestFile(className: string, methodName: string): Promise<void> {
+        if (!vscode.workspace.workspaceFolders) {
+            throw new Error('No workspace folder found');
+        }
+
+        // Construct the file path
+        const filePath = vscode.Uri.joinPath(
+            vscode.workspace.workspaceFolders[0].uri,
+            'force-app',
+            'main',
+            'default',
+            'classes',
+            `${className}.cls`
+        );
+        
+        // Open the document
+        const document = await vscode.workspace.openTextDocument(filePath);
+        const editor = await vscode.window.showTextDocument(document);
+        
+        // Search for the method in the file
+        const text = document.getText();
+        const methodRegex = new RegExp(`\\s*(public|private|protected|global)?\\s*(static)?\\s*\\bvoid\\b\\s*${methodName}\\s*\\(`);
+        const match = methodRegex.exec(text);
+        
+        if (match) {
+            // Find the position of the method
+            const position = document.positionAt(match.index);
+            
+            // Reveal the method in the editor
+            editor.revealRange(new vscode.Range(position, position), vscode.TextEditorRevealType.InCenter);
+            
+            // Set the cursor at the method
+            editor.selection = new vscode.Selection(position, position);
+        }
+    }
+
 } 

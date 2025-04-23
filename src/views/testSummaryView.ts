@@ -95,6 +95,20 @@ export class TestSummaryView implements vscode.WebviewViewProvider {
             localResourceRoots: [this._extensionUri]
         };
 
+        // Handle messages from the webview
+        webviewView.webview.onDidReceiveMessage(async message => {
+            switch (message.command) {
+                case 'openTestFile':
+                    try {
+                        await OrgUtils.openTestFile(message.className, message.methodName);
+                    } catch (error: any) {
+                        OrgUtils.logError('[VisbalExt.TestSummaryView] Error opening test file:', error);
+                        vscode.window.showErrorMessage(`Error opening test file: ${error.message}`);
+                    }
+                    break;
+            }
+        });
+
         // Set initial content
         webviewView.webview.html = this._getInitialContent();
     }
@@ -181,9 +195,9 @@ export class TestSummaryView implements vscode.WebviewViewProvider {
         const passRate = totalTests > 0 ? ((aggregateSummary.passing / totalTests) * 100).toFixed(1) + '%' : '0%';
         const failRate = totalTests > 0 ? ((aggregateSummary.failing / totalTests) * 100).toFixed(1) + '%' : '0%';
 
-         //test filter for failed tests
-         const failedTests = tests.filter(test => test.Outcome?.toLowerCase() === 'fail' || test.outcome?.toLowerCase() === 'fail');
-         OrgUtils.logDebug('[VisbalExt.TestSummaryView] _getWebviewContentForMultipleTests -- failedTests:', failedTests);
+        //test filter for failed tests
+        const failedTests = tests.filter(test => test.Outcome?.toLowerCase() === 'fail' || test.outcome?.toLowerCase() === 'fail');
+        OrgUtils.logDebug('[VisbalExt.TestSummaryView] _getWebviewContentForMultipleTests -- failedTests:', failedTests);
 
         return `<!DOCTYPE html>
         <html lang="en">
@@ -281,14 +295,33 @@ export class TestSummaryView implements vscode.WebviewViewProvider {
                     border-radius: 2px;
                     transition: width 0.3s ease;
                 }
+                .test-name {
+                    cursor: pointer;
+                    color: var(--vscode-textLink-foreground);
+                    text-decoration: none;
+                }
+                .test-name:hover {
+                    text-decoration: underline;
+                }
             </style>
+            <script>
+                const vscode = acquireVsCodeApi();
+                
+                function openTestFile(className, methodName) {
+                    vscode.postMessage({
+                        command: 'openTestFile',
+                        className: className,
+                        methodName: methodName
+                    });
+                }
+            </script>
         </head>
         <body>
             <div class="summary-container">
                 <div class="summary-header">Aggregate Test Results</div>
                 <div class="summary-item">
                     <span class="label">Overall Status:</span>
-                    <span class="value ${aggregateSummary.outcome === 'Passed' ? 'success' : 'failure'}">${aggregateSummary.outcome}</span>
+                    <span class="value ${aggregateSummary.outcome === 'Failed' ? 'failure' : 'success'}">${aggregateSummary.outcome}</span>
                 </div>
                 <div class="progress-bar">
                     <div class="fill" style="width: ${passRate};"></div>
@@ -316,7 +349,7 @@ export class TestSummaryView implements vscode.WebviewViewProvider {
             </div>
 
             <div class="test-results-grid">
-                ${failedTests.filter(test => test.Message || test.StackTrace).map(test => {
+                ${failedTests.map(test => {
                     const formattedMessage = test.Message?.trim().replace(/^System\.[^:]+:/, '').trim() || '';
                     const formattedStackTrace = test.StackTrace?.split('\n')
                         .map(line => line.trim())
@@ -324,10 +357,13 @@ export class TestSummaryView implements vscode.WebviewViewProvider {
                         .map(line => '    ' + line)
                         .join('\n') || '';
 
+                    const className = test.ApexClass?.Name || test.FullName?.split('.')[0] || '';
+                    const methodName = test.MethodName || test.methodName || '';
+
                     return `
                     <div class="test-result">
                         <div class="header failure">
-                            ${test.FullName || 'Unknown Test'}
+                            <span class="test-name" onclick="openTestFile('${className}', '${methodName}')">${test.FullName || 'Unknown Test'}</span>
                         </div>
                         <div class="content">
                             <div class="summary-item">
@@ -391,7 +427,6 @@ export class TestSummaryView implements vscode.WebviewViewProvider {
                     padding: 10px;
                     border: 1px solid var(--vscode-panel-border);
                     border-radius: 4px;
-                    cursor: pointer;
                 }
                 .test-result:hover {
                     background-color: var(--vscode-list-hoverBackground);
@@ -422,13 +457,32 @@ export class TestSummaryView implements vscode.WebviewViewProvider {
                     color: var(--vscode-testing-message-error-foreground);
                     margin-bottom: 10px;
                 }
+                .test-name {
+                    cursor: pointer;
+                    color: var(--vscode-textLink-foreground);
+                    text-decoration: none;
+                }
+                .test-name:hover {
+                    text-decoration: underline;
+                }
             </style>
+            <script>
+                const vscode = acquireVsCodeApi();
+                
+                function openTestFile(className, methodName) {
+                    vscode.postMessage({
+                        command: 'openTestFile',
+                        className: className,
+                        methodName: methodName
+                    });
+                }
+            </script>
         </head>
         <body>
             <div class="summary-container">
                 <div class="summary-item">
                     <span class="label">Outcome:</span>
-                    <span class="value ${summary.outcome === 'Passed' ? 'success' : 'failure'}">${summary.outcome || 'N/A'}</span>
+                    <span class="value ${summary.outcome?.toLowerCase() === 'fail' ? 'failure' : 'success'}">${summary.outcome || 'N/A'}</span>
                 </div>
                 <div class="summary-item">
                     <span class="label">Tests Run:</span>
@@ -466,7 +520,7 @@ export class TestSummaryView implements vscode.WebviewViewProvider {
                     <span class="label">Test Run ID:</span>
                     <span class="value">${summary.testRunId || 'N/A'}</span>
                 </div>
-                <div class="summary-item" title="${summary.orgId}">
+                <div class="summary-item">
                     <span class="label">User ID:</span>
                     <span class="value">${summary.userId || 'N/A'}</span>
                 </div>
@@ -474,7 +528,6 @@ export class TestSummaryView implements vscode.WebviewViewProvider {
                     <span class="label">Username:</span>
                     <span class="value">${summary.username || 'N/A'}</span>
                 </div>
-
             </div>
             <div class="test-results-container">
                 ${failedTests.map(test => {
@@ -497,10 +550,13 @@ export class TestSummaryView implements vscode.WebviewViewProvider {
                         }
                     }
                     
+                    const className = test.ApexClass?.Name || test.FullName?.split('.')[0] || '';
+                    const methodName = test.MethodName || test.methodName || '';
+                    
                     return `
                     <div class="test-result">
                         <span class="label">Class:</span>
-                        <span class="value">${test.FullName}</span>
+                        <span class="test-name" onclick="openTestFile('${className}', '${methodName}')">${test.FullName}</span>
                         ${formattedMessage ? `
                             <span class="label">Error Message:</span>
                             <div class="error-message">${formattedMessage}</div>

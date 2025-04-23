@@ -3637,9 +3637,10 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                                         });
 
                                     }
-
-                                    // Scroll into view
-                                    classItem.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                                     if (!message.methodName) {
+                                        // Scroll into view
+                                        classItem.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                                    }
                                 }
                                 break;
                             case 'testRunStarted':
@@ -3866,39 +3867,7 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
     // Add handler for opening test files (add near the top of the class where other methods are defined)
     private async _openTestFile(className: string, methodName: string) {
         try {
-            if (!vscode.workspace.workspaceFolders) {
-                throw new Error('No workspace folder found');
-            }
-
-            // Construct the file path
-            const filePath = vscode.Uri.joinPath(
-                vscode.workspace.workspaceFolders[0].uri,
-                'force-app',
-                'main',
-                'default',
-                'classes',
-                `${className}.cls`
-            );
-            
-            // Open the document
-            const document = await vscode.workspace.openTextDocument(filePath);
-            const editor = await vscode.window.showTextDocument(document);
-            
-            // Search for the method in the file
-            const text = document.getText();
-            const methodRegex = new RegExp(`\\s*(public|private|protected|global)?\\s*(static)?\\s*\\bvoid\\b\\s*${methodName}\\s*\\(`);
-            const match = methodRegex.exec(text);
-            
-            if (match) {
-                // Find the position of the method
-                const position = document.positionAt(match.index);
-                
-                // Reveal the method in the editor
-                editor.revealRange(new vscode.Range(position, position), vscode.TextEditorRevealType.InCenter);
-                
-                // Set the cursor at the method
-                editor.selection = new vscode.Selection(position, position);
-            }
+            OrgUtils.openTestFile(className, methodName);
         } catch (error: any) {
             OrgUtils.logError('[VisbalExt.TestClassExplorerView] Error opening test file:', error);
             vscode.window.showErrorMessage(`Error opening test file: ${error.message}`);
