@@ -1200,9 +1200,9 @@ export function getHtmlTemplate(
                 
                 // Back button
                 document.getElementById('backButton').addEventListener('click', () => {
-                    console.log('[VisbalExt.htmlTemplate:WebView] Back button clicked');
+                    console.log('[VisbalExt.htmlTemplate:WebView] Back button clicked - opening original file');
                     vscode.postMessage({
-                        command: 'backToList'
+                        command: 'openOriginalFile'
                     });
                 });
                 

@@ -132,6 +132,12 @@ export class LogDetailView {
                         OrgUtils.logDebug('[VisbalExt.LogDetailView] onDidReceiveMessage -- Downloading current log');
                         vscode.commands.executeCommand('visbal.downloadLog', this._logId);
                         break;
+                    case 'openOriginalFile':
+                        OrgUtils.logDebug('[VisbalExt.LogDetailView] onDidReceiveMessage -- Opening original file');
+                        vscode.workspace.openTextDocument(this._logFilePath).then(doc => {
+                            vscode.window.showTextDocument(doc);
+                        });
+                        break;
                     case 'search':
                         OrgUtils.logDebug(`[VisbalExt.LogDetailView] onDidReceiveMessage -- Searching for: ${message.term}`);
                         this._searchLog(message.term);
