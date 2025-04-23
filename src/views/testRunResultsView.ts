@@ -236,7 +236,7 @@ export class TestRunResultsProvider implements vscode.TreeDataProvider<TestItem>
         if (classItem) {
             const methodItem = classItem.children.find(m => m.label === methodName);
             if (methodItem) {
-                OrgUtils.logDebug(`[VisbalExt.TestRunResultsProvider] updateMethodStatus -- Found method item, updating status`);
+                //OrgUtils.logDebug(`[VisbalExt.TestRunResultsProvider] updateMethodStatus -- Found method item, updating status`);
                 methodItem.updateStatus(status);
                 
                 // Update logId if provided
@@ -254,12 +254,16 @@ export class TestRunResultsProvider implements vscode.TreeDataProvider<TestItem>
                 // Auto-update class status if all methods are complete
                 if (classItem.areAllChildrenComplete()) {
                     const newStatus = classItem.hasFailedChildren() ? 'failed' : 'success';
-                    OrgUtils.logDebug(`[VisbalExt.TestRunResultsProvider] updateMethodStatus Auto-updating class status to ${newStatus}`);
+                    OrgUtils.logDebug(`[VisbalExt.TestRunResultsProvider] updateMethodStatus updating class status to ${newStatus} on ${className}.${methodName}`);
                     classItem.updateStatus(newStatus);
+                    if (newStatus === 'failed') {
+                        OrgUtils.logDebug(`[VisbalExt.TestRunResultsProvider] updateMethodStatus selectTestMethod -- className:${className} -- methodName:${methodName}`);
+                        vscode.commands.executeCommand('visbal-ext.selectTestMethod', className, methodName, true);
+                    }
                 }
                 
                 const endTime = Date.now();
-                OrgUtils.logDebug(`[VisbalExt.TestRunResultsProvider] updateMethodStatus Method status updated in ${endTime - startTime}ms, scheduling refresh`);
+                OrgUtils.logDebug(`[VisbalExt.TestRunResultsProvider] updateMethodStatus Method status updated in ${endTime - startTime}ms, scheduling refresh on ${className}.${methodName}`);
                 this.scheduleRefresh();
 
                 // Reveal the updated method

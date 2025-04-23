@@ -129,6 +129,7 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
 
         // Register command for toggling class selection
         this._context.subscriptions.push(
+            
             vscode.commands.registerCommand('visbal-ext.selectTestMethod', async (className: string, methodName?: string, selected?: boolean) => {
                 if (!this._view) return;
 
@@ -1748,6 +1749,8 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                                 progress.status = TestStatus.success;
                             } else if (t.Outcome === 'Fail' || t.Outcome === 'Failed') {
                                 progress.status = TestStatus.failed;
+                                OrgUtils.logDebug(`[VisbalExt.TestClassExplorerView] _runTestSelectedSequentially selectTestMethod -- className:${className} -- methodName:${ t.MethodName}`);
+                                vscode.commands.executeCommand('visbal-ext.selectTestMethod', className, t.MethodName, true);
                             }
                             OrgUtils.logDebug(`[VisbalExt.TestClassExplorerView] _runTestSelectedSequentially -- updateMethodStatus -- iteration:${countIteration} className:${className} methodName:${t.MethodName} status:${progress.status} logId:${progress.logId}`);
                             this._testRunResultsView.updateMethodStatus(className, t.MethodName, progress.status, progress.logId);
@@ -2168,6 +2171,7 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                                 testStatus = TestStatus.success;
                             } else if (r.Outcome === 'Fail' || r.Outcome === 'Failed') {
                                 testStatus = TestStatus.failed;
+                                OrgUtils.logDebug(`[VisbalExt.TestRunResultsProvider] _runAllTests selectTestMethod -- className:${className} -- methodName:${r.MethodName}`);
                                 vscode.commands.executeCommand('visbal-ext.selectTestMethod', className, r.MethodName, true);
                             }
                             this._testRunResultsView.updateMethodStatus(className, r.MethodName, testStatus, r.ApexLogId);
@@ -2213,6 +2217,7 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                     testStatus = TestStatus.success;
                 } else if (t.Outcome === 'Fail' || t.Outcome === 'Failed') {
                     testStatus= TestStatus.failed;
+                    OrgUtils.logDebug(`[VisbalExt.TestClassExplorerView] _runAllTests selectTestMethod -- className:${t.ApexClass.Name} -- methodName:${ t.MethodName}`);
                     vscode.commands.executeCommand('visbal-ext.selectTestMethod', t.ApexClass.Name, t.MethodName, true);
                 }
                 testIds.push(t.Id);
