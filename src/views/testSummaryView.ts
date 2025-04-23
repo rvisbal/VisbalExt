@@ -506,10 +506,19 @@ export class TestSummaryView implements vscode.WebviewViewProvider {
                     margin-right: 8px;
                     color: var(--vscode-foreground);
                     font-size: 12px;
-                    transition: transform 0.2s;
+                    width: 16px;
+                    height: 16px;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    border: 1px solid var(--vscode-foreground);
+                    border-radius: 3px;
                 }
-                .test-result.expanded .collapse-icon {
-                    transform: rotate(90deg);
+                .test-result.expanded .collapse-icon::before {
+                    content: '-';
+                }
+                .collapse-icon::before {
+                    content: '+';
                 }
                 .test-result:hover {
                     background-color: var(--vscode-list-hoverBackground);
@@ -645,7 +654,7 @@ export class TestSummaryView implements vscode.WebviewViewProvider {
                     <div class="test-result" onclick="toggleCollapse(this)">
                         <div class="header failure clickable">
                             <div style="display: flex; align-items: center;">
-                                <span class="collapse-icon">▶</span>
+                                <span class="collapse-icon"></span>
                                 <span class="test-name" onclick="openTestFile('${className}', '${methodName}', event)">${test.FullName}</span>
                             </div>
                         </div>
