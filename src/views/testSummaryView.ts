@@ -209,6 +209,15 @@ export class TestSummaryView implements vscode.WebviewViewProvider {
         //test filter for failed tests
         const failedTests = tests.filter(test => test.Outcome?.toLowerCase() === 'fail' || test.outcome?.toLowerCase() === 'fail');
         OrgUtils.logDebug('[VisbalExt.TestSummaryView] _getWebviewContentForMultipleTests -- failedTests:', failedTests);
+        
+        // Update test selection for failing tests
+        failedTests.forEach(test => {
+            const className = test.ApexClass?.Name || test.FullName?.split('.')[0] || '';
+            const methodName = test.MethodName || test.methodName;
+            if (className) {
+                vscode.commands.executeCommand('visbal-ext.selectTestMethod', className, methodName, true);
+            }
+        });
 
         return `<!DOCTYPE html>
         <html lang="en">
@@ -709,12 +718,14 @@ export class TestSummaryView implements vscode.WebviewViewProvider {
                 ` : ''}
             </div>
             <div class="progress-container">
-                ${progress.map(p => {
+                ${progress
+                    .sort((a, b) => a.ApexClassName.localeCompare(b.ApexClassName))
+                    .map(p => {
                     return `
                         <div class="progress-item">     
                             <span class="label" onclick="openTestFile('${p.ApexClassName}', '')">${p.ApexClassName}</span>
                             <span class="value ${p.Status === 'Completed' && p.ExtendedStatus ? (() => {
-                                const [passed, total] = p.ExtendedStatus.split('/').map(n => parseInt(n));
+                                const [passed, total] = p.ExtendedStatus.replace(/[()]/g, '').split('/').map(n => parseInt(n));
                                 return passed < total ? 'failure' : 'success';
                             })() : p.Status === 'Processing' ? 'processing' : p.Status === 'Running' ? 'running' : p.Status === 'Queued' ? 'queued' : 'failure'}">${p.Status}</span>
                             ${p.ExtendedStatus ? `<span class="value">${p.ExtendedStatus}</span>` : ''}

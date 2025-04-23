@@ -162,7 +162,7 @@ export class TestRunResultsProvider implements vscode.TreeDataProvider<TestItem>
 
     addTestRun(className: string, methods: string[]) {
         const startTime = Date.now();
-        OrgUtils.logDebug(`[VisbalExt.TestRunResultsProvider] Adding test run for class: ${className} with ${methods.length} methods at ${new Date(startTime).toISOString()}`);
+        //OrgUtils.logDebug(`[VisbalExt.TestRunResultsProvider] Adding test run for class: ${className} with ${methods.length} methods at ${new Date(startTime).toISOString()}`);
         
         let existingMethods: string[] = [];
         const existingClassItem = this.testRuns.get(className);
@@ -175,7 +175,7 @@ export class TestRunResultsProvider implements vscode.TreeDataProvider<TestItem>
         const uniqueMethods = Array.from(new Set([...existingMethods, ...methods]));
         
         const methodItems = uniqueMethods.map(method => {
-            OrgUtils.logDebug(`[VisbalExt.TestRunResultsProvider] Creating method item: ${method}`);
+            //OrgUtils.logDebug(`[VisbalExt.TestRunResultsProvider] Creating method item: ${method}`);
             return new TestItem(
                 method,
                 vscode.TreeItemCollapsibleState.None,

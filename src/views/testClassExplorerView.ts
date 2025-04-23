@@ -2168,6 +2168,7 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                                 testStatus = TestStatus.success;
                             } else if (r.Outcome === 'Fail' || r.Outcome === 'Failed') {
                                 testStatus = TestStatus.failed;
+                                vscode.commands.executeCommand('visbal-ext.selectTestMethod', className, r.MethodName, true);
                             }
                             this._testRunResultsView.updateMethodStatus(className, r.MethodName, testStatus, r.ApexLogId);
                         }
@@ -2212,6 +2213,7 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                     testStatus = TestStatus.success;
                 } else if (t.Outcome === 'Fail' || t.Outcome === 'Failed') {
                     testStatus= TestStatus.failed;
+                    vscode.commands.executeCommand('visbal-ext.selectTestMethod', t.ApexClass.Name, t.MethodName, true);
                 }
                 testIds.push(t.Id);
                 this._testRunResultsView.updateMethodStatus(t.ApexClass.Name, t.MethodName, testStatus, '' );
