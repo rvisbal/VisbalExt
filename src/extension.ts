@@ -150,6 +150,19 @@ export function activate(context: vscode.ExtensionContext) {
       )
     );
 
+    // Register command to handle test file opening
+    context.subscriptions.push(
+      vscode.commands.registerCommand('visbal-ext.openTestFile', async (className: string, methodName: string) => {
+        try {
+          OrgUtils.logDebug('[VisbalExt.Extension] Opening test file:', { className, methodName });
+          await OrgUtils.openTestFile(className, methodName);
+        } catch (error: any) {
+          OrgUtils.logError(`[VisbalExt.Extension] Error opening test file for ${className}.${methodName}:`, error);
+          vscode.window.showErrorMessage(`Could not open test file for ${className}.${methodName}: ${error.message}`);
+        }
+      })
+    );
+
     // Register command to handle test log viewing
     context.subscriptions.push(
       vscode.commands.registerCommand('visbal-ext.viewTestLog', async (logId: string, testName: string) => {

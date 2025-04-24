@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import { OrgUtils } from '../utils/orgUtils';
 
+//@description: TestItem is a class that represents a test item in the test run results view or RUNNING TASK view
 export class TestItem extends vscode.TreeItem {
     private _status: 'running' | 'success' | 'failed' | 'pending' | 'downloading';
     private _logId?: string;
@@ -12,7 +13,8 @@ export class TestItem extends vscode.TreeItem {
         public readonly collapsibleState: vscode.TreeItemCollapsibleState,
         status: 'running' | 'success' | 'failed' | 'pending' | 'downloading' = 'pending',
         public readonly children: TestItem[] = [],
-        logId?: string
+        logId?: string,
+        public readonly className?: string
     ) {
         super(label, collapsibleState);
         this._status = status;
@@ -28,6 +30,13 @@ export class TestItem extends vscode.TreeItem {
                 title: 'View Log',
                 command: 'visbal-ext.viewTestLog',
                 arguments: [logId, label]
+            };
+        } else if (className && collapsibleState === vscode.TreeItemCollapsibleState.None) {
+            // If no log ID but we have class name and this is a method (not a class), set up command to open test file
+            this.command = {
+                title: 'Open Test File',
+                command: 'visbal-ext.openTestFile',
+                arguments: [className, label] // label is the method name
             };
         }
     }
@@ -179,7 +188,10 @@ export class TestRunResultsProvider implements vscode.TreeDataProvider<TestItem>
             return new TestItem(
                 method,
                 vscode.TreeItemCollapsibleState.None,
-                'pending'
+                'pending',
+                [],
+                undefined,
+                className // Pass the className to the TestItem constructor
             );
         });
 
