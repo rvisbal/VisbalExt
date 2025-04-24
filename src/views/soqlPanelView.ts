@@ -253,6 +253,7 @@ export class SoqlPanelView implements vscode.WebviewViewProvider {
 
 
     private _getWebviewContent() {
+        //JavaScript/HTML section, type script rule dont apply in this block
         return `<!DOCTYPE html>
         <html>
         <head>

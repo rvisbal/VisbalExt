@@ -8,7 +8,7 @@ import { join } from 'path';
 import { readFileSync, writeFileSync } from 'fs';
 import { existsSync, mkdirSync } from 'fs';
 import { OrgUtils } from '../utils/orgUtils';
-
+import { TestCaseListManager } from '../models/testCaseList';
 
 import { TestRunResultsView } from './testRunResultsView';
 import { TestSummaryView } from './testSummaryView';
@@ -101,6 +101,7 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
     private _abortController: AbortController | null = null;
     private _isRunning: boolean = false;
     private _salesforceApiService: SalesforceApiService;
+    private _testCaseListManager: TestCaseListManager;
 
     constructor(
         extensionUri: vscode.Uri,
@@ -120,6 +121,7 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
         this._testSummaryView = testSummaryView;
         this._sfdxService = new SfdxService();
         this._salesforceApiService = salesforceApiService;
+        this._testCaseListManager = new TestCaseListManager(_context);
         
         // Initialize Salesforce API
         this._salesforceApiService.initialize().catch(error => {
@@ -177,6 +179,78 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
         webviewView.webview.onDidReceiveMessage(async (data) => {
             OrgUtils.logDebug('[VisbalExt.TestClassExplorerView] resolveWebviewView -- Received message from webview', data);
             switch (data.command) {
+                case 'getTestCaseLists':
+                    const lists = this._testCaseListManager.getTestCaseLists();
+                    webviewView.webview.postMessage({
+                        command: 'updateTestCaseLists',
+                        lists
+                    });
+                    break;
+
+                case 'saveTestCaseList':
+                    try {
+                        const newList = this._testCaseListManager.createTestCaseList(data.name, data.methods);
+                        webviewView.webview.postMessage({
+                            command: 'updateTestCaseLists',
+                            lists: this._testCaseListManager.getTestCaseLists()
+                        });
+                        vscode.window.showInformationMessage(`Test case list "${data.name}" saved successfully.`);
+                    } catch (error: any) {
+                        vscode.window.showErrorMessage(`Failed to save test case list: ${error.message}`);
+                    }
+                    break;
+
+                case 'updateTestCaseList':
+                    try {
+                        const list = this._testCaseListManager.getTestCaseList(data.id);
+                        if (list) {
+                            this._testCaseListManager.updateTestCaseList(data.id, data.name, list.methods);
+                            webviewView.webview.postMessage({
+                                command: 'updateTestCaseLists',
+                                lists: this._testCaseListManager.getTestCaseLists()
+                            });
+                            vscode.window.showInformationMessage(`Test case list renamed to "${data.name}" successfully.`);
+                        }
+                    } catch (error: any) {
+                        vscode.window.showErrorMessage(`Failed to update test case list: ${error.message}`);
+                    }
+                    break;
+
+                case 'deleteTestCaseList':
+                    try {
+                        if (this._testCaseListManager.deleteTestCaseList(data.testCaseListId)) {
+                            webviewView.webview.postMessage({
+                                command: 'updateTestCaseLists',
+                                lists: this._testCaseListManager.getTestCaseLists()
+                            });
+                            vscode.window.showInformationMessage('Test case list deleted successfully.');
+                        }
+                    } catch (error: any) {
+                        vscode.window.showErrorMessage(`Failed to delete test case list: ${error.message}`);
+                    }
+                    break;
+
+                case 'applyTestCaseList':
+                    try {
+                        this._testCaseListManager.applyTestCaseList(data.testCaseListId);
+                    } catch (error: any) {
+                        vscode.window.showErrorMessage(`Failed to apply test case list: ${error.message}`);
+                    }
+                    break;
+
+                case 'showMessage':
+                    switch (data.type) {
+                        case 'error':
+                            vscode.window.showErrorMessage(data.message);
+                            break;
+                        case 'warning':
+                            vscode.window.showWarningMessage(data.message);
+                            break;
+                        default:
+                            vscode.window.showInformationMessage(data.message);
+                    }
+                    break;
+
                 case 'fetchTestClasses':
                     OrgUtils.logDebug(`[VisbalExt.TestClassExplorerView] resolveWebviewView -- Fetched test classes forceRefresh:${data.forceRefresh} refreshMethods:${data.refreshMethods}`);
                     await this._fetchTestClasses(data.forceRefresh);
@@ -2399,6 +2473,7 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
     
     private _getHtmlForWebview(webview: vscode.Webview): string {
         const nonce = this._getNonce();
+        // @ts-ignore - Disable TypeScript checking for the JavaScript code in the template literal
         return `<!DOCTYPE html>
         <html lang="en">
         <head>
@@ -2602,6 +2677,10 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                     background-color: var(--vscode-toolbar-hoverBackground);
                 }
 
+                .icon-button:active {
+                    background-color: var(--vscode-toolbar-activeBackground);
+                }
+
                 .loading {
                     display: flex;
                     align-items: center;
@@ -2771,10 +2850,78 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                 .abort-button:hover {
                     opacity: 0.8;
                 }
+
+                .test-case-list-container {
+                    padding: 5px;
+                    border-bottom: 1px solid var(--vscode-panel-border);
+                    display: flex;
+                    flex-direction: column;
+                    gap: 5px;
+                }
+
+                .test-case-list-controls {
+                    display: flex;
+                    align-items: center;
+                    gap: 5px;
+                }
+
+                .test-case-list-dropdown {
+                    flex: 1;
+                    background: var(--vscode-dropdown-background);
+                    color: var(--vscode-dropdown-foreground);
+                    border: 1px solid var(--vscode-dropdown-border);
+                    padding: 2px 4px;
+                    font-family: var(--vscode-font-family);
+                }
+
+                .test-case-list-dropdown:focus {
+                    outline: 1px solid var(--vscode-focusBorder);
+                    outline-offset: -1px;
+                }
+
+                .test-case-list-input {
+                    flex: 1;
+                    background: var(--vscode-input-background);
+                    color: var(--vscode-input-foreground);
+                    border: 1px solid var(--vscode-input-border);
+                    padding: 2px 4px;
+                    font-family: var(--vscode-font-family);
+                    display: none;
+                }
+
+                .test-case-list-input:focus {
+                    outline: 1px solid var(--vscode-focusBorder);
+                    outline-offset: -1px;
+                }
+
+                .test-case-list-input.show {
+                    display: block;
+                }
+
+                .test-case-list-dropdown.hide {
+                    display: none;
+                }
             </style>
         </head>
         <body>
             <div class="container">
+                <div class="test-case-list-container">
+                    <div class="test-case-list-controls">
+                        <select id="testCaseList" class="test-case-list-dropdown">
+                            <option value="">Select a test case list...</option>
+                        </select>
+                        <input type="text" id="testCaseListInput" class="test-case-list-input" placeholder="Enter list name...">
+                        <button class="icon-button" id="saveTestCaseList" title="Save current selection as test case list">
+                            <i class="codicon codicon-save"></i>
+                        </button>
+                        <button class="icon-button" id="editTestCaseList" title="Edit test case list name">
+                            <i class="codicon codicon-edit"></i>
+                        </button>
+                        <button class="icon-button" id="deleteTestCaseList" title="Delete test case list">
+                            <i class="codicon codicon-trash"></i>
+                        </button>
+                    </div>
+                </div>
                 <div class="actions">
                     <div class="selection-actions">
                         <label class="select-all-container">
@@ -3803,7 +3950,218 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                         });
                     });
 
-					
+                    const testCaseListDropdown = document.getElementById('testCaseList');
+                    const testCaseListInput = document.getElementById('testCaseListInput');
+                    const saveTestCaseListBtn = document.getElementById('saveTestCaseList');
+                    const editTestCaseListBtn = document.getElementById('editTestCaseList');
+                    const deleteTestCaseListBtn = document.getElementById('deleteTestCaseList');
+
+                    // Initialize test case list dropdown
+                    vscode.postMessage({ command: 'getTestCaseLists' });
+
+                    // Handle test case list selection
+                    testCaseListDropdown.addEventListener('change', (e) => {
+                        const selectedId = e.target.value;
+                        if (selectedId) {
+                            // Clear all existing selections first
+                            const allCheckboxes = document.querySelectorAll('.method-checkbox, .class-checkbox');
+                            allCheckboxes.forEach(checkbox => {
+                                checkbox.checked = false;
+                            });
+                            
+                            // Reset selection tracking
+                            selectedTests.classes = {};
+                            selectedTests.methods = {};
+                            selectedTests.count = 0;
+
+                            vscode.postMessage({ 
+                                command: 'applyTestCaseList',
+                                testCaseListId: selectedId
+                            });
+                        }
+                    });
+
+                    // Handle messages from the extension
+                    window.addEventListener('message', event => {
+                        const message = event.data;
+                        switch (message.command) {
+                            case 'updateTestCaseLists':
+                                // Clear existing options except the first one
+                                while (testCaseListDropdown.options.length > 1) {
+                                    testCaseListDropdown.remove(1);
+                                }
+                                // Add new options
+                                message.lists.forEach(list => {
+                                    const option = document.createElement('option');
+                                    option.value = list.id;
+                                    option.text = list.name;
+                                    testCaseListDropdown.add(option);
+                                });
+                                break;
+
+                            case 'selectTestMethod':
+                                const { className, methodName, selected } = message;
+                                const methodKey = \`\${className}.\${methodName}\`;
+                                const methodCheckbox = document.querySelector(\`.method-checkbox[data-class="\${className}"][data-method="\${methodName}"]\`);
+                                
+                                if (methodCheckbox && !methodCheckbox.checked) {
+                                    methodCheckbox.checked = true;
+                                    selectedTests.methods[methodKey] = true;
+                                    selectedTests.count++;
+                                    
+                                    // Check if all methods of the class are selected
+                                    const allMethodCheckboxes = document.querySelectorAll(\`.method-checkbox[data-class="\${className}"]\`);
+                                    const allChecked = Array.from(allMethodCheckboxes).every(cb => cb.checked);
+                                    if (allChecked) {
+                                        const classCheckbox = document.querySelector(\`.class-checkbox[data-class="\${className}"]\`);
+                                        if (classCheckbox) {
+                                            classCheckbox.checked = true;
+                                            selectedTests.classes[className] = true;
+                                        }
+                                    }
+                                    
+                                    updateSelectionCount();
+                                    saveState();
+                                }
+                                break;
+                        }
+                    });
+
+                    function updateSelectionCount() {
+                        const methodCount = Object.keys(selectedTests.methods).length;
+                        selectionCount.textContent = methodCount + ' selected';
+                        runSelectedButton.style.display = methodCount > 0 ? 'inline-block' : 'none';
+                        runSelectedButton.disabled = methodCount === 0;
+                    }
+
+                    // Handle save test case list
+                    saveTestCaseListBtn.addEventListener('click', () => {
+                        const selectedMethods = Array.from(document.querySelectorAll('.method-checkbox:checked')).map(checkbox => {
+                            const methodItem = checkbox.closest('.test-method-item');
+                            return {
+                                className: checkbox.getAttribute('data-class'),
+                                methodName: checkbox.getAttribute('data-method')
+                            };
+                        });
+
+                        if (selectedMethods.length === 0) {
+                            vscode.postMessage({ 
+                                command: 'showMessage',
+                                type: 'warning',
+                                message: 'Please select at least one test method to save.'
+                            });
+                            return;
+                        }
+
+                        testCaseListInput.classList.add('show');
+                        testCaseListDropdown.classList.add('hide');
+                        testCaseListInput.focus();
+
+                        const handleSave = () => {
+                            const name = testCaseListInput.value.trim();
+                            if (name) {
+                                vscode.postMessage({ 
+                                    command: 'saveTestCaseList',
+                                    name,
+                                    methods: selectedMethods
+                                });
+                                testCaseListInput.classList.remove('show');
+                                testCaseListDropdown.classList.remove('hide');
+                                testCaseListInput.value = '';
+                            }
+                        };
+
+                        testCaseListInput.onkeyup = (e) => {
+                            if (e.key === 'Enter') {
+                                handleSave();
+                            } else if (e.key === 'Escape') {
+                                testCaseListInput.classList.remove('show');
+                                testCaseListDropdown.classList.remove('hide');
+                                testCaseListInput.value = '';
+                            }
+                        };
+                    });
+
+                    // Handle edit test case list
+                    editTestCaseListBtn.addEventListener('click', () => {
+                        const selectedId = testCaseListDropdown.value;
+                        if (!selectedId) {
+                            vscode.postMessage({ 
+                                command: 'showMessage',
+                                type: 'warning',
+                                message: 'Please select a test case list to edit.'
+                            });
+                            return;
+                        }
+
+                        const selectedOption = testCaseListDropdown.selectedOptions[0];
+                        testCaseListInput.value = selectedOption.text;
+                        testCaseListInput.classList.add('show');
+                        testCaseListDropdown.classList.add('hide');
+                        testCaseListInput.focus();
+
+                        const handleEdit = () => {
+                            const newName = testCaseListInput.value.trim();
+                            if (newName) {
+                                vscode.postMessage({ 
+                                    command: 'updateTestCaseList',
+                                    id: selectedId,
+                                    name: newName
+                                });
+                                testCaseListInput.classList.remove('show');
+                                testCaseListDropdown.classList.remove('hide');
+                                testCaseListInput.value = '';
+                            }
+                        };
+
+                        testCaseListInput.onkeyup = (e) => {
+                            if (e.key === 'Enter') {
+                                handleEdit();
+                            } else if (e.key === 'Escape') {
+                                testCaseListInput.classList.remove('show');
+                                testCaseListDropdown.classList.remove('hide');
+                                testCaseListInput.value = '';
+                            }
+                        };
+                    });
+
+                    // Handle delete test case list
+                    deleteTestCaseListBtn.addEventListener('click', () => {
+                        const selectedId = testCaseListDropdown.value;
+                        if (!selectedId) {
+                            vscode.postMessage({ 
+                                command: 'showMessage',
+                                type: 'warning',
+                                message: 'Please select a test case list to delete.'
+                            });
+                            return;
+                        }
+
+                        vscode.postMessage({ 
+                            command: 'deleteTestCaseList',
+                            testCaseListId: selectedId
+                        });
+                    });
+
+                    // Handle messages from the extension
+                    window.addEventListener('message', event => {
+                        const message = event.data;
+                        switch (message.command) {
+                            case 'updateTestCaseLists':
+                                // Clear existing options except the first one
+                                while (testCaseListDropdown.options.length > 1) {
+                                    testCaseListDropdown.remove(1);
+                                }
+                                // Add new options
+                                message.lists.forEach(list => {
+                                    const option = document.createElement('option');
+                                    option.value = list.id;
+                                    option.text = list.name;
+                                    testCaseListDropdown.add(option);
+                                });
+                                break;
+                        }
+                    });
 					
                 })();
             </script>

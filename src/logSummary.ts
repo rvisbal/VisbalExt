@@ -214,7 +214,7 @@ export class LogSummary {
     // Get the active editor to extract file name
     const editor = vscode.window.activeTextEditor;
     const logFileName = editor ? editor.document.fileName.split(/[\/\\]/).pop() || 'Log' : 'Log';
-    
+    //JavaScript/HTML section, type script rule dont apply in this block
     return `<!DOCTYPE html>
     <html lang="en">
     <head>

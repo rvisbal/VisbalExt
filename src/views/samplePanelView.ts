@@ -415,6 +415,7 @@ export class SamplePanelView implements vscode.WebviewViewProvider {
     
 	
 	private _getWebviewContent(): string {
+        //JavaScript/HTML section, type script rule dont apply in this block
         return `<!DOCTYPE html>
         <html lang="en">
         <head>

@@ -46,6 +46,7 @@ export class TestResultsView implements vscode.WebviewViewProvider {
     }
 
     private _getHtmlForWebview(webview: vscode.Webview) {
+        //JavaScript/HTML section, type script rule dont apply in this block
         return `<!DOCTYPE html>
         <html lang="en">
         <head>

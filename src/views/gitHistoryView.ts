@@ -92,6 +92,7 @@ export class GitHistoryView {
     }
 
     private _getWebviewContent(history: any[]) {
+        //JavaScript/HTML section, type script rule dont apply in this block
         return `<!DOCTYPE html>
         <html lang="en">
         <head>

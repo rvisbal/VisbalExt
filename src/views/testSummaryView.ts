@@ -167,6 +167,7 @@ export class TestSummaryView implements vscode.WebviewViewProvider {
     }
 
     private _getInitialContent(): string {
+        //JavaScript/HTML section, type script rule dont apply in this block
         return `<!DOCTYPE html>
         <html lang="en">
         <head>
@@ -220,6 +221,7 @@ export class TestSummaryView implements vscode.WebviewViewProvider {
             }
         });
 
+        //JavaScript/HTML section, type script rule dont apply in this block
         return `<!DOCTYPE html>
         <html lang="en">
         <head>
@@ -429,6 +431,7 @@ export class TestSummaryView implements vscode.WebviewViewProvider {
     private _getWebviewContent(summary: TestSummary, tests: TestResult[]): string {
         const failedTests = tests.filter(test => test.Outcome?.toLowerCase() === 'fail' || test.outcome?.toLowerCase() === 'failed');
         OrgUtils.logDebug('[VisbalExt.TestSummaryView] _getWebviewContent -- failedTests:', failedTests);
+        //JavaScript/HTML section, type script rule dont apply in this block
         return `<!DOCTYPE html>
         <html lang="en">
         <head>
@@ -687,6 +690,7 @@ export class TestSummaryView implements vscode.WebviewViewProvider {
 
     private _getWebviewContentForProgress(progress: QueueItem[], jobResults?: ApexTestRunResult[]): string {
         const jobResult = jobResults && jobResults.length > 0 ? jobResults[0] : null;
+        //JavaScript/HTML section, type script rule dont apply in this block
         return `<!DOCTYPE html>
         <html lang="en">
         <head>

@@ -64,6 +64,7 @@ export class FindModel {
    * Returns the HTML content for the webview
    */
   private static getWebviewContent(): string {
+    //JavaScript/HTML section, type script rule dont apply in this block
     return `<!DOCTYPE html>
     <html lang="en">
     <head>
