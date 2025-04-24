@@ -853,7 +853,7 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                 const manualExecution = config.get<boolean>('manualExecution', true);
                 
                 if (!manualExecution) {
-                    await this._runManyTes(tests, false);
+                    await this._runManyTest(tests, false);
                     return;
                 }
                 else {
@@ -1898,7 +1898,7 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
     }
 
 
-    private async _runManyTes(tests: { 
+    private async _runManyTest(tests: { 
         classes: string[], 
         methods: { className: string, methodName: string }[],
         runMode: 'sequential' | 'parallel'
@@ -1927,7 +1927,7 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
 
                 let testIds = [];
                 for (const t of runResult.tests) {
-                    OrgUtils.logDebug('[VisbalExt.TestClassExplorerView] _runManyTes -- t:', t);
+                    OrgUtils.logDebug('[VisbalExt.TestClassExplorerView] _runManyTest -- t:', t);
                     let testStatus = TestStatus.running;
                     if (t.Outcome === 'Pass' || t.Outcome === 'Passed') {
                         testStatus = TestStatus.success;
@@ -2048,11 +2048,11 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                     }
 
                     const testRunResult = await this._sfdxService.getTestRunResult(testRunId);
-                    OrgUtils.logDebug('[VisbalExt.TestClassExplorerView] _runManyTes -- testRunResult:', testRunResult);
+                    OrgUtils.logDebug('[VisbalExt.TestClassExplorerView] _runManyTest -- testRunResult:', testRunResult);
 
                     let testIds = [];
                     for (const t of testRunResult.tests) {
-                        OrgUtils.logDebug('[VisbalExt.TestClassExplorerView] _runManyTes -- t:', t);
+                        OrgUtils.logDebug('[VisbalExt.TestClassExplorerView] _runManyTest -- t:', t);
                         let testStatus = TestStatus.running;
                         if (t.Outcome === 'Pass' || t.Outcome === 'Passed') {
                             testStatus = TestStatus.success;
@@ -2077,11 +2077,11 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                 else {
 
                     const testRunResult = await this._sfdxService.getTestRunResult(testRunId);
-                    OrgUtils.logDebug('[VisbalExt.TestClassExplorerView] _runManyTes -- testRunResult:', testRunResult);
+                    OrgUtils.logDebug('[VisbalExt.TestClassExplorerView] _runManyTest -- testRunResult:', testRunResult);
 
                     let testIds = [];
                     for (const t of testRunResult.tests) {
-                        OrgUtils.logDebug('[VisbalExt.TestClassExplorerView] _runManyTes -- t:', t);
+                        OrgUtils.logDebug('[VisbalExt.TestClassExplorerView] _runManyTest -- t:', t);
                         let testStatus = TestStatus.running;
                         if (t.Outcome === 'Pass' || t.Outcome === 'Passed') {
                             testStatus = TestStatus.success;
@@ -2097,7 +2097,7 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                     const apiResult = await this._sfdxService.executeSoqlQuery(`SELECT Id, ApexClass.Name, MethodName, Message, StackTrace, Outcome, ApexLogId FROM ApexTestResult WHERE Id IN (${testIdsString})`);
                     if (apiResult.length > 0) {
                         for (const t of apiResult) {
-                            OrgUtils.logDebug('[VisbalExt.TestClassExplorerView] _runManyTes -- t:', t);
+                            OrgUtils.logDebug('[VisbalExt.TestClassExplorerView] _runManyTest -- t:', t);
                             let testStatus = TestStatus.running;
                             if (t.Outcome === 'Pass' || t.Outcome === 'Passed') {
                                 testStatus = TestStatus.success;
@@ -2121,7 +2121,7 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
 
 
         } catch (error: any) {
-            OrgUtils.logError('[VisbalExt.TestClassExplorerView] _runManyTes Error running selected tests:', error);
+            OrgUtils.logError('[VisbalExt.TestClassExplorerView] _runManyTest Error running selected tests:', error);
             if (error.message === 'Test execution aborted by user') {
                 if (this._view) {
                     this._view.webview.postMessage({
@@ -2148,7 +2148,7 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
         }
 
 
-        OrgUtils.logDebug('[VisbalExt.TestClassExplorerView] _runManyTes -- tests:', tests);
+        OrgUtils.logDebug('[VisbalExt.TestClassExplorerView] _runManyTest -- tests:', tests);
 
 
     }
