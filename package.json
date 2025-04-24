@@ -272,6 +272,11 @@
           "default": 250,
           "description": "Debug Max Length"
         },
+        "visbal.logging.debugFileMaxSize": {
+          "type": "number",
+          "default": 2097152,
+          "description": "Debug File Max Size in Bytes"
+        },
         "visbal.apexTest.manualExecution": {
           "type": "boolean",
           "default": false,

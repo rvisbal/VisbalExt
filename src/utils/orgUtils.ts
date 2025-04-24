@@ -640,23 +640,63 @@ export class OrgUtils {
         }
     }
 
+    public static archiveDebugLog(): void {
+        const config = vscode.workspace.getConfiguration('visbal.logging');
+        //configure debug file max size
+        const debugFileMaxSize = config.get<number>('debugFileMaxSize', 1024 * 1024 * 2); // 2MB default
+        const debugDir = OrgUtils.getDebugDir();
+        //if file is greater than max size, rotate it, 
+        const debugFile = OrgUtils.getDebugFile();
+        if (fs.existsSync(debugFile)) {
+            const fileSize = fs.statSync(debugFile).size;
+            if (fileSize > debugFileMaxSize) {
+                fs.renameSync(debugFile, path.join(debugDir, `debug.log.${Date.now()}`));
+            }
+        }
+        //and delete files older than deleteErrorLogsOlderThan
+        const deleteDebugLogsOlderThan = config.get<number>('deleteDebugLogsOlderThan', 1);
+        
+        const files = fs.readdirSync(debugDir);
+        files.forEach(file => {
+            const fileDate = new Date(file.split('.')[2]);
+            if (fileDate < new Date(Date.now() - deleteDebugLogsOlderThan * 24 * 60 * 60 * 1000)) {
+                fs.unlinkSync(path.join(debugDir, file));
+            }
+        });
+    }
+
+
+    public static getDebugDir(): string {
+        const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
+        if (!workspaceFolder) {
+            throw new Error('No workspace folder found');
+        }
+        return path.join(workspaceFolder.uri.fsPath, '.visbal', 'debug');
+    }
+
+
+    public static getDebugFile(): string {
+        const debugDir = OrgUtils.getDebugDir();
+        if (!fs.existsSync(debugDir)) {
+            fs.mkdirSync(debugDir, { recursive: true });
+        }
+        return path.join(debugDir, `debug.log`);
+    }
+
     public static logDebug(message: string, o?: unknown, o2?: unknown): void {
         const config = vscode.workspace.getConfiguration('visbal.logging');
         const saveToFile = config.get<boolean>('saveToFile', true);
         const displayInConsole = config.get<boolean>('displayInConsole', true);
         const debugMaxLength = config.get<number>('debugMaxLength', 250); // Default value, can be configured
+
+        OrgUtils.archiveDebugLog();
+
         if (saveToFile) {
             try {
-                const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
-                if (!workspaceFolder) {
-                    throw new Error('No workspace folder found');
-                }
+                
 
-                const debugDir = path.join(workspaceFolder.uri.fsPath, '.visbal', 'debug');
-                if (!fs.existsSync(debugDir)) {
-                    fs.mkdirSync(debugDir, { recursive: true });
-                }
-                const debugFile = path.join(debugDir, `debug.log`);
+                const debugFile = OrgUtils.getDebugFile();
+
                 const timestamp = new Date().toISOString();
                 let logMessage = `[${timestamp}] ${message}\n`;
                 if (o !== undefined) {
