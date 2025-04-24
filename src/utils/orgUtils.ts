@@ -650,7 +650,7 @@ export class OrgUtils {
         if (fs.existsSync(debugFile)) {
             const fileSize = fs.statSync(debugFile).size;
             if (fileSize > debugFileMaxSize) {
-                fs.renameSync(debugFile, path.join(debugDir, `debug.log.${Date.now()}`));
+                fs.renameSync(debugFile, path.join(debugDir, `debug.${Date.now()}.log`));
             }
         }
         //and delete files older than deleteErrorLogsOlderThan
