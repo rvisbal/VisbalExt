@@ -29,6 +29,7 @@ interface TestResult {
     ApexClass?: {
         Name: string;
     };
+    coverage?: any[];
 }
 
 interface TestSummary {
@@ -48,6 +49,7 @@ interface TestSummary {
     testTotalTime?: string;
     userId?: string;
     username?: string;
+    coverage?: any[];
 }
 
 interface QueueItem {
@@ -127,25 +129,21 @@ export class TestSummaryView implements vscode.WebviewViewProvider {
     public updateSummary(summary: TestSummary | TestSummary[], tests: TestResult[]) {
         OrgUtils.logDebug('[VisbalExt.TestSummaryView] updateSummary -- summary:', summary);
         OrgUtils.logDebug('[VisbalExt.TestSummaryView] updateSummary -- tests:', tests);
+        // Extract code coverage if present
+        let coverage: any[] = [];
+        if (Array.isArray(tests) && tests.length > 0 && tests[0].coverage) {
+            coverage = tests[0].coverage;
+        } else if ((summary as any)?.coverage) {
+            coverage = (summary as any).coverage;
+        }
         const failedTests = tests.filter(test => test.Outcome?.toLowerCase() === 'fail' || test.outcome?.toLowerCase() === 'failed');
         OrgUtils.logDebug('[VisbalExt.TestSummaryView] updateSummary _getWebviewContent -- failedTests:', failedTests);
-
-        // Update test selection for failing tests
-        failedTests.forEach(test => {
-            const className = test.ApexClass?.Name || test.FullName?.split('.')[0] || '';
-            const methodName = test.MethodName || test.methodName;
-            OrgUtils.logDebug(`[VisbalExt.TestSummaryView] updateSummary selectTestMethod -- className:${className} -- methodName:${methodName}`);
-            if (className && methodName) {
-                OrgUtils.selectTestMethod( className, methodName);
-            }
-        });
-
         if (this._view) {
             // Check if we have multiple summaries
             if (Array.isArray(summary)) {
-                this._view.webview.html = this._getWebviewContentForMultipleTests(summary, tests);
+                this._view.webview.html = this._getWebviewContentForMultipleTests(summary, tests, coverage);
             } else {
-                this._view.webview.html = this._getWebviewContent(summary, tests);
+                this._view.webview.html = this._getWebviewContent(summary, tests, coverage);
             }
             this._view.show?.(true); // Reveal the view
         }
@@ -192,7 +190,7 @@ export class TestSummaryView implements vscode.WebviewViewProvider {
         </html>`;
     }
 
-    private _getWebviewContentForMultipleTests(summaries: TestSummary[], tests: TestResult[]): string {
+    private _getWebviewContentForMultipleTests(summaries: TestSummary[], tests: TestResult[], coverage: any[] = []): string {
         // Calculate aggregate summary
         const aggregateSummary = {
             testsRan: summaries.reduce((total, s) => total + (s.testsRan || 0), 0),
@@ -220,6 +218,31 @@ export class TestSummaryView implements vscode.WebviewViewProvider {
                 OrgUtils.selectTestMethod(className, methodName);
             }
         });
+
+        // Coverage Table HTML
+        let coverageHtml = '';
+        if (coverage && coverage.length > 0) {
+            coverageHtml = `
+            <div class="summary-container">
+                <div class="summary-header">Code Coverage</div>
+                <table style="width:100%; border-collapse:collapse;">
+                    <thead>
+                        <tr>
+                            <th style="text-align:left; padding:4px; border-bottom:1px solid var(--vscode-panel-border);">Class/Trigger</th>
+                            <th style="text-align:left; padding:4px; border-bottom:1px solid var(--vscode-panel-border);">Coverage</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${coverage.map(cov => `
+                            <tr>
+                                <td style="padding:4px;">${cov.name || cov.className || cov.ApexClassOrTrigger?.Name || cov.id || 'Unknown'}</td>
+                                <td style="padding:4px;">${typeof cov.coverage === 'number' ? cov.coverage + '%' : (cov.coverage || cov.percentage || 'N/A')}</td>
+                            </tr>
+                        `).join('')}
+                    </tbody>
+                </table>
+            </div>`;
+        }
 
         //JavaScript/HTML section, type script rule dont apply in this block
         return `<!DOCTYPE html>
@@ -359,6 +382,7 @@ export class TestSummaryView implements vscode.WebviewViewProvider {
             </script>
         </head>
         <body>
+            ${coverageHtml}
             <div class="summary-container">
                 <div class="summary-header">Aggregate Test Results</div>
                 <div class="summary-item">
@@ -428,9 +452,32 @@ export class TestSummaryView implements vscode.WebviewViewProvider {
         </html>`;
     }
 
-    private _getWebviewContent(summary: TestSummary, tests: TestResult[]): string {
+    private _getWebviewContent(summary: TestSummary, tests: TestResult[], coverage: any[] = []): string {
         const failedTests = tests.filter(test => test.Outcome?.toLowerCase() === 'fail' || test.outcome?.toLowerCase() === 'failed');
         OrgUtils.logDebug('[VisbalExt.TestSummaryView] _getWebviewContent -- failedTests:', failedTests);
+        let coverageHtml = '';
+        if (coverage && coverage.length > 0) {
+            coverageHtml = `
+            <div class="summary-container">
+                <div class="summary-header">Code Coverage</div>
+                <table style="width:100%; border-collapse:collapse;">
+                    <thead>
+                        <tr>
+                            <th style="text-align:left; padding:4px; border-bottom:1px solid var(--vscode-panel-border);">Class/Trigger</th>
+                            <th style="text-align:left; padding:4px; border-bottom:1px solid var(--vscode-panel-border);">Coverage</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${coverage.map(cov => `
+                            <tr>
+                                <td style="padding:4px;">${cov.name || cov.className || cov.ApexClassOrTrigger?.Name || cov.id || 'Unknown'}</td>
+                                <td style="padding:4px;">${typeof cov.coverage === 'number' ? cov.coverage + '%' : (cov.coverage || cov.percentage || 'N/A')}</td>
+                            </tr>
+                        `).join('')}
+                    </tbody>
+                </table>
+            </div>`;
+        }
         //JavaScript/HTML section, type script rule dont apply in this block
         return `<!DOCTYPE html>
         <html lang="en">
@@ -589,6 +636,7 @@ export class TestSummaryView implements vscode.WebviewViewProvider {
             </script>
         </head>
         <body>
+            ${coverageHtml}
             <div class="summary-container">
                 <div class="summary-item">
                     <span class="label">Outcome:</span>

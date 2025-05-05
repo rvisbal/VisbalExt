@@ -7,6 +7,7 @@ import { readFile, unlink } from 'fs/promises';
 import { join } from 'path';
 import { existsSync, mkdirSync, symlinkSync } from 'fs';
 import { readFileSync } from 'fs';
+import * as fs from 'fs';
 import { SfdxService } from './sfdxService';
 import { OrgUtils } from '../utils/orgUtils';
 
@@ -742,13 +743,21 @@ export class MetadataService {
     }
 	
 	
-	public async getTestLogId(apexId: string): Promise<string> {
+	public async getTestLogId(apexId: string, showTestCoverage: boolean = true): Promise<string> {
         try {
             OrgUtils.logDebug('[VisbalExt.MetadataService] getTestLogId -- apexId:', apexId);
 
 
             // Get test run details to get the start time
-            const testRunDetailsCommand = `sf apex get test --test-run-id ${apexId} --json`;
+            let testRunDetailsCommand = `sf apex get test --test-run-id ${apexId} --json`;
+            if (showTestCoverage) {
+                // Ensure .visbal/test directory exists
+                const coverageDir = path.join('.visbal', 'test');
+                if (!fs.existsSync(coverageDir)) {
+                    fs.mkdirSync(coverageDir, { recursive: true });
+                }
+                testRunDetailsCommand += ` --code-coverage --output-dir ${coverageDir}`;
+            }
             OrgUtils.logDebug('[VisbalExt.MetadataService] getTestLogId -- testRunDetailsCommand:', testRunDetailsCommand);
             const testRunDetailsResult = await this._executeCommand2(testRunDetailsCommand);
 

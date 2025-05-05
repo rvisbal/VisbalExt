@@ -967,7 +967,7 @@ export class SfdxService {
     /**
      * Runs Apex tests
      */
-    public async runTests(testClass: string, testMethod?: string, useDefaultOrg: boolean = false): Promise<any> {
+    public async runTests(testClass: string, testMethod?: string, useDefaultOrg: boolean = false, showTestCoverage: boolean = true): Promise<any> {
         const startTime = Date.now();
         try {
             OrgUtils.logDebug(`[VisbalExt.SfdxService] runTests -- START at ${new Date(startTime).toISOString()}`);
@@ -976,6 +976,10 @@ export class SfdxService {
             let command = testMethod
                 ? `sf apex run test --tests ${testClass}.${testMethod} --json`
                 : `sf apex run test --class-names ${testClass} --json`;
+            
+            if (showTestCoverage) {
+                command += ' --code-coverage ';
+            }
             
             const selectedOrg = await OrgUtils.getSelectedOrg();
             OrgUtils.logDebug(`[VisbalExt.SfdxService] runTests -- Selected org:`, selectedOrg);
@@ -1012,7 +1016,7 @@ export class SfdxService {
         classes: string[], 
         methods: { className: string, methodName: string }[],
         runMode: 'sequential' | 'parallel'
-    }, useDefaultOrg: boolean = false): Promise<any> {
+    }, useDefaultOrg: boolean = false, showTestCoverage: boolean = true): Promise<any> {
         const startTime = Date.now();
         try {
             OrgUtils.logDebug(`[VisbalExt.SfdxService] runManyTests -- START at ${new Date(startTime).toISOString()}`);
@@ -1028,6 +1032,9 @@ export class SfdxService {
             }
             if (tests.runMode === 'sequential') {
                 command += ' --synchronous';
+            }
+            if (showTestCoverage) {
+                command += ' --code-coverage';
             }
             command += ' --json';
             OrgUtils.logDebug(`[VisbalExt.SfdxService] runManyTests -- _executeCommand: ${command}`);
@@ -1067,7 +1074,7 @@ export class SfdxService {
         }
     }
 
-    public async runAllTests(useDefaultOrg: boolean = false, synchronous: boolean = false): Promise<any> {
+    public async runAllTests(useDefaultOrg: boolean = false, synchronous: boolean = false, showTestCoverage: boolean = true): Promise<any> {
         const startTime = Date.now();
         try {
             OrgUtils.logDebug(`[VisbalExt.SfdxService] runAllTests -- START at ${new Date(startTime).toISOString()}`);
@@ -1077,6 +1084,9 @@ export class SfdxService {
             OrgUtils.logDebug(`[VisbalExt.SfdxService] runAllTests -- Selected org:`, selectedOrg);
             if (synchronous) {
                 command += ` --synchronous`;
+            }
+            if (showTestCoverage) {
+                command += ' --code-coverage';
             }
             if (!useDefaultOrg && selectedOrg && selectedOrg?.alias) {
                 command += ` --target-org ${selectedOrg.alias}`;
@@ -1164,7 +1174,7 @@ export class SfdxService {
      * @param testRunId The ID of the test run
      * @returns Promise containing the test run result
      */
-    public async getTestRunResult(testRunId: string): Promise<any> {
+    public async getTestRunResult(testRunId: string, showTestCoverage: boolean = true): Promise<any> {
         const startTime = Date.now();
         try {
             OrgUtils.logDebug(`[VisbalExt.SfdxService] getTestRunResult Getting test run result at ${new Date(startTime).toISOString()}`);
@@ -1175,6 +1185,14 @@ export class SfdxService {
             const selectedOrg = await OrgUtils.getSelectedOrg();
             if (selectedOrg?.alias) {
                 command += ` --target-org ${selectedOrg.alias}`;
+            }
+            if (showTestCoverage) {
+                // Ensure .visbal/test directory exists
+                const coverageDir = path.join('.visbal', 'test');
+                if (!fs.existsSync(coverageDir)) {
+                    fs.mkdirSync(coverageDir, { recursive: true });
+                }
+                command += ` --code-coverage --output-dir ${coverageDir}`;
             }
             command += ` --json`;
             OrgUtils.logDebug(`[VisbalExt.SfdxService] getTestRunResult Executing command: ${command}`);
