@@ -677,12 +677,16 @@ export function getHtmlForWebview(extensionUri: vscode.Uri, webview: vscode.Webv
               <button id="open-org-button" title="Open Org">
                 <span>🌐</span>
               </button>
-              <button id="refresh-button" title="Refresh Logs files using sfdx">
-                <span>🔄</span>
-              </button>
-              <button id="soql-button" title="Refresh with SOQL">
-                <span>🔄</span> SOQL
-              </button>
+              <div class="dropdown-button-group" id="refresh-dropdown-group">
+                <button id="refresh-main-button" title="Refresh Logs using sfdx">
+                  <span>🔄</span>
+                  <span class="dropdown-arrow" style="margin-left:4px; cursor:pointer;" title="Show more refresh options" aria-label="Show more refresh options">▼</span>
+                </button>
+                <div class="dropdown-menu hidden" id="refresh-dropdown-menu">
+                  <div class="dropdown-item" data-action="sfdx">Refresh Logs using sfdx</div>
+                  <div class="dropdown-item" data-action="soql">Refresh with SOQL</div>
+                </div>
+              </div>
             </div>
             <button class="text-button warning-button" id="clear-local-button" title="Clear Downloaded Log Files on local machine">
               <span>🗑️</span> Local
@@ -760,8 +764,9 @@ export function getHtmlForWebview(extensionUri: vscode.Uri, webview: vscode.Webv
         
         // Elements
         const openOrgButton = document.getElementById('open-org-button');
-        const refreshButton = document.getElementById('refresh-button');
-        const soqlButton = document.getElementById('soql-button');
+        const refreshDropdownGroup = document.getElementById('refresh-dropdown-group');
+        const refreshMainButton = document.getElementById('refresh-main-button');
+        const refreshDropdownMenu = document.getElementById('refresh-dropdown-menu');
         const clearLocalButton = document.getElementById('clear-local-button');
         const deleteDropdownGroup = document.getElementById('delete-dropdown-group');
         const deleteMainButton = document.getElementById('delete-main-button');
@@ -1082,8 +1087,7 @@ export function getHtmlForWebview(extensionUri: vscode.Uri, webview: vscode.Webv
         function showLoading(message = 'Loading logs...') {
           loadingText.textContent = message;
           loadingIndicator.classList.remove('hidden');
-          refreshButton.disabled = true;
-          soqlButton.disabled = true;
+          refreshMainButton.disabled = true;
           clearLocalButton.disabled = true;
           deleteMainButton.disabled = true;
         }
@@ -1091,8 +1095,7 @@ export function getHtmlForWebview(extensionUri: vscode.Uri, webview: vscode.Webv
         // Hide loading state
         function hideLoading() {
           loadingIndicator.classList.add('hidden');
-          refreshButton.disabled = false;
-          soqlButton.disabled = false;
+          refreshMainButton.disabled = false;
           clearLocalButton.disabled = false;
           deleteMainButton.disabled = false;
         }
@@ -1260,25 +1263,56 @@ export function getHtmlForWebview(extensionUri: vscode.Uri, webview: vscode.Webv
           showLoading('Open selected Org...');
         });
         
-        // Refresh button
-        refreshButton.addEventListener('click', () => {
-          console.log('[VisbalExt.htmlTemplate] handleRefresh -- Refresh button clicked');
-          hideError();
-          vscode.postMessage({
-            command: 'fetchLogs'
-          });
-          showLoading('Refreshing logs...');
+        // Refresh dropdown logic
+        let refreshDefaultAction = 'sfdx'; // Default action
+
+        // Add event listener to the arrow for dropdown
+        const refreshDropdownArrow = refreshMainButton.querySelector('.dropdown-arrow');
+        refreshDropdownArrow.addEventListener('click', (e) => {
+          e.stopPropagation();
+          refreshDropdownMenu.classList.toggle('hidden');
         });
-        
-        // SOQL button
-        soqlButton.addEventListener('click', () => {
-          console.log('[VisbalExt.htmlTemplate] handleSoql -- SOQL button clicked');
-          hideError();
-          vscode.postMessage({
-            command: 'fetchLogsSoql'
-          });
-          showLoading('Refreshing logs via SOQL...');
+
+        // Main button click (excluding the arrow) does the default action
+        refreshMainButton.addEventListener('click', (e) => {
+          // If the click was on the arrow, do nothing (handled above)
+          if (e.target.classList.contains('dropdown-arrow')) return;
+          handleRefreshAction(refreshDefaultAction);
         });
+
+        // Add event listeners to dropdown menu items
+        refreshDropdownMenu.querySelectorAll('.dropdown-item').forEach(item => {
+          item.addEventListener('click', (e) => {
+            const action = item.getAttribute('data-action');
+            handleRefreshAction(action);
+            refreshDropdownMenu.classList.add('hidden'); // Hide the menu after click
+          });
+        });
+
+        // Hide dropdown if clicking outside
+        document.addEventListener('click', (e) => {
+          if (!refreshDropdownGroup.contains(e.target)) {
+            refreshDropdownMenu.classList.add('hidden');
+          }
+        });
+
+        function handleRefreshAction(action) {
+          if (action === 'sfdx') {
+            console.log('[VisbalExt.htmlTemplate] handleRefresh -- Refresh Logs using sfdx');
+            hideError();
+            vscode.postMessage({
+              command: 'fetchLogs'
+            });
+            showLoading('Refreshing logs...');
+          } else if (action === 'soql') {
+            console.log('[VisbalExt.htmlTemplate] handleSoql -- Refresh with SOQL');
+            hideError();
+            vscode.postMessage({
+              command: 'fetchLogsSoql'
+            });
+            showLoading('Refreshing logs via SOQL...');
+          }
+        }
         
         // Clear Local button
         clearLocalButton.addEventListener('click', () => {
