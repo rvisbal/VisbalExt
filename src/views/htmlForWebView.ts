@@ -138,15 +138,14 @@ export function getHtmlForWebview(extensionUri: vscode.Uri, webview: vscode.Webv
           opacity: 0.3;
           cursor: not-allowed;
         }
-        .actions-section {
+        .actions-section, .button-group {
           display: flex;
+          flex-wrap: nowrap;
           align-items: center;
-          gap: 8px;
+          min-width: 0;
         }
-        .button-group {
-          display: flex;
-          align-items: center;
-          gap: 4px;
+        .button-group > * {
+          flex-shrink: 0;
         }
         .text-button {
           background-color: var(--vscode-button-background);
