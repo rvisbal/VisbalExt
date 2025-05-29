@@ -477,6 +477,12 @@ export function getHtmlForWebview(extensionUri: vscode.Uri, webview: vscode.Webv
         .dropdown-arrow:hover {
           background: var(--vscode-list-hoverBackground, #2c2c32);
         }
+        .text-button.danger-button#delete-selected-button {
+          display: none;
+        }
+        .text-button.danger-button#delete-selected-button.visible {
+          display: flex;
+        }
 	</style>
 	<style>
         .dropdown-button-group {
@@ -1071,7 +1077,13 @@ export function getHtmlForWebview(extensionUri: vscode.Uri, webview: vscode.Webv
         // Update delete selected button state
         function updateDeleteSelectedButton() {
           const deleteSelectedButton = document.getElementById('delete-selected-button');
-          deleteSelectedButton.disabled = selectedLogIds.size === 0;
+          if (selectedLogIds.size === 0) {
+            deleteSelectedButton.classList.remove('visible');
+            deleteSelectedButton.disabled = true;
+          } else {
+            deleteSelectedButton.classList.add('visible');
+            deleteSelectedButton.disabled = false;
+          }
         }
         
         // Format file size
