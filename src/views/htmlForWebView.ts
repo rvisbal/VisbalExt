@@ -467,6 +467,53 @@ export function getHtmlForWebview(extensionUri: vscode.Uri, webview: vscode.Webv
           outline: none;
           border-color: var(--vscode-focusBorder);
         }
+	</style>
+	<style>
+        .dropdown-button-group {
+          position: relative;
+          display: inline-block;
+        }
+
+        .dropdown-menu {
+          display: block;
+          position: absolute;
+          right: 0;
+          top: 110%; /* Slightly below the button */
+          min-width: 260px;
+          background: var(--vscode-editorWidget-background, #252526);
+          border: 1px solid var(--vscode-panel-border, #333);
+          border-radius: 6px;
+          box-shadow: 0 4px 16px rgba(0,0,0,0.25), 0 1.5px 4px rgba(0,0,0,0.15);
+          z-index: 9999;
+          padding: 4px 0;
+          margin-top: 4px;
+          animation: fadeIn 0.15s;
+        }
+
+        @keyframes fadeIn {
+          from { opacity: 0; transform: translateY(-8px);}
+          to   { opacity: 1; transform: translateY(0);}
+        }
+
+        .dropdown-menu.hidden {
+          display: none;
+        }
+
+        .dropdown-item {
+          padding: 10px 20px;
+          cursor: pointer;
+          color: var(--vscode-button-foreground, #fff);
+          background: none;
+          border: none;
+          text-align: left;
+          font-size: 14px;
+          transition: background 0.15s, color 0.15s;
+        }
+
+        .dropdown-item:hover {
+          background: var(--vscode-list-hoverBackground, #2c2c32);
+          color: var(--vscode-button-foreground, #fff);
+        }
       </style>
     </head>
     <body>
@@ -633,12 +680,17 @@ export function getHtmlForWebview(extensionUri: vscode.Uri, webview: vscode.Webv
             <button class="text-button danger-button" id="delete-selected-button" title="Delete Selected Logs" disabled>
               <span>🗑️</span> Selected
             </button>
-            <button class="text-button danger-button" id="delete-server-button" title="Delete Logs from Server">
-              <span>🗑️</span>
-            </button>
-            <button class="text-button danger-button" id="delete-rest-api-button" title="Delete Logs using REST API">
-              <span>🗑️</span> Tooling API
-            </button>
+            <div class="dropdown-button-group" id="delete-dropdown-group">
+              <button class="text-button danger-button" id="delete-main-button" title="Delete Logs from Server">
+                <span>🗑️</span>
+                <span id="delete-main-label">Delete Logs</span>
+                <span style="margin-left:4px;">▼</span>
+              </button>
+              <div class="dropdown-menu hidden" id="delete-dropdown-menu">
+                <div class="dropdown-item" data-action="server">Delete Logs from Server</div>
+                <div class="dropdown-item" data-action="rest">Delete Logs using REST API (Tooling API)</div>
+              </div>
+            </div>
           </div>
         </div>
         
@@ -702,8 +754,9 @@ export function getHtmlForWebview(extensionUri: vscode.Uri, webview: vscode.Webv
         const refreshButton = document.getElementById('refresh-button');
         const soqlButton = document.getElementById('soql-button');
         const clearLocalButton = document.getElementById('clear-local-button');
-        const deleteServerButton = document.getElementById('delete-server-button');
-        const deleteRestApiButton = document.getElementById('delete-rest-api-button');
+        const deleteDropdownGroup = document.getElementById('delete-dropdown-group');
+        const deleteMainButton = document.getElementById('delete-main-button');
+        const deleteDropdownMenu = document.getElementById('delete-dropdown-menu');
         const filterInput = document.getElementById('filter-input');
         const clearFilterButton = document.getElementById('clear-filter-button');
         const logsTableBody = document.getElementById('logs-table-body');
@@ -1023,8 +1076,7 @@ export function getHtmlForWebview(extensionUri: vscode.Uri, webview: vscode.Webv
           refreshButton.disabled = true;
           soqlButton.disabled = true;
           clearLocalButton.disabled = true;
-          deleteServerButton.disabled = true;
-          deleteRestApiButton.disabled = true;
+          deleteMainButton.disabled = true;
         }
         
         // Hide loading state
@@ -1033,8 +1085,7 @@ export function getHtmlForWebview(extensionUri: vscode.Uri, webview: vscode.Webv
           refreshButton.disabled = false;
           soqlButton.disabled = false;
           clearLocalButton.disabled = false;
-          deleteServerButton.disabled = false;
-          deleteRestApiButton.disabled = false;
+          deleteMainButton.disabled = false;
         }
         
         // Show error message
@@ -1076,6 +1127,17 @@ export function getHtmlForWebview(extensionUri: vscode.Uri, webview: vscode.Webv
           confirmModal.classList.add('hidden');
           pendingAction = null;
         }
+
+        // Attach event listeners to modal buttons
+        modalCancel.addEventListener('click', () => {
+          hideConfirmModal();
+        });
+        modalConfirm.addEventListener('click', () => {
+          if (pendingAction) {
+            pendingAction();
+          }
+          hideConfirmModal();
+        });
         
         // Sort logs
         function sortLogs(column, direction) {
@@ -1225,78 +1287,55 @@ export function getHtmlForWebview(extensionUri: vscode.Uri, webview: vscode.Webv
           );
         });
         
-        // Delete Server button
-        deleteServerButton.addEventListener('click', () => {
-          console.log('[VisbalExt.htmlTemplate] handleDeleteServer -- Delete Server button clicked');
-          showConfirmModal(
-            'Delete Server Logs',
-            'Are you sure you want to delete all logs from the Salesforce server? This action cannot be undone.',
-            () => {
-              hideError();
-              vscode.postMessage({
-                command: 'deleteServerLogs'
-              });
-              showLoading('Deleting server logs...');
-            }
-          );
-        });
-        
-        // Delete REST API button
-        deleteRestApiButton.addEventListener('click', () => {
-          console.log('[VisbalExt.htmlTemplate] handleDeleteRestApi -- Delete REST API button clicked');
-          showConfirmModal(
-            'Delete Logs using REST API',
-            'Are you sure you want to delete all logs using the Salesforce REST API? This action cannot be undone.',
-            () => {
-              hideError();
-              vscode.postMessage({
-                command: 'deleteViaSoql'
-              });
-              showLoading('Deleting logs using REST API...');
-            }
-          );
-        });
-        
-        // Modal cancel button
-        modalCancel.addEventListener('click', () => {
-          hideConfirmModal();
-        });
-        
-        // Modal confirm button
-        modalConfirm.addEventListener('click', () => {
-          if (pendingAction) {
-            pendingAction();
-          }
-          hideConfirmModal();
-        });
-        
-        // Handle download status updates
-        function handleDownloadStatus(logId, isLoading, status, filePath, errorMsg) {
-          const downloadButton = document.querySelector('.download-icon[data-id="' + logId + '"]');
-          const openButton = document.querySelector('.open-icon[data-id="' + logId + '"]');
-          const checkbox = document.querySelector('.downloaded-checkbox[data-id="' + logId + '"]');
-          
-          if (!downloadButton) return;
-          
-          if (isLoading) {
-            downloadButton.disabled = true;
-            downloadButton.title = 'Downloading...';
+        // Dropdown logic for delete button
+        let deleteDefaultAction = 'server'; // Default action
+
+        deleteMainButton.addEventListener('click', (e) => {
+          // If click is on the arrow, show menu; otherwise, do default action
+          const rect = deleteMainButton.getBoundingClientRect();
+          if (e.offsetX > rect.width - 32) { // last ~32px is arrow
+            deleteDropdownMenu.classList.toggle('hidden');
           } else {
-            downloadButton.disabled = false;
-            
-            if (status === 'downloaded') {
-              downloadButton.title = 'Downloaded';
-              if (checkbox) checkbox.checked = true;
-              
-              // Enable open button
-              if (openButton) {
-                openButton.disabled = false;
-                openButton.title = 'Open';
+            handleDeleteAction(deleteDefaultAction);
+          }
+        });
+
+        deleteDropdownMenu.querySelectorAll('.dropdown-item').forEach(item => {
+          item.addEventListener('click', (e) => {
+            const action = item.getAttribute('data-action');
+            handleDeleteAction(action);
+            deleteDropdownMenu.classList.add('hidden');
+          });
+        });
+
+        // Hide dropdown if clicking outside
+        document.addEventListener('click', (e) => {
+          if (!deleteDropdownGroup.contains(e.target)) {
+            deleteDropdownMenu.classList.add('hidden');
+          }
+        });
+
+        function handleDeleteAction(action) {
+          if (action === 'server') {
+            showConfirmModal(
+              'Delete Server Logs',
+              'Are you sure you want to delete all logs from the Salesforce server? This action cannot be undone.',
+              () => {
+                hideError();
+                vscode.postMessage({ command: 'deleteServerLogs' });
+                showLoading('Deleting server logs...');
               }
-            } else if (status === 'error') {
-              downloadButton.title = errorMsg || 'Download failed';
-              showError(errorMsg || 'Download failed');
-            }
+            );
+          } else if (action === 'rest') {
+            showConfirmModal(
+              'Delete Logs using REST API',
+              'Are you sure you want to delete all logs using the Salesforce REST API? This action cannot be undone.',
+              () => {
+                hideError();
+                vscode.postMessage({ command: 'deleteViaSoql' });
+                showLoading('Deleting logs using REST API...');
+              }
+            );
           }
         }
         

@@ -16,65 +16,76 @@
     "sandboxes": [],
     "scratchOrgs": [
       {
-        "username": "test-w0xyevhrjh9u@example.com",
-        "alias": "AUTOMATED_QA",
-        "instanceUrl": "https://velocity-inspiration-1706-dev-ed.scratch.my.salesforce.com",
+        "username": "test-3kiqvbmypy06@example.com",
+        "alias": "CODE_REVIEW",
+        "instanceUrl": "https://speed-customization-4317-dev-ed.scratch.my.salesforce.com",
         "isDefault": false,
         "type": "scratchOrg",
         "clientId": "PlatformCLI",
         "clientSecret": "Unknown",
         "redirectUri": "Unknown",
-        "expirationDate": "2025-05-13"
+        "expirationDate": "2025-05-28"
       },
       {
-        "username": "test-jx5rvz8y5hu0@example.com",
-        "alias": "CURSOR_MERGE",
-        "instanceUrl": "https://drive-fun-1519-dev-ed.scratch.my.salesforce.com",
-        "isDefault": false,
-        "type": "scratchOrg",
-        "clientId": "PlatformCLI",
-        "clientSecret": "Unknown",
-        "redirectUri": "Unknown",
-        "expirationDate": "2025-05-07"
-      },
-      {
-        "username": "test-mw7op07j90fp@example.com",
+        "username": "test-hedfhcuhf3pv@example.com",
         "alias": "CURSOR_SAMPLE",
-        "instanceUrl": "https://enterprise-drive-9552-dev-ed.scratch.my.salesforce.com",
+        "instanceUrl": "https://enterprise-platform-4523-dev-ed.scratch.my.salesforce.com",
         "isDefault": false,
         "type": "scratchOrg",
         "clientId": "PlatformCLI",
         "clientSecret": "Unknown",
         "redirectUri": "Unknown",
-        "expirationDate": "2025-05-22"
+        "expirationDate": "2025-06-28"
       },
       {
-        "username": "test-06oz9kqpewkk@example.com",
+        "username": "test-wdmm8pgzx5kb@example.com",
         "alias": "CURSOR_TICKET",
-        "instanceUrl": "https://fun-power-8424-dev-ed.scratch.my.salesforce.com",
+        "instanceUrl": "https://inspiration-energy-9663-dev-ed.scratch.my.salesforce.com",
         "isDefault": false,
         "type": "scratchOrg",
         "clientId": "PlatformCLI",
         "clientSecret": "Unknown",
         "redirectUri": "Unknown",
-        "expirationDate": "2025-04-24"
+        "expirationDate": "2025-06-11"
       },
       {
-        "username": "test-1p6s0vbccpcu@example.com",
-        "alias": "SECURITY_REVIEW",
-        "instanceUrl": "https://page-velocity-4322-dev-ed.scratch.my.salesforce.com",
+        "username": "test-oq3qvu3qayn0@example.com",
+        "alias": "LATEST",
+        "instanceUrl": "https://saas-ruby-2266-dev-ed.scratch.my.salesforce.com",
         "isDefault": false,
         "type": "scratchOrg",
         "clientId": "PlatformCLI",
         "clientSecret": "Unknown",
         "redirectUri": "Unknown",
-        "expirationDate": "2025-04-26"
+        "expirationDate": "2025-05-29"
+      },
+      {
+        "username": "test-byxxq7tbrhzz@example.com",
+        "alias": "MERGE",
+        "instanceUrl": "https://agility-nosoftware-434-dev-ed.scratch.my.salesforce.com",
+        "isDefault": false,
+        "type": "scratchOrg",
+        "clientId": "PlatformCLI",
+        "clientSecret": "Unknown",
+        "redirectUri": "Unknown",
+        "expirationDate": "2025-06-20"
+      },
+      {
+        "username": "test-jxded4mxvbze@example.com",
+        "alias": "SECURITY_REVIEW",
+        "instanceUrl": "https://flow-dream-6680-dev-ed.scratch.my.salesforce.com",
+        "isDefault": false,
+        "type": "scratchOrg",
+        "clientId": "PlatformCLI",
+        "clientSecret": "Unknown",
+        "redirectUri": "Unknown",
+        "expirationDate": "2025-05-31"
       }
     ],
     "nonScratchOrgs": [
       {
         "username": "adminqa@demoorg.com.manualuat",
-        "alias": "HIERARCHY_MANUAL_UAT",
+        "alias": "DEMO_UAT",
         "instanceUrl": "https://completedemo--uat.sandbox.my.salesforce.com",
         "isDefault": false,
         "type": "other",
@@ -142,6 +153,28 @@
         "username": "admin@trachier_4.52.patch",
         "alias": "HIERARCHY_PATCH_4_52",
         "instanceUrl": "https://nosoftware-power-57742-dev-ed.patch.my.salesforce.com",
+        "isDefault": false,
+        "type": "other",
+        "clientId": "PlatformCLI",
+        "clientSecret": "Unknown",
+        "redirectUri": "Unknown",
+        "expirationDate": "Unknown"
+      },
+      {
+        "username": "admin@trachier_4.57.patch",
+        "alias": "HIERARCHY_PATCH_4_57",
+        "instanceUrl": "https://energy-energy-31142-dev-ed.patch.my.salesforce.com",
+        "isDefault": false,
+        "type": "other",
+        "clientId": "PlatformCLI",
+        "clientSecret": "Unknown",
+        "redirectUri": "Unknown",
+        "expirationDate": "Unknown"
+      },
+      {
+        "username": "admin@trachier_4.58.patch",
+        "alias": "HIERARCHY_PATCH_4_58",
+        "instanceUrl": "https://ability-connect-14432-dev-ed.patch.my.salesforce.com",
         "isDefault": false,
         "type": "other",
         "clientId": "PlatformCLI",
@@ -172,17 +205,6 @@
         "expirationDate": "Unknown"
       },
       {
-        "username": "shannon+jfsd@passionfruitpartners.com.datamig",
-        "alias": "MIGRAR_TESTER_2",
-        "instanceUrl": "https://jfsd--datamig.sandbox.my.salesforce.com",
-        "isDefault": false,
-        "type": "other",
-        "clientId": "PlatformCLI",
-        "clientSecret": "Unknown",
-        "redirectUri": "Unknown",
-        "expirationDate": "Unknown"
-      },
-      {
         "username": "dev@hierarchies3.app",
         "alias": "PACKAGING_ORG",
         "instanceUrl": "https://tractionhierarchies-dev-ed.my.salesforce.com",
@@ -192,12 +214,23 @@
         "clientSecret": "Unknown",
         "redirectUri": "Unknown",
         "expirationDate": "Unknown"
+      },
+      {
+        "username": "gadamson@realtimeleadclean.app",
+        "alias": "TracRTC-Packaging-Org",
+        "instanceUrl": "https://tractioncomplete-dev-ed.my.salesforce.com",
+        "isDefault": false,
+        "type": "other",
+        "clientId": "3MVG9xOCXq4ID1uE0dX_M1KQUOn9vP3rrIGH1NOQNwdUxzWrF0hi3dTyhMEsMPoA1fMWDivp_igqfN1jb.3mS",
+        "clientSecret": "Unknown",
+        "redirectUri": "Unknown",
+        "expirationDate": "Unknown"
       }
     ],
     "other": [
       {
         "username": "adminqa@demoorg.com.manualuat",
-        "alias": "HIERARCHY_MANUAL_UAT",
+        "alias": "DEMO_UAT",
         "instanceUrl": "https://completedemo--uat.sandbox.my.salesforce.com",
         "isDefault": false,
         "type": "other",
@@ -273,9 +306,9 @@
         "expirationDate": "Unknown"
       },
       {
-        "username": "rvisbal.tester@gmail.com",
-        "alias": "MIGRAR_TESTER",
-        "instanceUrl": "https://rvisbaltester-dev-ed.my.salesforce.com",
+        "username": "admin@trachier_4.57.patch",
+        "alias": "HIERARCHY_PATCH_4_57",
+        "instanceUrl": "https://energy-energy-31142-dev-ed.patch.my.salesforce.com",
         "isDefault": false,
         "type": "other",
         "clientId": "PlatformCLI",
@@ -284,9 +317,20 @@
         "expirationDate": "Unknown"
       },
       {
-        "username": "shannon+jfsd@passionfruitpartners.com.datamig",
-        "alias": "MIGRAR_TESTER_2",
-        "instanceUrl": "https://jfsd--datamig.sandbox.my.salesforce.com",
+        "username": "admin@trachier_4.58.patch",
+        "alias": "HIERARCHY_PATCH_4_58",
+        "instanceUrl": "https://ability-connect-14432-dev-ed.patch.my.salesforce.com",
+        "isDefault": false,
+        "type": "other",
+        "clientId": "PlatformCLI",
+        "clientSecret": "Unknown",
+        "redirectUri": "Unknown",
+        "expirationDate": "Unknown"
+      },
+      {
+        "username": "rvisbal.tester@gmail.com",
+        "alias": "MIGRAR_TESTER",
+        "instanceUrl": "https://rvisbaltester-dev-ed.my.salesforce.com",
         "isDefault": false,
         "type": "other",
         "clientId": "PlatformCLI",
@@ -304,8 +348,19 @@
         "clientSecret": "Unknown",
         "redirectUri": "Unknown",
         "expirationDate": "Unknown"
+      },
+      {
+        "username": "gadamson@realtimeleadclean.app",
+        "alias": "TracRTC-Packaging-Org",
+        "instanceUrl": "https://tractioncomplete-dev-ed.my.salesforce.com",
+        "isDefault": false,
+        "type": "other",
+        "clientId": "3MVG9xOCXq4ID1uE0dX_M1KQUOn9vP3rrIGH1NOQNwdUxzWrF0hi3dTyhMEsMPoA1fMWDivp_igqfN1jb.3mS",
+        "clientSecret": "Unknown",
+        "redirectUri": "Unknown",
+        "expirationDate": "Unknown"
       }
     ]
   },
-  "timestamp": 1745427316725
+  "timestamp": 1748542611269
 }
