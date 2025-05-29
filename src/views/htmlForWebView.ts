@@ -299,14 +299,26 @@ export function getHtmlForWebview(extensionUri: vscode.Uri, webview: vscode.Webv
         }
         
         /* Debug Configuration Bar Styles */
-        .debug-config-bar {
+        .debug-config-bar-wrapper {
           display: flex;
-          flex-wrap: wrap;
           align-items: center;
-          padding: 6px 10px;
+          position: relative;
+          width: 100%;
           background-color: var(--vscode-editor-inactiveSelectionBackground);
           border-bottom: 1px solid var(--vscode-panel-border);
+          padding: 6px 10px;
           gap: 8px;
+        }
+        
+        .debug-config-bar {
+          flex: 1 1 auto;
+          min-width: 0;
+          overflow-x: auto;
+          display: flex;
+          gap: 8px;
+          scrollbar-width: thin;
+          scrollbar-color: var(--vscode-scrollbarSlider-background) var(--vscode-editor-background);
+          position: relative;
         }
         
         .debug-config-options {
@@ -314,6 +326,7 @@ export function getHtmlForWebview(extensionUri: vscode.Uri, webview: vscode.Webv
           flex-wrap: wrap;
           gap: 6px;
           flex: 1;
+          min-width: max-content; /* Prevent wrapping, allow horizontal scroll */
         }
         
         .debug-option {
@@ -344,6 +357,8 @@ export function getHtmlForWebview(extensionUri: vscode.Uri, webview: vscode.Webv
         }
         
         #apply-debug-config-button {
+          margin-left: 8px;
+          flex-shrink: 0;
           white-space: nowrap;
           font-size: 14px;
           padding: 6px 10px;
@@ -483,6 +498,37 @@ export function getHtmlForWebview(extensionUri: vscode.Uri, webview: vscode.Webv
         .text-button.danger-button#delete-selected-button.visible {
           display: flex;
         }
+        .debug-config-scroll-arrow {
+          position: absolute;
+          top: 38px;
+          z-index: 2;
+          width: 28px;
+          height: 28px;
+          background: var(--vscode-editor-background, #222);
+          color: var(--vscode-button-foreground, #fff);
+          border-radius: 50%;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          cursor: pointer;
+          opacity: 0.7;
+          transition: opacity 0.2s;
+          font-size: 18px;
+          box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+          user-select: none;
+        }
+        .debug-config-scroll-arrow:hover {
+          opacity: 1;
+        }
+        .debug-config-scroll-arrow.left {
+          left: 4px;
+        }
+        .debug-config-scroll-arrow.right {
+          right: 4px;
+        }
+        .debug-config-scroll-arrow.hidden {
+          display: none;
+        }
 	</style>
 	<style>
         .dropdown-button-group {
@@ -534,137 +580,138 @@ export function getHtmlForWebview(extensionUri: vscode.Uri, webview: vscode.Webv
     </head>
     <body>
       <div class="container">
-        <!-- Debug Log Configuration Bar - Moved above the filter section -->
-        <div class="debug-config-bar">
-          <div class="debug-config-options">
-            <div class="debug-option">
-              <label>Preset</label>
-              <select id="debug-preset" class="debug-select">
-                <option value="default">Default (Standard)</option>
-                <option value="detailed">Detailed</option>
-                <option value="developer">Developer</option>
-                <option value="custom">Custom</option>
-                <option value="debugonly">DebugOnly</option>
-              </select>
-            </div>
-            <div class="debug-option">
-              <label>Apex Code</label>
-              <select id="debug-apex-code" class="debug-select">
-                <option value="NONE">NONE</option>
-                <option value="ERROR">ERROR</option>
-                <option value="WARN">WARN</option>
-                <option value="INFO">INFO</option>
-                <option value="DEBUG" >DEBUG</option>
-                <option value="FINE" selected>FINE</option>
-                <option value="FINER">FINER</option>
-                <option value="FINEST">FINEST</option>
-              </select>
-            </div>
-            <div class="debug-option">
-              <label>Apex Profiling</label>
-              <select id="debug-apex-profiling" class="debug-select">
-                <option value="NONE">NONE</option>
-                <option value="INFO" selected>INFO</option>
-                <option value="FINE">FINE</option>
-                <option value="FINEST">FINEST</option>
-              </select>
-            </div>
-            <div class="debug-option">
-              <label>Callout</label>
-              <select id="debug-callout" class="debug-select">
-                <option value="NONE">NONE</option>
-                <option value="ERROR">ERROR</option>
-                <option value="INFO" selected>INFO</option>
-                <option value="FINER">FINER</option>
-                <option value="FINEST">FINEST</option>
-              </select>
-            </div>
-            <div class="debug-option">
-              <label>Data Access</label>
-              <select id="debug-data-access" class="debug-select">
-                <option value="NONE">NONE</option>
-                <option value="WARN">WARN</option>
-                <option value="INFO" >INFO</option>
-                <option value="FINE" selected>FINE</option>
-                <option value="FINEST">FINEST</option>
-              </select>
-            </div>
-            <div class="debug-option">
-              <label>Database</label>
-              <select id="debug-database" class="debug-select">
-                <option value="NONE">NONE</option>
-                <option value="WARN">WARN</option>
-                <option value="INFO" >INFO</option>
-                <option value="FINE" selected>FINE</option>
-                <option value="FINEST">FINEST</option>
-              </select>
-            </div>
-            <div class="debug-option">
-              <label>NBA</label>
-              <select id="debug-nba" class="debug-select">
-                <option value="NONE">NONE</option>
-                <option value="ERROR">ERROR</option>
-                <option value="INFO" selected>INFO</option>
-                <option value="FINE">FINE</option>
-              </select>
-            </div>
-            <div class="debug-option">
-              <label>System</label>
-              <select id="debug-system" class="debug-select">
-                <option value="NONE">NONE</option>
-                <option value="INFO">INFO</option>
-                <option value="DEBUG" selected>DEBUG</option>
-                <option value="FINE">FINE</option>
-                <option value="FINEST">FINEST</option>
-              </select>
-            </div>
-            <div class="debug-option">
-              <label>Validation</label>
-              <select id="debug-validation" class="debug-select">
-                <option value="NONE">NONE</option>
-                <option value="INFO" selected>INFO</option>
-                <option value="FINEST">FINEST</option>
-              </select>
-            </div>
-            <div class="debug-option">
-              <label>Visualforce</label>
-              <select id="debug-visualforce" class="debug-select">
-                <option value="NONE">NONE</option>
-                <option value="INFO" selected>INFO</option>
-                <option value="FINE">FINE</option>
-                <option value="FINER">FINER</option>
-                <option value="FINEST">FINEST</option>
-              </select>
-            </div>
-            <div class="debug-option">
-              <label>Wave</label>
-              <select id="debug-wave" class="debug-select">
-                <option value="NONE">NONE</option>
-                <option value="ERROR">ERROR</option>
-                <option value="INFO" selected>INFO</option>
-                <option value="FINE">FINE</option>
-                <option value="FINER">FINER</option>
-                <option value="FINEST">FINEST</option>
-              </select>
-            </div>
-            <div class="debug-option">
-              <label>Workflow</label>
-              <select id="debug-workflow" class="debug-select">
-                <option value="NONE">NONE</option>
-                <option value="ERROR">ERROR</option>
-                <option value="WARN">WARN</option>
-                <option value="INFO" selected>INFO</option>
-                <option value="FINE">FINE</option>
-                <option value="FINER">FINER</option>
-                <option value="FINEST">FINEST</option>
-              </select>
+        <div class="debug-config-bar-wrapper">
+          <div class="debug-config-scroll-arrow left hidden" id="debug-scroll-left" title="Scroll left">&#8592;</div>
+          <div class="debug-config-bar" id="debug-config-bar">
+            <div class="debug-config-options">
+              <div class="debug-option">
+                <label>Preset</label>
+                <select id="debug-preset" class="debug-select">
+                  <option value="default">Default (Standard)</option>
+                  <option value="detailed">Detailed</option>
+                  <option value="developer">Developer</option>
+                  <option value="custom">Custom</option>
+                  <option value="debugonly">DebugOnly</option>
+                </select>
+              </div>
+              <div class="debug-option">
+                <label>Apex Code</label>
+                <select id="debug-apex-code" class="debug-select">
+                  <option value="NONE">NONE</option>
+                  <option value="ERROR">ERROR</option>
+                  <option value="WARN">WARN</option>
+                  <option value="INFO">INFO</option>
+                  <option value="DEBUG" >DEBUG</option>
+                  <option value="FINE" selected>FINE</option>
+                  <option value="FINER">FINER</option>
+                  <option value="FINEST">FINEST</option>
+                </select>
+              </div>
+              <div class="debug-option">
+                <label>Apex Profiling</label>
+                <select id="debug-apex-profiling" class="debug-select">
+                  <option value="NONE">NONE</option>
+                  <option value="INFO" selected>INFO</option>
+                  <option value="FINE">FINE</option>
+                  <option value="FINEST">FINEST</option>
+                </select>
+              </div>
+              <div class="debug-option">
+                <label>Callout</label>
+                <select id="debug-callout" class="debug-select">
+                  <option value="NONE">NONE</option>
+                  <option value="ERROR">ERROR</option>
+                  <option value="INFO" selected>INFO</option>
+                  <option value="FINER">FINER</option>
+                  <option value="FINEST">FINEST</option>
+                </select>
+              </div>
+              <div class="debug-option">
+                <label>Data Access</label>
+                <select id="debug-data-access" class="debug-select">
+                  <option value="NONE">NONE</option>
+                  <option value="WARN">WARN</option>
+                  <option value="INFO" >INFO</option>
+                  <option value="FINE" selected>FINE</option>
+                  <option value="FINEST">FINEST</option>
+                </select>
+              </div>
+              <div class="debug-option">
+                <label>Database</label>
+                <select id="debug-database" class="debug-select">
+                  <option value="NONE">NONE</option>
+                  <option value="WARN">WARN</option>
+                  <option value="INFO" >INFO</option>
+                  <option value="FINE" selected>FINE</option>
+                  <option value="FINEST">FINEST</option>
+                </select>
+              </div>
+              <div class="debug-option">
+                <label>NBA</label>
+                <select id="debug-nba" class="debug-select">
+                  <option value="NONE">NONE</option>
+                  <option value="ERROR">ERROR</option>
+                  <option value="INFO" selected>INFO</option>
+                  <option value="FINE">FINE</option>
+                </select>
+              </div>
+              <div class="debug-option">
+                <label>System</label>
+                <select id="debug-system" class="debug-select">
+                  <option value="NONE">NONE</option>
+                  <option value="INFO">INFO</option>
+                  <option value="DEBUG" selected>DEBUG</option>
+                  <option value="FINE">FINE</option>
+                  <option value="FINEST">FINEST</option>
+                </select>
+              </div>
+              <div class="debug-option">
+                <label>Validation</label>
+                <select id="debug-validation" class="debug-select">
+                  <option value="NONE">NONE</option>
+                  <option value="INFO" selected>INFO</option>
+                  <option value="FINEST">FINEST</option>
+                </select>
+              </div>
+              <div class="debug-option">
+                <label>Visualforce</label>
+                <select id="debug-visualforce" class="debug-select">
+                  <option value="NONE">NONE</option>
+                  <option value="INFO" selected>INFO</option>
+                  <option value="FINE">FINE</option>
+                  <option value="FINER">FINER</option>
+                  <option value="FINEST">FINEST</option>
+                </select>
+              </div>
+              <div class="debug-option">
+                <label>Wave</label>
+                <select id="debug-wave" class="debug-select">
+                  <option value="NONE">NONE</option>
+                  <option value="ERROR">ERROR</option>
+                  <option value="INFO" selected>INFO</option>
+                  <option value="FINE">FINE</option>
+                  <option value="FINER">FINER</option>
+                  <option value="FINEST">FINEST</option>
+                </select>
+              </div>
+              <div class="debug-option">
+                <label>Workflow</label>
+                <select id="debug-workflow" class="debug-select">
+                  <option value="NONE">NONE</option>
+                  <option value="ERROR">ERROR</option>
+                  <option value="WARN">WARN</option>
+                  <option value="INFO" selected>INFO</option>
+                  <option value="FINE">FINE</option>
+                  <option value="FINER">FINER</option>
+                  <option value="FINEST">FINEST</option>
+                </select>
+              </div>
             </div>
           </div>
-          <div class="debug-actions">
-            <button id="apply-debug-config-button" title="Apply Debug Configuration and Turn On Debug">
-              <span>💾</span>
-            </button>
-          </div>
+          <div class="debug-config-scroll-arrow right hidden" id="debug-scroll-right" title="Scroll right">&#8594;</div>
+          <button id="apply-debug-config-button" title="Apply Debug Configuration and Turn On Debug">
+            <span>💾</span>
+          </button>
         </div>
         
         <div class="top-bar">
@@ -911,13 +958,11 @@ export function getHtmlForWebview(extensionUri: vscode.Uri, webview: vscode.Webv
         applyDebugConfigButton.addEventListener('click', () => {
           const config = getDebugConfig();
           console.log('[VisbalExt.htmlTemplate] Applying debug configuration and turning on debug:', config);
-          
           vscode.postMessage({
             command: 'applyDebugConfig',
             config: config,
             turnOnDebug: true
           });
-          
           showLoading('Applying debug configuration and enabling debug log...');
         });
         
@@ -1774,9 +1819,26 @@ export function getHtmlForWebview(extensionUri: vscode.Uri, webview: vscode.Webv
           }
         });
         
-  
-        
-  
+        // Debug config bar scroll arrows
+        const debugConfigBar = document.getElementById('debug-config-bar');
+        const scrollLeftBtn = document.getElementById('debug-scroll-left');
+        const scrollRightBtn = document.getElementById('debug-scroll-right');
+
+        function updateScrollArrows() {
+          if (!debugConfigBar) return;
+          scrollLeftBtn.classList.toggle('hidden', debugConfigBar.scrollLeft <= 0);
+          scrollRightBtn.classList.toggle('hidden', debugConfigBar.scrollLeft + debugConfigBar.clientWidth >= debugConfigBar.scrollWidth - 1);
+        }
+
+        scrollLeftBtn.addEventListener('click', () => {
+          debugConfigBar.scrollBy({ left: -120, behavior: 'smooth' });
+        });
+        scrollRightBtn.addEventListener('click', () => {
+          debugConfigBar.scrollBy({ left: 120, behavior: 'smooth' });
+        });
+        debugConfigBar.addEventListener('scroll', updateScrollArrows);
+        window.addEventListener('resize', updateScrollArrows);
+        setTimeout(updateScrollArrows, 300);
       </script>
     
       <script type="module" src="${debugPresetUtilsUri}"></script>
