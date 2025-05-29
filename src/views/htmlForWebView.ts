@@ -510,13 +510,13 @@ export function getHtmlForWebview(extensionUri: vscode.Uri, webview: vscode.Webv
         }
 
         .dropdown-item {
-          padding: 10px 20px;
+          padding: 6px 16px;
+          font-size: 12px;
           cursor: pointer;
           color: var(--vscode-button-foreground, #fff);
           background: none;
           border: none;
           text-align: left;
-          font-size: 14px;
           transition: background 0.15s, color 0.15s;
         }
 
