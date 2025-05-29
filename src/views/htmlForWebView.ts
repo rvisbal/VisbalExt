@@ -529,6 +529,12 @@ export function getHtmlForWebview(extensionUri: vscode.Uri, webview: vscode.Webv
         .debug-config-scroll-arrow.hidden {
           display: none;
         }
+        .debug-config-preset-fixed {
+          flex-shrink: 0;
+          margin-right: 12px;
+          display: flex;
+          align-items: center;
+        }
 	</style>
 	<style>
         .dropdown-button-group {
@@ -581,19 +587,21 @@ export function getHtmlForWebview(extensionUri: vscode.Uri, webview: vscode.Webv
     <body>
       <div class="container">
         <div class="debug-config-bar-wrapper">
+          <div class="debug-config-preset-fixed">
+            <div class="debug-option">
+              <label>Preset</label>
+              <select id="debug-preset" class="debug-select">
+                <option value="default">Default (Standard)</option>
+                <option value="detailed">Detailed</option>
+                <option value="developer">Developer</option>
+                <option value="custom">Custom</option>
+                <option value="debugonly">DebugOnly</option>
+              </select>
+            </div>
+          </div>
           <div class="debug-config-scroll-arrow left hidden" id="debug-scroll-left" title="Scroll left">&#8592;</div>
           <div class="debug-config-bar" id="debug-config-bar">
             <div class="debug-config-options">
-              <div class="debug-option">
-                <label>Preset</label>
-                <select id="debug-preset" class="debug-select">
-                  <option value="default">Default (Standard)</option>
-                  <option value="detailed">Detailed</option>
-                  <option value="developer">Developer</option>
-                  <option value="custom">Custom</option>
-                  <option value="debugonly">DebugOnly</option>
-                </select>
-              </div>
               <div class="debug-option">
                 <label>Apex Code</label>
                 <select id="debug-apex-code" class="debug-select">
