@@ -143,9 +143,14 @@ export function getHtmlForWebview(extensionUri: vscode.Uri, webview: vscode.Webv
           flex-wrap: nowrap;
           align-items: center;
           min-width: 0;
+          gap: 8px;
         }
         .button-group > * {
           flex-shrink: 0;
+          margin-right: 0;
+        }
+        .button-group {
+          gap: 4px;
         }
         .text-button {
           background-color: var(--vscode-button-background);
