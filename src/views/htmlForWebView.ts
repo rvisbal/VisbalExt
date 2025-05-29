@@ -467,6 +467,16 @@ export function getHtmlForWebview(extensionUri: vscode.Uri, webview: vscode.Webv
           outline: none;
           border-color: var(--vscode-focusBorder);
         }
+        .dropdown-arrow {
+          margin-left: 4px;
+          cursor: pointer;
+          padding: 0 6px;
+          border-radius: 2px;
+          transition: background 0.15s;
+        }
+        .dropdown-arrow:hover {
+          background: var(--vscode-list-hoverBackground, #2c2c32);
+        }
 	</style>
 	<style>
         .dropdown-button-group {
@@ -683,8 +693,7 @@ export function getHtmlForWebview(extensionUri: vscode.Uri, webview: vscode.Webv
             <div class="dropdown-button-group" id="delete-dropdown-group">
               <button class="text-button danger-button" id="delete-main-button" title="Delete Logs from Server">
                 <span>🗑️</span>
-                <span id="delete-main-label">Delete Logs</span>
-                <span style="margin-left:4px;">▼</span>
+                <span class="dropdown-arrow" style="margin-left:4px; cursor:pointer;" title="Show more delete options" aria-label="Show more delete options">▼</span>
               </button>
               <div class="dropdown-menu hidden" id="delete-dropdown-menu">
                 <div class="dropdown-item" data-action="server">Delete Logs from Server</div>
@@ -1290,21 +1299,27 @@ export function getHtmlForWebview(extensionUri: vscode.Uri, webview: vscode.Webv
         // Dropdown logic for delete button
         let deleteDefaultAction = 'server'; // Default action
 
-        deleteMainButton.addEventListener('click', (e) => {
-          // If click is on the arrow, show menu; otherwise, do default action
-          const rect = deleteMainButton.getBoundingClientRect();
-          if (e.offsetX > rect.width - 32) { // last ~32px is arrow
-            deleteDropdownMenu.classList.toggle('hidden');
-          } else {
-            handleDeleteAction(deleteDefaultAction);
-          }
+        // Add event listener to the arrow for dropdown
+        const dropdownArrow = deleteMainButton.querySelector('.dropdown-arrow');
+        dropdownArrow.addEventListener('click', (e) => {
+          e.stopPropagation();
+          deleteDropdownMenu.classList.toggle('hidden');
         });
 
+        // Main button click (excluding the arrow) does the default action
+        deleteMainButton.addEventListener('click', (e) => {
+          console.log('[VisbalExt.htmlTemplate] deleteMainButton clicked');
+          // If the click was on the arrow, do nothing (handled above)
+          if (e.target.classList.contains('dropdown-arrow')) return;
+          handleDeleteAction(deleteDefaultAction);
+        });
+
+        // Add event listeners to dropdown menu items
         deleteDropdownMenu.querySelectorAll('.dropdown-item').forEach(item => {
           item.addEventListener('click', (e) => {
             const action = item.getAttribute('data-action');
             handleDeleteAction(action);
-            deleteDropdownMenu.classList.add('hidden');
+            deleteDropdownMenu.classList.add('hidden'); // Hide the menu after click
           });
         });
 
@@ -1316,6 +1331,7 @@ export function getHtmlForWebview(extensionUri: vscode.Uri, webview: vscode.Webv
         });
 
         function handleDeleteAction(action) {
+          console.log('[VisbalExt.htmlTemplate] handleDeleteAction -- Action:', action);
           if (action === 'server') {
             showConfirmModal(
               'Delete Server Logs',
