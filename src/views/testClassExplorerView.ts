@@ -850,6 +850,8 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
 
                 // Add all tests to the results view
                 for (const [className, methodNames] of classesWithMethods.entries()) {
+                    OrgUtils.logDebug('[VisbalExt.TestClassExplorerView] _runSelectedTests -- Adding test run', className, methodNames);
+                    console.log(`[VisbalExt.TestClassExplorerView] _runSelectedTests -- Adding test run -- className:${className} --methodNames: `, methodNames);
                     this._testRunResultsView.addTestRun(className, methodNames);
                 }
 
@@ -967,10 +969,13 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                         else {
                             
                             results = await this._runTestSelectedParallel(tests, hasDebugTrace);
+                            OrgUtils.logDebug('[VisbalExt.TestClassExplorerView] _runSelectedTests -- Parallel results', results);
                             //combine the results and update the test summary view at the bottom of the test side panel view
                             if (results.length > 0) {
                                 const combinedSummary = results.map(result => result.summary);
+                                OrgUtils.logDebug('[VisbalExt.TestClassExplorerView] _runSelectedTests -- Parallel results summary', combinedSummary);
                                 const allTests = results.reduce((acc, result) => acc.concat(result.tests), []);
+                                OrgUtils.logDebug('[VisbalExt.TestClassExplorerView] _runSelectedTests -- Parallel results allTests', allTests);
                                 this._testSummaryView.updateSummary(combinedSummary, allTests);
                             }
                         }
@@ -1961,6 +1966,7 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                         let allQueueItemsCompleted = true;
                         let queueItemsStatus = [];
                         const queueItems = await this._sfdxService.executeSoqlQuery(`SELECT ApexClassId, ApexClass.Name, Status, ExtendedStatus, TestRunResultId  FROM ApexTestQueueItem WHERE ParentJobId='${testRunId}' `);
+                        OrgUtils.logDebug(`[VisbalExt.TestClassExplorerView] _runManyTest -- countIteration: ${countIteration} -- queueItems:`, queueItems);
                         if (queueItems.length > 0) {
                             for (const q of queueItems) {
                                 //add this method to the cache storage of test methods if it doesn't exist
@@ -1977,21 +1983,27 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                                     allQueueItemsCompleted = false;
                                     // add the ApexClass.Name to the testRunResultsView
                                     this._testRunResultsView.updateMethodStatus(q.ApexClass.Name, '', TestStatus.running);
+
+                                    //todo: check if this is needed
+                                    /*
                                     // if there is item on the storage service on that class, add it to the testRunResultsView
                                     const methods = await this._storageService.getTestMethodsForClass(q.ApexClass.Name);
                                     if (methods.length > 0) {
+                                        OrgUtils.logDebug(`[VisbalExt.TestClassExplorerView] _runManyTest -- countIteration: ${countIteration} ADD -- methods: ${q.ApexClass.Name} -- methods.length: ${methods.length}`);
                                         this._testRunResultsView.addTestRun(q.ApexClass.Name, methods.map(m => m.name));
                                         for (const m of methods) {
-                                        
+                                            OrgUtils.logDebug(`[VisbalExt.TestClassExplorerView] _runManyTest -- countIteration: ${countIteration} RUNNING -- methods: ${q.ApexClass.Name} -- m.name: ${m.name}`);
                                             this._testRunResultsView.updateMethodStatus(q.ApexClass.Name, m.name, TestStatus.running);
                                         }
                                     }
+                                    */
                                 }
                             }
                             
                         }
         
                         const resultItems = await this._sfdxService.executeSoqlQuery(`SELECT ApexClassId, ApexClass.Name, MethodName, Outcome, ApexLogId, Message, StackTrace, QueueItemId  FROM ApexTestResult WHERE AsyncApexJobId='${testRunId}' `);
+                        OrgUtils.logDebug(`[VisbalExt.TestClassExplorerView] _runManyTest -- countIteration: ${countIteration} -- resultItems:`, resultItems);
                         if (resultItems.length > 0) {
                             // Group results by class name to process all methods for each class together
                             const resultsByClass = new Map<string, any[]>();
@@ -2000,6 +2012,7 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                                     resultsByClass.set(r.ApexClass.Name, []);
                                 }
                                 resultsByClass.get(r.ApexClass.Name)?.push(r);
+                                OrgUtils.logDebug(`[VisbalExt.TestClassExplorerView] _runManyTest -- countIteration: ${countIteration} ADD -- resultsByClass: ${r.ApexClass.Name} -- r.MethodName: ${r.MethodName}`);
                             }
         
                             // Process each class's methods together
@@ -2010,9 +2023,10 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                                 
                                 // Add all methods from current results
                                 for (const r of classResults) {
+                                    OrgUtils.logDebug(`[VisbalExt.TestClassExplorerView] _runManyTest -- countIteration: ${countIteration} -- existingMethodNames.has(${r.MethodName}): ${existingMethodNames.has(r.MethodName)} -- r:`, r);
                                     if (!existingMethodNames.has(r.MethodName)) {
                                         this._storageService.addTestMethod(className, r.MethodName);
-                                        this._testRunResultsView.addSingleMethod(className, r.MethodName);
+                                        //this._testRunResultsView.addSingleMethod(className, r.MethodName);
                                     }
                                     let testStatus = TestStatus.running;
                                     if (r.Outcome === 'Pass' || r.Outcome === 'Passed') {
@@ -2023,17 +2037,21 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                                     this._testRunResultsView.updateMethodStatus(className, r.MethodName, testStatus, r.ApexLogId);
                                 }
         
+                                //todo: check if this is needed
+                                //for selected test . this is adding the methods to the testRunResultsView that are not in the current results
+                                /*
                                 // Update status for existing methods that aren't in current results
                                 for (const method of existingMethods) {
                                     if (!classResults.some(r => r.MethodName === method.name)) {
                                         // If method is not in current results, keep it in pending state
                                         this._testRunResultsView.updateMethodStatus(className, method.name, TestStatus.pending);
                                     }
-                                }
+                                }*/
                             }
                         }
         
                         const jobResults = await this._sfdxService.executeSoqlQuery(`SELECT Id, CreatedDate,  AsyncApexJobId, UserId, JobName, IsAllTests, Source, StartTime, EndTime, TestTime, Status, ClassesEnqueued, ClassesCompleted, MethodsEnqueued, MethodsCompleted, MethodsFailed  FROM ApexTestRunResult WHERE AsyncApexJobId='${testRunId}' `);
+                        OrgUtils.logDebug('[VisbalExt.TestClassExplorerView] _runManyTest -- countIteration: ${countIteration} -- jobResults:', jobResults);
                         if (jobResults.length > 0) {
                             if (jobResults[0].Status === 'Completed') {
                                 allTestCompleted = true;
