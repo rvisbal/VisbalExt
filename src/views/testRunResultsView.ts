@@ -369,7 +369,9 @@ export class TestRunResultsView {
 
     // Update rerunAllTests method
     public async rerunAllTests() {
+        OrgUtils.logDebug('[VisbalExt.TestRunResultsView] rerunAllTests -- Starting rerun of all tests');
         const testRuns = this.provider.getTestRuns();
+        console.log('[VisbalExt.TestRunResultsView] rerunAllTests -- testRuns', testRuns);
         if (testRuns.size === 0) {
             vscode.window.showInformationMessage('No tests to rerun');
             return;

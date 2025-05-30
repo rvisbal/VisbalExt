@@ -724,17 +724,22 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                             this._testRunResultsView.updateMethodStatus(testClass, t.MethodName, 'downloading', logId);
                             OrgUtils.logDebug('[VisbalExt.TestClassExplorer] _runTest Processing log for test', t.ApexClass?.Name);
                             
-                            // Download and open log for the first test only to avoid multiple windows
-                            if (mainClassMap.size === 0) {
-                                OrgUtils.logDebug('[VisbalExt.TestClassExplorer] _runTest -- Downloading and opening log', logId);
-                                await this._orgUtils.downloadLog(logId);
-                                const config = vscode.workspace.getConfiguration('visbal.apexLog');
-                                const defaultView = config.get<string>('defaultView', 'user_debug');
-                                await this._orgUtils.openLog(logId, this._extensionUri, defaultView);
-                            } else {
-                                // For subsequent tests, just download in background
-                                OrgUtils.logDebug('[VisbalExt.TestClassExplorer] _runTest -- Downloading additional log', logId);
-                                this._orgUtils.downloadLog(logId);
+                            const config = vscode.workspace.getConfiguration('visbal.apexTest');
+                            const downloadTestLogOnExecution = config.get<boolean>('downloadTestLogOnExecution', true);
+                            console.log('[VisbalExt.TestClassExplorer] _runTest -- downloadTestLogOnExecution', downloadTestLogOnExecution);
+                            if (downloadTestLogOnExecution) {
+                                // Download and open log for the first test only to avoid multiple windows
+                                if ( mainClassMap.size === 0) {
+                                    OrgUtils.logDebug('[VisbalExt.TestClassExplorer] _runTest -- Downloading and opening log', logId);
+                                    await this._orgUtils.downloadLog(logId);
+                                    const config = vscode.workspace.getConfiguration('visbal.apexLog');
+                                    const defaultView = config.get<string>('defaultView', 'user_debug');
+                                    await this._orgUtils.openLog(logId, this._extensionUri, defaultView);
+                                } else {
+                                    // For subsequent tests, just download in background
+                                    OrgUtils.logDebug('[VisbalExt.TestClassExplorer] _runTest -- Downloading additional log', logId);
+                                    this._orgUtils.downloadLog(logId);
+                                }
                             }
                         } else {
                             OrgUtils.logDebug('[VisbalExt.TestClassExplorer] _runTest -- No log ID found for test', t.ApexClass?.Name);

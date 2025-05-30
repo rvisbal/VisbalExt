@@ -16,17 +16,6 @@
     "sandboxes": [],
     "scratchOrgs": [
       {
-        "username": "test-3kiqvbmypy06@example.com",
-        "alias": "CODE_REVIEW",
-        "instanceUrl": "https://speed-customization-4317-dev-ed.scratch.my.salesforce.com",
-        "isDefault": false,
-        "type": "scratchOrg",
-        "clientId": "PlatformCLI",
-        "clientSecret": "Unknown",
-        "redirectUri": "Unknown",
-        "expirationDate": "2025-05-28"
-      },
-      {
         "username": "test-hedfhcuhf3pv@example.com",
         "alias": "CURSOR_SAMPLE",
         "instanceUrl": "https://enterprise-platform-4523-dev-ed.scratch.my.salesforce.com",
@@ -362,5 +351,5 @@
       }
     ]
   },
-  "timestamp": 1748542611269
+  "timestamp": 1748629095881
 }

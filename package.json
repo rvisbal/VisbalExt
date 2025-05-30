@@ -277,10 +277,20 @@
           "default": 2097152,
           "description": "Debug File Max Size in Bytes"
         },
+        "visbal.apexTest.downloadTestLogOnExecution": {
+          "type": "boolean",
+          "default": false,
+          "description": "Enable/disable downloading test log on execution"
+        },
         "visbal.apexTest.manualExecution": {
           "type": "boolean",
           "default": false,
-          "description": "Enable/disable manual test execution"
+          "description": "Enable/disable custom handling of test execution"
+        },
+        "visbal.apexLog.openLogPreview": {
+          "type": "boolean",
+          "default": false,
+          "description": "open apex log in preview by default"
         },
         "visbal.apexLog.defaultView": {
           "type": "string",
