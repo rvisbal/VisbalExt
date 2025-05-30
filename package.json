@@ -42,7 +42,7 @@
     "onView:testClassExplorerView",
     "onView:visbal-log",
     "onView:visbal-soql",
-    "onView:visbal-sample",
+    "onView:visbal-apex",
     "workspaceContains:**/.sfdx/sfdx-config.json",
     "workspaceContains:**/sfdx-project.json"
   ],
@@ -61,8 +61,8 @@
           "icon": "$(database)"
         },
         {
-          "id": "visbal-sample-container",
-          "title": "Visbal Sample",
+          "id": "visbal-apex-container",
+          "title": "Visbal Apex",
           "icon": "$(beaker)"
         }
       ],
@@ -117,10 +117,10 @@
           "name": "SOQL Query"
         }
       ],
-      "visbal-sample-container": [
+      "visbal-apex-container": [
         {
           "type": "webview",
-          "id": "visbal-sample",
+          "id": "visbal-apex",
           "name": "Sample Panel"
         }
       ]
@@ -160,7 +160,7 @@
       },
       {
         "command": "visbal-ext.showVisbalSample",
-        "title": "Show Visbal Sample",
+        "title": "Show Visbal Apex",
         "category": "Visbal"
       },
       {

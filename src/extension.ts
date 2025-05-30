@@ -225,7 +225,7 @@ export function activate(context: vscode.ExtensionContext) {
     samplePanel = new SamplePanelView(context);
     context.subscriptions.push(
       vscode.window.registerWebviewViewProvider(
-        'visbal-sample',
+        'visbal-apex',
         samplePanel,
         {
           webviewOptions: {
@@ -256,7 +256,7 @@ export function activate(context: vscode.ExtensionContext) {
   if (isModuleEnabled('samplePanel')) {
     context.subscriptions.push(
       vscode.commands.registerCommand('visbal-ext.showVisbalSample', () => {
-        vscode.commands.executeCommand('workbench.view.extension.visbal-sample-container');
+        vscode.commands.executeCommand('workbench.view.extension.visbal-apex-container');
       })
     );
   }

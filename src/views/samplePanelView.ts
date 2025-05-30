@@ -5,7 +5,7 @@ import { OrgUtils } from '../utils/orgUtils';
 import { SfdxService } from '../services/sfdxService';
 
 export class SamplePanelView implements vscode.WebviewViewProvider {
-    public static readonly viewType = 'visbal-sample';
+    public static readonly viewType = 'visbal-apex';
     private _view?: vscode.WebviewView;
     private _metadataService: MetadataService;
     private _sfdxService: SfdxService;
