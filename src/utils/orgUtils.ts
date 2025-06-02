@@ -789,4 +789,10 @@ export class OrgUtils {
         OrgUtils.logDebug(`[VisbalExt.OrgUtils] selectTestMethod -- Updated configuration for ${key}`);
     }
 
+    public static openAndDisplayOutputTab(output: string): void {
+        const outputChannel = vscode.window.createOutputChannel('Visbal Extension');
+        outputChannel.appendLine(output);
+        outputChannel.show(true);
+    }
+
 } 

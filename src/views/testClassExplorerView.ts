@@ -4276,43 +4276,5 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
         }
     }
 
-    private async _deployOrg(): Promise<void> {
-        try {
-            this._view?.webview.postMessage({ command: 'loading', isLoading: true, message: 'Deploying code to org...' });
-            const selectedOrg = await OrgUtils.getSelectedOrg();
-            const alias = selectedOrg?.alias;
-            if (!alias) {
-                this._view?.webview.postMessage({ command: 'error', message: 'No org alias selected. Please select an org first.' });
-                return;
-            }
-            const command = `sf project deploy start --target-org ${alias} --ignore-conflicts`;
-            OrgUtils.logDebug('[VisbalExt.VisbalLogView] _deployOrg -- Running command:', command);
-
-            const exec = require('child_process').exec;
-            exec(command, { cwd: vscode.workspace.rootPath, maxBuffer: 1024 * 1024 * 10 }, (error: any, stdout: string, stderr: string) => {
-                this._view?.webview.postMessage({ command: 'loading', isLoading: false });
-                if (error) {
-                    // Combine stdout and stderr for more context
-                    let errorMsg = `Deploy failed:\n`;
-                    if (stderr) errorMsg += `STDERR:\n${stderr}\n`;
-                    if (stdout) errorMsg += `STDOUT:\n${stdout}\n`;
-
-                    // Optionally, parse for common Salesforce error patterns
-                    // For example, look for "Component Failures" or "Test Failures"
-                    if (stdout && stdout.includes('Component Failures')) {
-                        errorMsg += '\nComponent Failures detected in deployment output.\n';
-                    }
-
-                    OrgUtils.logError('[VisbalExt.VisbalLogView] _deployOrg -- Error:', errorMsg);
-                    this._view?.webview.postMessage({ command: 'error', message: errorMsg });
-                } else {
-                    this._view?.webview.postMessage({ command: 'info', message: 'Deploy completed successfully!' });
-                }
-            });
-        } catch (error: any) {
-            this._view?.webview.postMessage({ command: 'loading', isLoading: false });
-            OrgUtils.logError('[VisbalExt.VisbalLogView] _deployOrg -- Exception:', error);
-            this._view?.webview.postMessage({ command: 'error', message: `Deploy failed: ${error.message}` });
-        }
-    }
+    
 }

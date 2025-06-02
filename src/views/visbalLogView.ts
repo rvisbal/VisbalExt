@@ -2246,6 +2246,17 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
                 return;
             }
             const command = `sf project deploy start --target-org ${alias} --ignore-conflicts`;
+
+            //create a terminal on the .build folder with the following command
+            const terminalWindow = vscode.window.createTerminal({
+                name: 'Deploy to Org',
+                cwd: vscode.workspace.rootPath
+            });
+            terminalWindow.sendText(command);
+            terminalWindow.show();
+            this._hideLoading();
+            /*
+
             OrgUtils.logDebug('[VisbalExt.VisbalLogView] _deployOrg -- Running command:', command);
             const exec = require('child_process').exec;
             exec(command, { cwd: vscode.workspace.rootPath }, (error: any, stdout: string, stderr: string) => {
@@ -2258,16 +2269,27 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
                         .join('\n')
                         .replace(/\n{2,}/g, '\n\n');
                 }
-                let resultMsg = '';
+                OrgUtils.logError('[VisbalExt.VisbalLogView] _deployOrg -- error:.',error);
+                let resultMsg = 'Deploy failed. ';
                 if (stdout) resultMsg += `STDOUT:\n${cleanCliOutput(stdout)}\n`;
                 if (stderr) resultMsg += `STDERR:\n${cleanCliOutput(stderr)}\n`;
-                if (error) {
-                    OrgUtils.logError('[VisbalExt.VisbalLogView] _deployOrg -- Error:', resultMsg);
-                    this._showError(`Deploy failed.\n${resultMsg}`);
-                } else {
-                    this._showSuccess(`Deploy completed successfully!\n${resultMsg}`);
+                if (stdout && stdout.includes('No changes to deploy')) {
+                    this._showSuccess(`No changes to deploy`);
                 }
+                else if (error) {
+                    OrgUtils.logError('[VisbalExt.VisbalLogView] _deployOrg -- Error:', resultMsg);
+                    this._showError(`Deploy failed.`);
+
+                    // Show in Output tab
+                    OrgUtils.openAndDisplayOutputTab(resultMsg);
+                } else {
+                    this._showSuccess(`Deploy completed successfully!`);
+                }
+
+               
+    
             });
+            */
         } catch (error: any) {
             this._hideLoading();
             OrgUtils.logError('[VisbalExt.VisbalLogView] _deployOrg -- Exception:', error);
