@@ -187,6 +187,10 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
                         OrgUtils.logError('Error executing script:', error);
                     }
                     break;
+                case 'deployOrg':
+                    OrgUtils.logDebug('[VisbalExt.VisbalLogView] resolveWebviewView -- Deploy Org command received');
+                    await this._deployOrg();
+                    break;
             }
         });
 
@@ -2228,4 +2232,48 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
             this._view?.webview.postMessage({ command: 'downloading', logId, isDownloading: false });
         }
     }
+
+    /**
+     * Deploys the current code to the selected org using the Salesforce CLI
+     */
+    private async _deployOrg(): Promise<void> {
+        try {
+            this._showLoading('Deploying code to org...');
+            const selectedOrg = await OrgUtils.getSelectedOrg();
+            const alias = selectedOrg?.alias;
+            if (!alias) {
+                this._showError('No org alias selected. Please select an org first.');
+                return;
+            }
+            const command = `sf project deploy start --target-org ${alias} --ignore-conflicts`;
+            OrgUtils.logDebug('[VisbalExt.VisbalLogView] _deployOrg -- Running command:', command);
+            const exec = require('child_process').exec;
+            exec(command, { cwd: vscode.workspace.rootPath }, (error: any, stdout: string, stderr: string) => {
+                this._hideLoading();
+                // Clean up CLI output for better readability
+                function cleanCliOutput(output: string): string {
+                    return output
+                        .split('\n')
+                        .map(line => line.split('\r').pop() || '')
+                        .join('\n')
+                        .replace(/\n{2,}/g, '\n\n');
+                }
+                let resultMsg = '';
+                if (stdout) resultMsg += `STDOUT:\n${cleanCliOutput(stdout)}\n`;
+                if (stderr) resultMsg += `STDERR:\n${cleanCliOutput(stderr)}\n`;
+                if (error) {
+                    OrgUtils.logError('[VisbalExt.VisbalLogView] _deployOrg -- Error:', resultMsg);
+                    this._showError(`Deploy failed.\n${resultMsg}`);
+                } else {
+                    this._showSuccess(`Deploy completed successfully!\n${resultMsg}`);
+                }
+            });
+        } catch (error: any) {
+            this._hideLoading();
+            OrgUtils.logError('[VisbalExt.VisbalLogView] _deployOrg -- Exception:', error);
+            this._showError(`Deploy failed: ${error.message}`);
+        }
+    }
+
+    
 }

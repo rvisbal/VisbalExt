@@ -38,17 +38,6 @@
         "expirationDate": "2025-06-11"
       },
       {
-        "username": "test-oq3qvu3qayn0@example.com",
-        "alias": "LATEST",
-        "instanceUrl": "https://saas-ruby-2266-dev-ed.scratch.my.salesforce.com",
-        "isDefault": false,
-        "type": "scratchOrg",
-        "clientId": "PlatformCLI",
-        "clientSecret": "Unknown",
-        "redirectUri": "Unknown",
-        "expirationDate": "2025-05-29"
-      },
-      {
         "username": "test-byxxq7tbrhzz@example.com",
         "alias": "MERGE",
         "instanceUrl": "https://agility-nosoftware-434-dev-ed.scratch.my.salesforce.com",
@@ -58,17 +47,6 @@
         "clientSecret": "Unknown",
         "redirectUri": "Unknown",
         "expirationDate": "2025-06-20"
-      },
-      {
-        "username": "test-jxded4mxvbze@example.com",
-        "alias": "SECURITY_REVIEW",
-        "instanceUrl": "https://flow-dream-6680-dev-ed.scratch.my.salesforce.com",
-        "isDefault": false,
-        "type": "scratchOrg",
-        "clientId": "PlatformCLI",
-        "clientSecret": "Unknown",
-        "redirectUri": "Unknown",
-        "expirationDate": "2025-05-31"
       }
     ],
     "nonScratchOrgs": [
@@ -351,5 +329,5 @@
       }
     ]
   },
-  "timestamp": 1748629095881
+  "timestamp": 1748869873859
 }

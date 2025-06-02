@@ -742,6 +742,9 @@ export function getHtmlForWebview(extensionUri: vscode.Uri, webview: vscode.Webv
               <button id="open-org-button" title="Open Org">
                 <span>🌐</span>
               </button>
+              <button id="deploy-org-button" title="Deploy Org">
+                <span>🚀</span>
+              </button>
               <div class="dropdown-button-group" id="refresh-dropdown-group">
                 <button id="refresh-main-button" title="Refresh Logs using sfdx">
                   <span>🔄</span>
@@ -1851,6 +1854,14 @@ export function getHtmlForWebview(extensionUri: vscode.Uri, webview: vscode.Webv
         debugConfigBar.addEventListener('scroll', updateScrollArrows);
         window.addEventListener('resize', updateScrollArrows);
         setTimeout(updateScrollArrows, 300);
+
+        // Deploy Org button
+        const deployOrgButton = document.getElementById('deploy-org-button');
+        if (deployOrgButton) {
+          deployOrgButton.addEventListener('click', () => {
+            vscode.postMessage({ command: 'deployOrg' });
+          });
+        }
       </script>
     
       <script type="module" src="${debugPresetUtilsUri}"></script>
