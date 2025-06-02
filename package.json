@@ -52,17 +52,17 @@
       "panel": [
         {
           "id": "visbal-log-container",
-          "title": "Visbal Log",
+          "title": "Apex Log",
           "icon": "$(notebook)"
         },
         {
           "id": "visbal-soql-container",
-          "title": "Visbal SOQL",
+          "title": "SOQL",
           "icon": "$(database)"
         },
         {
           "id": "visbal-apex-container",
-          "title": "Visbal Apex",
+          "title": "Execute Apex",
           "icon": "$(beaker)"
         }
       ],
