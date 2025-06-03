@@ -177,7 +177,7 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
         webviewView.webview.html = this._getHtmlForWebview(webviewView.webview);
 
         webviewView.webview.onDidReceiveMessage(async (data) => {
-            OrgUtils.logDebug('[VisbalExt.TestClassExplorerView] resolveWebviewView -- Received message from webview', data);
+            OrgUtils.logDebug(`[VisbalExt.TestClassExplorerView] resolveWebviewView -- Received message from webview ${data.command}: ${data.message}`, data);
             switch (data.command) {
                 case 'getTestCaseLists':
                     const lists = this._testCaseListManager.getTestCaseLists();

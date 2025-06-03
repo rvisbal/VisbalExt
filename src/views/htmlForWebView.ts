@@ -772,6 +772,15 @@ export function getHtmlForWebview(extensionUri: vscode.Uri, webview: vscode.Webv
                 <div class="dropdown-item" data-action="rest">Delete Logs using REST API (Tooling API)</div>
               </div>
             </div>
+            <div class="dropdown-button-group" id="terminal-dropdown-group">
+              <button class="text-button " id="terminal-main-button" title="Terminal">
+                <span>💻</span>
+                <span class="dropdown-arrow" style="margin-left:4px; cursor:pointer;" title="Show more terminal commands" aria-label="Show more terminal commands">▼</span>
+              </button>
+              <div class="dropdown-menu hidden" id="terminal-dropdown-menu">
+                <div class="dropdown-item" data-action="gulp">Create Scrath Org with Gulp</div>
+              </div>
+            </div>
           </div>
         </div>
         
@@ -836,9 +845,15 @@ export function getHtmlForWebview(extensionUri: vscode.Uri, webview: vscode.Webv
         const refreshMainButton = document.getElementById('refresh-main-button');
         const refreshDropdownMenu = document.getElementById('refresh-dropdown-menu');
         const clearLocalButton = document.getElementById('clear-local-button');
+        
         const deleteDropdownGroup = document.getElementById('delete-dropdown-group');
         const deleteMainButton = document.getElementById('delete-main-button');
         const deleteDropdownMenu = document.getElementById('delete-dropdown-menu');
+
+        const terminalDropdownGroup = document.getElementById('terminal-dropdown-group');
+        const terminalMainButton = document.getElementById('terminal-main-button');
+        const terminalDropdownMenu = document.getElementById('terminal-dropdown-menu');
+
         const filterInput = document.getElementById('filter-input');
         const clearFilterButton = document.getElementById('clear-filter-button');
         const logsTableBody = document.getElementById('logs-table-body');
@@ -1162,6 +1177,8 @@ export function getHtmlForWebview(extensionUri: vscode.Uri, webview: vscode.Webv
           refreshMainButton.disabled = true;
           clearLocalButton.disabled = true;
           deleteMainButton.disabled = true;
+          terminalMainButton.disabled = true;
+
         }
         
         // Hide loading state
@@ -1170,6 +1187,7 @@ export function getHtmlForWebview(extensionUri: vscode.Uri, webview: vscode.Webv
           refreshMainButton.disabled = false;
           clearLocalButton.disabled = false;
           deleteMainButton.disabled = false;
+          terminalMainButton.disabled = false;
         }
         
         // Show error message
@@ -1728,7 +1746,8 @@ export function getHtmlForWebview(extensionUri: vscode.Uri, webview: vscode.Webv
             return null;
           }
         }
-  // Function to update org list UI
+        
+        // Function to update org list UI
         function updateOrgListUI(orgs, fromCache = false, selectedOrg = null) {
          // _updateOrgListUI(orgSelector, orgs, fromCache , selectedOrg);
           console.log('[VisbalExt.htmlTemplate] updateOrgListUI Updating org list UI with data:', orgs);
@@ -1862,6 +1881,27 @@ export function getHtmlForWebview(extensionUri: vscode.Uri, webview: vscode.Webv
             vscode.postMessage({ command: 'deployOrg' });
           });
         }
+       </script>
+       <script>
+        // terminalDropdownGroup = document.getElementById('terminal-dropdown-group');
+        // terminalMainButton = document.getElementById('terminal-main-button');
+        // terminalDropdownMenu = document.getElementById('terminal-dropdown-menu');
+        //use this already declared variables to show the terminal dropdown menu, when terminal-dropdown-group is clicked
+        terminalDropdownGroup.addEventListener('click', () => {
+          terminalDropdownMenu.classList.toggle('hidden');
+        });
+
+        //when any of the options are clicked, run the corresponding function
+        terminalDropdownMenu.addEventListener('click', (e) => {
+          const action = e.target.getAttribute('data-action');
+          if (action === 'gulp') {
+            vscode.postMessage({ command: 'runGulp' });
+
+            
+
+          }
+        });
+       
       </script>
     
       <script type="module" src="${debugPresetUtilsUri}"></script>

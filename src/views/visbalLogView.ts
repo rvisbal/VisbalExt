@@ -191,6 +191,30 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
                     OrgUtils.logDebug('[VisbalExt.VisbalLogView] resolveWebviewView -- Deploy Org command received');
                     await this._deployOrg();
                     break;
+                case 'runGulp': 
+                    OrgUtils.logDebug('[VisbalExt.TestClassExplorerView] runGulp -- Running gulp');
+                    // Open a new terminal and run 'npm run gulp' in the build folder if it exists
+                    const wsFolders = vscode.workspace.workspaceFolders;
+                    let cwd = vscode.workspace.rootPath;
+                    if (wsFolders && wsFolders.length > 0) {
+                        const buildPath = vscode.Uri.joinPath(wsFolders[0].uri, 'build');
+                        try {
+                            const stat = await vscode.workspace.fs.stat(buildPath);
+                            if (stat && stat.type === vscode.FileType.Directory) {
+                                cwd = buildPath.fsPath;
+                            }
+                        } catch (e) {
+                            // build folder does not exist, fallback to root
+                        }
+                    }
+                    const terminal = vscode.window.createTerminal({
+                        name: 'Gulp Task',
+                        cwd
+                    });
+                    terminal.sendText('npm run gulp');
+                    terminal.show();
+                    break;
+                
             }
         });
 
