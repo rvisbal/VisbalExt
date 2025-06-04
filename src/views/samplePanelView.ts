@@ -300,50 +300,13 @@ export class SamplePanelView implements vscode.WebviewViewProvider {
 
     //#region LISTBOX
     private async _loadOrgList(): Promise<void> {
-        try {
-            OrgUtils.logDebug('[VisbalExt.SamplePanelView] _loadOrgList -- Loading org list');
-            
-            // Try to get from cache first
-            const cachedData = await this._orgListCacheService.getCachedOrgList();
-            let orgs;
-
-            if (cachedData) {
-                OrgUtils.logDebug('[VisbalExt.SamplePanelView] _loadOrgList -- Using cached org list:cachedData');
-                orgs = cachedData.orgs;
-            } else {
-                OrgUtils.logDebug('[VisbalExt.SamplePanelView] _loadOrgList -- Fetching fresh org list');
-                orgs = await OrgUtils.listOrgs();
-                // Save to cache
-                await this._orgListCacheService.saveOrgList(orgs);
-            }
-
-            // Get the selected org
-            const selectedOrg = await OrgUtils.getSelectedOrg();
-            OrgUtils.logDebug('[VisbalExt.SamplePanelView] _loadOrgList -- Selected org:', selectedOrg);
-
-            OrgUtils.logDebug('[VisbalExt.SamplePanelView] _loadOrgList -- orgs:', orgs);
-            OrgUtils.logDebug('[VisbalExt.SamplePanelView] _loadOrgList -- cachedData:', cachedData);
-
-            // Send the categorized orgs to the webview
-            this._view?.webview.postMessage({
-                command: 'updateOrgList',
-                orgs: orgs,
-                fromCache: !!cachedData,
-                selectedOrg: selectedOrg?.alias
-            });
-
-        } catch (error: any) {
-            OrgUtils.logError('[VisbalExt.SamplePanelView] _loadOrgList -- Error loading org list:', error);
-
-        }
-		finally {
-            this._view?.webview.postMessage({
-                command: 'stopLoading'
-            });
-        }
+        await OrgUtils.loadOrgListForView(
+            this._orgListCacheService,
+            this._context,
+            this._view?.webview,
+            '[VisbalExt.SamplePanelView]'
+        );
     }
-
-    
 
     /**
      * Refreshes the list of Salesforce orgs
@@ -360,38 +323,16 @@ export class SamplePanelView implements vscode.WebviewViewProvider {
 
         try {
             this._isRefreshing = true;
-            OrgUtils.logDebug('[VisbalExt.SamplePanelView] _refreshOrgList -- Refreshing org list');
-            
-            this._view?.webview.postMessage({
-                command: 'startLoading',
-                message: 'Refreshing organization list...'
-            });
-
-            const orgs = await OrgUtils.listOrgs();
-            OrgUtils.logDebug('[VisbalExt.SamplePanelView] _refreshOrgList -- orgs Save to the cache');
-            // Save to cache
-            await this._orgListCacheService.saveOrgList(orgs);
-            
-            const selectedOrg = await OrgUtils.getSelectedOrg();
-            OrgUtils.logDebug('[VisbalExt.SamplePanelView] _loadOrgList -- Selected org:', selectedOrg);
-
-            // Send the categorized orgs to the webview
-            this._view?.webview.postMessage({
-                command: 'updateOrgList',
-                orgs: orgs,
-                fromCache: false,
-                selectedOrg: selectedOrg?.alias
-            });
-            
-            OrgUtils.logDebug('[VisbalExt.SamplePanelView] _refreshOrgList -- Successfully sent org list to webview');
-        } catch (error: any) {
-            OrgUtils.logError('[VisbalExt.SamplePanelView] _refreshOrgList -- Error refreshing org list:', error);
-          
+            await OrgUtils.refreshOrgListForView(
+                this._orgListCacheService,
+                this._context,
+                this._view?.webview,
+                '[VisbalExt.SamplePanelView]',
+                'startLoading',
+                'Refreshing organization list...'
+            );
         } finally {
             this._isRefreshing = false;
-            this._view?.webview.postMessage({
-                command: 'stopLoading'
-            });
         }
     }
 

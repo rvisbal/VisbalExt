@@ -2049,44 +2049,13 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
 
 
     private async _loadOrgList(): Promise<void> {
-        try {
-            OrgUtils.logDebug('[VisbalExt.VisbalLogView] _loadOrgList -- Loading org list');
-            
-            // Try to get from cache first
-            const cachedData = await this._orgListCacheService.getCachedOrgList();
-            let orgs;
-
-            if (cachedData) {
-                OrgUtils.logDebug('[VisbalExt.VisbalLogView] _loadOrgList -- Using cached org list cachedData');
-                orgs = cachedData.orgs;
-            } else {
-                OrgUtils.logDebug('[VisbalExt.VisbalLogView] _loadOrgList -- Fetching fresh org list');
-                orgs = await OrgUtils.listOrgs();
-                // Save to cache
-                await this._orgListCacheService.saveOrgList(orgs);
-            }
-
-            // Get the selected org
-            const selectedOrg = await OrgUtils.getSelectedOrg();
-            OrgUtils.logDebug('[VisbalExt.VisbalLogView] _loadOrgList -- Selected org:', selectedOrg);
-
-            OrgUtils.logDebug('[VisbalExt.VisbalLogView] _loadOrgList -- orgs:', orgs);
-            OrgUtils.logDebug('[VisbalExt.VisbalLogView] _loadOrgList -- cachedData:', cachedData);
-            // Send the categorized orgs to the webview
-            this._view?.webview.postMessage({
-                command: 'updateOrgList',
-                orgs: orgs,
-                fromCache: !!cachedData,
-                selectedOrg: selectedOrg?.alias
-            });
-
-        } catch (error: any) {
-            OrgUtils.logError('[VisbalExt.VisbalLogView] _loadOrgList -- Error loading org list:', error);
-            this._showError(`Failed to load org list: ${error.message}`);
-        }
+        await OrgUtils.loadOrgListForView(
+            this._orgListCacheService,
+            this._context,
+            this._view?.webview,
+            '[VisbalExt.VisbalLogView]'
+        );
     }
-
-    
 
     /**
      * Refreshes the list of Salesforce orgs
@@ -2103,40 +2072,16 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
 
         try {
             this._isRefreshing = true;
-            OrgUtils.logDebug('[VisbalExt.VisbalLogView] _refreshOrgList -- Refreshing org list');
-            
-            this._view?.webview.postMessage({
-                command: 'loading',
-                isLoading: true,
-                message: 'Refreshing organization list...'
-            });
-
-            const orgs = await OrgUtils.listOrgs();
-            OrgUtils.logDebug('[VisbalExt.VisbalLogView] _refreshOrgList -- orgs Save to the cache');
-            // Save to cache
-            await this._orgListCacheService.saveOrgList(orgs);
-            
-            const selectedOrg = await OrgUtils.getSelectedOrg();
-            OrgUtils.logDebug('[VisbalExt.VisbalLogView] _loadOrgList -- Selected org:', selectedOrg);
-
-            // Send the categorized orgs to the webview
-            this._view?.webview.postMessage({
-                command: 'updateOrgList',
-                orgs: orgs,
-                fromCache: false,
-                selectedOrg: selectedOrg?.alias
-            });
-            
-            OrgUtils.logDebug('[VisbalExt.VisbalLogView] _refreshOrgList -- Successfully sent org list to webview');
-        } catch (error: any) {
-            OrgUtils.logError('[VisbalExt.VisbalLogView] _refreshOrgList -- Error refreshing org list:', error);
-            this._showError(`Failed to refresh org list: ${error.message}`);
+            await OrgUtils.refreshOrgListForView(
+                this._orgListCacheService,
+                this._context,
+                this._view?.webview,
+                '[VisbalExt.VisbalLogView]',
+                'loading',
+                'Refreshing organization list...'
+            );
         } finally {
             this._isRefreshing = false;
-            this._view?.webview.postMessage({
-                command: 'loading',
-                isLoading: false
-            });
         }
     }
 

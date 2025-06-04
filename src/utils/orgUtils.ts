@@ -795,4 +795,103 @@ export class OrgUtils {
         outputChannel.show(true);
     }
 
+    /**
+     * Shared method to load org list and post to a webview
+     */
+    public static async loadOrgListForView(
+        orgListCacheService: any,
+        context: vscode.ExtensionContext,
+        webview: vscode.Webview | undefined,
+        loggerPrefix: string = '[VisbalExt.OrgUtils]'
+    ): Promise<void> {
+        try {
+            OrgUtils.logDebug(`${loggerPrefix} loadOrgListForView -- Loading org list`);
+            // Try to get from cache first
+            const cachedData = await orgListCacheService.getCachedOrgList();
+            let orgs;
+
+            if (cachedData) {
+                OrgUtils.logDebug(`${loggerPrefix} loadOrgListForView -- Using cached org list`);
+                orgs = cachedData.orgs;
+            } else {
+                OrgUtils.logDebug(`${loggerPrefix} loadOrgListForView -- Fetching fresh org list`);
+                orgs = await OrgUtils.listOrgs();
+                // Save to cache
+                await orgListCacheService.saveOrgList(orgs);
+            }
+
+            // Get the selected org
+            const selectedOrg = await OrgUtils.getSelectedOrg();
+            OrgUtils.logDebug(`${loggerPrefix} loadOrgListForView -- Selected org:`, selectedOrg);
+
+            // Send the categorized orgs to the webview
+            webview?.postMessage({
+                command: 'updateOrgList',
+                orgs: orgs,
+                fromCache: !!cachedData,
+                selectedOrg: selectedOrg?.alias
+            });
+        } catch (error: any) {
+            OrgUtils.logError(`${loggerPrefix} loadOrgListForView -- Error loading org list:`, error);
+            webview?.postMessage({
+                command: 'error',
+                message: `Failed to load org list: ${error.message}`
+            });
+        } finally {
+            webview?.postMessage({
+                command: 'stopLoading'
+            });
+        }
+    }
+
+    /**
+     * Shared method to refresh org list and post to a webview
+     */
+    public static async refreshOrgListForView(
+        orgListCacheService: any,
+        context: vscode.ExtensionContext,
+        webview: vscode.Webview | undefined,
+        loggerPrefix: string = '[VisbalExt.OrgUtils]',
+        loadingType: string = 'startLoading',
+        loadingMessage: string = 'Refreshing organization list...'
+    ): Promise<void> {
+        try {
+            OrgUtils.logDebug(`${loggerPrefix} refreshOrgListForView -- Refreshing org list`);
+            webview?.postMessage({
+                command: loadingType,
+                isLoading: true,
+                message: loadingMessage
+            });
+
+            const orgs = await OrgUtils.listOrgs();
+            OrgUtils.logDebug(`${loggerPrefix} refreshOrgListForView -- orgs Save to the cache`);
+            // Save to cache
+            await orgListCacheService.saveOrgList(orgs);
+
+            const selectedOrg = await OrgUtils.getSelectedOrg();
+            OrgUtils.logDebug(`${loggerPrefix} refreshOrgListForView -- Selected org:`, selectedOrg);
+
+            // Send the categorized orgs to the webview
+            webview?.postMessage({
+                command: 'updateOrgList',
+                orgs: orgs,
+                fromCache: false,
+                selectedOrg: selectedOrg?.alias
+            });
+
+            OrgUtils.logDebug(`${loggerPrefix} refreshOrgListForView -- Successfully sent org list to webview`);
+        } catch (error: any) {
+            OrgUtils.logError(`${loggerPrefix} refreshOrgListForView -- Error refreshing org list:`, error);
+            webview?.postMessage({
+                command: 'error',
+                message: `Failed to refresh org list: ${error.message}`
+            });
+        } finally {
+            webview?.postMessage({
+                command: loadingType === 'loading' ? 'loading' : 'stopLoading',
+                isLoading: false
+            });
+        }
+    }
+
 } 
