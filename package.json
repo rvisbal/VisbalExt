@@ -43,6 +43,7 @@
     "onView:visbal-log",
     "onView:visbal-soql",
     "onView:visbal-apex",
+    "onView:visbal-orgs",
     "workspaceContains:**/.sfdx/sfdx-config.json",
     "workspaceContains:**/sfdx-project.json"
   ],
@@ -50,6 +51,11 @@
     "viewsContainers": {
       "debug": [],
       "panel": [
+        {
+          "id": "visbal-orgs-container",
+          "title": "Orgs",
+          "icon": "$(organization)"
+        },
         {
           "id": "visbal-log-container",
           "title": "Apex Log",
@@ -115,6 +121,13 @@
           "type": "webview",
           "id": "visbal-soql",
           "name": "SOQL Query"
+        }
+      ],
+      "visbal-orgs-container": [
+        {
+          "type": "webview",
+          "id": "visbal-orgs",
+          "name": "Salesforce Orgs"
         }
       ],
       "visbal-apex-container": [
@@ -251,6 +264,11 @@
           "type": "boolean",
           "default": true,
           "description": "Enable/disable the Sample Panel module"
+        },
+        "visbal.modules.orgs.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable/disable the Orgs module"
         },
         "visbal.logging.saveToFile": {
           "type": "boolean",

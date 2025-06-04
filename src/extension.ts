@@ -9,6 +9,7 @@ import { statusBarService } from './services/statusBarService';
 import { SoqlPanelView } from './views/soqlPanelView';
 import { MetadataService } from './services/metadataService';
 import { OrgUtils } from './utils/orgUtils';
+import { OrgTabView } from './views/orgTab';    
 
 import { DebugConsoleView } from './views/debugConsoleView';
 import { TestSummaryView } from './views/testSummaryView';
@@ -65,6 +66,7 @@ export function activate(context: vscode.ExtensionContext) {
   let visbalLogViewProvider: VisbalLogView | undefined;
   let soqlPanel: SoqlPanelView | undefined;
   let samplePanel: SamplePanelView | undefined;
+  let orgTabViewProvider: OrgTabView | undefined;
 
   // Watch for configuration changes
   context.subscriptions.push(
@@ -179,7 +181,24 @@ export function activate(context: vscode.ExtensionContext) {
         }
       })
     );
-  }
+  } 
+
+  //if (isModuleEnabled('orgs')) {
+    orgTabViewProvider = new OrgTabView(context);
+    context.subscriptions.push(
+      vscode.window.registerWebviewViewProvider(
+        'visbal-orgs',
+        orgTabViewProvider,
+        {
+          webviewOptions: {
+            retainContextWhenHidden: true
+          }
+        }
+      ) 
+    );
+
+    
+  //}
 
   if (isModuleEnabled('logAnalyzer')) {
     // Create and register Visbal Log View
