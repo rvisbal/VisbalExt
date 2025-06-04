@@ -1,6 +1,7 @@
 Visbal Extension UI
 │
 ├── Top Tab Bar
+    ├── Org (tab)
 │   ├── Apex Log (tab)
 │   ├── SOQL (tab)
 │   └── Execute Apex (tab)
@@ -24,7 +25,14 @@ Visbal Extension UI
     ├── Go to Definition
     └── Go to References
 
-# 1. Apex Log (Tab/Panel)
+
+# 1. Org (Tab/Panel)
+
+**Main View/Panel:**
+- `src/views/orgTab.ts` — main logic for the Org panel
+- `src/views/orgTabHTML.ts` — HTML template for the webview
+
+# 2. Apex Log (Tab/Panel)
 
 **Main View/Panel:**
 - `src/views/apexLogTab.ts` — main logic for the Apex Log panel
@@ -38,7 +46,7 @@ Visbal Extension UI
 - `src/utils/orgUtils.ts` — org utilities
 - `src/types/salesforceLog.ts` — log type definitions
 
-# 2. SOQL (Tab/Panel)
+# 3. SOQL (Tab/Panel)
 
 **Main View/Panel:**
 - `src/views/soqlPanelView.ts` — main logic for SOQL panel
@@ -49,10 +57,11 @@ Visbal Extension UI
 - `src/services/sfdxService.ts`
 - `src/utils/orgUtils.ts`
 
-# 3. Execute Apex (Tab/Panel)
+# 4. Execute Apex (Tab/Panel)
 
 **Main View/Panel:**
-- `src/views/samplePanelView.ts` — main logic for Execute Apex panel
+- `src/views/executeApexTab.ts` — main logic for Execute Apex panel
+- `src/views/executeApexTabHTML.ts` — HTML template for the webview
 
 **Supporting Services/Utils:**
 - `src/services/metadataService.ts` — Apex execution
@@ -60,7 +69,7 @@ Visbal Extension UI
 - `src/services/sfdxService.ts`
 - `src/utils/orgUtils.ts`
 
-# 4. Visbal Test (Left Side Panel)
+# 5. Visbal Test (Left Side Panel)
 
 **Test Class Explorer:**
 - `src/views/testClassExplorerView.ts` — main logic for test class explorer
@@ -77,7 +86,7 @@ Visbal Extension UI
 - `src/models/testCaseList.ts` — test case list management
 - `src/types/testClass.ts` — test class type definitions
 
-# 5. Menu Selection: "Show Git History for Selection"
+# 6. Menu Selection: "Show Git History for Selection"
 
 **Context Menu/Command:**
 - `src/views/gitHistoryView.ts` — webview for git history

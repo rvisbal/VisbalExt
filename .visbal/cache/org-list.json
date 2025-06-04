@@ -27,15 +27,15 @@
         "expirationDate": "2025-06-28"
       },
       {
-        "username": "test-wdmm8pgzx5kb@example.com",
+        "username": "test-fzuwlwikwmdh@example.com",
         "alias": "CURSOR_TICKET",
-        "instanceUrl": "https://inspiration-energy-9663-dev-ed.scratch.my.salesforce.com",
+        "instanceUrl": "https://nosoftware-speed-3547-dev-ed.scratch.my.salesforce.com",
         "isDefault": false,
         "type": "scratchOrg",
         "clientId": "PlatformCLI",
         "clientSecret": "Unknown",
         "redirectUri": "Unknown",
-        "expirationDate": "2025-06-11"
+        "expirationDate": "2025-07-04"
       },
       {
         "username": "test-byxxq7tbrhzz@example.com",
@@ -340,5 +340,5 @@
       }
     ]
   },
-  "timestamp": 1748962375753
+  "timestamp": 1749057678776
 }

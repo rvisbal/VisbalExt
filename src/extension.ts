@@ -13,13 +13,13 @@ import { OrgTabView } from './views/orgTab';
 
 import { DebugConsoleView } from './views/debugConsoleView';
 import { TestSummaryView } from './views/testSummaryView';
-import { SamplePanelView } from './views/samplePanelView';
 import { TestRunResultsView, TestItem } from './views/testRunResultsView';
 
 import { join } from 'path';
 import { existsSync, mkdirSync } from 'fs';
 import { GitService } from './services/gitService';
 import { GitHistoryView } from './views/gitHistoryView';
+import { ExecuteApexTab } from './views/executeApexTab';
 
 let outputChannel: vscode.OutputChannel;
 
@@ -65,7 +65,7 @@ export function activate(context: vscode.ExtensionContext) {
   let testRunResultsView: TestRunResultsView | undefined;
   let visbalLogViewProvider: VisbalLogView | undefined;
   let soqlPanel: SoqlPanelView | undefined;
-  let samplePanel: SamplePanelView | undefined;
+  let samplePanel: ExecuteApexTab | undefined;
   let orgTabViewProvider: OrgTabView | undefined;
 
   // Watch for configuration changes
@@ -241,7 +241,7 @@ export function activate(context: vscode.ExtensionContext) {
 
   if (isModuleEnabled('samplePanel')) {
     // Create and register Sample Panel
-    samplePanel = new SamplePanelView(context);
+    samplePanel = new ExecuteApexTab(context);
     context.subscriptions.push(
       vscode.window.registerWebviewViewProvider(
         'visbal-apex',
