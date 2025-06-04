@@ -47,6 +47,17 @@
         "clientSecret": "Unknown",
         "redirectUri": "Unknown",
         "expirationDate": "2025-06-20"
+      },
+      {
+        "username": "test-dnz0oqhchwob@example.com",
+        "alias": "SECURITY_REVIEW",
+        "instanceUrl": "https://app-connect-6180-dev-ed.scratch.my.salesforce.com",
+        "isDefault": false,
+        "type": "scratchOrg",
+        "clientId": "PlatformCLI",
+        "clientSecret": "Unknown",
+        "redirectUri": "Unknown",
+        "expirationDate": "2025-07-03"
       }
     ],
     "nonScratchOrgs": [
@@ -329,5 +340,5 @@
       }
     ]
   },
-  "timestamp": 1748869873859
+  "timestamp": 1748962375753
 }
