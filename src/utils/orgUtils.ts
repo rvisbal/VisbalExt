@@ -18,6 +18,16 @@ export interface SalesforceOrg {
     clientSecret?: string;
     redirectUri?: string;
     expirationDate?: string;
+    orgId?: string;
+    connectedStatus?: string;
+    accessToken?: string;
+    instanceApiVersion?: string;
+    instanceApiVersionLastRetrieved?: string;
+    isDefaultDevHubUsername?: boolean;
+    isDefaultUsername?: boolean;
+    isDevHub?: boolean;
+    lastUsed?: string;
+    namespacePrefix?: string;
 }
 
 export interface OrgGroups {
@@ -112,6 +122,16 @@ export class OrgUtils {
                     clientSecret: org.clientSecret || 'Unknown',
                     redirectUri: org.redirectUri || 'Unknown',
                     expirationDate: org.expirationDate || 'Unknown',
+                    orgId: org.orgId,
+                    connectedStatus: org.connectedStatus,
+                    accessToken: org.accessToken,
+                    instanceApiVersion: org.instanceApiVersion,
+                    instanceApiVersionLastRetrieved: org.instanceApiVersionLastRetrieved,
+                    isDefaultDevHubUsername: org.isDefaultDevHubUsername,
+                    isDefaultUsername: org.isDefaultUsername,
+                    isDevHub: org.isDevHub,
+                    lastUsed: org.lastUsed,
+                    namespacePrefix: org.namespacePrefix,
                 };
                 result.push(orgInfo);
             }
@@ -864,7 +884,7 @@ export class OrgUtils {
             });
 
             const orgs = await OrgUtils.listOrgs();
-            OrgUtils.logDebug(`${loggerPrefix} refreshOrgListForView -- orgs Save to the cache`);
+            OrgUtils.logDebug(`${loggerPrefix} refreshOrgListForView -- orgs Save to the cache`, orgs);
             // Save to cache
             await orgListCacheService.saveOrgList(orgs);
 
