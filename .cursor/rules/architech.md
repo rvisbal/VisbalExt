@@ -27,8 +27,8 @@ Visbal Extension UI
 # 1. Apex Log (Tab/Panel)
 
 **Main View/Panel:**
-- `src/views/visbalLogView.ts` — main logic for the Apex Log panel
-- `src/views/htmlForWebView.ts` — HTML template for the webview
+- `src/views/apexLogTab.ts` — main logic for the Apex Log panel
+- `src/views/apexLogTabHTML.ts` — HTML template for the webview
 
 **Supporting Services/Utils:**
 - `src/services/cacheService.ts` — log caching

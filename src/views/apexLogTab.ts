@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { getHtmlForWebview } from './htmlForWebView';
+import { getHtmlForWebview } from './apexLogTabHTML';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';

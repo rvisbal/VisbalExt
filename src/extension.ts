@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
 import { FindModel } from './findModel';
 import { SearchLibrary } from './searchLibrary';
-import { VisbalLogView } from './views/visbalLogView';
+import { VisbalLogView } from './views/apexLogTab';
 import { LogDetailView } from './views/logDetailView';
 import { TestClassExplorerView } from './views/testClassExplorerView';
 import { salesforceApi } from './services/salesforceApiService';
