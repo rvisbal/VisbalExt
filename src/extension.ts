@@ -6,7 +6,7 @@ import { LogDetailView } from './views/logDetailView';
 import { TestClassExplorerView } from './views/testClassExplorerView';
 import { salesforceApi } from './services/salesforceApiService';
 import { statusBarService } from './services/statusBarService';
-import { SoqlPanelView } from './views/soqlPanelView';
+import { SoqlTab } from './views/soqlTab';
 import { MetadataService } from './services/metadataService';
 import { OrgUtils } from './utils/orgUtils';
 import { OrgTabView } from './views/orgTab';    
@@ -64,7 +64,7 @@ export function activate(context: vscode.ExtensionContext) {
   // Declare views that might be conditionally initialized
   let testRunResultsView: TestRunResultsView | undefined;
   let visbalLogViewProvider: VisbalLogView | undefined;
-  let soqlPanel: SoqlPanelView | undefined;
+  let soqlPanel: SoqlTab | undefined;
   let samplePanel: ExecuteApexTab | undefined;
   let orgTabViewProvider: OrgTabView | undefined;
 
@@ -225,7 +225,7 @@ export function activate(context: vscode.ExtensionContext) {
 
   if (isModuleEnabled('soqlQuery')) {
     // Create and register SOQL Panel
-    soqlPanel = new SoqlPanelView(context);
+    soqlPanel = new SoqlTab(context);
     context.subscriptions.push(
       vscode.window.registerWebviewViewProvider(
         'visbal-soql',

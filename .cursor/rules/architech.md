@@ -49,7 +49,7 @@ Visbal Extension UI
 # 3. SOQL (Tab/Panel)
 
 **Main View/Panel:**
-- `src/views/soqlPanelView.ts` — main logic for SOQL panel
+- `src/views/soqlTab.ts` — main logic for SOQL panel
 
 **Supporting Services/Utils:**
 - `src/services/metadataService.ts` — SOQL execution
