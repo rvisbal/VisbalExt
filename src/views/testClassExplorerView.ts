@@ -10,7 +10,7 @@ import { existsSync, mkdirSync } from 'fs';
 import { OrgUtils } from '../utils/orgUtils';
 import { TestCaseListManager } from '../models/testCaseList';
 
-import { TestRunResultsView } from './testRunResultsView';
+import { TestRunningTaskView } from './testRunningTaskSidePanel';
 import { TestSummaryView } from './testSummaryView';
 import { SalesforceApiService } from '../services/salesforceApiService';
 
@@ -95,7 +95,7 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
     private _testController: vscode.TestController;
     private _testItems: Map<string, vscode.TestItem>;
     private _orgUtils = OrgUtils;
-    private _testRunResultsView: TestRunResultsView;
+    private _testRunResultsView: TestRunningTaskView;
     private _testSummaryView: TestSummaryView;
     private _sfdxService: SfdxService;
     private _abortController: AbortController | null = null;
@@ -107,7 +107,7 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
         extensionUri: vscode.Uri,
         statusBarService: StatusBarService,
         private readonly _context: vscode.ExtensionContext,
-        testRunResultsView: TestRunResultsView,
+        testRunningTaskSidePanel: TestRunningTaskView,
         testSummaryView: TestSummaryView,
         salesforceApiService: SalesforceApiService
     ) {
@@ -117,7 +117,7 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
         this._storageService = new StorageService(_context);
         this._testController = vscode.tests.createTestController('testClassExplorerView', 'Test Class Explorer');
         this._testItems = new Map();
-        this._testRunResultsView = testRunResultsView;
+        this._testRunResultsView = testRunningTaskSidePanel;
         this._testSummaryView = testSummaryView;
         this._sfdxService = new SfdxService();
         this._salesforceApiService = salesforceApiService;
@@ -1932,7 +1932,20 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
             //run many test using the format sf apex run test --tests ns.TestA.excitingMethod --tests ns.TestA.boringMethod --tests ns.TestB
             const runResult = await this._sfdxService.runManyTests(tests);
             OrgUtils.logDebug('[VisbalExt.TestClassExplorerView] _runManyTest -- runResult:', runResult);  
+
+            if (!runResult) {
+                throw new Error('Failed to run tests: No result returned from SFDX service');
+            }
+
+            if (runResult.name === 'ALREADY_IN_PROCESS') {
+                throw new Error(`Test execution already in progress: ${runResult.message}`);
+            }
+
             if (tests.runMode === 'sequential') {
+                if (!runResult.tests || !Array.isArray(runResult.tests)) {
+                    throw new Error('Invalid test results format: tests array is missing or invalid');
+                }
+
                 this._testSummaryView.updateSummary(runResult.summary, runResult.tests);
 
                 let testIds = [];
@@ -1955,9 +1968,17 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                 }
             }
             else {
-                let testRunId = runResult.result.testRunId;
+                if (!runResult.result || typeof runResult.result !== 'object') {
+                    throw new Error('Invalid test results format: result object is missing or invalid');
+                }
+
+                const testRunId = runResult.result.testRunId;
+                if (!testRunId) {
+                    throw new Error('Invalid test results format: testRunId is missing');
+                }
+
                 OrgUtils.logDebug('[VisbalExt.TestClassExplorerView] _runManyTest -- testRunId:', testRunId);  
-                if (tests.methods.length > 3 && testRunId) {
+                if (tests.methods.length > 3) {
                     //#region COLLECT_TEST_RESULTS_ALL_RUNN
                     let countIteration = 0;
                     let allTestCompleted = false;
@@ -1981,12 +2002,12 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                                 }
                                 else {
                                     allQueueItemsCompleted = false;
-                                    // add the ApexClass.Name to the testRunResultsView
+                                    // add the ApexClass.Name to the testRunningTaskSidePanel
                                     this._testRunResultsView.updateMethodStatus(q.ApexClass.Name, '', TestStatus.running);
 
                                     //todo: check if this is needed
                                     /*
-                                    // if there is item on the storage service on that class, add it to the testRunResultsView
+                                    // if there is item on the storage service on that class, add it to the testRunningTaskSidePanel
                                     const methods = await this._storageService.getTestMethodsForClass(q.ApexClass.Name);
                                     if (methods.length > 0) {
                                         OrgUtils.logDebug(`[VisbalExt.TestClassExplorerView] _runManyTest -- countIteration: ${countIteration} ADD -- methods: ${q.ApexClass.Name} -- methods.length: ${methods.length}`);
@@ -2038,7 +2059,7 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                                 }
         
                                 //todo: check if this is needed
-                                //for selected test . this is adding the methods to the testRunResultsView that are not in the current results
+                                //for selected test . this is adding the methods to the testRunningTaskSidePanel that are not in the current results
                                 /*
                                 // Update status for existing methods that aren't in current results
                                 for (const method of existingMethods) {
@@ -2232,9 +2253,9 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                         }
                         else {
                             allQueueItemsCompleted = false;
-                            // add the ApexClass.Name to the testRunResultsView
+                            // add the ApexClass.Name to the testRunningTaskSidePanel
                             this._testRunResultsView.updateMethodStatus(q.ApexClass.Name, '', TestStatus.running);
-                            // if there is item on the storage service on that class, add it to the testRunResultsView
+                            // if there is item on the storage service on that class, add it to the testRunningTaskSidePanel
                             const methods = await this._storageService.getTestMethodsForClass(q.ApexClass.Name);
                             if (methods.length > 0) {
                                 this._testRunResultsView.addTestRun(q.ApexClass.Name, methods.map(m => m.name));
@@ -2276,7 +2297,7 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                                 testStatus = TestStatus.success;
                             } else if (r.Outcome === 'Fail' || r.Outcome === 'Failed') {
                                 testStatus = TestStatus.failed;
-                                OrgUtils.logDebug(`[VisbalExt.TestRunResultsProvider] _runAllTests selectTestMethod -- className:${className} -- methodName:${r.MethodName}`);
+                                OrgUtils.logDebug(`[VisbalExt.TestRunningTaskProvider] _runAllTests selectTestMethod -- className:${className} -- methodName:${r.MethodName}`);
                                 OrgUtils.selectTestMethod(className, r.MethodName);
                             }
                             this._testRunResultsView.updateMethodStatus(className, r.MethodName, testStatus, r.ApexLogId);

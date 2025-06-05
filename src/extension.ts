@@ -13,7 +13,7 @@ import { OrgTabView } from './views/orgTab';
 
 import { DebugConsoleView } from './views/debugConsoleView';
 import { TestSummaryView } from './views/testSummaryView';
-import { TestRunResultsView, TestItem } from './views/testRunResultsView';
+import { TestRunningTaskView, TestItem } from './views/testRunningTaskSidePanel';
 
 import { join } from 'path';
 import { existsSync, mkdirSync } from 'fs';
@@ -62,7 +62,7 @@ export function activate(context: vscode.ExtensionContext) {
   );
 
   // Declare views that might be conditionally initialized
-  let testRunResultsView: TestRunResultsView | undefined;
+  let testRunningTaskView: TestRunningTaskView | undefined;
   let visbalLogViewProvider: VisbalLogView | undefined;
   let soqlPanel: SoqlTab | undefined;
   let samplePanel: ExecuteApexTab | undefined;
@@ -80,9 +80,9 @@ export function activate(context: vscode.ExtensionContext) {
   // Initialize views based on configuration
   if (isModuleEnabled('testExplorer')) {
     // Initialize test run results view first
-    OrgUtils.logDebug('[VisbalExt.Extension] Initializing TestRunResultsView');
-    outputChannel.appendLine('[VisbalExt.Extension] Initializing TestRunResultsView');
-    testRunResultsView = new TestRunResultsView(context);
+    OrgUtils.logDebug('[VisbalExt.Extension] Initializing TestRunningTaskView');
+    outputChannel.appendLine('[VisbalExt.Extension] Initializing TestRunningTaskView');
+    testRunningTaskView = new TestRunningTaskView(context);
 
     // Initialize test results view
     OrgUtils.logDebug('[VisbalExt.Extension] Initializing TestSummaryView');
@@ -96,7 +96,7 @@ export function activate(context: vscode.ExtensionContext) {
         context.extensionUri,
         statusBarService,
         context,
-        testRunResultsView,
+        testRunningTaskView,
         testSummaryView,
         salesforceApi
     );
@@ -110,8 +110,8 @@ export function activate(context: vscode.ExtensionContext) {
             testClassExplorerView.runSelectedTests(args);
         }),
         vscode.commands.registerCommand('visbal-ext.rerunAllTests', async () => {
-            if (testRunResultsView) {
-                await testRunResultsView.rerunAllTests();
+            if (testRunningTaskView) {
+                await testRunningTaskView.rerunAllTests();
             } else {
                 vscode.window.showErrorMessage('Test run results view is not initialized');
             }
@@ -134,7 +134,7 @@ export function activate(context: vscode.ExtensionContext) {
 
     // Register test run results view
     const treeView = vscode.window.createTreeView('testRunResults', {
-        treeDataProvider: testRunResultsView.getProvider(),
+        treeDataProvider: testRunningTaskView.getProvider(),
         showCollapseAll: true
     });
     context.subscriptions.push(treeView);
@@ -425,7 +425,7 @@ export function activate(context: vscode.ExtensionContext) {
     outputChannel.appendLine('[Debug] Debug session started');
     debugConsoleView.clear();
     debugConsoleView.addOutput('Debug session started', 'info');
-    testRunResultsView?.clear();
+    testRunningTaskView?.clear();
   });
 
   vscode.debug.onDidTerminateDebugSession(() => {
