@@ -11,7 +11,7 @@ import { OrgUtils } from '../utils/orgUtils';
 import { TestCaseListManager } from '../models/testCaseList';
 
 import { TestRunningTaskView } from './testRunningTaskSidePanel';
-import { TestSummaryView } from './testSummaryView';
+import { TestSummaryView } from './testSummarySidePanel';
 import { SalesforceApiService } from '../services/salesforceApiService';
 
 enum TestStatus {

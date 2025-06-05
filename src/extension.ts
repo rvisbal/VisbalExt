@@ -12,7 +12,7 @@ import { OrgUtils } from './utils/orgUtils';
 import { OrgTabView } from './views/orgTab';    
 
 import { DebugConsoleView } from './views/debugConsoleView';
-import { TestSummaryView } from './views/testSummaryView';
+import { TestSummaryView } from './views/testSummarySidePanel';
 import { TestRunningTaskView, TestItem } from './views/testRunningTaskSidePanel';
 
 import { join } from 'path';
