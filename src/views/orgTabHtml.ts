@@ -2,13 +2,13 @@ import { styles } from './styles';
 import { WebviewUtils } from '../utils/webviewUtils';
 
 export function getOrgTabHtml(orgs: any[] = [], isLoading = false, error = ''): string {
-  // Helper to render org rows with filtering
-  function renderOrgRows(orgs: any[], selectedType: string = 'ALL'): string {
+  // Helper to render org rows with filtering and search
+  function renderOrgRows(orgs: any[], selectedType: string = 'ALL', searchTerm: string = ''): string {
     if (!orgs || orgs.length === 0) {
       return `<tr><td colspan="12" class="no-logs-message">No orgs found. Click Refresh to load orgs.</td></tr>`;
     }
 
-    const filteredOrgs = selectedType === 'ALL' ? orgs : orgs.filter(org => {
+    let filteredOrgs = selectedType === 'ALL' ? orgs : orgs.filter(org => {
       switch (selectedType) {
         case 'DEV_HUB':
           return org.isDevHub;
@@ -22,6 +22,16 @@ export function getOrgTabHtml(orgs: any[] = [], isLoading = false, error = ''): 
           return true;
       }
     });
+
+    if (searchTerm && searchTerm.trim() !== '') {
+      const term = searchTerm.trim().toLowerCase();
+      filteredOrgs = filteredOrgs.filter(org =>
+        (org.alias && org.alias.toLowerCase().includes(term)) ||
+        (org.username && org.username.toLowerCase().includes(term)) ||
+        (org.type && org.type.toLowerCase().includes(term)) ||
+        (org.orgId && org.orgId.toLowerCase().includes(term))
+      );
+    }
 
     if (filteredOrgs.length === 0) {
       return `<tr><td colspan="12" class="no-logs-message">No orgs match the selected filter.</td></tr>`;
@@ -204,7 +214,7 @@ export function getOrgTabHtml(orgs: any[] = [], isLoading = false, error = ''): 
       });
 
       document.getElementById('orgTypeFilter').addEventListener('change', (e) => {
-        updateTable(e.target.value);
+        updateTable(e.target.value, '');
       });
 
       window.addEventListener('message', event => {
