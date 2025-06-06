@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
 import * as fs from 'fs';
 import * as path from 'path';
-import { getHtmlTemplate } from './htmlTemplate';
+import { getHtmlTemplate } from './logDetailHTML';
 import { extractDebugLines, extractCategoryLines, formatLogContentForHtml, extractInfoLines } from '../utils/logParsingUtils';
 import { LogTab, LogCategory, LogSummary, LogTimelineEvent, ParsedLogData } from '../models/logInterfaces';
 import { ExecutionTabHandler } from './executionTabHandler';
