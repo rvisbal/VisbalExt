@@ -4,8 +4,8 @@ import * as path from 'path';
 import { getHtmlTemplate } from './logDetailHTML';
 import { extractDebugLines, extractCategoryLines, formatLogContentForHtml, extractInfoLines } from '../utils/logParsingUtils';
 import { LogTab, LogCategory, LogSummary, LogTimelineEvent, ParsedLogData } from '../models/logInterfaces';
-import { ExecutionTabHandler } from './executionTabHandler';
-import { RawLogTabHandler } from './rawLogTabHandler';
+import { ExecutionTabHandler } from './logDetailExecution';
+import { RawLogTabHandler } from './logDetailRawHandler';
 import { statusBarService } from '../services/statusBarService';
 import { OrgUtils } from '../utils/orgUtils';
 

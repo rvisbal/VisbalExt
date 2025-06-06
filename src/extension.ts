@@ -408,6 +408,7 @@ export function activate(context: vscode.ExtensionContext) {
 
     // Get the log file path
     const logFilePath = editor.document.uri.fsPath;
+    OrgUtils.logDebug('[VisbalExt.Extension] showLogSummary -- logFilePath:', logFilePath);
     // Use a generated ID based on the file path
     const logId = `summary_${Date.now()}`;
 
