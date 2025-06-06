@@ -72,10 +72,9 @@ Visbal Extension UI
 # 5. Visbal Test (Left Side Panel)
 
 **Test Class Explorer:**
-- `src/views/testClassExplorerView.ts` — main logic for test class explorer
-- `src/views/testRunResultsView.ts` — test run results tree
-- `src/views/testResultsView.ts` — test results panel
-- `src/views/testSummaryView.ts` — test summary panel
+- `src/views/testClassExplorerSidePanel.ts` — main logic for test class explorer
+- `src/views/testRunningTaskSidePanel.ts` — test run results tree
+- `src/views/testSummarySidePanel.ts` — test summary panel
 
 **Supporting Services/Utils:**
 - `src/services/metadataService.ts` — test class/method discovery
