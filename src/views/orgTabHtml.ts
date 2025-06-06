@@ -1,13 +1,22 @@
 import { styles } from './styles';
 import { WebviewUtils } from '../utils/webviewUtils';
+import { OrgUtils } from '../utils/orgUtils';
 
 export function getOrgTabHtml(orgs: any[] = [], isLoading = false, error = ''): string {
+
+
   // Helper to render org rows with filtering and search
   function renderOrgRows(orgs: any[], selectedType: string = 'ALL', searchTerm: string = ''): string {
     if (!orgs || orgs.length === 0) {
       return `<tr><td colspan="12" class="no-logs-message">No orgs found. Click Refresh to load orgs.</td></tr>`;
     }
 
+    console.log(`[VisbalExt.renderOrgRows] START`);
+    if (orgs) {
+      console.log(`[VisbalExt.renderOrgRows] filteredOrgs: ${orgs.length}`);
+    }
+    
+    console.log('[VisbalExt.renderOrgRows] selectedType: ', selectedType );
     let filteredOrgs = selectedType === 'ALL' ? orgs : orgs.filter(org => {
       switch (selectedType) {
         case 'DEV_HUB':
@@ -23,7 +32,13 @@ export function getOrgTabHtml(orgs: any[] = [], isLoading = false, error = ''): 
       }
     });
 
+    if (orgs) {
+      console.log(`[VisbalExt.renderOrgRows] filteredOrgs: ${filteredOrgs.length}`);
+    }
+    console.log('[VisbalExt.renderOrgRows] searchTerm: ', searchTerm );
+   
     if (searchTerm && searchTerm.trim() !== '') {
+      console.log('[VisbalExt.renderOrgRows] renderOrgRows.searchTerm: ' + searchTerm);
       const term = searchTerm.trim().toLowerCase();
       filteredOrgs = filteredOrgs.filter(org =>
         (org.alias && org.alias.toLowerCase().includes(term)) ||
@@ -32,6 +47,8 @@ export function getOrgTabHtml(orgs: any[] = [], isLoading = false, error = ''): 
         (org.orgId && org.orgId.toLowerCase().includes(term))
       );
     }
+  
+    console.log('[VisbalExt.renderOrgRows] search: ' + filteredOrgs.length);
 
     if (filteredOrgs.length === 0) {
       return `<tr><td colspan="12" class="no-logs-message">No orgs match the selected filter.</td></tr>`;
@@ -209,6 +226,21 @@ export function getOrgTabHtml(orgs: any[] = [], isLoading = false, error = ''): 
       const orgTypeFilter = document.getElementById('orgTypeFilter');
       const orgSearchInput = document.getElementById('orgSearchInput');
       const clearSearchBtn = document.getElementById('clearSearchBtn');
+
+      orgSearchInput.addEventListener('input', () => {
+        debugLog('orgSearchInput.input: ' + orgSearchInput.value);
+        updateTable(orgTypeFilter.EVENT.value, orgSearchInput.value);
+        clearSearchBtn.style.display = orgSearchInput.value ? '' : 'none';
+      });
+
+      clearSearchBtn.addEventListener('click', () => {
+        orgSearchInput.value = '';
+        clearSearchBtn.style.display = 'none';
+        debugLog('clearSearchBtn.EVENT.click: ' + orgSearchInput.value);
+        updateTable(orgTypeFilter.value, '');
+        orgSearchInput.focus();
+      });
+
       document.getElementById('refreshOrgsBtn').addEventListener('click', () => {
         vscode.postMessage({ command: 'refreshOrgList' });
       });
