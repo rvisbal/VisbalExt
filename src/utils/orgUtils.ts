@@ -303,6 +303,18 @@ export class OrgUtils {
             throw new Error(`Failed to open selected org: ${error.message}`);
         }
     }
+
+
+    public static async openOrg(alias: string): Promise<void> {
+        try {
+            OrgUtils.logDebug(`[VisbalExt.OrgUtils] openOrg -- alias: ${alias}`);
+            await execAsync(`sf org open --target-org ${alias}`);
+            OrgUtils.logDebug(`[VisbalExt.OrgUtils] openOrg -- Successfully opened alias: ${alias}`);
+        } catch (error: any) {
+            OrgUtils.logError('[VisbalExt.OrgUtils] openOrg -- Error opening selected org:', error as Error);
+            throw new Error(`Failed to open  alias: ${alias}: ${error.message}`);
+        }
+    }
     
     /**
      * Execute a CLI command
