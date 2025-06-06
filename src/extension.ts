@@ -3,7 +3,7 @@ import { FindModel } from './findModel';
 import { SearchLibrary } from './searchLibrary';
 import { VisbalLogView } from './views/apexLogTab';
 import { LogDetailView } from './views/logDetailView';
-import { TestClassExplorerView } from './views/testClassExplorerView';
+import { TestClassExplorerView } from './views/testClassExplorerSidePanel';
 import { salesforceApi } from './services/salesforceApiService';
 import { statusBarService } from './services/statusBarService';
 import { SoqlTab } from './views/soqlTab';
