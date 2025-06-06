@@ -1,4 +1,5 @@
 import { styles } from './styles';
+import { WebviewUtils } from '../utils/webviewUtils';
 
 export function getOrgTabHtml(orgs: any[] = [], isLoading = false, error = ''): string {
   // Helper to render org rows with filtering
@@ -43,7 +44,7 @@ export function getOrgTabHtml(orgs: any[] = [], isLoading = false, error = ''): 
     `).join('');
   }
 
-  return `<!DOCTYPE html>
+  const html = `<!DOCTYPE html>
   <html lang="en">
   <head>
     <meta charset="UTF-8">
@@ -56,6 +57,42 @@ export function getOrgTabHtml(orgs: any[] = [], isLoading = false, error = ''): 
         align-items: center;
         gap: 8px;
         margin-bottom: 12px;
+      }
+      .search-container {
+        display: flex;
+        align-items: center;
+        background: var(--vscode-input-background);
+        border: 1px solid var(--vscode-input-border);
+        border-radius: 4px;
+        padding: 2px 8px;
+        margin-right: 12px;
+        height: 28px;
+      }
+      .search-icon {
+        width: 16px;
+        height: 16px;
+        margin-right: 4px;
+        color: var(--vscode-icon-foreground);
+      }
+      .search-input {
+        border: none;
+        outline: none;
+        background: transparent;
+        color: var(--vscode-input-foreground);
+        font-size: 13px;
+        flex: 1;
+      }
+      .clear-btn {
+        background: none;
+        border: none;
+        color: var(--vscode-icon-foreground);
+        cursor: pointer;
+        font-size: 16px;
+        margin-left: 4px;
+        padding: 0;
+      }
+      .clear-btn:focus {
+        outline: 1px solid var(--vscode-focusBorder);
       }
       .filter-select {
         padding: 4px 8px;
@@ -83,6 +120,11 @@ export function getOrgTabHtml(orgs: any[] = [], isLoading = false, error = ''): 
       <div class="header">
         <h1>Salesforce Orgs</h1>
         <div class="actions">
+          <div class="search-container">
+            <span class="search-icon">🔍</span>
+            <input id="orgSearchInput" class="search-input" type="text" placeholder="Filter orgs..." aria-label="Filter orgs" />
+            <button id="clearSearchBtn" class="clear-btn" title="Clear search" aria-label="Clear search" style="display:none">×</button>
+          </div>
           <div class="filter-container">
             <select id="orgTypeFilter" class="filter-select" aria-label="Filter orgs by type">
               <option value="ALL">All Orgs</option>
@@ -123,11 +165,15 @@ export function getOrgTabHtml(orgs: any[] = [], isLoading = false, error = ''): 
     <script>
       const vscode = acquireVsCodeApi();
       let currentOrgs = ${JSON.stringify(orgs)};
-
-      // Add click handler for org aliases
+      
+      function debugLog(message) {
+        visbalDebugLog(message);
+      }
+      
       document.addEventListener('click', (e) => {
         console.log('Click event target:', e.target);
         const target = e.target;
+        //debugLog('addEventListener.click.target: ' + target);
         if (target && target.classList && target.classList.contains('org-alias')) {
           console.log('Found org-alias element');
           e.preventDefault();
@@ -140,13 +186,19 @@ export function getOrgTabHtml(orgs: any[] = [], isLoading = false, error = ''): 
         }
       });
 
-      function updateTable(filterType = 'ALL') {
+      function updateTable(filterType, searchTerm) {
+        debugLog('updateTable');
+        debugLog('updateTable.searchTerm: ' + searchTerm);
+        debugLog('updateTable.filterType: ' + filterType);
+        
         const tbody = document.getElementById('orgsTableBody');
         if (!tbody) return;
-        
         tbody.innerHTML = ${renderOrgRows.toString()}(currentOrgs, filterType);
       }
 
+      const orgTypeFilter = document.getElementById('orgTypeFilter');
+      const orgSearchInput = document.getElementById('orgSearchInput');
+      const clearSearchBtn = document.getElementById('clearSearchBtn');
       document.getElementById('refreshOrgsBtn').addEventListener('click', () => {
         vscode.postMessage({ command: 'refreshOrgList' });
       });
@@ -157,13 +209,16 @@ export function getOrgTabHtml(orgs: any[] = [], isLoading = false, error = ''): 
 
       window.addEventListener('message', event => {
         const message = event.data;
+        debugLog('window.addEventListener.message: ' + message);
         if (message.command === 'updateOrgList') {
           currentOrgs = message.orgs;
           const filterType = document.getElementById('orgTypeFilter').value;
-          updateTable(filterType);
+          updateTable(filterType, orgSearchInput.value);
         }
       });
     </script>
   </body>
   </html>`;
+
+  return WebviewUtils.injectDebugBox(html);
 } 

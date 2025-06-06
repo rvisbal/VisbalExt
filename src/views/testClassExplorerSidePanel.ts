@@ -167,156 +167,159 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
     ) {
         this._view = webviewView;
 
-        webviewView.webview.options = {
-            enableScripts: true,
-            localResourceRoots: [
-                this._extensionUri
-            ]
-        };
+        if (!OrgUtils.DEBUG_MODE) {
 
-        webviewView.webview.html = this._getHtmlForWebview(webviewView.webview);
+            webviewView.webview.options = {
+                enableScripts: true,
+                localResourceRoots: [
+                    this._extensionUri
+                ]
+            };
 
-        webviewView.webview.onDidReceiveMessage(async (data) => {
-            OrgUtils.logDebug(`[VisbalExt.TestClassExplorerView] resolveWebviewView -- Received message from webview ${data.command}: ${data.message}`, data);
-            switch (data.command) {
-                case 'getTestCaseLists':
-                    const lists = this._testCaseListManager.getTestCaseLists();
-                    webviewView.webview.postMessage({
-                        command: 'updateTestCaseLists',
-                        lists
-                    });
-                    break;
+            webviewView.webview.html = this._getHtmlForWebview(webviewView.webview);
 
-                case 'saveTestCaseList':
-                    try {
-                        const newList = this._testCaseListManager.createTestCaseList(data.name, data.methods);
+            webviewView.webview.onDidReceiveMessage(async (data) => {
+                OrgUtils.logDebug(`[VisbalExt.TestClassExplorerView] resolveWebviewView -- Received message from webview ${data.command}: ${data.message}`, data);
+                switch (data.command) {
+                    case 'getTestCaseLists':
+                        const lists = this._testCaseListManager.getTestCaseLists();
                         webviewView.webview.postMessage({
                             command: 'updateTestCaseLists',
-                            lists: this._testCaseListManager.getTestCaseLists()
+                            lists
                         });
-                        vscode.window.showInformationMessage(`Test case list "${data.name}" saved successfully.`);
-                    } catch (error: any) {
-                        vscode.window.showErrorMessage(`Failed to save test case list: ${error.message}`);
-                    }
-                    break;
+                        break;
 
-                case 'updateTestCaseList':
-                    try {
-                        const list = this._testCaseListManager.getTestCaseList(data.id);
-                        if (list) {
-                            this._testCaseListManager.updateTestCaseList(data.id, data.name, list.methods);
+                    case 'saveTestCaseList':
+                        try {
+                            const newList = this._testCaseListManager.createTestCaseList(data.name, data.methods);
                             webviewView.webview.postMessage({
                                 command: 'updateTestCaseLists',
                                 lists: this._testCaseListManager.getTestCaseLists()
                             });
-                            vscode.window.showInformationMessage(`Test case list renamed to "${data.name}" successfully.`);
+                            vscode.window.showInformationMessage(`Test case list "${data.name}" saved successfully.`);
+                        } catch (error: any) {
+                            vscode.window.showErrorMessage(`Failed to save test case list: ${error.message}`);
                         }
-                    } catch (error: any) {
-                        vscode.window.showErrorMessage(`Failed to update test case list: ${error.message}`);
-                    }
-                    break;
+                        break;
 
-                case 'deleteTestCaseList':
-                    try {
-                        if (this._testCaseListManager.deleteTestCaseList(data.testCaseListId)) {
-                            webviewView.webview.postMessage({
-                                command: 'updateTestCaseLists',
-                                lists: this._testCaseListManager.getTestCaseLists()
+                    case 'updateTestCaseList':
+                        try {
+                            const list = this._testCaseListManager.getTestCaseList(data.id);
+                            if (list) {
+                                this._testCaseListManager.updateTestCaseList(data.id, data.name, list.methods);
+                                webviewView.webview.postMessage({
+                                    command: 'updateTestCaseLists',
+                                    lists: this._testCaseListManager.getTestCaseLists()
+                                });
+                                vscode.window.showInformationMessage(`Test case list renamed to "${data.name}" successfully.`);
+                            }
+                        } catch (error: any) {
+                            vscode.window.showErrorMessage(`Failed to update test case list: ${error.message}`);
+                        }
+                        break;
+
+                    case 'deleteTestCaseList':
+                        try {
+                            if (this._testCaseListManager.deleteTestCaseList(data.testCaseListId)) {
+                                webviewView.webview.postMessage({
+                                    command: 'updateTestCaseLists',
+                                    lists: this._testCaseListManager.getTestCaseLists()
+                                });
+                                vscode.window.showInformationMessage('Test case list deleted successfully.');
+                            }
+                        } catch (error: any) {
+                            vscode.window.showErrorMessage(`Failed to delete test case list: ${error.message}`);
+                        }
+                        break;
+
+                    case 'applyTestCaseList':
+                        try {
+                            this._testCaseListManager.applyTestCaseList(data.testCaseListId);
+                        } catch (error: any) {
+                            vscode.window.showErrorMessage(`Failed to apply test case list: ${error.message}`);
+                        }
+                        break;
+
+                    case 'showMessage':
+                        switch (data.type) {
+                            case 'error':
+                                vscode.window.showErrorMessage(data.message);
+                                break;
+                            case 'warning':
+                                vscode.window.showWarningMessage(data.message);
+                                break;
+                            default:
+                                vscode.window.showInformationMessage(data.message);
+                        }
+                        break;
+
+                    case 'fetchTestClasses':
+                        OrgUtils.logDebug(`[VisbalExt.TestClassExplorerView] resolveWebviewView -- Fetched test classes forceRefresh:${data.forceRefresh} refreshMethods:${data.refreshMethods}`);
+                        await this._fetchTestClasses(data.forceRefresh);
+                    
+                        if (data.refreshMethods) {
+                            // Clear stored test methods for all classes
+                            const testClasses = await this._storageService.getTestClasses();
+                            for (const testClass of testClasses) {
+                                await this._storageService.clearTestMethodsForClass(testClass.name);
+                            }
+                        }
+                        break;
+                    case 'refreshTestMethods':
+                        await this._refreshTestMethods(data.testClass);
+                        break;
+                    case 'fetchTestMethods':
+                        await this._fetchTestMethods(data.className);
+                        break;
+                    case 'runTest':
+                        await this._runTest(data.testClass, data.testMethod);
+                        break;
+                    case 'runSelectedTests':
+                        await this._runSelectedTests(data.tests);
+                        break;
+                    case 'runAllTests':
+                        await this._runAllTests(data.runMode);
+                        break;  
+                    case 'viewTestLog':
+                        await this._viewTestLog(data.logId, data.testName);
+                        break;
+                    case 'error':
+                        vscode.window.showErrorMessage(data.message);
+                        break;
+                    case 'openTestFile':
+                        await this._openTestFile(data.className, data.methodName);
+                        break;
+                    case 'showConfirmation':
+                        const choice = await vscode.window.showWarningMessage(
+                            data.message,
+                            { modal: true },
+                            'Yes',
+                            'No'
+                        );
+                        if (this._view) {
+                            this._view.webview.postMessage({
+                                command: 'confirmationResult',
+                                confirmed: choice === 'Yes',
+                                action: data.action,
+                                runMode: data.runMode
                             });
-                            vscode.window.showInformationMessage('Test case list deleted successfully.');
                         }
-                    } catch (error: any) {
-                        vscode.window.showErrorMessage(`Failed to delete test case list: ${error.message}`);
-                    }
-                    break;
+                        break;
+                    case 'abortTests':
+                        this.abortTests();
+                        break;
+                }
+            });
 
-                case 'applyTestCaseList':
-                    try {
-                        this._testCaseListManager.applyTestCaseList(data.testCaseListId);
-                    } catch (error: any) {
-                        vscode.window.showErrorMessage(`Failed to apply test case list: ${error.message}`);
-                    }
-                    break;
-
-                case 'showMessage':
-                    switch (data.type) {
-                        case 'error':
-                            vscode.window.showErrorMessage(data.message);
-                            break;
-                        case 'warning':
-                            vscode.window.showWarningMessage(data.message);
-                            break;
-                        default:
-                            vscode.window.showInformationMessage(data.message);
-                    }
-                    break;
-
-                case 'fetchTestClasses':
-                    OrgUtils.logDebug(`[VisbalExt.TestClassExplorerView] resolveWebviewView -- Fetched test classes forceRefresh:${data.forceRefresh} refreshMethods:${data.refreshMethods}`);
-                    await this._fetchTestClasses(data.forceRefresh);
-                   
-                    if (data.refreshMethods) {
-                        // Clear stored test methods for all classes
-                        const testClasses = await this._storageService.getTestClasses();
-                        for (const testClass of testClasses) {
-                            await this._storageService.clearTestMethodsForClass(testClass.name);
-                        }
-                    }
-                    break;
-				case 'refreshTestMethods':
-                    await this._refreshTestMethods(data.testClass);
-                    break;
-                case 'fetchTestMethods':
-                    await this._fetchTestMethods(data.className);
-                    break;
-                case 'runTest':
-                    await this._runTest(data.testClass, data.testMethod);
-                    break;
-                case 'runSelectedTests':
-                    await this._runSelectedTests(data.tests);
-                    break;
-                case 'runAllTests':
-                    await this._runAllTests(data.runMode);
-                    break;  
-                case 'viewTestLog':
-                    await this._viewTestLog(data.logId, data.testName);
-                    break;
-                case 'error':
-                    vscode.window.showErrorMessage(data.message);
-                    break;
-                case 'openTestFile':
-                    await this._openTestFile(data.className, data.methodName);
-                    break;
-                case 'showConfirmation':
-                    const choice = await vscode.window.showWarningMessage(
-                        data.message,
-                        { modal: true },
-                        'Yes',
-                        'No'
-                    );
-                    if (this._view) {
-                        this._view.webview.postMessage({
-                            command: 'confirmationResult',
-                            confirmed: choice === 'Yes',
-                            action: data.action,
-                            runMode: data.runMode
-                        });
-                    }
-                    break;
-                case 'abortTests':
-                    this.abortTests();
-                    break;
-            }
-        });
-
-        // Initial fetch of test classes when view becomes visible
-        //setTimeout(() => {
-        //    OrgUtils.logDebug('[VisbalExt.TestClassExplorerView] resolveWebviewView -- Initial fetch of test classes');
-        //    if (this._view && this._view.visible) {
-                // Use cached data if available
-        //        this._fetchTestClasses(false);
-        //    }
-        //}, 1000);
+            // Initial fetch of test classes when view becomes visible
+            //setTimeout(() => {
+            //    OrgUtils.logDebug('[VisbalExt.TestClassExplorerView] resolveWebviewView -- Initial fetch of test classes');
+            //    if (this._view && this._view.visible) {
+                    // Use cached data if available
+            //        this._fetchTestClasses(false);
+            //    }
+            //}, 1000);
+        }
     }
 
     private async _fetchTestClasses(forceRefresh: boolean = false, refreshMethods: boolean = false, refreshMode: 'batch' | 'sequential' = 'batch') {

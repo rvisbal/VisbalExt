@@ -1,0 +1,9 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+create a jtest for every module i created
+give a description what the jtest do
+
+run the jtest and fix the problem and run it again until it is fixed
