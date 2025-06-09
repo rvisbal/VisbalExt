@@ -30,9 +30,9 @@ export class OrgTable {
                     <h1>Salesforce Orgs</h1>
                     <div class="actions">
                         <div class="search-container">
-                            <span class="search-icon">🔍</span>
-                            <input id="orgSearchInput" class="search-input" type="text" placeholder="Filter orgs..." aria-label="Filter orgs" />
-                            <button id="clearSearchBtn" class="clear-btn" title="Clear search" aria-label="Clear search" style="display:none">×</button>
+                            <button class="icon-button" id="searchIconBtn" tabindex="-1" aria-hidden="true">🔍</button>
+                            <input id="orgSearchInput" class="filter-input" type="text" placeholder="Filter orgs..." aria-label="Filter orgs" />
+                            <button id="clearSearchBtn" class="clear-filter-button" title="Clear search" aria-label="Clear search" style="display:none">×</button>
                         </div>
                         <div class="filter-container">
                             <select id="orgTypeFilter" class="filter-select" aria-label="Filter orgs by type">
@@ -43,8 +43,8 @@ export class OrgTable {
                                 <option value="OTHER">Others</option>
                             </select>
                         </div>
-                        <button class="button" id="refreshOrgsBtn" title="Refresh Orgs" aria-label="Refresh Orgs">
-                            <span class="icon refresh-icon"></span> Refresh
+                        <button class="icon-button" id="refreshOrgsBtn" title="Refresh Orgs" aria-label="Refresh Orgs">
+                            <span class="icon refresh-icon"></span>
                         </button>
                     </div>
                 </div>

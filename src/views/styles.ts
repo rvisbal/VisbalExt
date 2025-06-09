@@ -47,20 +47,89 @@ export const styles = `
     
     .actions {
         display: flex;
-        gap: 8px;
+        align-items: center;
+        gap: 12px;
+    }
+    
+    .search-container {
+        display: flex;
+        align-items: center;
+        gap: 2px;
+    }
+    
+    .filter-input {
+        height: 28px;
+        font-size: 13px;
+        border-radius: 6px;
+        border: 1px solid var(--input-border);
+        background: var(--input-background);
+        color: var(--input-foreground);
+        padding: 0 8px;
+        min-width: 120px;
+        margin: 0 2px;
+    }
+    
+    .icon-button {
+        background: none;
+        border: none;
+        cursor: pointer;
+        padding: 4px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: var(--vscode-button-foreground);
+        background-color: #4d4d4d;
+        border-radius: 4px;
+        width: 28px;
+        height: 28px;
+        margin: 0 2px;
+        transition: background-color 0.2s;
+    }
+    .icon-button:hover {
+        background-color: #666666;
+    }
+    .icon-button:active {
+        background-color: #333333;
+    }
+    .icon-button:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+        background-color: #4d4d4d;
+    }
+    
+    .clear-filter-button {
+        background: none;
+        border: none;
+        cursor: pointer;
+        padding: 4px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: var(--vscode-descriptionForeground);
+        opacity: 0.7;
+        border-radius: 4px;
+        width: 28px;
+        height: 28px;
+    }
+    .clear-filter-button:hover {
+        opacity: 1;
+        background-color: var(--vscode-list-hoverBackground);
+    }
+    
+    .filter-container {
+        display: flex;
+        align-items: center;
+    }
+    
+    .filter-select {
+        height: 32px;
     }
     
     .button {
-        background-color: var(--button-background);
-        color: var(--button-foreground);
-        border: none;
-        padding: 4px 12px;
-        cursor: pointer;
+        height: 36px;
         display: flex;
         align-items: center;
         gap: 4px;
-        border-radius: 2px;
-        font-size: 12px;
     }
     
     .button:hover {
