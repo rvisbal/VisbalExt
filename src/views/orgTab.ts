@@ -2,6 +2,7 @@ import * as vscode from 'vscode';
 import { OrgListCacheService } from '../services/orgListCacheService';
 import { OrgUtils, OrgGroups, SalesforceOrg } from '../utils/orgUtils';
 import { getOrgTabHtml } from './orgTabHtml';
+import { OrgTable } from '../components/OrgTable';
 
 export class OrgTabView implements vscode.WebviewViewProvider {
   public static readonly viewType = 'visbal-orgs';
@@ -27,23 +28,32 @@ export class OrgTabView implements vscode.WebviewViewProvider {
     };
     this._render();
     webviewView.webview.onDidReceiveMessage(async (message) => {
-      console.log('[VisbalExt.OrgTabView] Received message:', message);
+      console.log('[VisbalExt.OrgTab] resolveWebviewView -- Received message:', message);
       switch (message.command) {
         case 'refreshOrgList':
           await this._refreshOrgList();
           break;
         case 'openOrg':
           try {
-            console.log('[VisbalExt.OrgTabView] Opening org:', message.alias);
+            console.log('[VisbalExt.OrgTab] resolveWebviewView -- Opening org:', message.alias);
             await OrgUtils.openOrg(message.alias);
-            console.log('[VisbalExt.OrgTabView] Successfully opened org:', message.alias);
+            console.log('[VisbalExt.OrgTab] resolveWebviewView -- Successfully opened org:', message.alias);
           } catch (error: any) {
-            console.error('[VisbalExt.OrgTabView] Error opening org:', error);
+            console.error('[VisbalExt.OrgTab] resolveWebviewView -- Error opening org:', error);
             vscode.window.showErrorMessage(`Failed to open org: ${error.message}`);
           }
           break;
+        case 'getFilteredOrgs':
+          const orgTable = new OrgTable(webviewView.webview, this._orgs);
+          const html = orgTable.getFilteredHtml(message.filterType, message.searchTerm);
+          webviewView.webview.postMessage({
+            command: 'updateOrgsHtml',
+            html
+          });
+          break;
       }
     });
+    
     // Initial load
     this._loadOrgList();
   }
@@ -101,7 +111,7 @@ export class OrgTabView implements vscode.WebviewViewProvider {
   // Render the webview HTML
   private _render() {
     if (this._view) {
-      this._view.webview.html = getOrgTabHtml(this._orgs, this._isLoading, this._error);
+      this._view.webview.html = getOrgTabHtml(this._view.webview, this._orgs, this._isLoading, this._error);
     }
   }
 } 
