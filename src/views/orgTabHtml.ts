@@ -193,34 +193,31 @@ export function getOrgTabHtml(orgs: any[] = [], isLoading = false, error = ''): 
       const vscode = acquireVsCodeApi();
       let currentOrgs = ${JSON.stringify(orgs)};
       
-      function debugLog(message) {
-        visbalDebugLog(message);
-      }
-      
+
       document.addEventListener('click', (e) => {
-        console.log('Click event target:', e.target);
+        //console.log('Click event target:', e.target);
         const target = e.target;
-        //debugLog('addEventListener.click.target: ' + target);
+        visbalDebugLog('addEventListener.click.target: ' + target);
         if (target && target.classList && target.classList.contains('org-alias')) {
-          console.log('Found org-alias element');
+          //console.log('Found org-alias element');
           e.preventDefault();
           const alias = target.getAttribute('data-alias');
-          console.log('Org alias:', alias);
+          //console.log('Org alias:', alias);
           if (alias) {
-            console.log('Sending openOrg message for alias:', alias);
+            //console.log('Sending openOrg message for alias:', alias);
             vscode.postMessage({ command: 'openOrg', alias: alias });
           }
         }
       });
 
       function updateTable(filterType, searchTerm) {
-        debugLog('updateTable');
-        debugLog('updateTable.searchTerm: ' + searchTerm);
-        debugLog('updateTable.filterType: ' + filterType);
+        visbalDebugLog('updateTable.1.filterType: ' + filterType);
+        visbalDebugLog('updateTable.2.searchTerm: ' + searchTerm);
+
         
         const tbody = document.getElementById('orgsTableBody');
         if (!tbody) return;
-        tbody.innerHTML = ${renderOrgRows.toString()}(currentOrgs, filterType);
+        tbody.innerHTML = ${renderOrgRows.toString()}(currentOrgs, filterType, searchTerm);
       }
 
       const orgTypeFilter = document.getElementById('orgTypeFilter');
@@ -228,7 +225,7 @@ export function getOrgTabHtml(orgs: any[] = [], isLoading = false, error = ''): 
       const clearSearchBtn = document.getElementById('clearSearchBtn');
 
       orgSearchInput.addEventListener('input', () => {
-        debugLog('orgSearchInput.input: ' + orgSearchInput.value);
+        visbalDebugLog('addEventListener.orgSearchInput.input: ' + orgSearchInput.value);
         updateTable(orgTypeFilter.EVENT.value, orgSearchInput.value);
         clearSearchBtn.style.display = orgSearchInput.value ? '' : 'none';
       });
@@ -236,22 +233,24 @@ export function getOrgTabHtml(orgs: any[] = [], isLoading = false, error = ''): 
       clearSearchBtn.addEventListener('click', () => {
         orgSearchInput.value = '';
         clearSearchBtn.style.display = 'none';
-        debugLog('clearSearchBtn.EVENT.click: ' + orgSearchInput.value);
+        visbalDebugLog('addEventListener.clearSearchBtn.EVENT.click: ' + orgSearchInput.value);
         updateTable(orgTypeFilter.value, '');
         orgSearchInput.focus();
       });
 
       document.getElementById('refreshOrgsBtn').addEventListener('click', () => {
+        visbalDebugLog('addEventListener.refreshOrgsBtn.click');
         vscode.postMessage({ command: 'refreshOrgList' });
       });
 
       document.getElementById('orgTypeFilter').addEventListener('change', (e) => {
+        visbalDebugLog('addEventListener.orgTypeFilter.change: ' + e.target.value);
         updateTable(e.target.value, '');
       });
 
       window.addEventListener('message', event => {
         const message = event.data;
-        debugLog('window.addEventListener.message: ' + message);
+        visbalDebugLog('window.addEventListener.message: ' + message);
         if (message.command === 'updateOrgList') {
           currentOrgs = message.orgs;
           const filterType = document.getElementById('orgTypeFilter').value;
