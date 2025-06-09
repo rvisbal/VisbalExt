@@ -257,4 +257,25 @@ export const styles = `
         font-size: 12px;
         line-height: 1.5;
     }
+    
+    .org-selector {
+        height: 28px;
+        font-size: 13px;
+        border-radius: 6px;
+        border: 1px solid var(--input-border);
+        background: var(--input-background);
+        color: var(--input-foreground);
+        padding: 0 8px;
+        min-width: 120px;
+        margin: 0 2px;
+        outline: none;
+        box-sizing: border-box;
+        transition: border-color 0.2s, background 0.2s;
+        display: flex;
+        align-items: center;
+    }
+    .org-selector:focus {
+        border-color: var(--vscode-focusBorder, #0078d4);
+        background: var(--input-background);
+    }
 `; 

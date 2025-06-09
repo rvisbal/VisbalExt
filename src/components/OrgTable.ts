@@ -35,7 +35,7 @@ export class OrgTable {
                             <button id="clearSearchBtn" class="clear-filter-button" title="Clear search" aria-label="Clear search" style="display:none">×</button>
                         </div>
                         <div class="filter-container">
-                            <select id="orgTypeFilter" class="filter-select" aria-label="Filter orgs by type">
+                            <select id="orgTypeFilter" class="org-selector" aria-label="Filter orgs by type">
                                 <option value="ALL">All Orgs</option>
                                 <option value="DEV_HUB">Dev Hubs</option>
                                 <option value="NON_SCRATCH">Non Scratch Orgs</option>
