@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
 import { GitService } from '../services/gitService';
+import { OrgUtils } from '../utils/orgUtils';
 
 export class GitHistoryView {
     private static currentPanel: GitHistoryView | undefined;
@@ -20,6 +21,19 @@ export class GitHistoryView {
                 switch (message.command) {
                     case 'selectCommit':
                         this._updateDiffView(message.commitIndex);
+                        return;
+                    case 'openCommitInBrowser':
+                        const workspaceFolders = vscode.workspace.workspaceFolders;
+                        if (workspaceFolders && workspaceFolders.length > 0) {
+                            OrgUtils.getBitbucketBaseUrl(workspaceFolders[0].uri.fsPath).then(baseUrl => {
+                                if (baseUrl) {
+                                    const commitUrl = `${baseUrl}/commits/${message.hash}`;
+                                    vscode.env.openExternal(vscode.Uri.parse(commitUrl));
+                                } else {
+                                    vscode.window.showErrorMessage('Could not determine Bitbucket URL.');
+                                }
+                            });
+                        }
                         return;
                 }
             },
@@ -325,7 +339,7 @@ export class GitHistoryView {
                 <div class="list-content">
                     ${history.map((commit, index) => `
                         <div class="commit-item" data-index="${index}" onclick="selectCommit(${index})">
-                            <span class="commit-hash">${commit.hash.substring(0, 7)}</span>
+                            <span class="commit-hash" style="cursor:pointer;text-decoration:underline;" title="Open in Bitbucket" onclick="event.stopPropagation(); openCommitInBrowser('${commit.hash}')">${commit.hash.substring(0, 7)}</span>
                             <span class="commit-date">${commit.date}</span>
                             <span class="commit-author">${commit.author}</span>
                             <span class="commit-message">${commit.message}</span>
@@ -352,6 +366,13 @@ export class GitHistoryView {
                     vscode.postMessage({
                         command: 'selectCommit',
                         commitIndex: index
+                    });
+                }
+
+                function openCommitInBrowser(hash) {
+                    vscode.postMessage({
+                        command: 'openCommitInBrowser',
+                        hash: hash
                     });
                 }
 

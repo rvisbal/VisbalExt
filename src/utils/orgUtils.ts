@@ -7,6 +7,7 @@ import { LogDetailView } from '../views/logDetailView';
 import { statusBarService } from '../services/statusBarService';
 import { CacheService } from '../services/cacheService';
 import { SfdxService } from '../services/sfdxService';
+import * as cp from 'child_process';
 
 export interface SalesforceOrg {
     username: string;
@@ -68,6 +69,7 @@ export class OrgUtils {
     private static _orgAliasCache: { alias: string; timestamp: number } | null = null;
     private static _currentUserIdCache: { userId: string; timestamp: number } | null = null;
     private static readonly CACHE_EXPIRATION = 15 * 60 * 1000; // 15 minutes in milliseconds
+    public static DEBUG_MODE = true;
 
     
 
@@ -923,6 +925,27 @@ export class OrgUtils {
                 isLoading: false
             });
         }
+    }
+
+    /**
+     * Returns the Bitbucket (or Git) base URL for the current workspace
+     */
+    public static getBitbucketBaseUrl(workspacePath: string): Promise<string | undefined> {
+        return new Promise((resolve) => {
+            cp.exec('git remote get-url origin', { cwd: workspacePath }, (err, stdout) => {
+                if (err) return resolve(undefined);
+                let url = stdout.trim();
+                // Convert SSH to HTTPS
+                if (url.startsWith('git@')) {
+                    url = url.replace(/^git@([^:]+):/, 'https://$1/').replace(/\.git$/, '');
+                } else if (url.startsWith('https://')) {
+                    url = url.replace(/\.git$/, '');
+                    url = url.replace(/^https?:\/\/[^@]+@/, 'https://');
+                }
+                OrgUtils.logDebug(`[VisbalExt.OrgUtils] getBitbucketBaseUrl -- Bitbucket URL:`, url);   
+                resolve(url);
+            });
+        });
     }
 
 } 
