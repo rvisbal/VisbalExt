@@ -37,26 +37,37 @@ export class GitHistoryView {
         startLine: number,
         endLine: number
     ) {
-        const column = vscode.window.activeTextEditor
-            ? vscode.window.activeTextEditor.viewColumn
-            : undefined;
-
+        // If we already have a panel, just update its content
         if (GitHistoryView.currentPanel) {
-            GitHistoryView.currentPanel._panel.reveal(column);
-        } else {
-            const panel = vscode.window.createWebviewPanel(
-                'gitHistory',
-                'Git History',
-                column || vscode.ViewColumn.One,
-                {
-                    enableScripts: true,
-                    retainContextWhenHidden: true
-                }
-            );
-            GitHistoryView.currentPanel = new GitHistoryView(panel, gitService);
+            GitHistoryView.currentPanel.updateContent(filePath, startLine, endLine);
+            return;
         }
 
+        // Create a new panel with specific options for floating modal behavior
+        const panel = vscode.window.createWebviewPanel(
+            'gitHistory',
+            'Git History',
+            {
+                viewColumn: vscode.ViewColumn.Active,
+                preserveFocus: true
+            },
+            {
+                enableScripts: true,
+                retainContextWhenHidden: true,
+                localResourceRoots: [context.extensionUri]
+            }
+        );
+
+        // Create the panel instance
+        GitHistoryView.currentPanel = new GitHistoryView(panel, gitService);
+
+        // Update the content
         GitHistoryView.currentPanel.updateContent(filePath, startLine, endLine);
+
+        // Handle panel close
+        panel.onDidDispose(() => {
+            GitHistoryView.currentPanel = undefined;
+        }, null, context.subscriptions);
     }
 
     private async updateContent(filePath: string, startLine: number, endLine: number) {
