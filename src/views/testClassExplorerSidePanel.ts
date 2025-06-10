@@ -166,6 +166,7 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
         _token: vscode.CancellationToken,
     ) {
         this._view = webviewView;
+        OrgUtils.logDebug('[VisbalExt.TestClassExplorerView] resolveWebviewView -- webviewView.visible:', webviewView.visible);
 
         if (!OrgUtils.DEBUG_MODE) {
 
@@ -311,15 +312,15 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                 }
             });
 
-            // Initial fetch of test classes when view becomes visible
-            //setTimeout(() => {
-            //    OrgUtils.logDebug('[VisbalExt.TestClassExplorerView] resolveWebviewView -- Initial fetch of test classes');
-            //    if (this._view && this._view.visible) {
-                    // Use cached data if available
-            //        this._fetchTestClasses(false);
-            //    }
-            //}, 1000);
+      
         }
+
+        webviewView.onDidChangeVisibility(() => {
+            if (webviewView.visible) {
+                OrgUtils.logDebug('[VisbalExt.TestClassExplorerView] resolveWebviewView --  The user has clicked on your tab/view and it is now visible');
+                // The user has clicked on your tab/view and it is now visible
+            }
+        });
     }
 
     private async _fetchTestClasses(forceRefresh: boolean = false, refreshMethods: boolean = false, refreshMode: 'batch' | 'sequential' = 'batch') {
@@ -465,41 +466,7 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                     });
                 }
                 
-                /*
-                // Process classes in batches
-                for (let i = 0; i < testClasses.length; i += BATCH_SIZE) {
-                    const batch = testClasses.slice(i, i + BATCH_SIZE);
-                    const batchPromises = batch.map(async (testClass) => {
-                        const result = await this._addTestToExplorer(testClass, refreshMethods);
-                        processedClasses++;
-                        
-                        // Update progress after each class is processed
-                        const progressMessage = `$(sync~spin) Loading test classes (${processedClasses}/${totalClasses}) - Batch ${Math.floor(i/BATCH_SIZE) + 1}`;
-                        this._statusBarService.showMessage(progressMessage);
 
-                        if (this._view) {
-                            this._view.webview.postMessage({
-                                command: 'showNotification',
-                                message: `Loading test classes: ${processedClasses}/${totalClasses} (Current batch: ${Math.floor(i/BATCH_SIZE) + 1})`
-                            });
-                        }
-                        return result;
-                    });
-
-                    // Wait for the current batch to complete before moving to the next
-                    await Promise.all(batchPromises);
-                    
-                    // Log batch completion
-                    OrgUtils.logDebug(`[VisbalExt.TestClassExplorerView] Completed batch ${Math.floor(i/BATCH_SIZE) + 1} (${processedClasses}/${totalClasses} classes)`);
-                }
-                  // Show completion message
-                 if (this._view) {
-                    this._view.webview.postMessage({
-                        command: 'showNotification',
-                        message: `Completed loading ${totalClasses} test classes into explorer`
-                    });
-                }    
-                */
             }
 
             if (this._view) {

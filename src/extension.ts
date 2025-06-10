@@ -50,7 +50,7 @@ export function activate(context: vscode.ExtensionContext) {
   context.subscriptions.push(statusBarService);
 
   // Initialize debug console view
-  OrgUtils.logDebug('[VisbalExt.Extension] Initializing DebugConsoleView');
+  OrgUtils.logDebug('[VisbalExt.Extension] Initializing DebugConsoleView: Initialize debug console view');
   outputChannel.appendLine('[VisbalExt.Extension] Initializing DebugConsoleView');
   const debugConsoleView = new DebugConsoleView(context.extensionUri);
 
@@ -80,17 +80,17 @@ export function activate(context: vscode.ExtensionContext) {
   // Initialize views based on configuration
   if (isModuleEnabled('testExplorer')) {
     // Initialize test run results view first
-    OrgUtils.logDebug('[VisbalExt.Extension] Initializing TestRunningTaskView');
+    OrgUtils.logDebug('[VisbalExt.Extension] Initializing TestRunningTaskView: Initialize test run results view first');
     outputChannel.appendLine('[VisbalExt.Extension] Initializing TestRunningTaskView');
     testRunningTaskView = new TestRunningTaskView(context);
 
     // Initialize test results view
-    OrgUtils.logDebug('[VisbalExt.Extension] Initializing TestSummaryView');
+    OrgUtils.logDebug('[VisbalExt.Extension] Initializing TestSummaryView: Initialize test results view');
     outputChannel.appendLine('[VisbalExt.Extension] Initializing TestSummaryView');
     const testSummaryView = new TestSummaryView(context.extensionUri);
 
     // Initialize test class explorer view with test results view
-    OrgUtils.logDebug('[VisbalExt.Extension] Initializing TestClassExplorerView');
+    OrgUtils.logDebug('[VisbalExt.Extension] Initializing TestClassExplorerView: Initialize test class explorer view with test results view');
     outputChannel.appendLine('[VisbalExt.Extension] Initializing TestClassExplorerView');
     const testClassExplorerView = new TestClassExplorerView(
         context.extensionUri,
@@ -123,7 +123,7 @@ export function activate(context: vscode.ExtensionContext) {
     );
 
     // Register test class explorer view
-    OrgUtils.logDebug('[VisbalExt.Extension] Register TestClassExplorerView');
+    OrgUtils.logDebug('[VisbalExt.Extension] Register TestClassExplorerView: Register test class explorer view');
     context.subscriptions.push(
         vscode.window.registerWebviewViewProvider(
             TestClassExplorerView.viewType,
