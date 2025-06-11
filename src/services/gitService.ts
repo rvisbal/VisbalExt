@@ -42,8 +42,10 @@ export class GitService {
         // Escape the file path to handle spaces and special characters
         const escapedPath = filePath.replace(/(["\s'$`\\])/g,'\\$1');
 
-        // git log --full-history -m -p --date=local --pretty=format:"commit %H%nAuthor: %an%nDate: %ad%n%n%s%n%n" -L 1065,1181:c:\\CURSOR\\CURSOR_SAMPLE\\force-app\\main\\default\\classes\\HierarchyFactory.cls
-        const command =  `git log --full-history -m -p ` +
+        // git log --full-history -m -p --date=local --pretty=format:"commit %H%nAuthor: %an%nDate: %ad%n%n%s%n%n" -L 1065,1181:c:\\CURSOR\\CURSOR_SAMPLE\\force-app\\main\\default\\classes\\HierarchyFactory.cls 
+        const command =  `git log ` +
+        `--full-history ` +
+        `-m -p ` +
         `--date=local ` +
         `--pretty=format:"commit %H%nAuthor: %an%nDate: %ad%n%n%s%n%n" ` +
         `-L ${startLine},${endLine}:${escapedPath}`;
@@ -57,6 +59,7 @@ export class GitService {
         // --no-merges to exclude merge commits
         // --date=raw to show timestamps in a consistent format
         // --no-walk to show commits without walking the history
+        // --all to include all branches
 
 
         OrgUtils.logDebug(`[VisbalExt.GitService] getHistoryForSelection -- Git command:`, command);
@@ -116,7 +119,12 @@ export class GitService {
             const escapedPath = filePath.replace(/(["\s'$`\\])/g,'\\$1');
             // Get all commits affecting a specific line range in a class, include  recent changes, older changes and future dates. also include multiple branches
             // apply this command : git log -L 1065,1181:force-app/main/default/classes/HierarchyFactory.cls --pretty=format:"%h - %an, %ad : %s" --date=short
-            const command =  `git log -L ${startLine},${endLine}:${escapedPath} --pretty=format:"%h - %an, %ad : %s" --date=short`;
+            const command =  `git log ` +
+            `--date=short ` +
+            `--pretty=format:"commit %H%nAuthor: %an%nDate: %ad%n%n%s%n%n" ` +
+            `-L ${startLine},${endLine}:${escapedPath} ` +
+            `--all`;
+
             // --full-history to show all commits
             // -m -p to show the full patch
             // --pretty=format to show commit details in a readable format
@@ -126,6 +134,7 @@ export class GitService {
             // --no-merges to exclude merge commits
             // --date=raw to show timestamps in a consistent format
             // --no-walk to show commits without walking the history
+            // --all to include all branches
 
 
             OrgUtils.logDebug(`[VisbalExt.GitService] getHistoryForSelection -- Git command:`, command);
