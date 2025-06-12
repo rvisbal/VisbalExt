@@ -10,11 +10,40 @@
         "clientId": "PlatformCLI",
         "clientSecret": "Unknown",
         "redirectUri": "Unknown",
-        "expirationDate": "Unknown"
+        "expirationDate": "Unknown",
+        "orgId": "00D60000000KdKHEA0",
+        "connectedStatus": "Connected",
+        "accessToken": "00D60000000KdKH!AQEAQDqlEVO.bY8k7XSO41LTYN2FZdBwIchQGtdFiirbkdon.pbf5B3rBGZHVgw9eHwa1A09.InKYEHNyzRR_KgMCHvnP0nR",
+        "instanceApiVersion": "63.0",
+        "instanceApiVersionLastRetrieved": "6/12/2025, 2:39:14 PM",
+        "isDefaultDevHubUsername": true,
+        "isDefaultUsername": false,
+        "isDevHub": true,
+        "lastUsed": "2025-06-12T18:12:31.638Z"
       }
     ],
     "sandboxes": [],
     "scratchOrgs": [
+      {
+        "username": "test-lndxlqjs92tu@example.com",
+        "alias": "BUG",
+        "instanceUrl": "https://saas-page-4105.scratch.my.salesforce.com",
+        "isDefault": false,
+        "type": "scratchOrg",
+        "clientId": "PlatformCLI",
+        "clientSecret": "Unknown",
+        "redirectUri": "Unknown",
+        "expirationDate": "2025-07-11",
+        "orgId": "00DAs00000opuZdMAI",
+        "accessToken": "00DAs00000opuZd!AQEAQJSnZpCKi8qz6mcUnGGDvm88YpLwI8zSQVWOaEzh0SZE8n_7PEBbPePS2T.O0cEeQZny_A8gR1DTg6XRbjXyFVjiicZd",
+        "instanceApiVersion": "63.0",
+        "instanceApiVersionLastRetrieved": "6/11/2025, 4:09:40 PM",
+        "isDefaultDevHubUsername": false,
+        "isDefaultUsername": false,
+        "isDevHub": false,
+        "lastUsed": "2025-06-12T18:12:31.638Z",
+        "namespacePrefix": "TracHier"
+      },
       {
         "username": "test-hedfhcuhf3pv@example.com",
         "alias": "CURSOR_SAMPLE",
@@ -24,7 +53,16 @@
         "clientId": "PlatformCLI",
         "clientSecret": "Unknown",
         "redirectUri": "Unknown",
-        "expirationDate": "2025-06-28"
+        "expirationDate": "2025-06-28",
+        "orgId": "00DG1000005z1E3MAI",
+        "accessToken": "00DG1000005z1E3!AQEAQNX_DfHpUsB1O3BMAFjrrVnmKvknPGaqhGsEeET3KBzqYai.URHDi1lfZjthvycEc9sI8Ghx_ELx8I4fB4_leDrTmOzL",
+        "instanceApiVersion": "63.0",
+        "instanceApiVersionLastRetrieved": "6/12/2025, 12:24:50 PM",
+        "isDefaultDevHubUsername": false,
+        "isDefaultUsername": false,
+        "isDevHub": false,
+        "lastUsed": "2025-06-12T18:12:31.638Z",
+        "namespacePrefix": "TracHier"
       },
       {
         "username": "test-fzuwlwikwmdh@example.com",
@@ -35,7 +73,36 @@
         "clientId": "PlatformCLI",
         "clientSecret": "Unknown",
         "redirectUri": "Unknown",
-        "expirationDate": "2025-07-04"
+        "expirationDate": "2025-07-04",
+        "orgId": "00DAw000007PjvZMAS",
+        "accessToken": "00DAw000007PjvZ!AQEAQESYjcfKp5Ekf4xi8_VHrVnrgAnC00Pt_QLUDlF02.0ZdIe3YYYLWJmj786jKEtdPPjTS9a8h5VLovkvozuJUfA1sdLL",
+        "instanceApiVersion": "63.0",
+        "instanceApiVersionLastRetrieved": "6/11/2025, 2:28:20 PM",
+        "isDefaultDevHubUsername": false,
+        "isDefaultUsername": false,
+        "isDevHub": false,
+        "lastUsed": "2025-06-12T18:12:31.638Z",
+        "namespacePrefix": "TracHier"
+      },
+      {
+        "username": "test-iqvjxjc2u8xp@example.com",
+        "alias": "CUSTOMER_DEBUG",
+        "instanceUrl": "https://business-saas-5608.scratch.my.salesforce.com",
+        "isDefault": false,
+        "type": "scratchOrg",
+        "clientId": "PlatformCLI",
+        "clientSecret": "Unknown",
+        "redirectUri": "Unknown",
+        "expirationDate": "2025-07-12",
+        "orgId": "00DAw000007SKpNMAW",
+        "accessToken": "00DAw000007SKpN!AQEAQOhe7woeCbegnuM7qTFlJXTjPGBPx1Nwk3P4bbcfACxVEJ.4AR3dNmcXUD8Din5KGdLaKrYjGjiZ9LyEp0EUVTbUlIGG",
+        "instanceApiVersion": "63.0",
+        "instanceApiVersionLastRetrieved": "6/12/2025, 8:23:38 AM",
+        "isDefaultDevHubUsername": false,
+        "isDefaultUsername": false,
+        "isDevHub": false,
+        "lastUsed": "2025-06-12T18:12:31.638Z",
+        "namespacePrefix": "TracHier"
       },
       {
         "username": "test-byxxq7tbrhzz@example.com",
@@ -46,7 +113,16 @@
         "clientId": "PlatformCLI",
         "clientSecret": "Unknown",
         "redirectUri": "Unknown",
-        "expirationDate": "2025-06-20"
+        "expirationDate": "2025-06-20",
+        "orgId": "00DAs00000oiujFMAQ",
+        "accessToken": "00DAs00000oiujF!AQEAQAu1HKBQ_QWBkPcRkP862K.0pxj.lZhysKHuAAWyhp.a1oqAvvtQ4bLnQ_l58gXgpv.HtnQqrtlYQzjEl6ukhcTJPQ28",
+        "instanceApiVersion": "63.0",
+        "instanceApiVersionLastRetrieved": "6/12/2025, 10:28:06 AM",
+        "isDefaultDevHubUsername": false,
+        "isDefaultUsername": false,
+        "isDevHub": false,
+        "lastUsed": "2025-06-12T18:12:31.638Z",
+        "namespacePrefix": "TracHier"
       },
       {
         "username": "test-dnz0oqhchwob@example.com",
@@ -57,7 +133,16 @@
         "clientId": "PlatformCLI",
         "clientSecret": "Unknown",
         "redirectUri": "Unknown",
-        "expirationDate": "2025-07-03"
+        "expirationDate": "2025-07-03",
+        "orgId": "00DG100000634zuMAA",
+        "accessToken": "00DG100000634zu!AQEAQCSJtHZXgHzy4VxbYFhEAcXI8.vLFSH.5e8kIwLL6oF3D8ZakT__K07i6ZT_84kSfXj_RTOWbkgdfoDjn1zifbOBojrY",
+        "instanceApiVersion": "63.0",
+        "instanceApiVersionLastRetrieved": "2025-06-09, 8:58:41 a.m.",
+        "isDefaultDevHubUsername": false,
+        "isDefaultUsername": false,
+        "isDevHub": false,
+        "lastUsed": "2025-06-12T18:12:31.638Z",
+        "namespacePrefix": "TracHier"
       }
     ],
     "nonScratchOrgs": [
@@ -70,7 +155,16 @@
         "clientId": "PlatformCLI",
         "clientSecret": "Unknown",
         "redirectUri": "Unknown",
-        "expirationDate": "Unknown"
+        "expirationDate": "Unknown",
+        "orgId": "00DP00000049qkFMAQ",
+        "connectedStatus": "Connected",
+        "accessToken": "00DP00000049qkF!ARcAQI1jOu92.sNP59KHnzvRxrPk13erkq2PvEn3EmMuHkmhiGg7t_P2xh_ynX5aP94PYUh6Gh9GH8QX6QkWVjLrv3Kzwl4H",
+        "instanceApiVersion": "64.0",
+        "instanceApiVersionLastRetrieved": "2025-06-12, 2:39:27 p.m.",
+        "isDefaultDevHubUsername": false,
+        "isDefaultUsername": false,
+        "isDevHub": false,
+        "lastUsed": "2025-06-12T18:12:31.638Z"
       },
       {
         "username": "admin@trachier_4.40.patch",
@@ -81,7 +175,17 @@
         "clientId": "PlatformCLI",
         "clientSecret": "Unknown",
         "redirectUri": "Unknown",
-        "expirationDate": "Unknown"
+        "expirationDate": "Unknown",
+        "orgId": "00D3l000000fRsnEAE",
+        "connectedStatus": "Connected",
+        "accessToken": "00D3l000000fRsn!ARkAQLax_D3iwwxVTv.JBxeq.2g53DcYZ2k28saDlu5BhpGQheWqBZQnhkz7ZRWx1.OOGgaMPQ.Iaa0yvP2GircmyTxTZ6V0",
+        "instanceApiVersion": "64.0",
+        "instanceApiVersionLastRetrieved": "2025-06-12, 2:39:27 p.m.",
+        "isDefaultDevHubUsername": false,
+        "isDefaultUsername": false,
+        "isDevHub": false,
+        "lastUsed": "2025-06-12T18:12:31.638Z",
+        "namespacePrefix": "TracHier"
       },
       {
         "username": "admin@trachier_4.41.patch",
@@ -92,7 +196,17 @@
         "clientId": "PlatformCLI",
         "clientSecret": "Unknown",
         "redirectUri": "Unknown",
-        "expirationDate": "Unknown"
+        "expirationDate": "Unknown",
+        "orgId": "00D3l000002ok77EAA",
+        "connectedStatus": "Connected",
+        "accessToken": "00D3l000002ok77!AQIAQItHJRkq_eB3H0kI3Hx2Ow_GWJaIWwG9SmwhxQw.7XVPQKKnNs.RA6RVlQvNVStqZRAbrelq9UteMGXAmBWPEG0D.zev",
+        "instanceApiVersion": "64.0",
+        "instanceApiVersionLastRetrieved": "2025-06-12, 2:39:27 p.m.",
+        "isDefaultDevHubUsername": false,
+        "isDefaultUsername": false,
+        "isDevHub": false,
+        "lastUsed": "2025-06-12T18:12:31.638Z",
+        "namespacePrefix": "TracHier"
       },
       {
         "username": "admin@trachier_4.44.patch",
@@ -103,7 +217,17 @@
         "clientId": "PlatformCLI",
         "clientSecret": "Unknown",
         "redirectUri": "Unknown",
-        "expirationDate": "Unknown"
+        "expirationDate": "Unknown",
+        "orgId": "00D3l000002omNhEAI",
+        "connectedStatus": "Connected",
+        "accessToken": "00D3l000002omNh!AREAQMH0qylbDIAC70RDvitS4TjQrE9pZuDo0NcqJF.MCago_Yn6nk3IP3I3xMK8I7EKRxmSMmkuxDpdNEa66lWLyx4Vd.EC",
+        "instanceApiVersion": "64.0",
+        "instanceApiVersionLastRetrieved": "2025-06-12, 2:39:27 p.m.",
+        "isDefaultDevHubUsername": false,
+        "isDefaultUsername": false,
+        "isDevHub": false,
+        "lastUsed": "2025-06-12T18:12:31.638Z",
+        "namespacePrefix": "TracHier"
       },
       {
         "username": "admin@trachier_4.49.patch",
@@ -114,7 +238,17 @@
         "clientId": "PlatformCLI",
         "clientSecret": "Unknown",
         "redirectUri": "Unknown",
-        "expirationDate": "Unknown"
+        "expirationDate": "Unknown",
+        "orgId": "00D3l000002onMlEAI",
+        "connectedStatus": "Connected",
+        "accessToken": "00D3l000002onMl!AR4AQE6MYhXosuN2s8f403FIfJE2e6bJJNwP_2KhittT0n2F3UQ9Q8WgWdAbvCWGRM6B8GJZd9LdyZzuYCoDxlXecwZG4LTC",
+        "instanceApiVersion": "64.0",
+        "instanceApiVersionLastRetrieved": "2025-06-12, 2:39:27 p.m.",
+        "isDefaultDevHubUsername": false,
+        "isDefaultUsername": false,
+        "isDevHub": false,
+        "lastUsed": "2025-06-12T18:12:31.638Z",
+        "namespacePrefix": "TracHier"
       },
       {
         "username": "admin@trachier_4.50.patch",
@@ -125,7 +259,17 @@
         "clientId": "PlatformCLI",
         "clientSecret": "Unknown",
         "redirectUri": "Unknown",
-        "expirationDate": "Unknown"
+        "expirationDate": "Unknown",
+        "orgId": "00DKg000000GyiSMAS",
+        "connectedStatus": "Connected",
+        "accessToken": "00DKg000000GyiS!ARAAQGn19rqVmSKOdbp130W3U2Zvgv0TsSelXR.Q8pCyFlNFirC.aUmQeZU4jCIkZyw7xckbEgMWo.7WtwuNLE2krOFL3DKW",
+        "instanceApiVersion": "64.0",
+        "instanceApiVersionLastRetrieved": "2025-06-12, 2:39:27 p.m.",
+        "isDefaultDevHubUsername": false,
+        "isDefaultUsername": false,
+        "isDevHub": false,
+        "lastUsed": "2025-06-12T18:12:31.638Z",
+        "namespacePrefix": "TracHier"
       },
       {
         "username": "admin@trachier_4.52.patch",
@@ -136,7 +280,17 @@
         "clientId": "PlatformCLI",
         "clientSecret": "Unknown",
         "redirectUri": "Unknown",
-        "expirationDate": "Unknown"
+        "expirationDate": "Unknown",
+        "orgId": "00DKg000000GymoMAC",
+        "connectedStatus": "Connected",
+        "accessToken": "00DKg000000Gymo!AQEAQACKAXWPPKGavSYh61oXv9oB552UeD3l7cDfR00v_xqQxJ_Tqco7VH6VxfiyHC.Q.olk7.K1iEema21sgUg2rwAB1DFA",
+        "instanceApiVersion": "64.0",
+        "instanceApiVersionLastRetrieved": "2025-06-12, 2:39:27 p.m.",
+        "isDefaultDevHubUsername": false,
+        "isDefaultUsername": false,
+        "isDevHub": false,
+        "lastUsed": "2025-06-12T18:12:31.638Z",
+        "namespacePrefix": "TracHier"
       },
       {
         "username": "admin@trachier_4.57.patch",
@@ -147,7 +301,17 @@
         "clientId": "PlatformCLI",
         "clientSecret": "Unknown",
         "redirectUri": "Unknown",
-        "expirationDate": "Unknown"
+        "expirationDate": "Unknown",
+        "orgId": "00DKg000000GzSiMAK",
+        "connectedStatus": "Connected",
+        "accessToken": "00DKg000000GzSi!AQsAQMXSdXJNfTtWgvxgliZ9xJwwXS3zBj38YZ7PBy3AqUaROVbsz7PKtg1mXU1YKjcrVrJYr54urNyFVJEXSH1wSS5WTUVn",
+        "instanceApiVersion": "64.0",
+        "instanceApiVersionLastRetrieved": "2025-06-12, 2:39:27 p.m.",
+        "isDefaultDevHubUsername": false,
+        "isDefaultUsername": false,
+        "isDevHub": false,
+        "lastUsed": "2025-06-12T18:12:31.638Z",
+        "namespacePrefix": "TracHier"
       },
       {
         "username": "admin@trachier_4.58.patch",
@@ -158,7 +322,17 @@
         "clientId": "PlatformCLI",
         "clientSecret": "Unknown",
         "redirectUri": "Unknown",
-        "expirationDate": "Unknown"
+        "expirationDate": "Unknown",
+        "orgId": "00DKg000000GzYNMA0",
+        "connectedStatus": "Connected",
+        "accessToken": "00DKg000000GzYN!AQQAQJJDx1.ei00JrfB57P1XnlqK0ZYOCPzs8eKpL365G70uMfZgsRqvB4vNhacIRulmfVmAxxl.7ZTjwSrWh6GNgFTPdLSq",
+        "instanceApiVersion": "64.0",
+        "instanceApiVersionLastRetrieved": "6/12/2025, 8:15:52 AM",
+        "isDefaultDevHubUsername": false,
+        "isDefaultUsername": false,
+        "isDevHub": false,
+        "lastUsed": "2025-06-12T18:12:31.638Z",
+        "namespacePrefix": "TracHier"
       },
       {
         "username": "rvisbal@tractionlabs.dx.com",
@@ -169,7 +343,16 @@
         "clientId": "PlatformCLI",
         "clientSecret": "Unknown",
         "redirectUri": "Unknown",
-        "expirationDate": "Unknown"
+        "expirationDate": "Unknown",
+        "orgId": "00D60000000KdKHEA0",
+        "connectedStatus": "Connected",
+        "accessToken": "00D60000000KdKH!AQEAQDqlEVO.bY8k7XSO41LTYN2FZdBwIchQGtdFiirbkdon.pbf5B3rBGZHVgw9eHwa1A09.InKYEHNyzRR_KgMCHvnP0nR",
+        "instanceApiVersion": "63.0",
+        "instanceApiVersionLastRetrieved": "6/12/2025, 2:39:14 PM",
+        "isDefaultDevHubUsername": true,
+        "isDefaultUsername": false,
+        "isDevHub": true,
+        "lastUsed": "2025-06-12T18:12:31.638Z"
       },
       {
         "username": "rvisbal.tester@gmail.com",
@@ -180,7 +363,16 @@
         "clientId": "PlatformCLI",
         "clientSecret": "Unknown",
         "redirectUri": "Unknown",
-        "expirationDate": "Unknown"
+        "expirationDate": "Unknown",
+        "orgId": "00D610000007ljZEAQ",
+        "connectedStatus": "Connected",
+        "accessToken": "00D610000007ljZ!AQkAQKASrj6tQDU0cmPZqe._cxfHeKJpmXM1xCMepW3RMlQdq_HCzJrchD9KG8EvRvERXu1NZ55eVooXcqmAf17tjRSzOYpU",
+        "instanceApiVersion": "63.0",
+        "instanceApiVersionLastRetrieved": "2025-06-12, 2:39:27 p.m.",
+        "isDefaultDevHubUsername": false,
+        "isDefaultUsername": false,
+        "isDevHub": false,
+        "lastUsed": "2025-06-12T18:12:31.638Z"
       },
       {
         "username": "dev@hierarchies3.app",
@@ -191,7 +383,17 @@
         "clientId": "PlatformCLI",
         "clientSecret": "Unknown",
         "redirectUri": "Unknown",
-        "expirationDate": "Unknown"
+        "expirationDate": "Unknown",
+        "orgId": "00Do0000000ImbnEAC",
+        "connectedStatus": "Connected",
+        "accessToken": "00Do0000000Imbn!ARsAQDgHj5RjcDNLPTtZNdXqg7AmkfL0dw.Gb51MiB_pApk9ac07w0JTG_fBXzDkqU.QySua96PwU_yfnen2jVmJLHhA.Th0",
+        "instanceApiVersion": "64.0",
+        "instanceApiVersionLastRetrieved": "2025-06-12, 2:39:27 p.m.",
+        "isDefaultDevHubUsername": false,
+        "isDefaultUsername": false,
+        "isDevHub": false,
+        "lastUsed": "2025-06-12T18:12:31.638Z",
+        "namespacePrefix": "TracHier"
       },
       {
         "username": "gadamson@realtimeleadclean.app",
@@ -202,7 +404,17 @@
         "clientId": "3MVG9xOCXq4ID1uE0dX_M1KQUOn9vP3rrIGH1NOQNwdUxzWrF0hi3dTyhMEsMPoA1fMWDivp_igqfN1jb.3mS",
         "clientSecret": "Unknown",
         "redirectUri": "Unknown",
-        "expirationDate": "Unknown"
+        "expirationDate": "Unknown",
+        "orgId": "00Do0000000IIOkEAO",
+        "connectedStatus": "Connected",
+        "accessToken": "00Do0000000IIOk!ASAAQOD_pEQIpXgOZj3GfJoAEP5qvvmQIdjcGh.IGhN3csOO3cvhZlFofTDS3hxxw6OMG363LV1JwUTCr0uR26ejMBieLt.U",
+        "instanceApiVersion": "64.0",
+        "instanceApiVersionLastRetrieved": "2025-06-12, 2:39:27 p.m.",
+        "isDefaultDevHubUsername": false,
+        "isDefaultUsername": false,
+        "isDevHub": false,
+        "lastUsed": "2025-06-12T18:12:31.638Z",
+        "namespacePrefix": "TracRTC"
       }
     ],
     "other": [
@@ -215,7 +427,16 @@
         "clientId": "PlatformCLI",
         "clientSecret": "Unknown",
         "redirectUri": "Unknown",
-        "expirationDate": "Unknown"
+        "expirationDate": "Unknown",
+        "orgId": "00DP00000049qkFMAQ",
+        "connectedStatus": "Connected",
+        "accessToken": "00DP00000049qkF!ARcAQI1jOu92.sNP59KHnzvRxrPk13erkq2PvEn3EmMuHkmhiGg7t_P2xh_ynX5aP94PYUh6Gh9GH8QX6QkWVjLrv3Kzwl4H",
+        "instanceApiVersion": "64.0",
+        "instanceApiVersionLastRetrieved": "2025-06-12, 2:39:27 p.m.",
+        "isDefaultDevHubUsername": false,
+        "isDefaultUsername": false,
+        "isDevHub": false,
+        "lastUsed": "2025-06-12T18:12:31.638Z"
       },
       {
         "username": "admin@trachier_4.40.patch",
@@ -226,7 +447,17 @@
         "clientId": "PlatformCLI",
         "clientSecret": "Unknown",
         "redirectUri": "Unknown",
-        "expirationDate": "Unknown"
+        "expirationDate": "Unknown",
+        "orgId": "00D3l000000fRsnEAE",
+        "connectedStatus": "Connected",
+        "accessToken": "00D3l000000fRsn!ARkAQLax_D3iwwxVTv.JBxeq.2g53DcYZ2k28saDlu5BhpGQheWqBZQnhkz7ZRWx1.OOGgaMPQ.Iaa0yvP2GircmyTxTZ6V0",
+        "instanceApiVersion": "64.0",
+        "instanceApiVersionLastRetrieved": "2025-06-12, 2:39:27 p.m.",
+        "isDefaultDevHubUsername": false,
+        "isDefaultUsername": false,
+        "isDevHub": false,
+        "lastUsed": "2025-06-12T18:12:31.638Z",
+        "namespacePrefix": "TracHier"
       },
       {
         "username": "admin@trachier_4.41.patch",
@@ -237,7 +468,17 @@
         "clientId": "PlatformCLI",
         "clientSecret": "Unknown",
         "redirectUri": "Unknown",
-        "expirationDate": "Unknown"
+        "expirationDate": "Unknown",
+        "orgId": "00D3l000002ok77EAA",
+        "connectedStatus": "Connected",
+        "accessToken": "00D3l000002ok77!AQIAQItHJRkq_eB3H0kI3Hx2Ow_GWJaIWwG9SmwhxQw.7XVPQKKnNs.RA6RVlQvNVStqZRAbrelq9UteMGXAmBWPEG0D.zev",
+        "instanceApiVersion": "64.0",
+        "instanceApiVersionLastRetrieved": "2025-06-12, 2:39:27 p.m.",
+        "isDefaultDevHubUsername": false,
+        "isDefaultUsername": false,
+        "isDevHub": false,
+        "lastUsed": "2025-06-12T18:12:31.638Z",
+        "namespacePrefix": "TracHier"
       },
       {
         "username": "admin@trachier_4.44.patch",
@@ -248,7 +489,17 @@
         "clientId": "PlatformCLI",
         "clientSecret": "Unknown",
         "redirectUri": "Unknown",
-        "expirationDate": "Unknown"
+        "expirationDate": "Unknown",
+        "orgId": "00D3l000002omNhEAI",
+        "connectedStatus": "Connected",
+        "accessToken": "00D3l000002omNh!AREAQMH0qylbDIAC70RDvitS4TjQrE9pZuDo0NcqJF.MCago_Yn6nk3IP3I3xMK8I7EKRxmSMmkuxDpdNEa66lWLyx4Vd.EC",
+        "instanceApiVersion": "64.0",
+        "instanceApiVersionLastRetrieved": "2025-06-12, 2:39:27 p.m.",
+        "isDefaultDevHubUsername": false,
+        "isDefaultUsername": false,
+        "isDevHub": false,
+        "lastUsed": "2025-06-12T18:12:31.638Z",
+        "namespacePrefix": "TracHier"
       },
       {
         "username": "admin@trachier_4.49.patch",
@@ -259,7 +510,17 @@
         "clientId": "PlatformCLI",
         "clientSecret": "Unknown",
         "redirectUri": "Unknown",
-        "expirationDate": "Unknown"
+        "expirationDate": "Unknown",
+        "orgId": "00D3l000002onMlEAI",
+        "connectedStatus": "Connected",
+        "accessToken": "00D3l000002onMl!AR4AQE6MYhXosuN2s8f403FIfJE2e6bJJNwP_2KhittT0n2F3UQ9Q8WgWdAbvCWGRM6B8GJZd9LdyZzuYCoDxlXecwZG4LTC",
+        "instanceApiVersion": "64.0",
+        "instanceApiVersionLastRetrieved": "2025-06-12, 2:39:27 p.m.",
+        "isDefaultDevHubUsername": false,
+        "isDefaultUsername": false,
+        "isDevHub": false,
+        "lastUsed": "2025-06-12T18:12:31.638Z",
+        "namespacePrefix": "TracHier"
       },
       {
         "username": "admin@trachier_4.50.patch",
@@ -270,7 +531,17 @@
         "clientId": "PlatformCLI",
         "clientSecret": "Unknown",
         "redirectUri": "Unknown",
-        "expirationDate": "Unknown"
+        "expirationDate": "Unknown",
+        "orgId": "00DKg000000GyiSMAS",
+        "connectedStatus": "Connected",
+        "accessToken": "00DKg000000GyiS!ARAAQGn19rqVmSKOdbp130W3U2Zvgv0TsSelXR.Q8pCyFlNFirC.aUmQeZU4jCIkZyw7xckbEgMWo.7WtwuNLE2krOFL3DKW",
+        "instanceApiVersion": "64.0",
+        "instanceApiVersionLastRetrieved": "2025-06-12, 2:39:27 p.m.",
+        "isDefaultDevHubUsername": false,
+        "isDefaultUsername": false,
+        "isDevHub": false,
+        "lastUsed": "2025-06-12T18:12:31.638Z",
+        "namespacePrefix": "TracHier"
       },
       {
         "username": "admin@trachier_4.52.patch",
@@ -281,7 +552,17 @@
         "clientId": "PlatformCLI",
         "clientSecret": "Unknown",
         "redirectUri": "Unknown",
-        "expirationDate": "Unknown"
+        "expirationDate": "Unknown",
+        "orgId": "00DKg000000GymoMAC",
+        "connectedStatus": "Connected",
+        "accessToken": "00DKg000000Gymo!AQEAQACKAXWPPKGavSYh61oXv9oB552UeD3l7cDfR00v_xqQxJ_Tqco7VH6VxfiyHC.Q.olk7.K1iEema21sgUg2rwAB1DFA",
+        "instanceApiVersion": "64.0",
+        "instanceApiVersionLastRetrieved": "2025-06-12, 2:39:27 p.m.",
+        "isDefaultDevHubUsername": false,
+        "isDefaultUsername": false,
+        "isDevHub": false,
+        "lastUsed": "2025-06-12T18:12:31.638Z",
+        "namespacePrefix": "TracHier"
       },
       {
         "username": "admin@trachier_4.57.patch",
@@ -292,7 +573,17 @@
         "clientId": "PlatformCLI",
         "clientSecret": "Unknown",
         "redirectUri": "Unknown",
-        "expirationDate": "Unknown"
+        "expirationDate": "Unknown",
+        "orgId": "00DKg000000GzSiMAK",
+        "connectedStatus": "Connected",
+        "accessToken": "00DKg000000GzSi!AQsAQMXSdXJNfTtWgvxgliZ9xJwwXS3zBj38YZ7PBy3AqUaROVbsz7PKtg1mXU1YKjcrVrJYr54urNyFVJEXSH1wSS5WTUVn",
+        "instanceApiVersion": "64.0",
+        "instanceApiVersionLastRetrieved": "2025-06-12, 2:39:27 p.m.",
+        "isDefaultDevHubUsername": false,
+        "isDefaultUsername": false,
+        "isDevHub": false,
+        "lastUsed": "2025-06-12T18:12:31.638Z",
+        "namespacePrefix": "TracHier"
       },
       {
         "username": "admin@trachier_4.58.patch",
@@ -303,7 +594,17 @@
         "clientId": "PlatformCLI",
         "clientSecret": "Unknown",
         "redirectUri": "Unknown",
-        "expirationDate": "Unknown"
+        "expirationDate": "Unknown",
+        "orgId": "00DKg000000GzYNMA0",
+        "connectedStatus": "Connected",
+        "accessToken": "00DKg000000GzYN!AQQAQJJDx1.ei00JrfB57P1XnlqK0ZYOCPzs8eKpL365G70uMfZgsRqvB4vNhacIRulmfVmAxxl.7ZTjwSrWh6GNgFTPdLSq",
+        "instanceApiVersion": "64.0",
+        "instanceApiVersionLastRetrieved": "6/12/2025, 8:15:52 AM",
+        "isDefaultDevHubUsername": false,
+        "isDefaultUsername": false,
+        "isDevHub": false,
+        "lastUsed": "2025-06-12T18:12:31.638Z",
+        "namespacePrefix": "TracHier"
       },
       {
         "username": "rvisbal.tester@gmail.com",
@@ -314,7 +615,16 @@
         "clientId": "PlatformCLI",
         "clientSecret": "Unknown",
         "redirectUri": "Unknown",
-        "expirationDate": "Unknown"
+        "expirationDate": "Unknown",
+        "orgId": "00D610000007ljZEAQ",
+        "connectedStatus": "Connected",
+        "accessToken": "00D610000007ljZ!AQkAQKASrj6tQDU0cmPZqe._cxfHeKJpmXM1xCMepW3RMlQdq_HCzJrchD9KG8EvRvERXu1NZ55eVooXcqmAf17tjRSzOYpU",
+        "instanceApiVersion": "63.0",
+        "instanceApiVersionLastRetrieved": "2025-06-12, 2:39:27 p.m.",
+        "isDefaultDevHubUsername": false,
+        "isDefaultUsername": false,
+        "isDevHub": false,
+        "lastUsed": "2025-06-12T18:12:31.638Z"
       },
       {
         "username": "dev@hierarchies3.app",
@@ -325,7 +635,17 @@
         "clientId": "PlatformCLI",
         "clientSecret": "Unknown",
         "redirectUri": "Unknown",
-        "expirationDate": "Unknown"
+        "expirationDate": "Unknown",
+        "orgId": "00Do0000000ImbnEAC",
+        "connectedStatus": "Connected",
+        "accessToken": "00Do0000000Imbn!ARsAQDgHj5RjcDNLPTtZNdXqg7AmkfL0dw.Gb51MiB_pApk9ac07w0JTG_fBXzDkqU.QySua96PwU_yfnen2jVmJLHhA.Th0",
+        "instanceApiVersion": "64.0",
+        "instanceApiVersionLastRetrieved": "2025-06-12, 2:39:27 p.m.",
+        "isDefaultDevHubUsername": false,
+        "isDefaultUsername": false,
+        "isDevHub": false,
+        "lastUsed": "2025-06-12T18:12:31.638Z",
+        "namespacePrefix": "TracHier"
       },
       {
         "username": "gadamson@realtimeleadclean.app",
@@ -336,9 +656,19 @@
         "clientId": "3MVG9xOCXq4ID1uE0dX_M1KQUOn9vP3rrIGH1NOQNwdUxzWrF0hi3dTyhMEsMPoA1fMWDivp_igqfN1jb.3mS",
         "clientSecret": "Unknown",
         "redirectUri": "Unknown",
-        "expirationDate": "Unknown"
+        "expirationDate": "Unknown",
+        "orgId": "00Do0000000IIOkEAO",
+        "connectedStatus": "Connected",
+        "accessToken": "00Do0000000IIOk!ASAAQOD_pEQIpXgOZj3GfJoAEP5qvvmQIdjcGh.IGhN3csOO3cvhZlFofTDS3hxxw6OMG363LV1JwUTCr0uR26ejMBieLt.U",
+        "instanceApiVersion": "64.0",
+        "instanceApiVersionLastRetrieved": "2025-06-12, 2:39:27 p.m.",
+        "isDefaultDevHubUsername": false,
+        "isDefaultUsername": false,
+        "isDevHub": false,
+        "lastUsed": "2025-06-12T18:12:31.638Z",
+        "namespacePrefix": "TracRTC"
       }
     ]
   },
-  "timestamp": 1749230576742
+  "timestamp": 1749751986376
 }
