@@ -84,6 +84,44 @@ export class GitHistoryView {
         }, null, context.subscriptions);
     }
 
+    public static createOrShowForFile(
+        context: vscode.ExtensionContext,
+        gitService: GitService,
+        filePath: string
+    ) {
+        // If we already have a panel, just update its content for the file
+        if (GitHistoryView.currentPanel) {
+            GitHistoryView.currentPanel.updateContentForFile(filePath);
+            return;
+        }
+
+        // Create a new panel with specific options for floating modal behavior
+        const panel = vscode.window.createWebviewPanel(
+            'gitHistory',
+            'Git History - ' + filePath.split(/[\\/]/).pop(),
+            {
+                viewColumn: vscode.ViewColumn.Active,
+                preserveFocus: true
+            },
+            {
+                enableScripts: true,
+                retainContextWhenHidden: true,
+                localResourceRoots: [context.extensionUri]
+            }
+        );
+
+        // Create the panel instance
+        GitHistoryView.currentPanel = new GitHistoryView(panel, gitService);
+
+        // Update the content for the entire file
+        GitHistoryView.currentPanel.updateContentForFile(filePath);
+
+        // Handle panel close
+        panel.onDidDispose(() => {
+            GitHistoryView.currentPanel = undefined;
+        }, null, context.subscriptions);
+    }
+
     private async updateContent(filePath: string, startLine: number, endLine: number) {
         try {
             const history = await this.gitService.getHistoryForSelection(filePath, startLine, endLine);
@@ -100,10 +138,43 @@ export class GitHistoryView {
                 });
                 commit.date = `${year}-${month}-${day} ${time}`;
             });
+            OrgUtils.logDebug('[VisbalExt.GitHistoryView] updateContent -- history length:', history.length);
+            if (history.length > 0) {
+                OrgUtils.logDebug('[VisbalExt.GitHistoryView] updateContent -- first commit:', history[0]);
+            }
             this._currentHistory = history;
             this._panel.webview.html = this._getWebviewContent(history);
         } catch (error: any) {
             vscode.window.showErrorMessage('Failed to get git history: ' + error.message);
+        }
+    }
+
+    private async updateContentForFile(filePath: string) {
+        try {
+            const history = await this.gitService.getHistoryForFile(filePath);
+            // Update the history date format to be YYYY-MM-DD HH:MM AM/PM
+            history.forEach(commit => {
+                const date = new Date(commit.date);
+                const year = date.getFullYear();
+                const month = String(date.getMonth() + 1).padStart(2, '0');
+                const day = String(date.getDate()).padStart(2, '0');
+                const time = date.toLocaleString('en-US', { 
+                    hour: 'numeric',
+                    minute: '2-digit',
+                    hour12: true 
+                });
+                commit.date = `${year}-${month}-${day} ${time}`;
+            });
+            OrgUtils.logDebug('[VisbalExt.GitHistoryView] updateContentForFile -- history length:', history.length);
+            if (history.length > 0) {
+                OrgUtils.logDebug('[VisbalExt.GitHistoryView] updateContentForFile -- first commit:', history[0]);
+            }
+            this._currentHistory = history;
+            this._panel.webview.html = this._getWebviewContent(history);
+            // Update the panel title to include the filename
+            this._panel.title = 'Git History - ' + filePath.split(/[\\/]/).pop();
+        } catch (error: any) {
+            vscode.window.showErrorMessage('Failed to get git history for file: ' + error.message);
         }
     }
 

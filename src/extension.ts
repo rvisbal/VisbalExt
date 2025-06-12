@@ -463,6 +463,19 @@ export function activate(context: vscode.ExtensionContext) {
     })
   );
 
+  context.subscriptions.push(
+    vscode.commands.registerCommand('visbal-ext.showGitHistoryForFile', () => {
+      const editor = vscode.window.activeTextEditor;
+      if (!editor) {
+        vscode.window.showErrorMessage('No active editor');
+        return;
+      }
+
+      const filePath = editor.document.uri.fsPath;
+      GitHistoryView.createOrShowForFile(context, gitService, filePath);
+    })
+  );
+
   outputChannel.appendLine('[VisbalExt.Extension] Visbal Extension activated successfully');
   outputChannel.show();
 }

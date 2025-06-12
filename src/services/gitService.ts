@@ -6,6 +6,7 @@ import { OrgUtils } from '../utils/orgUtils';
 const execAsync = promisify(exec);
 
 export class GitService {
+    private static readonly MAX_EXEC_BUFFER = 10 * 1024 * 1024; // 10MB
     constructor(private context: vscode.ExtensionContext) {}
 
     /**
@@ -36,7 +37,90 @@ export class GitService {
             console.error('Error getting git history:', error);
             throw error;
         }
-    }s
+    }
+
+    /**
+     * Gets the git history for an entire file
+     */
+    async getHistoryForFile(
+        filePath: string
+    ): Promise<Array<{
+        hash: string,
+        author: string,
+        date: string,
+        message: string,
+        diff: string
+    }>> {
+        try {
+            // Escape the file path to handle spaces and special characters
+            const escapedPath = filePath.replace(/(["\s'$`\\])/g,'\\$1');
+
+            // Command to get git history for the entire file
+            const command = `git log ` +
+                `--full-history ` +
+                `-m -p ` +
+                `--date=local ` +
+                `--pretty=format:"commit %H%nAuthor: %an%nDate: %ad%n%n%s%n%n" ` +
+                `-- ${escapedPath}`;
+
+            OrgUtils.logDebug(`[VisbalExt.GitService] getHistoryForFile -- Git command:`, command);
+            
+            // Get the git log with detailed format
+            const { stdout } = await execAsync(command, { maxBuffer: GitService.MAX_EXEC_BUFFER });
+            OrgUtils.logDebug(`[VisbalExt.GitService] getHistoryForFile -- Git output:`, stdout);
+            
+            const commits = [];
+            let currentCommit: any = {};
+            let diffContent = '';
+            
+            // Split the output into commits and their corresponding diffs
+            // Using a more precise regex to handle merge commits and their parents
+            const parts = stdout.split(/(?=^commit\s[a-f0-9]{40}(?:\s\([^)]*\))?\n)/m);
+            
+            for (const part of parts) {
+                OrgUtils.logDebug(`[VisbalExt.GitService] getHistoryForFile -- Part:`, part);
+                if (!part.trim()) continue;
+                
+                // Enhanced regex to better handle merge commit messages
+                const commitMatch = part.match(/^commit\s([a-f0-9]+)(?:\s\([^)]*\))?\nAuthor:\s(.*?)\nDate:\s(.*?)\n\n([\s\S]*?)(?=\n(?:diff|$))/);
+                if (commitMatch) {
+                    if (currentCommit.hash) {
+                        currentCommit.diff = diffContent.trim();
+                        commits.push(currentCommit);
+                        diffContent = '';
+                    }
+                    
+                    currentCommit = {
+                        hash: commitMatch[1],
+                        author: commitMatch[2],
+                        date: commitMatch[3],
+                        message: commitMatch[4].trim(),
+                        diff: ''
+                    };
+                    
+                    // Extract diff content after the commit header
+                    const diffStart = part.indexOf('\ndiff ');
+                    if (diffStart !== -1) {
+                        diffContent = part.slice(diffStart).trim();
+                    }
+                } else {
+                    // If no commit match, this must be diff content
+                    diffContent += '\n' + part.trim();
+                }
+            }
+
+            // Don't forget to add the last commit
+            if (currentCommit.hash) {
+                currentCommit.diff = diffContent.trim();
+                commits.push(currentCommit);
+            }
+
+            return commits;
+        } catch (error) {
+            console.error('Error getting git history for file:', error);
+            throw error;
+        }
+    }
 
     async processGitCommand (filePath: string, startLine: number, endLine: number) {
         // Escape the file path to handle spaces and special characters
@@ -64,7 +148,7 @@ export class GitService {
 
         OrgUtils.logDebug(`[VisbalExt.GitService] getHistoryForSelection -- Git command:`, command);
         // Get the git log with line annotations and more detailed format
-        const { stdout } = await execAsync(command);
+        const { stdout } = await execAsync(command, { maxBuffer: GitService.MAX_EXEC_BUFFER });
         OrgUtils.logDebug(`[VisbalExt.GitService] getHistoryForSelection -- Git output:`, stdout);
         const commits = [];
         let currentCommit: any = {};
@@ -123,6 +207,7 @@ export class GitService {
         const command =  `git log ` +
         `--full-history ` +
         `-m -p ` +
+        `--date=local ` +
         `--pretty=format:"commit %H%nAuthor: %an%nDate: %ad%n%n%s%n%n" ` +
         `-L ${startLine},${endLine}:${escapedPath}`;
 
@@ -140,7 +225,7 @@ export class GitService {
 
         OrgUtils.logDebug(`[VisbalExt.GitService] getHistoryForSelection -- Git command:`, command);
         // Get the git log with line annotations and more detailed format
-        const { stdout } = await execAsync(command);
+        const { stdout } = await execAsync(command, { maxBuffer: GitService.MAX_EXEC_BUFFER });
         OrgUtils.logDebug(`[VisbalExt.GitService] getHistoryForSelection -- Git output:`, stdout);
         const commits = [];
         let currentCommit: any = {};

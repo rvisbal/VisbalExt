@@ -210,6 +210,11 @@
         "category": "Visbal"
       },
       {
+        "command": "visbal-ext.showGitHistoryForFile",
+        "title": "Show Git History for File",
+        "category": "Visbal"
+      },
+      {
         "command": "visbal-ext.selectTestMethod",
         "title": "Select Test Method Selection",
         "category": "Visbal"
@@ -238,6 +243,10 @@
         {
           "command": "visbal-ext.showGitHistoryForSelection",
           "when": "editorHasSelection",
+          "group": "navigation"
+        },
+        {
+          "command": "visbal-ext.showGitHistoryForFile",
           "group": "navigation"
         }
       ]
