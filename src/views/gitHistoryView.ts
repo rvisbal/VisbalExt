@@ -339,6 +339,9 @@ export class GitHistoryView {
             font-size: var(--vscode-editor-font-size);
             background-color: var(--vscode-editor-background);
         }
+        .diff-container::-webkit-scrollbar {
+            display: none; /* Chrome, Safari and Opera */
+        }
         .diff-side {
             flex: 1;
             overflow: auto;
@@ -347,6 +350,9 @@ export class GitHistoryView {
         }
         .diff-side:last-child {
             border-right: none;
+        }
+        .diff-side::-webkit-scrollbar {
+            display: none; /* Chrome, Safari and Opera */
         }
         .diff-header {
             position: sticky;
@@ -367,7 +373,13 @@ export class GitHistoryView {
             line-height: 1.5;
             overflow-y: auto;
             max-height: 60vh;
+            scrollbar-width: none; /* Firefox */
+            -ms-overflow-style: none;  /* IE and Edge */
         }
+        .diff-content::-webkit-scrollbar {
+            display: none; /* Chrome, Safari and Opera */
+        }
+        
         .line {
             display: flex;
             min-height: 21px;
@@ -508,6 +520,13 @@ export class GitHistoryView {
             color: var(--vscode-button-foreground);
             border: 1px solid var(--vscode-button-border);
         }
+        .diff-side-right .diff-content {
+            scrollbar-width: none; /* Firefox */
+            -ms-overflow-style: none;  /* IE and Edge */
+        }
+        .diff-side-right .diff-content::-webkit-scrollbar {
+            display: none; /* Chrome, Safari and Opera */
+        }
     </style>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@vscode/codicons/dist/codicon.css">
 </head>
@@ -565,7 +584,7 @@ export class GitHistoryView {
                 <div class="diff-header">Previous Version</div>
                 <div id="oldContent" class="diff-content"></div>
             </div>
-            <div class="diff-side">
+            <div class="diff-side diff-side-right">
                 <div class="diff-header">Current Version</div>
                 <div id="newContent" class="diff-content"></div>
             </div>
