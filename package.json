@@ -249,6 +249,12 @@
           "command": "visbal-ext.showGitHistoryForFile",
           "group": "navigation"
         }
+      ],
+      "explorer/context": [
+        {
+          "command": "visbal-ext.showGitHistoryForFile",
+          "group": "navigation"
+        }
       ]
     },
     "configuration": {

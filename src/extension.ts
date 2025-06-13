@@ -464,14 +464,17 @@ export function activate(context: vscode.ExtensionContext) {
   );
 
   context.subscriptions.push(
-    vscode.commands.registerCommand('visbal-ext.showGitHistoryForFile', () => {
-      const editor = vscode.window.activeTextEditor;
-      if (!editor) {
-        vscode.window.showErrorMessage('No active editor');
+    vscode.commands.registerCommand('visbal-ext.showGitHistoryForFile', (fileUri?: vscode.Uri) => {
+      let filePath: string | undefined;
+      if (fileUri && fileUri.fsPath) {
+        filePath = fileUri.fsPath;
+      } else if (vscode.window.activeTextEditor) {
+        filePath = vscode.window.activeTextEditor.document.uri.fsPath;
+      }
+      if (!filePath) {
+        vscode.window.showErrorMessage('No file selected');
         return;
       }
-
-      const filePath = editor.document.uri.fsPath;
       GitHistoryView.createOrShowForFile(context, gitService, filePath);
     })
   );
