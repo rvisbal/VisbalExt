@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import { GitService } from '../services/gitService';
 import { OrgUtils } from '../utils/orgUtils';
+import { WebviewUtils } from '../utils/webviewUtils';
 
 export class GitHistoryView {
     private static currentPanel: GitHistoryView | undefined;
@@ -211,7 +212,7 @@ export class GitHistoryView {
     }
 
     private _getWebviewContent(history: any[]) {
-        return `<!DOCTYPE html>
+        const html = `<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -364,6 +365,8 @@ export class GitHistoryView {
             font-family: "JetBrains Mono", Consolas, "Courier New", monospace;
             font-size: 13px;
             line-height: 1.5;
+            overflow-y: auto;
+            max-height: 60vh;
         }
         .line {
             display: flex;
@@ -422,11 +425,142 @@ export class GitHistoryView {
             min-height: 18px;
             line-height: 18px;
         }
+        .toolbar {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 12px 4px 12px;
+            background: var(--vscode-editorGroupHeader-tabsBackground);
+            border-bottom: 1px solid var(--vscode-panel-border);
+            z-index: 2;
+        }
+        .toolbar select, .toolbar button, .toolbar .dropdown {
+            margin-right: 8px;
+            background: var(--vscode-input-background);
+            color: var(--vscode-input-foreground);
+            border: 1px solid var(--vscode-input-border);
+            border-radius: 3px;
+            font-size: var(--vscode-font-size);
+            padding: 2px 8px;
+        }
+        .toolbar .dropdown {
+            position: relative;
+            display: inline-block;
+        }
+        .toolbar .dropdown-content {
+            display: none;
+            position: absolute;
+            background: var(--vscode-editorWidget-background);
+            min-width: 180px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+            z-index: 10;
+            border: 1px solid var(--vscode-panel-border);
+            border-radius: 4px;
+            margin-top: 2px;
+        }
+        .toolbar .dropdown.open .dropdown-content {
+            display: block;
+        }
+        .toolbar .dropdown-content button, .toolbar .dropdown-content label {
+            display: block;
+            width: 100%;
+            background: none;
+            border: none;
+            text-align: left;
+            padding: 6px 12px;
+            color: var(--vscode-editor-foreground);
+            font-size: var(--vscode-font-size);
+            cursor: pointer;
+        }
+        .toolbar .dropdown-content button.selected, .toolbar .dropdown-content label.selected {
+            background: var(--vscode-list-activeSelectionBackground);
+            color: var(--vscode-list-activeSelectionForeground);
+        }
+        .toolbar .dropdown-content label {
+            cursor: pointer;
+        }
+        .toolbar .codicon {
+            font-family: 'codicon';
+            font-size: 16px;
+            vertical-align: middle;
+        }
+        .toolbar .sync-btn {
+            background: none;
+            border: none;
+            cursor: pointer;
+            color: var(--vscode-editor-foreground);
+            font-size: 18px;
+            margin-left: 4px;
+        }
+        .diff-container.side-by-side .diff-side {
+            border-right: none !important;
+        }
+        .diff-container.side-by-side .diff-side:not(:last-child) {
+            /* Remove divider for unified look */
+            box-shadow: none !important;
+        }
+        .diff-container.side-by-side {
+            /* Remove vertical divider */
+            border: none !important;
+        }
+        .sync-btn.sync-on {
+            background: var(--vscode-button-background);
+            color: var(--vscode-button-foreground);
+            border: 1px solid var(--vscode-button-border);
+        }
     </style>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@vscode/codicons/dist/codicon.css">
 </head>
 <body>
+    <div class="toolbar">
+        <div class="dropdown" id="viewerDropdown">
+            <button onclick="toggleDropdown('viewerDropdown')"><span class="codicon codicon-diff"></span> <span id="viewerLabel">Side-by-side viewer</span> <span class="codicon codicon-chevron-down"></span></button>
+            <div class="dropdown-content">
+                <button onclick="setViewer('side-by-side')" id="sideBySideBtn" class="selected">Side-by-side viewer</button>
+                <button onclick="setViewer('unified')" id="unifiedBtn">Unified viewer</button>
+            </div>
+        </div>
+        <div class="dropdown" id="whitespaceDropdown">
+            <button onclick="toggleDropdown('whitespaceDropdown')"><span class="codicon codicon-filter"></span> <span id="whitespaceLabel">Do not ignore</span> <span class="codicon codicon-chevron-down"></span></button>
+            <div class="dropdown-content">
+                <button onclick="setWhitespace('none')" id="wsNone" class="selected">Do not ignore</button>
+                <button onclick="setWhitespace('trim')" id="wsTrim">Trim whitespaces</button>
+                <button onclick="setWhitespace('ignore')" id="wsIgnore">Ignore whitespaces</button>
+                <button onclick="setWhitespace('ignore-empty')" id="wsIgnoreEmpty">Ignore whitespaces and empty lines</button>
+            </div>
+        </div>
+        <div class="dropdown" id="highlightDropdown">
+            <button onclick="toggleDropdown('highlightDropdown')"><span class="codicon codicon-symbol-color"></span> <span id="highlightLabel">Highlight characters</span> <span class="codicon codicon-chevron-down"></span></button>
+            <div class="dropdown-content">
+                <button onclick="setHighlight('lines')" id="hlLines">Highlight lines</button>
+                <button onclick="setHighlight('words')" id="hlWords">Highlight words</button>
+                <button onclick="setHighlight('split')" id="hlSplit">Highlight split changes</button>
+                <button onclick="setHighlight('characters')" id="hlChars" class="selected">Highlight characters</button>
+            </div>
+        </div>
+        <div class="dropdown" id="settingsDropdown">
+            <button onclick="toggleDropdown('settingsDropdown')"><span class="codicon codicon-settings"></span></button>
+            <div class="dropdown-content">
+                <label><input type="checkbox" id="showWhitespaces"> Show Whitespaces</label>
+                <label><input type="checkbox" id="showLineNumbers" checked> Show Line Numbers</label>
+                <label><input type="checkbox" id="showIndentGuides"> Show Indent Guides</label>
+                <label><input type="checkbox" id="softWrap"> Soft-Wrap</label>
+                <div style="border-top:1px solid var(--vscode-panel-border);margin:4px 0;"></div>
+                <label>Highlighting Level
+                    <select id="highlightingLevel">
+                        <option value="default">Default</option>
+                        <option value="minimal">Minimal</option>
+                        <option value="full">Full</option>
+                    </select>
+                </label>
+                <label><input type="checkbox" id="breadcrumbs"> Breadcrumbs</label>
+                <label><input type="checkbox" id="alignChanges"> Align Changes In Side-by-Side Diff</label>
+            </div>
+        </div>
+        <button class="sync-btn sync-on" title="Synchronize Scrolling" id="syncScrollBtn" onclick="toggleSyncScroll()"><span class="codicon codicon-sync"></span></button>
+    </div>
     <div id="diffView" class="diff-view">
-        <div class="diff-container">
+        <div class="diff-container side-by-side" id="diffContainer">
             <div class="diff-side">
                 <div class="diff-header">Previous Version</div>
                 <div id="oldContent" class="diff-content"></div>
@@ -494,6 +628,51 @@ export class GitHistoryView {
             }
         });
 
+        let syncScrollEnabled = true;
+        let isSyncingScroll = false;
+        function setSyncScroll(enabled) {
+            visbalDebugLog('setSyncScroll');
+            syncScrollEnabled = enabled;
+            const btn = document.getElementById('syncScrollBtn');
+            if (enabled) {
+                btn.classList.add('sync-on');
+            } else {
+                btn.classList.remove('sync-on');
+            }
+        }
+        function toggleSyncScroll() {
+            setSyncScroll(!syncScrollEnabled);
+        }
+        function attachSyncScrollListeners() {
+            visbalDebugLog('attachSyncScrollListeners');
+            // Get the actual scrollable elements
+            const oldContent = document.getElementById('oldContent');
+            const newContent = document.getElementById('newContent');
+            if (!oldContent || !newContent) return;
+
+            // Remove previous listeners if any
+            oldContent.onscroll = null;
+            newContent.onscroll = null;
+
+            let isSyncingScroll = false;
+
+            oldContent.addEventListener('scroll', function() {
+                visbalDebugLog('syncScrollHandler: oldContent');
+                if (!syncScrollEnabled || isSyncingScroll) return;
+                isSyncingScroll = true;
+                newContent.scrollTop = oldContent.scrollTop;
+                isSyncingScroll = false;
+            });
+
+            newContent.addEventListener('scroll', function() {
+                visbalDebugLog('syncScrollHandler: newContent');
+                if (!syncScrollEnabled || isSyncingScroll) return;
+                isSyncingScroll = true;
+                oldContent.scrollTop = newContent.scrollTop;
+                isSyncingScroll = false;
+            });
+        }
+
         function updateDiffView(diff) {
             const oldContent = document.getElementById('oldContent');
             const newContent = document.getElementById('newContent');
@@ -509,6 +688,7 @@ export class GitHistoryView {
                 }
                 return '<div class="line ' + (line.type || '') + '"><span class="line-number">' + (line.number || ' ') + '</span><span class="line-content">' + escapeHtml(line.content) + '</span></div>';
             }).join('');
+            attachSyncScrollListeners();
         }
 
         function escapeHtml(unsafe) {
@@ -556,9 +736,73 @@ export class GitHistoryView {
         if (resizer) {
             resizer.addEventListener('mousedown', initResize);
         }
+
+        // Dropdown logic
+        function toggleDropdown(id) {
+            document.querySelectorAll('.dropdown').forEach(el => {
+                if (el.id !== id) el.classList.remove('open');
+            });
+            const el = document.getElementById(id);
+            if (el) el.classList.toggle('open');
+        }
+        window.onclick = function(event) {
+            if (!event.target.closest('.dropdown')) {
+                document.querySelectorAll('.dropdown').forEach(el => el.classList.remove('open'));
+            }
+        };
+        // Viewer mode
+        function setViewer(mode) {
+            document.getElementById('viewerLabel').textContent = mode === 'side-by-side' ? 'Side-by-side viewer' : 'Unified viewer';
+            document.getElementById('diffContainer').className = 'diff-container ' + (mode === 'side-by-side' ? 'side-by-side' : 'unified');
+            document.getElementById('sideBySideBtn').classList.toggle('selected', mode === 'side-by-side');
+            document.getElementById('unifiedBtn').classList.toggle('selected', mode === 'unified');
+            toggleDropdown('viewerDropdown');
+        }
+        // Whitespace
+        function setWhitespace(mode) {
+            const labels = {
+                'none': 'Do not ignore',
+                'trim': 'Trim whitespaces',
+                'ignore': 'Ignore whitespaces',
+                'ignore-empty': 'Ignore whitespaces and empty lines'
+            };
+            document.getElementById('whitespaceLabel').textContent = labels[mode];
+            document.getElementById('wsNone').classList.toggle('selected', mode === 'none');
+            document.getElementById('wsTrim').classList.toggle('selected', mode === 'trim');
+            document.getElementById('wsIgnore').classList.toggle('selected', mode === 'ignore');
+            document.getElementById('wsIgnoreEmpty').classList.toggle('selected', mode === 'ignore-empty');
+            toggleDropdown('whitespaceDropdown');
+        }
+        // Highlight
+        function setHighlight(mode) {
+            const labels = {
+                'lines': 'Highlight lines',
+                'words': 'Highlight words',
+                'split': 'Highlight split changes',
+                'characters': 'Highlight characters'
+            };
+            document.getElementById('highlightLabel').textContent = labels[mode];
+            document.getElementById('hlLines').classList.toggle('selected', mode === 'lines');
+            document.getElementById('hlWords').classList.toggle('selected', mode === 'words');
+            document.getElementById('hlSplit').classList.toggle('selected', mode === 'split');
+            document.getElementById('hlChars').classList.toggle('selected', mode === 'characters');
+            toggleDropdown('highlightDropdown');
+        }
+        // Settings
+        document.getElementById('showWhitespaces').onchange = function() { /* implement */ };
+        document.getElementById('showLineNumbers').onchange = function() { /* implement */ };
+        document.getElementById('showIndentGuides').onchange = function() { /* implement */ };
+        document.getElementById('softWrap').onchange = function() { /* implement */ };
+        document.getElementById('highlightingLevel').onchange = function() { /* implement */ };
+        document.getElementById('breadcrumbs').onchange = function() { /* implement */ };
+        document.getElementById('alignChanges').onchange = function() { /* implement */ };
+        // Call attachSyncScrollListeners on initial load in case diff is already rendered
+        attachSyncScrollListeners();
     </script>
 </body>
 </html>`;
+        //return html;
+        return WebviewUtils.injectDebugBox(html);
     }
 
     private _parseDiff(diff: string): { old: Array<{content: string, type?: string, number?: number, isOmitted?: boolean}>, new: Array<{content: string, type?: string, number?: number, isOmitted?: boolean}> } {
