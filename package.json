@@ -255,6 +255,12 @@
           "command": "visbal-ext.showGitHistoryForFile",
           "group": "navigation"
         }
+      ],
+      "tab/context": [
+        {
+          "command": "visbal-ext.showGitHistoryForFile",
+          "group": "navigation"
+        }
       ]
     },
     "configuration": {

@@ -122,8 +122,30 @@ export class GitHistoryView {
         }, null, context.subscriptions);
     }
 
+    private _showLoadingOverlay(message: string = 'Loading git history...') {
+        this._panel.webview.html = `
+            <html>
+            <head>
+                <style>
+                    body { display: flex; align-items: center; justify-content: center; height: 100vh; background: var(--vscode-editor-background); }
+                    .spinner { border: 4px solid #eee; border-top: 4px solid #0078d4; border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite; margin-bottom: 20px; }
+                    @keyframes spin { 100% { transform: rotate(360deg); } }
+                    .msg { color: var(--vscode-editor-foreground); font-size: 1.2em; text-align: center; }
+                </style>
+            </head>
+            <body>
+                <div>
+                    <div class="spinner"></div>
+                    <div class="msg">${message}</div>
+                </div>
+            </body>
+            </html>
+        `;
+    }
+
     private async updateContent(filePath: string, startLine: number, endLine: number) {
         try {
+            this._showLoadingOverlay();
             const history = await this.gitService.getHistoryForSelection(filePath, startLine, endLine);
             //update the history date format to be YYYY-MM-DD HH:MM AM/PM
             history.forEach(commit => {
@@ -151,6 +173,7 @@ export class GitHistoryView {
 
     private async updateContentForFile(filePath: string) {
         try {
+            this._showLoadingOverlay();
             const history = await this.gitService.getHistoryForFile(filePath);
             // Update the history date format to be YYYY-MM-DD HH:MM AM/PM
             history.forEach(commit => {

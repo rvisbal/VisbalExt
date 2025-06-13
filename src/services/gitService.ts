@@ -2,6 +2,7 @@ import * as vscode from 'vscode';
 import { exec } from 'child_process';
 import { promisify } from 'util';
 import { OrgUtils } from '../utils/orgUtils';
+import { StatusBarService } from './statusBarService';
 
 const execAsync = promisify(exec);
 
@@ -23,7 +24,9 @@ export class GitService {
         message: string,
         diff: string
     }>> {
+        const statusBarService = StatusBarService.getInstance();
         try {
+            statusBarService.showProgress('Loading git history...');
             let commits = [];
             const useCurrentGitCommand = true;
             if (useCurrentGitCommand) {
@@ -31,11 +34,14 @@ export class GitService {
             } else {
                 commits = await this.processTestGitCommand(filePath, startLine, endLine);
             }
-            
+            statusBarService.showSuccess('Git history loaded');
             return commits;
         } catch (error) {
+            statusBarService.showError('Failed to load git history');
             console.error('Error getting git history:', error);
             throw error;
+        } finally {
+            statusBarService.hide();
         }
     }
 
@@ -51,7 +57,9 @@ export class GitService {
         message: string,
         diff: string
     }>> {
+        const statusBarService = StatusBarService.getInstance();
         try {
+            statusBarService.showProgress('Loading git history...');
             // Escape the file path to handle spaces and special characters
             const escapedPath = filePath.replace(/(["\s'$`\\])/g,'\\$1');
 
@@ -114,11 +122,14 @@ export class GitService {
                 currentCommit.diff = diffContent.trim();
                 commits.push(currentCommit);
             }
-
+            statusBarService.showSuccess('Git history loaded');
             return commits;
         } catch (error) {
+            statusBarService.showError('Failed to load git history');
             console.error('Error getting git history for file:', error);
             throw error;
+        } finally {
+            statusBarService.hide();
         }
     }
 
