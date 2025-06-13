@@ -534,6 +534,18 @@ export class GitHistoryView {
         #oldContent::-webkit-scrollbar, #newContent::-webkit-scrollbar {
             display: none !important; /* Chrome, Safari and Opera */
         }
+        .diff-container, .diff-side {
+            overflow: hidden !important;
+        }
+        #oldContent, #newContent, .diff-content {
+            scrollbar-width: none !important; /* Firefox */
+            -ms-overflow-style: none !important;
+        }
+        #oldContent::-webkit-scrollbar, #newContent::-webkit-scrollbar, .diff-content::-webkit-scrollbar {
+            display: none !important; /* Chrome, Safari and Opera */
+            width: 0 !important;
+            background: transparent !important;
+        }
     </style>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@vscode/codicons/dist/codicon.css">
 </head>
