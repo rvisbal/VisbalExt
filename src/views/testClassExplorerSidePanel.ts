@@ -2487,6 +2487,8 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
     
     private _getHtmlForWebview(webview: vscode.Webview): string {
         const nonce = this._getNonce();
+        // HTML TEMPLATE STRING
+        // JavaScript/HTML section, type script rule dont apply in this block   
         // @ts-ignore - Disable TypeScript checking for the JavaScript code in the template literal
         return `<!DOCTYPE html>
         <html lang="en">

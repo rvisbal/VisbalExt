@@ -1,5 +1,6 @@
 export function getHtmlForWebview(): string {
-    //JavaScript/HTML section, type script rule dont apply in this block
+    // HTML TEMPLATE STRING
+    // JavaScript/HTML section, type script rule dont apply in this block
     return `<!DOCTYPE html>
     <html>
     <head>

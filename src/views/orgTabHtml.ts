@@ -6,7 +6,8 @@ import { OrgUtils } from '../utils/orgUtils';
 
 export function getOrgTabHtml(webview: Webview, orgs: Org[] = [], isLoading = false, error = ''): string {
     const orgTable = new OrgTable(webview, orgs);
-    
+    // HTML TEMPLATE STRING
+    // JavaScript/HTML section, type script rule dont apply in this block
     const html = `<!DOCTYPE html>
     <html lang="en">
     <head>

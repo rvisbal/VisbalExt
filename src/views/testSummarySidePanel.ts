@@ -165,7 +165,8 @@ export class TestSummaryView implements vscode.WebviewViewProvider {
     }
 
     private _getInitialContent(): string {
-        //JavaScript/HTML section, type script rule dont apply in this block
+        // HTML TEMPLATE STRING
+        // JavaScript/HTML section, type script rule dont apply in this block
         return `<!DOCTYPE html>
         <html lang="en">
         <head>
@@ -244,7 +245,8 @@ export class TestSummaryView implements vscode.WebviewViewProvider {
             </div>`;
         }
 
-        //JavaScript/HTML section, type script rule dont apply in this block
+        // HTML TEMPLATE STRING
+        // JavaScript/HTML section, type script rule dont apply in this block
         return `<!DOCTYPE html>
         <html lang="en">
         <head>
@@ -478,7 +480,8 @@ export class TestSummaryView implements vscode.WebviewViewProvider {
                 </table>
             </div>`;
         }
-        //JavaScript/HTML section, type script rule dont apply in this block
+        // HTML TEMPLATE STRING
+        // JavaScript/HTML section, type script rule dont apply in this block
         return `<!DOCTYPE html>
         <html lang="en">
         <head>
@@ -738,7 +741,8 @@ export class TestSummaryView implements vscode.WebviewViewProvider {
 
     private _getWebviewContentForProgress(progress: QueueItem[], jobResults?: ApexTestRunResult[]): string {
         const jobResult = jobResults && jobResults.length > 0 ? jobResults[0] : null;
-        //JavaScript/HTML section, type script rule dont apply in this block
+        // HTML TEMPLATE STRING
+        // JavaScript/HTML section, type script rule dont apply in this block
         return `<!DOCTYPE html>
         <html lang="en">
         <head>

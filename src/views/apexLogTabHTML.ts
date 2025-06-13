@@ -38,7 +38,8 @@ export function getHtmlForWebview(extensionUri: vscode.Uri, webview: vscode.Webv
   
     // Use a nonce to only allow a specific script to be run.
     const nonce = getNonce();
-    //JavaScript/HTML section, type script rule dont apply in this block
+    // HTML TEMPLATE STRING
+    // JavaScript/HTML section, type script rule dont apply in this block
     return `<!DOCTYPE html>
     <html lang="en">
     <head>

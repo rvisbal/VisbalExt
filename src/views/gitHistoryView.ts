@@ -212,6 +212,8 @@ export class GitHistoryView {
     }
 
     private _getWebviewContent(history: any[]) {
+        // HTML TEMPLATE STRING
+        // JavaScript/HTML section, type script rule dont apply in this block
         const html = `<!DOCTYPE html>
 <html lang="en">
 <head>

@@ -7,7 +7,8 @@ import { formatLogContentForHtml } from '../utils/logParsingUtils';
  * Returns the HTML template for the log list view
  */
 export function getLogListTemplate(): string {
-    //JavaScript/HTML section, type script rule dont apply in this block
+    // HTML TEMPLATE STRING
+    // JavaScript/HTML section, type script rule dont apply in this block
     return `<!DOCTYPE html>
     <html lang="en">
     <head>
@@ -611,7 +612,8 @@ export function getHtmlTemplate(
     console.log('[VisbalExt.htmlTemplate:WebView] Generating HTML template for log detail view');
     console.log('[VisbalExt.htmlTemplate:WebView] Log filename:', logFileName);
     console.log('[VisbalExt.htmlTemplate:WebView] Current tab:', currentTab);
-    //JavaScript/HTML section, type script rule dont apply in this block
+    // HTML TEMPLATE STRING
+    // JavaScript/HTML section, type script rule dont apply in this block
     return `<!DOCTYPE html>
     <html lang="en">
     <head>
