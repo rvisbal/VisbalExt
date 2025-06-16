@@ -253,8 +253,8 @@ export class GitHistoryView {
             margin: 0;
             color: var(--vscode-editor-foreground);
             background-color: var(--vscode-editor-background);
-            font-family: var(--vscode-editor-font-family);
-            font-size: var(--vscode-editor-font-size);
+            /*font-family: var(--vscode-editor-font-family, 'JetBrains Mono', 'Fira Mono', 'Consolas', monospace);*/
+            font-size: var(--vscode-editor-font-size, 13px);
             -webkit-font-smoothing: antialiased;
             height: 100vh;
             display: flex;
@@ -293,7 +293,7 @@ export class GitHistoryView {
             font-weight: 600;
             color: var(--vscode-sideBarSectionHeader-foreground);
             flex-shrink: 0;
-            font-family: var(--vscode-font-family);
+            /*font-family: var(--vscode-font-family);*/
             font-size: var(--vscode-font-size);
             letter-spacing: 0.04em;
             position: relative;
@@ -329,7 +329,7 @@ export class GitHistoryView {
             grid-template-columns: 100px 150px 150px 1fr;
             gap: 10px;
             align-items: center;
-            font-family: var(--vscode-editor-font-family);
+            /*font-family: var(--vscode-editor-font-family, 'JetBrains Mono', 'Fira Mono', 'Consolas', monospace);*/
             font-size: var(--vscode-editor-font-size);
             line-height: 1.4;
         }
@@ -346,18 +346,18 @@ export class GitHistoryView {
             color: var(--vscode-list-activeSelectionForeground);
         }
         .commit-hash {
-            font-family: var(--vscode-editor-font-family);
+            /*font-family: var(--vscode-editor-font-family, 'JetBrains Mono', 'Fira Mono', 'Consolas', monospace);*/
             font-size: var(--vscode-editor-font-size);
             color: var(--vscode-textPreformat-foreground);
             font-weight: normal;
         }
         .commit-date, .commit-author {
-            font-family: var(--vscode-font-family);
+            /*font-family: var(--vscode-font-family);*/
             font-size: var(--vscode-font-size);
             color: var(--vscode-descriptionForeground);
         }
         .commit-message {
-            font-family: var(--vscode-font-family);
+            /*font-family: var(--vscode-font-family);*/
             font-size: var(--vscode-font-size);
             color: var(--vscode-foreground);
         }
@@ -366,8 +366,8 @@ export class GitHistoryView {
             flex-direction: column;
             height: 100%;
             width: 100%;
-            font-family: var(--vscode-editor-font-family);
-            font-size: var(--vscode-editor-font-size);
+            /*font-family: var(--vscode-editor-font-family, 'JetBrains Mono', 'Fira Mono', 'Consolas', monospace);*/
+            font-size: var(--vscode-editor-font-size, 13px);
             background-color: var(--vscode-editor-background);
         }
         .diff-container::-webkit-scrollbar {
@@ -378,7 +378,7 @@ export class GitHistoryView {
             align-items: stretch;
             min-height: 21px;
             line-height: 21px;
-            font-family: inherit;
+           /* font-family: inherit;*/
             font-size: inherit;
             white-space: pre;
             width: 100%;
@@ -386,12 +386,18 @@ export class GitHistoryView {
             margin: 0;
             padding: 0;
         }
+        .left-code {
+            /*font-family: monospace;*/
+        }
+        .right-code {
+            /*font-family: monospace;*/
+        }
         .diff-row .left-code,
         .diff-row .right-code {
             flex: 1 1 0;
             min-width: 0;
             padding: 0 0.5em;
-            font-family: inherit;
+            font-family: Consolas, 'Liberation Mono', Menlo, Monaco, 'Courier New', monospace;
             font-size: inherit;
             overflow: hidden;
             text-overflow: ellipsis;
@@ -487,7 +493,7 @@ export class GitHistoryView {
             cursor: pointer;
         }
         .toolbar .codicon {
-            font-family: 'codicon';
+            /*font-family: 'codicon';*/
             font-size: 16px;
             vertical-align: middle;
         }
@@ -529,17 +535,9 @@ export class GitHistoryView {
         #oldContent::-webkit-scrollbar, #newContent::-webkit-scrollbar {
             display: none !important; /* Chrome, Safari and Opera */
         }
-        .diff-container, .diff-side {
-            overflow: hidden !important;
-        }
-        #oldContent, #newContent, .diff-content {
-            scrollbar-width: none !important; /* Firefox */
-            -ms-overflow-style: none !important;
-        }
-        #oldContent::-webkit-scrollbar, #newContent::-webkit-scrollbar, .diff-content::-webkit-scrollbar {
-            display: none !important; /* Chrome, Safari and Opera */
-            width: 0 !important;
-            background: transparent !important;
+        .diff-container, .diff-content, .diff-row, .left-code, .right-code, .commit-item {
+            /*font-family: var(--vscode-editor-font-family, 'JetBrains Mono', 'Fira Mono', 'Consolas', monospace) !important;*/
+            font-size: var(--vscode-editor-font-size, 13px) !important;
         }
     </style>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@vscode/codicons/dist/codicon.css">
@@ -710,8 +708,12 @@ export class GitHistoryView {
                     html += '<div class="diff-row omitted"><span class="left-code omitted">...</span><span class="left-line-number omitted"></span><span class="right-line-number omitted"></span><span class="right-code omitted">...</span></div>';
                     continue;
                 }
+                //visbalDebugLog('updateDiffView: left.type'+ left.type);
+                //visbalDebugLog('updateDiffView: right.type'+ right.type);
+                //visbalDebugLog('updateDiffView: left.content'+ left.content);
+                //visbalDebugLog('updateDiffView: right.content', right.content);
                 html += '<div class="diff-row ' + (left.type || right.type || '') + '">' +
-                    '<span class="left-code ' + (left.type || '') + '">' + escapeHtml(left.content || '') + '</span>' +
+                    '<span class="left-code ' + (left.type || '') + '" >' + escapeHtml(left.content || '') + '</span>' +
                     '<span class="left-line-number">' + (left.number !== undefined ? left.number : '') + '</span>' +
                     '<span class="right-line-number">' + (right.number !== undefined ? right.number : '') + '</span>' +
                     '<span class="right-code ' + (right.type || '') + '">' + escapeHtml(right.content || '') + '</span>' +
