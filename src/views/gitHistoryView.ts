@@ -548,6 +548,71 @@ export class GitHistoryView {
             width: 0 !important;
             background: transparent !important;
         }
+        .diff-row {
+            display: flex;
+            align-items: stretch;
+            min-height: 21px;
+            line-height: 21px;
+            font-family: inherit;
+            font-size: inherit;
+            white-space: pre;
+            width: 100%;
+            box-sizing: border-box;
+        }
+        .diff-row .left-code,
+        .diff-row .right-code {
+            flex: 1 1 0;
+            min-width: 0;
+            padding: 0 0.5em;
+            font-family: inherit;
+            font-size: inherit;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: pre;
+            position: relative;
+        }
+        .diff-row .left-code::after,
+        .diff-row .right-code::after {
+            content: '';
+            position: absolute;
+            right: 0;
+            top: 0;
+            width: 2em;
+            height: 100%;
+            pointer-events: none;
+            background: linear-gradient(to right, transparent, var(--vscode-editor-background) 80%);
+            display: block;
+        }
+        .diff-row .left-line-number, .diff-row .right-line-number {
+            min-width: 4ch;
+            text-align: right;
+            color: var(--vscode-editorLineNumber-foreground);
+            background-color: var(--vscode-editor-background);
+            border-right: 1px solid var(--vscode-panel-border);
+            user-select: none;
+            opacity: 0.7;
+            padding: 0 0.5em;
+        }
+        .diff-row .right-line-number {
+            border-left: 1px solid var(--vscode-panel-border);
+            border-right: none;
+        }
+        .diff-row.addition {
+            background-color: rgba(40, 200, 40, 0.15);
+        }
+        .diff-row.deletion {
+            background-color: rgba(200, 40, 40, 0.15);
+        }
+        .diff-row.omitted {
+            text-align: center;
+            color: var(--vscode-descriptionForeground);
+            font-style: italic;
+            background: var(--vscode-editor-background);
+            opacity: 0.7;
+            font-size: 1.1em;
+            letter-spacing: 0.2em;
+            user-select: none;
+        }
     </style>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@vscode/codicons/dist/codicon.css">
 </head>
@@ -601,14 +666,8 @@ export class GitHistoryView {
     </div>
     <div id="diffView" class="diff-view">
         <div class="diff-container side-by-side" id="diffContainer">
-            <div class="diff-side">
-                <div class="diff-header">Previous Version</div>
-                <div id="oldContent" class="diff-content"></div>
-            </div>
-            <div class="diff-side diff-side-right">
-                <div class="diff-header">Current Version</div>
-                <div id="newContent" class="diff-content"></div>
-            </div>
+            <div class="diff-header">Diff</div>
+            <div id="unifiedDiffContent" class="diff-content"></div>
         </div>
     </div>
     <div class="commit-list">
@@ -714,21 +773,23 @@ export class GitHistoryView {
         }
 
         function updateDiffView(diff) {
-            const oldContent = document.getElementById('oldContent');
-            const newContent = document.getElementById('newContent');
-            oldContent.innerHTML = diff.old.map(line => {
-                if (line.isOmitted) {
-                    return '<div class="line omitted"><span class="line-content omitted">...</span></div>';
+            const unifiedDiffContent = document.getElementById('unifiedDiffContent');
+            let html = '';
+            for (let i = 0; i < diff.old.length; i++) {
+                const left = diff.old[i] || {};
+                const right = diff.new[i] || {};
+                if (left.isOmitted || right.isOmitted) {
+                    html += '<div class="diff-row omitted"><span class="left-code omitted">...</span><span class="left-line-number omitted"></span><span class="right-line-number omitted"></span><span class="right-code omitted">...</span></div>';
+                    continue;
                 }
-                return '<div class="line ' + (line.type || '') + '"><span class="line-number">' + (line.number || ' ') + '</span><span class="line-content">' + escapeHtml(line.content) + '</span></div>';
-            }).join('');
-            newContent.innerHTML = diff.new.map(line => {
-                if (line.isOmitted) {
-                    return '<div class="line omitted"><span class="line-content omitted">...</span></div>';
-                }
-                return '<div class="line ' + (line.type || '') + '"><span class="line-number">' + (line.number || ' ') + '</span><span class="line-content">' + escapeHtml(line.content) + '</span></div>';
-            }).join('');
-            attachSyncScrollListeners();
+                html += '<div class="diff-row ' + (left.type || right.type || '') + '">' +
+                    '<span class="left-code ' + (left.type || '') + '">' + escapeHtml(left.content || '') + '</span>' +
+                    '<span class="left-line-number">' + (left.number !== undefined ? left.number : '') + '</span>' +
+                    '<span class="right-line-number">' + (right.number !== undefined ? right.number : '') + '</span>' +
+                    '<span class="right-code ' + (right.type || '') + '">' + escapeHtml(right.content || '') + '</span>' +
+                '</div>';
+            }
+            unifiedDiffContent.innerHTML = html;
         }
 
         function escapeHtml(unsafe) {
@@ -841,8 +902,8 @@ export class GitHistoryView {
     </script>
 </body>
 </html>`;
-        //return html;
-        return WebviewUtils.injectDebugBox(html);
+        return html;
+        //return WebviewUtils.injectDebugBox(html);
     }
 
     private _parseDiff(diff: string): { old: Array<{content: string, type?: string, number?: number, isOmitted?: boolean}>, new: Array<{content: string, type?: string, number?: number, isOmitted?: boolean}> } {
