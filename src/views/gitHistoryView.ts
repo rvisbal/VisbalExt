@@ -571,18 +571,6 @@ export class GitHistoryView {
             white-space: pre;
             position: relative;
         }
-        .diff-row .left-code::after,
-        .diff-row .right-code::after {
-            content: '';
-            position: absolute;
-            right: 0;
-            top: 0;
-            width: 2em;
-            height: 100%;
-            pointer-events: none;
-            background: linear-gradient(to right, transparent, var(--vscode-editor-background) 80%);
-            display: block;
-        }
         .diff-row .left-line-number, .diff-row .right-line-number {
             min-width: 4ch;
             text-align: right;
