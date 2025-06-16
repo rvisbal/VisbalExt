@@ -45,6 +45,14 @@ export class GitHistoryView {
 
     private _currentHistory: any[] = [];
 
+    /*
+    * This method is used to create or show the git history view for a selection
+    * @param context - The extension context
+    * @param gitService - The git service
+    * @param filePath - The path to the file
+    * @param startLine - The start line of the selection
+    * @param endLine - The end line of the selection
+    */
     public static createOrShow(
         context: vscode.ExtensionContext,
         gitService: GitService,
@@ -85,6 +93,12 @@ export class GitHistoryView {
         }, null, context.subscriptions);
     }
 
+    /*
+    * This method is used to create or show the git history view for a file
+    * @param context - The extension context
+    * @param gitService - The git service
+    * @param filePath - The path to the file
+    */
     public static createOrShowForFile(
         context: vscode.ExtensionContext,
         gitService: GitService,
@@ -143,7 +157,12 @@ export class GitHistoryView {
             </html>
         `;
     }
-
+    /*
+    * This method is used to update the content for a selection
+    * @param filePath - The path to the file
+    * @param startLine - The start line of the selection
+    * @param endLine - The end line of the selection
+    */
     private async updateContent(filePath: string, startLine: number, endLine: number) {
         try {
             this._showLoadingOverlay();
@@ -172,6 +191,10 @@ export class GitHistoryView {
         }
     }
 
+    /*
+    * This method is used to update the content for a file
+    * @param filePath - The path to the file
+    */
     private async updateContentForFile(filePath: string) {
         try {
             this._showLoadingOverlay();
@@ -211,6 +234,10 @@ export class GitHistoryView {
         }
     }
 
+    /*
+    * This method is used to get the webview content for the git history view
+    * @param history - The history of the file
+    */
     private _getWebviewContent(history: any[]) {
         // HTML TEMPLATE STRING
         // JavaScript/HTML section, type script rule dont apply in this block
@@ -336,7 +363,9 @@ export class GitHistoryView {
         }
         .diff-container {
             display: flex;
+            flex-direction: column;
             height: 100%;
+            width: 100%;
             font-family: var(--vscode-editor-font-family);
             font-size: var(--vscode-editor-font-size);
             background-color: var(--vscode-editor-background);
@@ -344,46 +373,9 @@ export class GitHistoryView {
         .diff-container::-webkit-scrollbar {
             display: none; /* Chrome, Safari and Opera */
         }
-        .diff-side {
-            flex: 1;
-            overflow: auto;
-            border-right: 1px solid var(--vscode-panel-border);
-            position: relative;
-        }
-        .diff-side:last-child {
-            border-right: none;
-        }
-        .diff-side::-webkit-scrollbar {
-            display: none; /* Chrome, Safari and Opera */
-        }
-        .diff-header {
-            position: sticky;
-            top: 0;
-            z-index: 1;
-            padding: 8px 12px;
-            background-color: var(--vscode-editorGroupHeader-tabsBackground);
-            border-bottom: 1px solid var(--vscode-panel-border);
-            font-family: var(--vscode-font-family);
-            font-size: var(--vscode-font-size);
-            color: var(--vscode-descriptionForeground);
-            font-weight: 500;
-        }
-        .diff-content {
-            padding: 0;
-            font-family: "JetBrains Mono", Consolas, "Courier New", monospace;
-            font-size: 13px;
-            line-height: 1.5;
-            overflow-y: auto;
-            max-height: 60vh;
-            scrollbar-width: none; /* Firefox */
-            -ms-overflow-style: none;  /* IE and Edge */
-        }
-        .diff-content::-webkit-scrollbar {
-            display: none; /* Chrome, Safari and Opera */
-        }
-        
-        .line {
+        .diff-row {
             display: flex;
+            align-items: stretch;
             min-height: 21px;
             line-height: 21px;
             font-family: inherit;
@@ -391,53 +383,54 @@ export class GitHistoryView {
             white-space: pre;
             width: 100%;
             box-sizing: border-box;
+            margin: 0;
+            padding: 0;
         }
-        .line:hover {
-            background-color: var(--vscode-editor-hoverHighlightBackground);
-        }
-        .line-number {
-            font-family: inherit;
-            font-size: inherit;
-            color: var(--vscode-editorLineNumber-foreground);
-            text-align: right;
-            padding: 0 1em;
-            min-width: 4ch;
-            background-color: var(--vscode-editor-background);
-            border-right: 1px solid var(--vscode-panel-border);
-            user-select: none;
-            opacity: 0.7;
-        }
-        .line-content {
+        .diff-row .left-code,
+        .diff-row .right-code {
+            flex: 1 1 0;
+            min-width: 0;
             padding: 0 0.5em;
             font-family: inherit;
             font-size: inherit;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: pre;
+            position: relative;
+            margin: 0;
+            border: none;
         }
-        .addition {
+        .diff-row .left-line-number, .diff-row .right-line-number {
+            min-width: 4ch;
+            text-align: right;
+            color: var(--vscode-editorLineNumber-foreground);
+            background-color: var(--vscode-editor-background);
+            user-select: none;
+            opacity: 0.7;
+            padding: 0 0.5em;
+            margin: 0;
+            border: none;
+        }
+        /* Remove any border between left and right code columns */
+        .diff-row .right-line-number {
+            border-left: none;
+            border-right: none;
+        }
+        .diff-row.addition {
             background-color: rgba(40, 200, 40, 0.15);
         }
-        .addition:hover {
-            background-color: rgba(40, 200, 40, 0.25);
-        }
-        .deletion {
+        .diff-row.deletion {
             background-color: rgba(200, 40, 40, 0.15);
         }
-        .deletion:hover {
-            background-color: rgba(200, 40, 40, 0.25);
-        }
-        .omitted {
+        .diff-row.omitted {
             text-align: center;
             color: var(--vscode-descriptionForeground);
             font-style: italic;
             background: var(--vscode-editor-background);
-            border: none;
             opacity: 0.7;
             font-size: 1.1em;
             letter-spacing: 0.2em;
             user-select: none;
-        }
-        .line.omitted {
-            min-height: 18px;
-            line-height: 18px;
         }
         .toolbar {
             display: flex;
@@ -547,59 +540,6 @@ export class GitHistoryView {
             display: none !important; /* Chrome, Safari and Opera */
             width: 0 !important;
             background: transparent !important;
-        }
-        .diff-row {
-            display: flex;
-            align-items: stretch;
-            min-height: 21px;
-            line-height: 21px;
-            font-family: inherit;
-            font-size: inherit;
-            white-space: pre;
-            width: 100%;
-            box-sizing: border-box;
-        }
-        .diff-row .left-code,
-        .diff-row .right-code {
-            flex: 1 1 0;
-            min-width: 0;
-            padding: 0 0.5em;
-            font-family: inherit;
-            font-size: inherit;
-            overflow: hidden;
-            text-overflow: ellipsis;
-            white-space: pre;
-            position: relative;
-        }
-        .diff-row .left-line-number, .diff-row .right-line-number {
-            min-width: 4ch;
-            text-align: right;
-            color: var(--vscode-editorLineNumber-foreground);
-            background-color: var(--vscode-editor-background);
-            border-right: 1px solid var(--vscode-panel-border);
-            user-select: none;
-            opacity: 0.7;
-            padding: 0 0.5em;
-        }
-        .diff-row .right-line-number {
-            border-left: 1px solid var(--vscode-panel-border);
-            border-right: none;
-        }
-        .diff-row.addition {
-            background-color: rgba(40, 200, 40, 0.15);
-        }
-        .diff-row.deletion {
-            background-color: rgba(200, 40, 40, 0.15);
-        }
-        .diff-row.omitted {
-            text-align: center;
-            color: var(--vscode-descriptionForeground);
-            font-style: italic;
-            background: var(--vscode-editor-background);
-            opacity: 0.7;
-            font-size: 1.1em;
-            letter-spacing: 0.2em;
-            user-select: none;
         }
     </style>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@vscode/codicons/dist/codicon.css">
