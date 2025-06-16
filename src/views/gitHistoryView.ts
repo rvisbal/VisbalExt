@@ -569,6 +569,9 @@ export class GitHistoryView {
                 <button onclick="setHighlight('characters')" id="hlChars" class="selected">Highlight characters</button>
             </div>
         </div>
+        <button id="collapseCodeBtn" class="toolbar-btn" title="Collapse Unchanged Fragments" onclick="toggleCollapseCode()">
+            <span class="codicon codicon-fold"></span> <span id="collapseCodeLabel"></span>
+        </button>
         <div class="dropdown" id="settingsDropdown">
             <button onclick="toggleDropdown('settingsDropdown')"><span class="codicon codicon-settings"></span></button>
             <div class="dropdown-content">
