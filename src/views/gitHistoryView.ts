@@ -438,6 +438,38 @@ export class GitHistoryView {
             letter-spacing: 0.2em;
             user-select: none;
         }
+        .diff-row.hidden-lines {
+            background-color: var(--vscode-editor-background);
+            opacity: 1;
+        }
+        .diff-row.collapsed-indicator {
+            cursor: pointer;
+            background-color: var(--vscode-editorGroupHeader-tabsBackground);
+            color: var(--vscode-descriptionForeground);
+            font-style: italic;
+            font-weight: bold;
+            user-select: none;
+            display: flex;
+            align-items: center;
+            padding: 4px 8px;
+            border-left: 4px solid var(--vscode-button-background);
+            margin: 2px 0;
+        }
+        .diff-row.collapsed-indicator:hover {
+            background-color: var(--vscode-list-hoverBackground);
+        }
+        .diff-row.collapsed-indicator .codicon {
+            margin-right: 8px;
+            font-size: 14px;
+            font-style: normal;
+        }
+        .diff-row.collapsed-indicator .hidden-count {
+            font-weight: 600;
+            font-style: italic;
+        }
+        .diff-row.collapsed {
+            display: none;
+        }
         .toolbar {
             display: flex;
             align-items: center;
@@ -539,6 +571,24 @@ export class GitHistoryView {
             /*font-family: var(--vscode-editor-font-family, 'JetBrains Mono', 'Fira Mono', 'Consolas', monospace) !important;*/
             font-size: var(--vscode-editor-font-size, 13px) !important;
         }
+        .toolbar-btn {
+            background: var(--vscode-button-background);
+            color: var(--vscode-button-foreground);
+            border: 1px solid var(--vscode-button-border);
+            border-radius: 3px;
+            padding: 2px 8px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            font-size: var(--vscode-font-size);
+        }
+        .toolbar-btn:hover {
+            background: var(--vscode-button-hoverBackground);
+        }
+        .toolbar-btn .codicon {
+            font-size: 14px;
+        }
     </style>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@vscode/codicons/dist/codicon.css">
 </head>
@@ -570,7 +620,7 @@ export class GitHistoryView {
             </div>
         </div>
         <button id="collapseCodeBtn" class="toolbar-btn" title="Collapse Unchanged Fragments" onclick="toggleCollapseCode()">
-            <span class="codicon codicon-fold"></span> <span id="collapseCodeLabel"></span>
+            <span class="codicon codicon-fold"></span> <span id="collapseCodeLabel">Collapse Unchanged</span>
         </button>
         <div class="dropdown" id="settingsDropdown">
             <button onclick="toggleDropdown('settingsDropdown')"><span class="codicon codicon-settings"></span></button>
@@ -618,8 +668,13 @@ export class GitHistoryView {
         </div>
     </div>
     <script>
-        const vscode = acquireVsCodeApi();
-        let selectedIndex = -1;
+        var vscode = acquireVsCodeApi();
+        var selectedIndex = -1;
+
+        // Configurable: minimum unchanged lines to collapse
+        var MIN_UNCHANGED_BLOCK_SIZE = 3; // Change this value as needed
+        // Configurable: number of context lines to show above and below collapsed unchanged blocks
+        var CONTEXT_LINES = 3; // Change this value as needed
 
         function selectCommit(index) {
             // Update selection UI
@@ -701,26 +756,231 @@ export class GitHistoryView {
             });
         }
 
-        function updateDiffView(diff) {
-            const unifiedDiffContent = document.getElementById('unifiedDiffContent');
-            let html = '';
-            for (let i = 0; i < diff.old.length; i++) {
-                const left = diff.old[i] || {};
-                const right = diff.new[i] || {};
-                if (left.isOmitted || right.isOmitted) {
-                    html += '<div class="diff-row omitted"><span class="left-code omitted">...</span><span class="left-line-number omitted"></span><span class="right-line-number omitted"></span><span class="right-code omitted">...</span></div>';
-                    continue;
+        let isCollapseEnabled = false;
+        let collapsedBlocks = new Set();
+
+        function toggleCollapseCode() {
+            isCollapseEnabled = !isCollapseEnabled;
+            const btn = document.getElementById('collapseCodeBtn');
+            const label = document.getElementById('collapseCodeLabel');
+            
+            if (isCollapseEnabled) {
+                btn.classList.add('active');
+                label.textContent = 'Expand Unchanged';
+                collapseAllUnchanged();
+            } else {
+                btn.classList.remove('active');
+                label.textContent = 'Collapse Unchanged';
+                expandAll();
+            }
+        }
+
+        function collapseAllUnchanged() {
+            const diffRows = document.querySelectorAll('.diff-row:not(.addition):not(.deletion):not(.omitted)');
+            let currentBlock = [];
+            let blockStart = -1;
+
+            diffRows.forEach((row, index) => {
+                if (blockStart === -1) {
+                    blockStart = index;
                 }
-                //visbalDebugLog('updateDiffView: left.type'+ left.type);
-                //visbalDebugLog('updateDiffView: right.type'+ right.type);
-                //visbalDebugLog('updateDiffView: left.content'+ left.content);
-                //visbalDebugLog('updateDiffView: right.content', right.content);
-                html += '<div class="diff-row ' + (left.type || right.type || '') + '">' +
-                    '<span class="left-code ' + (left.type || '') + '" >' + escapeHtml(left.content || '') + '</span>' +
-                    '<span class="left-line-number">' + (left.number !== undefined ? left.number : '') + '</span>' +
-                    '<span class="right-line-number">' + (right.number !== undefined ? right.number : '') + '</span>' +
-                    '<span class="right-code ' + (right.type || '') + '">' + escapeHtml(right.content || '') + '</span>' +
-                '</div>';
+                currentBlock.push(row);
+
+                // Check if this is the end of a block
+                const nextRow = diffRows[index + 1];
+                if (!nextRow || nextRow.classList.contains('addition') || nextRow.classList.contains('deletion')) {
+                    if (currentBlock.length >= 3) { // Only collapse blocks with 3 or more lines
+                        collapseBlock(blockStart, currentBlock.length);
+                    }
+                    currentBlock = [];
+                    blockStart = -1;
+                }
+            });
+        }
+
+        function expandAll() {
+            collapsedBlocks.clear();
+            document.querySelectorAll('.diff-row.collapsed').forEach(row => {
+                row.classList.remove('collapsed');
+            });
+            document.querySelectorAll('.diff-row.collapsed-indicator').forEach(row => {
+                row.remove();
+            });
+        }
+
+        function collapseBlock(startIndex, length) {
+            const container = document.querySelector('.diff-content');
+            const rows = container.children;
+            
+            // Create collapse indicator
+            const indicator = document.createElement('div');
+            indicator.className = 'diff-row collapsed-indicator';
+            const indicatorContent = '<span class="codicon codicon-chevron-down"></span>' +
+                '<span class="hidden-count">' + length + ' hidden lines</span>';
+            indicator.innerHTML = indicatorContent;
+            
+            // Add click handler
+            indicator.onclick = function() { toggleBlock(startIndex, length); };
+            
+            // Insert indicator and collapse rows
+            container.insertBefore(indicator, rows[startIndex]);
+            for (let i = 0; i < length; i++) {
+                rows[startIndex + 1].classList.add('collapsed');
+            }
+            
+            collapsedBlocks.add(startIndex);
+        }
+
+        function toggleBlock(startIndex, length) {
+            const container = document.querySelector('.diff-content');
+            const rows = container.children;
+            const indicator = rows[startIndex];
+            const isCollapsed = indicator.querySelector('.codicon-chevron-down') !== null;
+            
+            if (isCollapsed) {
+                // Expand
+                const expandContent = '<span class="codicon codicon-chevron-up"></span>' +
+                    '<span class="hidden-count">' + length + ' hidden lines</span>';
+                indicator.innerHTML = expandContent;
+                for (let i = 0; i < length; i++) {
+                    rows[startIndex + 1].classList.remove('collapsed');
+                    rows[startIndex + 1].classList.add('hidden-lines');
+                }
+            } else {
+                // Collapse
+                const collapseContent = '<span class="codicon codicon-chevron-down"></span>' +
+                    '<span class="hidden-count">' + length + ' hidden lines</span>';
+                indicator.innerHTML = collapseContent;
+                for (let i = 0; i < length; i++) {
+                    rows[startIndex + 1].classList.add('collapsed');
+                    rows[startIndex + 1].classList.remove('hidden-lines');
+                }
+            }
+        }
+
+        function updateDiffView(diff) {
+            var unifiedDiffContent = document.getElementById('unifiedDiffContent');
+            var html = '';
+            var unchangedBlockStart = -1;
+            var unchangedBlockLength = 0;
+            var blockIndices = [];
+            var i = 0;
+            while (i < diff.old.length) {
+                var left = diff.old[i] || {};
+                var right = diff.new[i] || {};
+                var isUnchanged = !left.type && !right.type;
+                if (isUnchanged) {
+                    if (unchangedBlockStart === -1) {
+                        unchangedBlockStart = i;
+                    }
+                    unchangedBlockLength++;
+                    i++;
+                } else {
+                    if (unchangedBlockLength > 2 * CONTEXT_LINES) {
+                        // Show context lines above
+                        for (var j = unchangedBlockStart; j < unchangedBlockStart + CONTEXT_LINES; j++) {
+                            html += '<div class="diff-row">' +
+                                '<span class="left-code">' + escapeHtml(diff.old[j].content || '') + '</span>' +
+                                '<span class="left-line-number">' + (diff.old[j].number !== undefined ? diff.old[j].number : '') + '</span>' +
+                                '<span class="right-line-number">' + (diff.new[j].number !== undefined ? diff.new[j].number : '') + '</span>' +
+                                '<span class="right-code">' + escapeHtml(diff.new[j].content || '') + '</span>' +
+                                '</div>';
+                        }
+                        // Collapsed indicator for the middle
+                        var collapsedStart = unchangedBlockStart + CONTEXT_LINES;
+                        var collapsedLength = unchangedBlockLength - 2 * CONTEXT_LINES;
+                        html += '<div class="diff-row collapsed-indicator" onclick="toggleCollapsedBlock(' + blockIndices.length + ')">' +
+                            '<span class="codicon codicon-chevron-down"></span>' +
+                            '<span class="hidden-count">' + collapsedLength + ' hidden lines</span>' +
+                            '</div>';
+                        blockIndices.push({start: collapsedStart, length: collapsedLength});
+                        // Collapsed lines (initially hidden)
+                        for (var j = collapsedStart; j < collapsedStart + collapsedLength; j++) {
+                            html += '<div class="diff-row collapsed" data-block="' + (blockIndices.length - 1) + '">' +
+                                '<span class="left-code">' + escapeHtml(diff.old[j].content || '') + '</span>' +
+                                '<span class="left-line-number">' + (diff.old[j].number !== undefined ? diff.old[j].number : '') + '</span>' +
+                                '<span class="right-line-number">' + (diff.new[j].number !== undefined ? diff.new[j].number : '') + '</span>' +
+                                '<span class="right-code">' + escapeHtml(diff.new[j].content || '') + '</span>' +
+                                '</div>';
+                        }
+                        // Context lines below
+                        for (var j = collapsedStart + collapsedLength; j < unchangedBlockStart + unchangedBlockLength; j++) {
+                            html += '<div class="diff-row">' +
+                                '<span class="left-code">' + escapeHtml(diff.old[j].content || '') + '</span>' +
+                                '<span class="left-line-number">' + (diff.old[j].number !== undefined ? diff.old[j].number : '') + '</span>' +
+                                '<span class="right-line-number">' + (diff.new[j].number !== undefined ? diff.new[j].number : '') + '</span>' +
+                                '<span class="right-code">' + escapeHtml(diff.new[j].content || '') + '</span>' +
+                                '</div>';
+                        }
+                    } else if (unchangedBlockLength > 0) {
+                        // Show all unchanged lines (not enough to collapse)
+                        for (var j = unchangedBlockStart; j < unchangedBlockStart + unchangedBlockLength; j++) {
+                            html += '<div class="diff-row">' +
+                                '<span class="left-code">' + escapeHtml(diff.old[j].content || '') + '</span>' +
+                                '<span class="left-line-number">' + (diff.old[j].number !== undefined ? diff.old[j].number : '') + '</span>' +
+                                '<span class="right-line-number">' + (diff.new[j].number !== undefined ? diff.new[j].number : '') + '</span>' +
+                                '<span class="right-code">' + escapeHtml(diff.new[j].content || '') + '</span>' +
+                                '</div>';
+                        }
+                    }
+                    unchangedBlockStart = -1;
+                    unchangedBlockLength = 0;
+                    // Render the current changed line
+                    html += '<div class="diff-row ' + (left.type || right.type || '') + '">' +
+                        '<span class="left-code ' + (left.type || '') + '">' + escapeHtml(left.content || '') + '</span>' +
+                        '<span class="left-line-number">' + (left.number !== undefined ? left.number : '') + '</span>' +
+                        '<span class="right-line-number">' + (right.number !== undefined ? right.number : '') + '</span>' +
+                        '<span class="right-code ' + (right.type || '') + '">' + escapeHtml(right.content || '') + '</span>' +
+                        '</div>';
+                    i++;
+                }
+            }
+            // Handle trailing unchanged block
+            if (unchangedBlockLength > 2 * CONTEXT_LINES) {
+                // Show context lines above
+                for (var j = unchangedBlockStart; j < unchangedBlockStart + CONTEXT_LINES; j++) {
+                    html += '<div class="diff-row">' +
+                        '<span class="left-code">' + escapeHtml(diff.old[j].content || '') + '</span>' +
+                        '<span class="left-line-number">' + (diff.old[j].number !== undefined ? diff.old[j].number : '') + '</span>' +
+                        '<span class="right-line-number">' + (diff.new[j].number !== undefined ? diff.new[j].number : '') + '</span>' +
+                        '<span class="right-code">' + escapeHtml(diff.new[j].content || '') + '</span>' +
+                        '</div>';
+                }
+                // Collapsed indicator for the middle
+                var collapsedStart = unchangedBlockStart + CONTEXT_LINES;
+                var collapsedLength = unchangedBlockLength - 2 * CONTEXT_LINES;
+                html += '<div class="diff-row collapsed-indicator" onclick="toggleCollapsedBlock(' + blockIndices.length + ')">' +
+                    '<span class="codicon codicon-chevron-down"></span>' +
+                    '<span class="hidden-count">' + collapsedLength + ' hidden lines</span>' +
+                    '</div>';
+                blockIndices.push({start: collapsedStart, length: collapsedLength});
+                // Collapsed lines (initially hidden)
+                for (var j = collapsedStart; j < collapsedStart + collapsedLength; j++) {
+                    html += '<div class="diff-row collapsed" data-block="' + (blockIndices.length - 1) + '">' +
+                        '<span class="left-code">' + escapeHtml(diff.old[j].content || '') + '</span>' +
+                        '<span class="left-line-number">' + (diff.old[j].number !== undefined ? diff.old[j].number : '') + '</span>' +
+                        '<span class="right-line-number">' + (diff.new[j].number !== undefined ? diff.new[j].number : '') + '</span>' +
+                        '<span class="right-code">' + escapeHtml(diff.new[j].content || '') + '</span>' +
+                        '</div>';
+                }
+                // Context lines below
+                for (var j = collapsedStart + collapsedLength; j < unchangedBlockStart + unchangedBlockLength; j++) {
+                    html += '<div class="diff-row">' +
+                        '<span class="left-code">' + escapeHtml(diff.old[j].content || '') + '</span>' +
+                        '<span class="left-line-number">' + (diff.old[j].number !== undefined ? diff.old[j].number : '') + '</span>' +
+                        '<span class="right-line-number">' + (diff.new[j].number !== undefined ? diff.new[j].number : '') + '</span>' +
+                        '<span class="right-code">' + escapeHtml(diff.new[j].content || '') + '</span>' +
+                        '</div>';
+                }
+            } else if (unchangedBlockLength > 0) {
+                for (var j = unchangedBlockStart; j < unchangedBlockStart + unchangedBlockLength; j++) {
+                    html += '<div class="diff-row">' +
+                        '<span class="left-code">' + escapeHtml(diff.old[j].content || '') + '</span>' +
+                        '<span class="left-line-number">' + (diff.old[j].number !== undefined ? diff.old[j].number : '') + '</span>' +
+                        '<span class="right-line-number">' + (diff.new[j].number !== undefined ? diff.new[j].number : '') + '</span>' +
+                        '<span class="right-code">' + escapeHtml(diff.new[j].content || '') + '</span>' +
+                        '</div>';
+                }
             }
             unifiedDiffContent.innerHTML = html;
         }
@@ -832,6 +1092,26 @@ export class GitHistoryView {
         document.getElementById('alignChanges').onchange = function() { /* implement */ };
         // Call attachSyncScrollListeners on initial load in case diff is already rendered
         attachSyncScrollListeners();
+
+        function toggleCollapsedBlock(blockIdx) {
+            var rows = document.querySelectorAll('.diff-row[data-block="' + blockIdx + '"]');
+            var indicator = document.querySelectorAll('.diff-row.collapsed-indicator')[blockIdx];
+            var isCollapsed = rows.length > 0 && rows[0].classList.contains('collapsed');
+            for (var i = 0; i < rows.length; i++) {
+                if (isCollapsed) {
+                    rows[i].classList.remove('collapsed');
+                    rows[i].classList.add('hidden-lines');
+                } else {
+                    rows[i].classList.add('collapsed');
+                    rows[i].classList.remove('hidden-lines');
+                }
+            }
+            if (isCollapsed) {
+                indicator.querySelector('.codicon').className = 'codicon codicon-chevron-up';
+            } else {
+                indicator.querySelector('.codicon').className = 'codicon codicon-chevron-down';
+            }
+        }
     </script>
 </body>
 </html>`;
