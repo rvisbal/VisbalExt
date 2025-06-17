@@ -724,6 +724,12 @@ export class GitHistoryView {
                 command: 'selectCommit',
                 commitIndex: index
             });
+
+
+            isCollapseEnabled = true;
+            updateCollapseToolbarButtonState(isCollapseEnabled);
+
+
         }
 
         function openCommitInBrowser(hash) {
