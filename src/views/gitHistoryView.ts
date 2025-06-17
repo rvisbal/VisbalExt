@@ -449,23 +449,44 @@ export class GitHistoryView {
             font-style: italic;
             font-weight: bold;
             user-select: none;
+            display: grid;
+            grid-template-columns: 100px 1fr 200px 1fr 100px;
+            align-items: center;
+            padding: 0;
+            margin: 2px 0;
+            min-height: 21px;
+        }
+        .diff-row.collapsed-indicator .middle-indicator {
             display: flex;
             align-items: center;
-            padding: 4px 8px;
-            border-left: 4px solid var(--vscode-button-background);
-            margin: 2px 0;
-        }
-        .diff-row.collapsed-indicator:hover {
-            background-color: var(--vscode-list-hoverBackground);
+            justify-content: center;
+            font-style: italic;
+            font-weight: bold;
+            color: var(--vscode-descriptionForeground);
+            width: 100%;
         }
         .diff-row.collapsed-indicator .codicon {
-            margin-right: 8px;
             font-size: 14px;
             font-style: normal;
+            margin-right: 6px;
         }
         .diff-row.collapsed-indicator .hidden-count {
             font-weight: 600;
             font-style: italic;
+            text-align: left;
+        }
+        .diff-row.collapsed-indicator .left-line-number,
+        .diff-row.collapsed-indicator .left-code,
+        .diff-row.collapsed-indicator .right-code,
+        .diff-row.collapsed-indicator .right-line-number {
+            width: 0;
+            min-width: 0;
+            padding: 0;
+            margin: 0;
+            border: none;
+            background: none;
+            display: block;
+            height: 100%;
         }
         .diff-row.collapsed {
             display: none;
@@ -589,6 +610,17 @@ export class GitHistoryView {
         .toolbar-btn .codicon {
             font-size: 14px;
         }
+        .diff-row.collapsed-indicator .left-line-number,
+        .diff-row.collapsed-indicator .right-line-number {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-width: 4ch;
+            height: 100%;
+            padding: 0;
+            background: none;
+            border: none;
+        }
     </style>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@vscode/codicons/dist/codicon.css">
 </head>
@@ -620,7 +652,7 @@ export class GitHistoryView {
             </div>
         </div>
         <button id="collapseCodeBtn" class="toolbar-btn" title="Collapse Unchanged Fragments" onclick="toggleCollapseCode()">
-            <span class="codicon codicon-fold"></span> <span id="collapseCodeLabel">Collapse Unchanged</span>
+            <span class="codicon codicon-fold"></span> <span id="collapseCodeLabel"></span>
         </button>
         <div class="dropdown" id="settingsDropdown">
             <button onclick="toggleDropdown('settingsDropdown')"><span class="codicon codicon-settings"></span></button>
@@ -759,20 +791,45 @@ export class GitHistoryView {
         let isCollapseEnabled = false;
         let collapsedBlocks = new Set();
 
+        function updateCollapseToolbarButtonState(isCollapseEnabled) {
+            var btn = document.getElementById('collapseCodeBtn');
+            // Only select the first .codicon inside the button (the toolbar icon)
+            var icon = btn.querySelector('span.codicon');
+            
+            if (isCollapseEnabled) {
+                //btn.classList.add('active');
+                if (icon) icon.className = 'codicon codicon-fold';
+                btn.title = 'Collapse Unchanged';
+            } else {
+                //btn.classList.remove('active');
+                if (icon) icon.className = 'codicon codicon-unfold';
+                btn.title = 'Expand Unchanged';
+            }
+        }
+
         function toggleCollapseCode() {
             isCollapseEnabled = !isCollapseEnabled;
             const btn = document.getElementById('collapseCodeBtn');
-            const label = document.getElementById('collapseCodeLabel');
             
             if (isCollapseEnabled) {
                 btn.classList.add('active');
-                label.textContent = 'Expand Unchanged';
                 collapseAllUnchanged();
             } else {
                 btn.classList.remove('active');
-                label.textContent = 'Collapse Unchanged';
                 expandAll();
             }
+            updateCollapseToolbarButtonState(isCollapseEnabled);
+        }
+
+        function expandAll() {
+            collapsedBlocks.clear();
+            document.querySelectorAll('.diff-row.collapsed').forEach(row => {
+                row.classList.remove('collapsed');
+            });
+            document.querySelectorAll('.diff-row.collapsed-indicator').forEach(row => {
+                row.remove();
+            });
+            updateCollapseToolbarButtonState();
         }
 
         function collapseAllUnchanged() {
@@ -796,16 +853,7 @@ export class GitHistoryView {
                     blockStart = -1;
                 }
             });
-        }
-
-        function expandAll() {
-            collapsedBlocks.clear();
-            document.querySelectorAll('.diff-row.collapsed').forEach(row => {
-                row.classList.remove('collapsed');
-            });
-            document.querySelectorAll('.diff-row.collapsed-indicator').forEach(row => {
-                row.remove();
-            });
+            updateCollapseToolbarButtonState();
         }
 
         function collapseBlock(startIndex, length) {
@@ -856,6 +904,7 @@ export class GitHistoryView {
                     rows[startIndex + 1].classList.remove('hidden-lines');
                 }
             }
+            updateCollapseToolbarButtonState();
         }
 
         function updateDiffView(diff) {
@@ -890,8 +939,11 @@ export class GitHistoryView {
                         var collapsedStart = unchangedBlockStart + CONTEXT_LINES;
                         var collapsedLength = unchangedBlockLength - 2 * CONTEXT_LINES;
                         html += '<div class="diff-row collapsed-indicator" onclick="toggleCollapsedBlock(' + blockIndices.length + ')">' +
-                            '<span class="codicon codicon-chevron-down"></span>' +
-                            '<span class="hidden-count">' + collapsedLength + ' hidden lines</span>' +
+                            '<span class="left-line-number"></span>' +
+                            '<span class="left-code"></span>' +
+                            '<span class="middle-indicator"><span class="codicon codicon-chevron-down"></span><span class="hidden-count">' + collapsedLength + ' hidden lines</span></span>' +
+                            '<span class="right-code"></span>' +
+                            '<span class="right-line-number"></span>' +
                             '</div>';
                         blockIndices.push({start: collapsedStart, length: collapsedLength});
                         // Collapsed lines (initially hidden)
@@ -926,12 +978,12 @@ export class GitHistoryView {
                     unchangedBlockStart = -1;
                     unchangedBlockLength = 0;
                     // Render the current changed line
-                    html += '<div class="diff-row ' + (left.type || right.type || '') + '">' +
+                html += '<div class="diff-row ' + (left.type || right.type || '') + '">' +
                         '<span class="left-code ' + (left.type || '') + '">' + escapeHtml(left.content || '') + '</span>' +
-                        '<span class="left-line-number">' + (left.number !== undefined ? left.number : '') + '</span>' +
-                        '<span class="right-line-number">' + (right.number !== undefined ? right.number : '') + '</span>' +
-                        '<span class="right-code ' + (right.type || '') + '">' + escapeHtml(right.content || '') + '</span>' +
-                        '</div>';
+                    '<span class="left-line-number">' + (left.number !== undefined ? left.number : '') + '</span>' +
+                    '<span class="right-line-number">' + (right.number !== undefined ? right.number : '') + '</span>' +
+                    '<span class="right-code ' + (right.type || '') + '">' + escapeHtml(right.content || '') + '</span>' +
+                '</div>';
                     i++;
                 }
             }
@@ -950,8 +1002,11 @@ export class GitHistoryView {
                 var collapsedStart = unchangedBlockStart + CONTEXT_LINES;
                 var collapsedLength = unchangedBlockLength - 2 * CONTEXT_LINES;
                 html += '<div class="diff-row collapsed-indicator" onclick="toggleCollapsedBlock(' + blockIndices.length + ')">' +
-                    '<span class="codicon codicon-chevron-down"></span>' +
-                    '<span class="hidden-count">' + collapsedLength + ' hidden lines</span>' +
+                    '<span class="left-line-number"></span>' +
+                    '<span class="left-code"></span>' +
+                    '<span class="middle-indicator"><span class="codicon codicon-chevron-down"></span><span class="hidden-count">' + collapsedLength + ' hidden lines</span></span>' +
+                    '<span class="right-code"></span>' +
+                    '<span class="right-line-number"></span>' +
                     '</div>';
                 blockIndices.push({start: collapsedStart, length: collapsedLength});
                 // Collapsed lines (initially hidden)
@@ -1106,11 +1161,13 @@ export class GitHistoryView {
                     rows[i].classList.remove('hidden-lines');
                 }
             }
+            var arrow = indicator.querySelector('.middle-indicator .codicon');
             if (isCollapsed) {
-                indicator.querySelector('.codicon').className = 'codicon codicon-chevron-up';
+                if (arrow) arrow.className = 'codicon codicon-chevron-up';
             } else {
-                indicator.querySelector('.codicon').className = 'codicon codicon-chevron-down';
+                if (arrow) arrow.className = 'codicon codicon-chevron-down';
             }
+            updateCollapseToolbarButtonState();
         }
     </script>
 </body>
