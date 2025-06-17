@@ -709,6 +709,7 @@ export class GitHistoryView {
         var CONTEXT_LINES = 3; // Change this value as needed
 
         function selectCommit(index) {
+            visbalDebugLog('selectCommit.index:'+ index);
             // Update selection UI
             if (selectedIndex >= 0) {
                 document.querySelector(\`[data-index=\"\${selectedIndex}\"]\`)?.classList.remove('selected');
@@ -765,7 +766,7 @@ export class GitHistoryView {
             setSyncScroll(!syncScrollEnabled);
         }
         function attachSyncScrollListeners() {
-            visbalDebugLog('attachSyncScrollListeners');
+            visbalDebugLog('attachSyncScrollListeners.OBSOLETE');
             // Get the actual scrollable elements
             const oldContent = document.getElementById('oldContent');
             const newContent = document.getElementById('newContent');
@@ -814,20 +815,21 @@ export class GitHistoryView {
         }
 
         function toggleCollapseCode() {
+            visbalDebugLog('toggleCollapseCode');
             isCollapseEnabled = !isCollapseEnabled;
             const btn = document.getElementById('collapseCodeBtn');
             
             if (isCollapseEnabled) {
                 btn.classList.add('active');
-                collapseAllUnchanged();
+                collapseAll();
             } else {
                 btn.classList.remove('active');
                 expandAll();
             }
-            updateCollapseToolbarButtonState(isCollapseEnabled);
         }
 
         function expandAll() {
+            visbalDebugLog('expandAll');
             collapsedBlocks.clear();
             document.querySelectorAll('.diff-row.collapsed').forEach(row => {
                 row.classList.remove('collapsed');
@@ -835,34 +837,19 @@ export class GitHistoryView {
             document.querySelectorAll('.diff-row.collapsed-indicator').forEach(row => {
                 row.remove();
             });
-            updateCollapseToolbarButtonState();
+            isCollapseEnabled = false;
+            updateCollapseToolbarButtonState(isCollapseEnabled);
         }
 
-        function collapseAllUnchanged() {
-            const diffRows = document.querySelectorAll('.diff-row:not(.addition):not(.deletion):not(.omitted)');
-            let currentBlock = [];
-            let blockStart = -1;
-
-            diffRows.forEach((row, index) => {
-                if (blockStart === -1) {
-                    blockStart = index;
-                }
-                currentBlock.push(row);
-
-                // Check if this is the end of a block
-                const nextRow = diffRows[index + 1];
-                if (!nextRow || nextRow.classList.contains('addition') || nextRow.classList.contains('deletion')) {
-                    if (currentBlock.length >= 3) { // Only collapse blocks with 3 or more lines
-                        collapseBlock(blockStart, currentBlock.length);
-                    }
-                    currentBlock = [];
-                    blockStart = -1;
-                }
-            });
-            updateCollapseToolbarButtonState();
+        function collapseAll() {
+            visbalDebugLog('collapseAll.selectedIndex:'+selectedIndex);
+            selectCommit(selectedIndex);
+            isCollapseEnabled = false;
+            updateCollapseToolbarButtonState(isCollapseEnabled);
         }
 
         function collapseBlock(startIndex, length) {
+            visbalDebugLog('collapseBlock.OBSOLETE.startIndex:');
             const container = document.querySelector('.diff-content');
             const rows = container.children;
             
@@ -886,6 +873,7 @@ export class GitHistoryView {
         }
 
         function toggleBlock(startIndex, length) {
+            visbalDebugLog('toggleBlock.OBSOLETE.startIndex:');    
             const container = document.querySelector('.diff-content');
             const rows = container.children;
             const indicator = rows[startIndex];
@@ -902,18 +890,14 @@ export class GitHistoryView {
                 }
             } else {
                 // Collapse
-                const collapseContent = '<span class="codicon codicon-chevron-down"></span>' +
-                    '<span class="hidden-count">' + length + ' hidden lines</span>';
-                indicator.innerHTML = collapseContent;
-                for (let i = 0; i < length; i++) {
-                    rows[startIndex + 1].classList.add('collapsed');
-                    rows[startIndex + 1].classList.remove('hidden-lines');
-                }
+                visbalDebugLog('toggleBlock.collapse.selectedIndex:'+selectedIndex);
+                selectCommit(selectedIndex);
             }
             updateCollapseToolbarButtonState();
         }
 
         function updateDiffView(diff) {
+            
             var unifiedDiffContent = document.getElementById('unifiedDiffContent');
             var html = '';
             var unchangedBlockStart = -1;
@@ -1178,8 +1162,8 @@ export class GitHistoryView {
     </script>
 </body>
 </html>`;
-        return html;
-        //return WebviewUtils.injectDebugBox(html);
+        //return html;
+        return WebviewUtils.injectDebugBox(html);
     }
 
     private _parseDiff(diff: string): { old: Array<{content: string, type?: string, number?: number, isOmitted?: boolean}>, new: Array<{content: string, type?: string, number?: number, isOmitted?: boolean}> } {
