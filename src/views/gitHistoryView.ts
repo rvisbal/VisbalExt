@@ -707,6 +707,13 @@ export class GitHistoryView {
         var MIN_UNCHANGED_BLOCK_SIZE = 3; // Change this value as needed
         // Configurable: number of context lines to show above and below collapsed unchanged blocks
         var CONTEXT_LINES = 3; // Change this value as needed
+        // Configurable: number of lines to reveal per click
+        var LINES_PER_CLICK = 10; // Change this value as needed
+
+        // Track hidden lines per block
+        var blockHiddenCounts = new Map();
+        // Track revealed lines per block
+        var blockRevealedCounts = new Map();
 
         function selectCommit(index) {
             visbalDebugLog('selectCommit.index:'+ index);
@@ -831,6 +838,7 @@ export class GitHistoryView {
         function expandAll() {
             visbalDebugLog('expandAll');
             collapsedBlocks.clear();
+            blockHiddenCounts.clear();
             document.querySelectorAll('.diff-row.collapsed').forEach(row => {
                 row.classList.remove('collapsed');
             });
@@ -936,6 +944,8 @@ export class GitHistoryView {
                             '<span class="right-line-number"></span>' +
                             '</div>';
                         blockIndices.push({start: collapsedStart, length: collapsedLength});
+                        // Initialize hidden count for this block
+                        blockHiddenCounts.set(blockIndices.length - 1, collapsedLength);
                         // Collapsed lines (initially hidden)
                         for (var j = collapsedStart; j < collapsedStart + collapsedLength; j++) {
                             html += '<div class="diff-row collapsed" data-block="' + (blockIndices.length - 1) + '">' +
@@ -999,6 +1009,8 @@ export class GitHistoryView {
                     '<span class="right-line-number"></span>' +
                     '</div>';
                 blockIndices.push({start: collapsedStart, length: collapsedLength});
+                // Initialize hidden count for this block
+                blockHiddenCounts.set(blockIndices.length - 1, collapsedLength);
                 // Collapsed lines (initially hidden)
                 for (var j = collapsedStart; j < collapsedStart + collapsedLength; j++) {
                     html += '<div class="diff-row collapsed" data-block="' + (blockIndices.length - 1) + '">' +
@@ -1139,24 +1151,91 @@ export class GitHistoryView {
         attachSyncScrollListeners();
 
         function toggleCollapsedBlock(blockIdx) {
+            visbalDebugLog('toggleCollapsedBlock.blockIdx:' + blockIdx);
+
+            var currentHidden = blockHiddenCounts.get(blockIdx) || 0;
+            var revealedCount = blockRevealedCounts.get(blockIdx) || 0;
+
+            if (currentHidden === 0) {
+                collapseBlockAgain(blockIdx);
+                return;
+            }
+
+            var linesToReveal = Math.min(LINES_PER_CLICK, currentHidden);
+            var remainingHidden = currentHidden - linesToReveal;
+
             var rows = document.querySelectorAll('.diff-row[data-block="' + blockIdx + '"]');
-            var indicator = document.querySelectorAll('.diff-row.collapsed-indicator')[blockIdx];
-            var isCollapsed = rows.length > 0 && rows[0].classList.contains('collapsed');
-            for (var i = 0; i < rows.length; i++) {
-                if (isCollapsed) {
-                    rows[i].classList.remove('collapsed');
-                    rows[i].classList.add('hidden-lines');
-                } else {
-                    rows[i].classList.add('collapsed');
-                    rows[i].classList.remove('hidden-lines');
+            var indicator = null;
+            if (rows.length > 0) {
+                var prev = rows[0].previousSibling;
+                if (prev && prev.classList && prev.classList.contains('collapsed-indicator')) {
+                    indicator = prev;
                 }
             }
-            var arrow = indicator.querySelector('.middle-indicator .codicon');
-            if (isCollapsed) {
-                if (arrow) arrow.className = 'codicon codicon-chevron-up';
-            } else {
-                if (arrow) arrow.className = 'codicon codicon-chevron-down';
+
+            // Reveal the next set of hidden lines
+            for (var i = revealedCount; i < revealedCount + linesToReveal; i++) {
+                if (rows[i]) {
+                    rows[i].classList.remove('collapsed');
+                    rows[i].classList.add('hidden-lines');
+                }
             }
+
+            // Update revealed and hidden counts
+            blockRevealedCounts.set(blockIdx, revealedCount + linesToReveal);
+            blockHiddenCounts.set(blockIdx, remainingHidden);
+
+            if (remainingHidden > 0) {
+                if (indicator) {
+                    var hiddenCountElement = indicator.querySelector('.hidden-count');
+                    if (hiddenCountElement) {
+                        hiddenCountElement.textContent = remainingHidden + ' hidden lines remaining';
+                    }
+                }
+            } else {
+                if (indicator) {
+                    indicator.remove();
+                }
+                // Clean up the revealed count
+                blockRevealedCounts.delete(blockIdx);
+            }
+
+            updateCollapseToolbarButtonState();
+        }
+        
+        function collapseBlockAgain(blockIdx) {
+            visbalDebugLog('collapseBlockAgain.blockIdx:' + blockIdx);
+
+            // Get all rows for this block
+            var rows = document.querySelectorAll('.diff-row[data-block="' + blockIdx + '"]');
+            var totalLines = rows.length;
+
+            // Hide all lines again
+            for (var i = 0; i < rows.length; i++) {
+                rows[i].classList.add('collapsed');
+                rows[i].classList.remove('hidden-lines');
+            }
+
+            // Reset hidden and revealed counts
+            blockHiddenCounts.set(blockIdx, totalLines);
+            blockRevealedCounts.set(blockIdx, 0);
+
+            // Recreate the indicator
+            var firstRow = rows[0];
+            if (firstRow) {
+                var indicator = document.createElement('div');
+                indicator.className = 'diff-row collapsed-indicator';
+                indicator.onclick = function() { toggleCollapsedBlock(blockIdx); };
+                indicator.innerHTML = '<span class="left-line-number"></span>' +
+                    '<span class="left-code"></span>' +
+                    '<span class="middle-indicator"><span class="codicon codicon-chevron-down"></span><span class="hidden-count">' + totalLines + ' hidden lines</span></span>' +
+                    '<span class="right-code"></span>' +
+                    '<span class="right-line-number"></span>';
+
+                // Insert the indicator before the first row
+                firstRow.parentNode.insertBefore(indicator, firstRow);
+            }
+
             updateCollapseToolbarButtonState();
         }
     </script>
