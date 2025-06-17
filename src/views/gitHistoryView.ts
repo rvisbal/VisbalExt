@@ -852,7 +852,7 @@ export class GitHistoryView {
         function collapseAll() {
             visbalDebugLog('collapseAll.selectedIndex:'+selectedIndex);
             selectCommit(selectedIndex);
-            isCollapseEnabled = false;
+            isCollapseEnabled = true;
             updateCollapseToolbarButtonState(isCollapseEnabled);
         }
 
