@@ -395,7 +395,7 @@ export class DebugBox {
         `;
 
         this.html = `
-            <div id="visbal-debug-box" class="visbal-debug-box">
+            <div id="visbal-debug-box" class="visbal-debug-box" style="display: none;">
                 <div class="visbal-debug-box-header">
                     <span class="visbal-debug-box-title">Debug Console</span>
                     <div class="visbal-debug-box-controls">
