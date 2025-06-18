@@ -621,6 +621,64 @@ export class GitHistoryView {
             background: none;
             border: none;
         }
+        .diff-row.unified {
+            display: flex;
+            align-items: stretch;
+            min-height: 21px;
+            line-height: 21px;
+            font-size: inherit;
+            white-space: pre;
+            width: 100%;
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+        .unified-line-number {
+            min-width: 4ch;
+            text-align: right;
+            color: var(--vscode-editorLineNumber-foreground);
+            background-color: var(--vscode-editor-background);
+            user-select: none;
+            opacity: 0.7;
+            padding: 0 0.5em;
+            margin: 0;
+            border: none;
+        }
+        .unified-code {
+            flex: 1 1 0;
+            min-width: 0;
+            padding: 0 0.5em;
+            font-family: Consolas, 'Liberation Mono', Menlo, Monaco, 'Courier New', monospace;
+            font-size: inherit;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: pre;
+            position: relative;
+            margin: 0;
+            border: none;
+        }
+        .diff-row.unified.addition {
+            background-color: rgba(40, 200, 40, 0.15);
+        }
+        .diff-row.unified.deletion {
+            background-color: rgba(200, 40, 40, 0.15);
+        }
+        .diff-row.unified.collapsed-indicator {
+            cursor: pointer;
+            background-color: var(--vscode-editorGroupHeader-tabsBackground);
+            color: var(--vscode-descriptionForeground);
+            font-style: italic;
+            font-weight: bold;
+            user-select: none;
+            display: flex;
+            align-items: center;
+            padding: 0;
+            margin: 2px 0;
+            min-height: 21px;
+        }
+        .diff-row.unified.collapsed {
+            display: none;
+        }
     </style>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@vscode/codicons/dist/codicon.css">
 </head>
@@ -702,6 +760,7 @@ export class GitHistoryView {
     <script>
         var vscode = acquireVsCodeApi();
         var selectedIndex = -1;
+        var viewerMode = 'side-by-side'; // Track current viewer mode
 
         // Configurable: minimum unchanged lines to collapse
         var MIN_UNCHANGED_BLOCK_SIZE = 3; // Change this value as needed
@@ -905,141 +964,249 @@ export class GitHistoryView {
         }
 
         function updateDiffView(diff) {
-            
+            window.lastDiff = diff; // Store for re-rendering
             var unifiedDiffContent = document.getElementById('unifiedDiffContent');
             var html = '';
-            var unchangedBlockStart = -1;
-            var unchangedBlockLength = 0;
-            var blockIndices = [];
-            var i = 0;
-            while (i < diff.old.length) {
-                var left = diff.old[i] || {};
-                var right = diff.new[i] || {};
-                var isUnchanged = !left.type && !right.type;
-                if (isUnchanged) {
-                    if (unchangedBlockStart === -1) {
-                        unchangedBlockStart = i;
-                    }
-                    unchangedBlockLength++;
-                    i++;
-                } else {
-                    if (unchangedBlockLength > 2 * CONTEXT_LINES) {
-                        // Show context lines above
-                        for (var j = unchangedBlockStart; j < unchangedBlockStart + CONTEXT_LINES; j++) {
-                            html += '<div class="diff-row">' +
-                                '<span class="left-code">' + escapeHtml(diff.old[j].content || '') + '</span>' +
-                                '<span class="left-line-number">' + (diff.old[j].number !== undefined ? diff.old[j].number : '') + '</span>' +
-                                '<span class="right-line-number">' + (diff.new[j].number !== undefined ? diff.new[j].number : '') + '</span>' +
-                                '<span class="right-code">' + escapeHtml(diff.new[j].content || '') + '</span>' +
-                                '</div>';
+            if (viewerMode === 'unified') {
+                // Unified view: single column, mark additions/deletions/unchanged
+                var unchangedBlockStart = -1;
+                var unchangedBlockLength = 0;
+                var blockIndices = [];
+                var i = 0;
+                while (i < diff.old.length) {
+                    var left = diff.old[i] || {};
+                    var right = diff.new[i] || {};
+                    var isUnchanged = !left.type && !right.type;
+                    var isAddition = right.type === 'addition' && !left.type;
+                    var isDeletion = left.type === 'deletion' && !right.type;
+                    var lineContent = '';
+                    var lineNumber = '';
+                    var typeClass = '';
+                    if (isUnchanged) {
+                        if (unchangedBlockStart === -1) {
+                            unchangedBlockStart = i;
                         }
-                        // Collapsed indicator for the middle
-                        var collapsedStart = unchangedBlockStart + CONTEXT_LINES;
-                        var collapsedLength = unchangedBlockLength - 2 * CONTEXT_LINES;
-                        html += '<div class="diff-row collapsed-indicator" onclick="toggleCollapsedBlock(' + blockIndices.length + ')">' +
-                            '<span class="left-line-number"></span>' +
-                            '<span class="left-code"></span>' +
-                            '<span class="middle-indicator"><span class="codicon codicon-chevron-down"></span><span class="hidden-count">' + collapsedLength + ' hidden lines</span></span>' +
-                            '<span class="right-code"></span>' +
-                            '<span class="right-line-number"></span>' +
+                        unchangedBlockLength++;
+                        i++;
+                        continue;
+                    } else {
+                        if (unchangedBlockLength > 2 * CONTEXT_LINES) {
+                            for (var j = unchangedBlockStart; j < unchangedBlockStart + CONTEXT_LINES; j++) {
+                                html += '<div class="diff-row unified">' +
+                                    '<span class="unified-line-number">' + (diff.old[j].number !== undefined ? diff.old[j].number : diff.new[j].number || '') + '</span>' +
+                                    '<span class="unified-code">' + escapeHtml(diff.old[j].content || diff.new[j].content || '') + '</span>' +
+                                    '</div>';
+                            }
+                            var collapsedStart = unchangedBlockStart + CONTEXT_LINES;
+                            var collapsedLength = unchangedBlockLength - 2 * CONTEXT_LINES;
+                            html += '<div class="diff-row collapsed-indicator unified" onclick="toggleCollapsedBlock(' + blockIndices.length + ')">' +
+                                '<span class="unified-line-number"></span>' +
+                                '<span class="middle-indicator"><span class="codicon codicon-chevron-down"></span><span class="hidden-count">' + collapsedLength + ' hidden lines</span></span>' +
+                                '</div>';
+                            blockIndices.push({start: collapsedStart, length: collapsedLength});
+                            blockHiddenCounts.set(blockIndices.length - 1, collapsedLength);
+                            for (var j = collapsedStart; j < collapsedStart + collapsedLength; j++) {
+                                html += '<div class="diff-row collapsed unified" data-block="' + (blockIndices.length - 1) + '">' +
+                                    '<span class="unified-line-number">' + (diff.old[j].number !== undefined ? diff.old[j].number : diff.new[j].number || '') + '</span>' +
+                                    '<span class="unified-code">' + escapeHtml(diff.old[j].content || diff.new[j].content || '') + '</span>' +
+                                    '</div>';
+                            }
+                            for (var j = collapsedStart + collapsedLength; j < unchangedBlockStart + unchangedBlockLength; j++) {
+                                html += '<div class="diff-row unified">' +
+                                    '<span class="unified-line-number">' + (diff.old[j].number !== undefined ? diff.old[j].number : diff.new[j].number || '') + '</span>' +
+                                    '<span class="unified-code">' + escapeHtml(diff.old[j].content || diff.new[j].content || '') + '</span>' +
+                                    '</div>';
+                            }
+                        } else if (unchangedBlockLength > 0) {
+                            for (var j = unchangedBlockStart; j < unchangedBlockStart + unchangedBlockLength; j++) {
+                                html += '<div class="diff-row unified">' +
+                                    '<span class="unified-line-number">' + (diff.old[j].number !== undefined ? diff.old[j].number : diff.new[j].number || '') + '</span>' +
+                                    '<span class="unified-code">' + escapeHtml(diff.old[j].content || diff.new[j].content || '') + '</span>' +
+                                    '</div>';
+                            }
+                        }
+                        unchangedBlockStart = -1;
+                        unchangedBlockLength = 0;
+                        if (isAddition) {
+                            typeClass = 'addition';
+                            lineContent = right.content;
+                            lineNumber = right.number !== undefined ? right.number : '';
+                        } else if (isDeletion) {
+                            typeClass = 'deletion';
+                            lineContent = left.content;
+                            lineNumber = left.number !== undefined ? left.number : '';
+                        } else {
+                            typeClass = left.type || right.type || '';
+                            lineContent = left.content || right.content || '';
+                            lineNumber = left.number !== undefined ? left.number : (right.number !== undefined ? right.number : '');
+                        }
+                        html += '<div class="diff-row unified ' + typeClass + '">' +
+                            '<span class="unified-line-number">' + lineNumber + '</span>' +
+                            '<span class="unified-code">' + escapeHtml(lineContent) + '</span>' +
                             '</div>';
-                        blockIndices.push({start: collapsedStart, length: collapsedLength});
-                        // Initialize hidden count for this block
-                        blockHiddenCounts.set(blockIndices.length - 1, collapsedLength);
-                        // Collapsed lines (initially hidden)
-                        for (var j = collapsedStart; j < collapsedStart + collapsedLength; j++) {
-                            html += '<div class="diff-row collapsed" data-block="' + (blockIndices.length - 1) + '">' +
-                                '<span class="left-code">' + escapeHtml(diff.old[j].content || '') + '</span>' +
-                                '<span class="left-line-number">' + (diff.old[j].number !== undefined ? diff.old[j].number : '') + '</span>' +
-                                '<span class="right-line-number">' + (diff.new[j].number !== undefined ? diff.new[j].number : '') + '</span>' +
-                                '<span class="right-code">' + escapeHtml(diff.new[j].content || '') + '</span>' +
-                                '</div>';
-                        }
-                        // Context lines below
-                        for (var j = collapsedStart + collapsedLength; j < unchangedBlockStart + unchangedBlockLength; j++) {
-                            html += '<div class="diff-row">' +
-                                '<span class="left-code">' + escapeHtml(diff.old[j].content || '') + '</span>' +
-                                '<span class="left-line-number">' + (diff.old[j].number !== undefined ? diff.old[j].number : '') + '</span>' +
-                                '<span class="right-line-number">' + (diff.new[j].number !== undefined ? diff.new[j].number : '') + '</span>' +
-                                '<span class="right-code">' + escapeHtml(diff.new[j].content || '') + '</span>' +
-                                '</div>';
-                        }
-                    } else if (unchangedBlockLength > 0) {
-                        // Show all unchanged lines (not enough to collapse)
-                        for (var j = unchangedBlockStart; j < unchangedBlockStart + unchangedBlockLength; j++) {
-                            html += '<div class="diff-row">' +
-                                '<span class="left-code">' + escapeHtml(diff.old[j].content || '') + '</span>' +
-                                '<span class="left-line-number">' + (diff.old[j].number !== undefined ? diff.old[j].number : '') + '</span>' +
-                                '<span class="right-line-number">' + (diff.new[j].number !== undefined ? diff.new[j].number : '') + '</span>' +
-                                '<span class="right-code">' + escapeHtml(diff.new[j].content || '') + '</span>' +
-                                '</div>';
-                        }
+                        i++;
                     }
-                    unchangedBlockStart = -1;
-                    unchangedBlockLength = 0;
-                    // Render the current changed line
-                html += '<div class="diff-row ' + (left.type || right.type || '') + '">' +
-                        '<span class="left-code ' + (left.type || '') + '">' + escapeHtml(left.content || '') + '</span>' +
-                    '<span class="left-line-number">' + (left.number !== undefined ? left.number : '') + '</span>' +
-                    '<span class="right-line-number">' + (right.number !== undefined ? right.number : '') + '</span>' +
-                    '<span class="right-code ' + (right.type || '') + '">' + escapeHtml(right.content || '') + '</span>' +
-                '</div>';
-                    i++;
                 }
+                if (unchangedBlockLength > 2 * CONTEXT_LINES) {
+                    for (var j = unchangedBlockStart; j < unchangedBlockStart + CONTEXT_LINES; j++) {
+                        html += '<div class="diff-row unified">' +
+                            '<span class="unified-line-number">' + (diff.old[j].number !== undefined ? diff.old[j].number : diff.new[j].number || '') + '</span>' +
+                            '<span class="unified-code">' + escapeHtml(diff.old[j].content || diff.new[j].content || '') + '</span>' +
+                            '</div>';
+                    }
+                    var collapsedStart = unchangedBlockStart + CONTEXT_LINES;
+                    var collapsedLength = unchangedBlockLength - 2 * CONTEXT_LINES;
+                    html += '<div class="diff-row collapsed-indicator unified" onclick="toggleCollapsedBlock(' + blockIndices.length + ')">' +
+                        '<span class="unified-line-number"></span>' +
+                        '<span class="middle-indicator"><span class="codicon codicon-chevron-down"></span><span class="hidden-count">' + collapsedLength + ' hidden lines</span></span>' +
+                        '</div>';
+                    blockIndices.push({start: collapsedStart, length: collapsedLength});
+                    blockHiddenCounts.set(blockIndices.length - 1, collapsedLength);
+                    for (var j = collapsedStart; j < collapsedStart + collapsedLength; j++) {
+                        html += '<div class="diff-row collapsed unified" data-block="' + (blockIndices.length - 1) + '">' +
+                            '<span class="unified-line-number">' + (diff.old[j].number !== undefined ? diff.old[j].number : diff.new[j].number || '') + '</span>' +
+                            '<span class="unified-code">' + escapeHtml(diff.old[j].content || diff.new[j].content || '') + '</span>' +
+                            '</div>';
+                    }
+                    for (var j = collapsedStart + collapsedLength; j < unchangedBlockStart + unchangedBlockLength; j++) {
+                        html += '<div class="diff-row unified">' +
+                            '<span class="unified-line-number">' + (diff.old[j].number !== undefined ? diff.old[j].number : diff.new[j].number || '') + '</span>' +
+                            '<span class="unified-code">' + escapeHtml(diff.old[j].content || diff.new[j].content || '') + '</span>' +
+                            '</div>';
+                    }
+                } else if (unchangedBlockLength > 0) {
+                    for (var j = unchangedBlockStart; j < unchangedBlockStart + unchangedBlockLength; j++) {
+                        html += '<div class="diff-row unified">' +
+                            '<span class="unified-line-number">' + (diff.old[j].number !== undefined ? diff.old[j].number : diff.new[j].number || '') + '</span>' +
+                            '<span class="unified-code">' + escapeHtml(diff.old[j].content || diff.new[j].content || '') + '</span>' +
+                            '</div>';
+                    }
+                }
+                unifiedDiffContent.innerHTML = html;
+                return;
+            } else {
+                // Side-by-side view (default)
+                var unchangedBlockStart = -1;
+                var unchangedBlockLength = 0;
+                var blockIndices = [];
+                var i = 0;
+                while (i < diff.old.length) {
+                    var left = diff.old[i] || {};
+                    var right = diff.new[i] || {};
+                    var isUnchanged = !left.type && !right.type;
+                    if (isUnchanged) {
+                        if (unchangedBlockStart === -1) {
+                            unchangedBlockStart = i;
+                        }
+                        unchangedBlockLength++;
+                        i++;
+                    } else {
+                        if (unchangedBlockLength > 2 * CONTEXT_LINES) {
+                            for (var j = unchangedBlockStart; j < unchangedBlockStart + CONTEXT_LINES; j++) {
+                                html += '<div class="diff-row">' +
+                                    '<span class="left-code">' + escapeHtml(diff.old[j].content || '') + '</span>' +
+                                    '<span class="left-line-number">' + (diff.old[j].number !== undefined ? diff.old[j].number : '') + '</span>' +
+                                    '<span class="right-line-number">' + (diff.new[j].number !== undefined ? diff.new[j].number : '') + '</span>' +
+                                    '<span class="right-code">' + escapeHtml(diff.new[j].content || '') + '</span>' +
+                                    '</div>';
+                            }
+                            var collapsedStart = unchangedBlockStart + CONTEXT_LINES;
+                            var collapsedLength = unchangedBlockLength - 2 * CONTEXT_LINES;
+                            html += '<div class="diff-row collapsed-indicator" onclick="toggleCollapsedBlock(' + blockIndices.length + ')">' +
+                                '<span class="left-line-number"></span>' +
+                                '<span class="left-code"></span>' +
+                                '<span class="middle-indicator"><span class="codicon codicon-chevron-down"></span><span class="hidden-count">' + collapsedLength + ' hidden lines</span></span>' +
+                                '<span class="right-code"></span>' +
+                                '<span class="right-line-number"></span>' +
+                                '</div>';
+                            blockIndices.push({start: collapsedStart, length: collapsedLength});
+                            blockHiddenCounts.set(blockIndices.length - 1, collapsedLength);
+                            for (var j = collapsedStart; j < collapsedStart + collapsedLength; j++) {
+                                html += '<div class="diff-row collapsed" data-block="' + (blockIndices.length - 1) + '">' +
+                                    '<span class="left-code">' + escapeHtml(diff.old[j].content || '') + '</span>' +
+                                    '<span class="left-line-number">' + (diff.old[j].number !== undefined ? diff.old[j].number : '') + '</span>' +
+                                    '<span class="right-line-number">' + (diff.new[j].number !== undefined ? diff.new[j].number : '') + '</span>' +
+                                    '<span class="right-code">' + escapeHtml(diff.new[j].content || '') + '</span>' +
+                                    '</div>';
+                            }
+                            for (var j = collapsedStart + collapsedLength; j < unchangedBlockStart + unchangedBlockLength; j++) {
+                                html += '<div class="diff-row">' +
+                                    '<span class="left-code">' + escapeHtml(diff.old[j].content || '') + '</span>' +
+                                    '<span class="left-line-number">' + (diff.old[j].number !== undefined ? diff.old[j].number : '') + '</span>' +
+                                    '<span class="right-line-number">' + (diff.new[j].number !== undefined ? diff.new[j].number : '') + '</span>' +
+                                    '<span class="right-code">' + escapeHtml(diff.new[j].content || '') + '</span>' +
+                                    '</div>';
+                            }
+                        } else if (unchangedBlockLength > 0) {
+                            for (var j = unchangedBlockStart; j < unchangedBlockStart + unchangedBlockLength; j++) {
+                                html += '<div class="diff-row">' +
+                                    '<span class="left-code">' + escapeHtml(diff.old[j].content || '') + '</span>' +
+                                    '<span class="left-line-number">' + (diff.old[j].number !== undefined ? diff.old[j].number : '') + '</span>' +
+                                    '<span class="right-line-number">' + (diff.new[j].number !== undefined ? diff.new[j].number : '') + '</span>' +
+                                    '<span class="right-code">' + escapeHtml(diff.new[j].content || '') + '</span>' +
+                                    '</div>';
+                            }
+                        }
+                        unchangedBlockStart = -1;
+                        unchangedBlockLength = 0;
+                        html += '<div class="diff-row ' + (left.type || right.type || '') + '">' +
+                            '<span class="left-code ' + (left.type || '') + '">' + escapeHtml(left.content || '') + '</span>' +
+                            '<span class="left-line-number">' + (left.number !== undefined ? left.number : '') + '</span>' +
+                            '<span class="right-line-number">' + (right.number !== undefined ? right.number : '') + '</span>' +
+                            '<span class="right-code ' + (right.type || '') + '">' + escapeHtml(right.content || '') + '</span>' +
+                            '</div>';
+                        i++;
+                    }
+                }
+                if (unchangedBlockLength > 2 * CONTEXT_LINES) {
+                    for (var j = unchangedBlockStart; j < unchangedBlockStart + CONTEXT_LINES; j++) {
+                        html += '<div class="diff-row">' +
+                            '<span class="left-code">' + escapeHtml(diff.old[j].content || '') + '</span>' +
+                            '<span class="left-line-number">' + (diff.old[j].number !== undefined ? diff.old[j].number : '') + '</span>' +
+                            '<span class="right-line-number">' + (diff.new[j].number !== undefined ? diff.new[j].number : '') + '</span>' +
+                            '<span class="right-code">' + escapeHtml(diff.new[j].content || '') + '</span>' +
+                            '</div>';
+                    }
+                    var collapsedStart = unchangedBlockStart + CONTEXT_LINES;
+                    var collapsedLength = unchangedBlockLength - 2 * CONTEXT_LINES;
+                    html += '<div class="diff-row collapsed-indicator" onclick="toggleCollapsedBlock(' + blockIndices.length + ')">' +
+                        '<span class="left-line-number"></span>' +
+                        '<span class="left-code"></span>' +
+                        '<span class="middle-indicator"><span class="codicon codicon-chevron-down"></span><span class="hidden-count">' + collapsedLength + ' hidden lines</span></span>' +
+                        '<span class="right-code"></span>' +
+                        '<span class="right-line-number"></span>' +
+                        '</div>';
+                    blockIndices.push({start: collapsedStart, length: collapsedLength});
+                    blockHiddenCounts.set(blockIndices.length - 1, collapsedLength);
+                    for (var j = collapsedStart; j < collapsedStart + collapsedLength; j++) {
+                        html += '<div class="diff-row collapsed" data-block="' + (blockIndices.length - 1) + '">' +
+                            '<span class="left-code">' + escapeHtml(diff.old[j].content || '') + '</span>' +
+                            '<span class="left-line-number">' + (diff.old[j].number !== undefined ? diff.old[j].number : '') + '</span>' +
+                            '<span class="right-line-number">' + (diff.new[j].number !== undefined ? diff.new[j].number : '') + '</span>' +
+                            '<span class="right-code">' + escapeHtml(diff.new[j].content || '') + '</span>' +
+                            '</div>';
+                    }
+                    for (var j = collapsedStart + collapsedLength; j < unchangedBlockStart + unchangedBlockLength; j++) {
+                        html += '<div class="diff-row">' +
+                            '<span class="left-code">' + escapeHtml(diff.old[j].content || '') + '</span>' +
+                            '<span class="left-line-number">' + (diff.old[j].number !== undefined ? diff.old[j].number : '') + '</span>' +
+                            '<span class="right-line-number">' + (diff.new[j].number !== undefined ? diff.new[j].number : '') + '</span>' +
+                            '<span class="right-code">' + escapeHtml(diff.new[j].content || '') + '</span>' +
+                            '</div>';
+                    }
+                } else if (unchangedBlockLength > 0) {
+                    for (var j = unchangedBlockStart; j < unchangedBlockStart + unchangedBlockLength; j++) {
+                        html += '<div class="diff-row">' +
+                            '<span class="left-code">' + escapeHtml(diff.old[j].content || '') + '</span>' +
+                            '<span class="left-line-number">' + (diff.old[j].number !== undefined ? diff.old[j].number : '') + '</span>' +
+                            '<span class="right-line-number">' + (diff.new[j].number !== undefined ? diff.new[j].number : '') + '</span>' +
+                            '<span class="right-code">' + escapeHtml(diff.new[j].content || '') + '</span>' +
+                            '</div>';
+                    }
+                }
+                unifiedDiffContent.innerHTML = html;
+                return;
             }
-            // Handle trailing unchanged block
-            if (unchangedBlockLength > 2 * CONTEXT_LINES) {
-                // Show context lines above
-                for (var j = unchangedBlockStart; j < unchangedBlockStart + CONTEXT_LINES; j++) {
-                    html += '<div class="diff-row">' +
-                        '<span class="left-code">' + escapeHtml(diff.old[j].content || '') + '</span>' +
-                        '<span class="left-line-number">' + (diff.old[j].number !== undefined ? diff.old[j].number : '') + '</span>' +
-                        '<span class="right-line-number">' + (diff.new[j].number !== undefined ? diff.new[j].number : '') + '</span>' +
-                        '<span class="right-code">' + escapeHtml(diff.new[j].content || '') + '</span>' +
-                        '</div>';
-                }
-                // Collapsed indicator for the middle
-                var collapsedStart = unchangedBlockStart + CONTEXT_LINES;
-                var collapsedLength = unchangedBlockLength - 2 * CONTEXT_LINES;
-                html += '<div class="diff-row collapsed-indicator" onclick="toggleCollapsedBlock(' + blockIndices.length + ')">' +
-                    '<span class="left-line-number"></span>' +
-                    '<span class="left-code"></span>' +
-                    '<span class="middle-indicator"><span class="codicon codicon-chevron-down"></span><span class="hidden-count">' + collapsedLength + ' hidden lines</span></span>' +
-                    '<span class="right-code"></span>' +
-                    '<span class="right-line-number"></span>' +
-                    '</div>';
-                blockIndices.push({start: collapsedStart, length: collapsedLength});
-                // Initialize hidden count for this block
-                blockHiddenCounts.set(blockIndices.length - 1, collapsedLength);
-                // Collapsed lines (initially hidden)
-                for (var j = collapsedStart; j < collapsedStart + collapsedLength; j++) {
-                    html += '<div class="diff-row collapsed" data-block="' + (blockIndices.length - 1) + '">' +
-                        '<span class="left-code">' + escapeHtml(diff.old[j].content || '') + '</span>' +
-                        '<span class="left-line-number">' + (diff.old[j].number !== undefined ? diff.old[j].number : '') + '</span>' +
-                        '<span class="right-line-number">' + (diff.new[j].number !== undefined ? diff.new[j].number : '') + '</span>' +
-                        '<span class="right-code">' + escapeHtml(diff.new[j].content || '') + '</span>' +
-                        '</div>';
-                }
-                // Context lines below
-                for (var j = collapsedStart + collapsedLength; j < unchangedBlockStart + unchangedBlockLength; j++) {
-                    html += '<div class="diff-row">' +
-                        '<span class="left-code">' + escapeHtml(diff.old[j].content || '') + '</span>' +
-                        '<span class="left-line-number">' + (diff.old[j].number !== undefined ? diff.old[j].number : '') + '</span>' +
-                        '<span class="right-line-number">' + (diff.new[j].number !== undefined ? diff.new[j].number : '') + '</span>' +
-                        '<span class="right-code">' + escapeHtml(diff.new[j].content || '') + '</span>' +
-                        '</div>';
-                }
-            } else if (unchangedBlockLength > 0) {
-                for (var j = unchangedBlockStart; j < unchangedBlockStart + unchangedBlockLength; j++) {
-                    html += '<div class="diff-row">' +
-                        '<span class="left-code">' + escapeHtml(diff.old[j].content || '') + '</span>' +
-                        '<span class="left-line-number">' + (diff.old[j].number !== undefined ? diff.old[j].number : '') + '</span>' +
-                        '<span class="right-line-number">' + (diff.new[j].number !== undefined ? diff.new[j].number : '') + '</span>' +
-                        '<span class="right-code">' + escapeHtml(diff.new[j].content || '') + '</span>' +
-                        '</div>';
-                }
-            }
-            unifiedDiffContent.innerHTML = html;
         }
 
         function escapeHtml(unsafe) {
@@ -1103,11 +1270,16 @@ export class GitHistoryView {
         };
         // Viewer mode
         function setViewer(mode) {
+            viewerMode = mode;
             document.getElementById('viewerLabel').textContent = mode === 'side-by-side' ? 'Side-by-side viewer' : 'Unified viewer';
             document.getElementById('diffContainer').className = 'diff-container ' + (mode === 'side-by-side' ? 'side-by-side' : 'unified');
             document.getElementById('sideBySideBtn').classList.toggle('selected', mode === 'side-by-side');
             document.getElementById('unifiedBtn').classList.toggle('selected', mode === 'unified');
             toggleDropdown('viewerDropdown');
+            // Re-render the diff in the new mode
+            if (selectedIndex >= 0 && window.lastDiff) {
+                updateDiffView(window.lastDiff);
+            }
         }
         // Whitespace
         function setWhitespace(mode) {
