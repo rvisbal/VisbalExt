@@ -691,7 +691,7 @@ export class GitHistoryView {
                 <button onclick="setViewer('unified')" id="unifiedBtn">Unified viewer</button>
             </div>
         </div>
-        <div class="dropdown" id="whitespaceDropdown">
+        <div class="dropdown" id="whitespaceDropdown" style="display:none;">
             <button onclick="toggleDropdown('whitespaceDropdown')"><span class="codicon codicon-filter"></span> <span id="whitespaceLabel">Do not ignore</span> <span class="codicon codicon-chevron-down"></span></button>
             <div class="dropdown-content">
                 <button onclick="setWhitespace('none')" id="wsNone" class="selected">Do not ignore</button>
@@ -700,7 +700,7 @@ export class GitHistoryView {
                 <button onclick="setWhitespace('ignore-empty')" id="wsIgnoreEmpty">Ignore whitespaces and empty lines</button>
             </div>
         </div>
-        <div class="dropdown" id="highlightDropdown">
+        <div class="dropdown" id="highlightDropdown" style="display:none;">
             <button onclick="toggleDropdown('highlightDropdown')"><span class="codicon codicon-symbol-color"></span> <span id="highlightLabel">Highlight characters</span> <span class="codicon codicon-chevron-down"></span></button>
             <div class="dropdown-content">
                 <button onclick="setHighlight('lines')" id="hlLines">Highlight lines</button>
@@ -712,7 +712,7 @@ export class GitHistoryView {
         <button id="collapseCodeBtn" class="toolbar-btn" title="Collapse Unchanged Fragments" onclick="toggleCollapseCode()">
             <span class="codicon codicon-fold"></span> <span id="collapseCodeLabel"></span>
         </button>
-        <div class="dropdown" id="settingsDropdown">
+        <div class="dropdown" id="settingsDropdown" style="display:none;">
             <button onclick="toggleDropdown('settingsDropdown')"><span class="codicon codicon-settings"></span></button>
             <div class="dropdown-content">
                 <label><input type="checkbox" id="showWhitespaces"> Show Whitespaces</label>
@@ -731,7 +731,7 @@ export class GitHistoryView {
                 <label><input type="checkbox" id="alignChanges"> Align Changes In Side-by-Side Diff</label>
             </div>
         </div>
-        <button class="sync-btn sync-on" title="Synchronize Scrolling" id="syncScrollBtn" onclick="toggleSyncScroll()"><span class="codicon codicon-sync"></span></button>
+        <button class="sync-btn sync-on" title="Synchronize Scrolling" id="syncScrollBtn" onclick="toggleSyncScroll()" style="display:none;"><span class="codicon codicon-sync"></span></button>
     </div>
     <div id="diffView" class="diff-view">
         <div class="diff-container side-by-side" id="diffContainer">
@@ -1439,10 +1439,16 @@ export class GitHistoryView {
                     const nextOldLine = parseInt(match[1]);
                     const nextNewLine = parseInt(match[2]);
                     if (!firstHunk) {
-                        // Insert omitted lines indicator if there is a gap
-                        if (nextOldLine > oldLineNumber || nextNewLine > newLineNumber) {
-                            result.old.push({ content: '...', isOmitted: true });
-                            result.new.push({ content: '...', isOmitted: true });
+                        const oldGap = nextOldLine > oldLineNumber ? nextOldLine - oldLineNumber : 0;
+                        const newGap = nextNewLine > newLineNumber ? nextNewLine - newLineNumber : 0;
+                        const gap = Math.max(oldGap, newGap);
+
+                        if (gap > 0) {
+                            for (let i = 0; i < gap; i++) {
+                                const content = i === 0 ? '...' : '';
+                                result.old.push({ content: content, isOmitted: true });
+                                result.new.push({ content: content, isOmitted: true });
+                            }
                         }
                     }
                     oldLineNumber = nextOldLine;
@@ -1470,11 +1476,11 @@ export class GitHistoryView {
                 });
             } else {
                 result.old.push({
-                    content: line,
+                    content: line.substring(1),
                     number: oldLineNumber++
                 });
                 result.new.push({
-                    content: line,
+                    content: line.substring(1),
                     number: newLineNumber++
                 });
             }
