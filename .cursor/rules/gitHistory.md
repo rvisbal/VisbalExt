@@ -1,4 +1,11 @@
 Develop a solution to enhance the diff view in the Git History webview by adding visual indicators for hidden lines. The indicators should visually represent non-contiguous lines, similar to the '...' dividers shown in the left section of the attached screenshot.
+
+There are 2 command for this seletion:
+   - "Show git History For Files"
+   - "Show Git History For Selection"
+
+WHEN MAKING CODE CHANGE MAKE SURE ONE CHANGE WONT AFFECT NEGATIVATELY TO THE OTHER FUNCTIONALTY
+
 ### Requirements:
 1. **Visual Indicators:**
    - Create visual indicators (like '...') that clearly separate non-contiguous lines in the diff view.

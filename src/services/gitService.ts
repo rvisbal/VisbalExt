@@ -63,13 +63,13 @@ export class GitService {
             // Escape the file path to handle spaces and special characters
             const escapedPath = filePath.replace(/(["\s'$`\\])/g,'\\$1');
 
-            // Command to get git history for the entire file
+            // Command to get git history for the entire file with context lines
             const command = `git log ` +
                 `--full-history ` +
                 `-m -p ` +
                 `--date=local ` +
                 `--pretty=format:"commit %H%nAuthor: %an%nDate: %ad%n%n%s%n%n" ` +
-                `-- ${escapedPath}`;
+                `-L 1,999999:${escapedPath}`;
 
             OrgUtils.logDebug(`[VisbalExt.GitService] getHistoryForFile -- Git command:`, command);
             
