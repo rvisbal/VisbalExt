@@ -48,6 +48,7 @@ export function getHtmlForWebview(extensionUri: vscode.Uri, webview: vscode.Webv
       <link href="${styleResetUri}" rel="stylesheet">
       <link href="${styleVSCodeUri}" rel="stylesheet">
       <link href="${styleMainUri}" rel="stylesheet">
+      <style>${styles}</style>
       <title>Salesforce Debug Logs</title>
       <style>
         .container {
@@ -722,14 +723,16 @@ export function getHtmlForWebview(extensionUri: vscode.Uri, webview: vscode.Webv
             </div>
           </div>
           <div class="debug-config-scroll-arrow right hidden" id="debug-scroll-right" title="Scroll right">&#8594;</div>
-          <button id="apply-debug-config-button" title="Apply Debug Configuration and Turn On Debug">
-            <span>💾</span>
+          <button class="icon-button" id="apply-debug-config-button" title="Apply Debug Configuration and Turn On Debug" aria-label="Apply Debug Configuration">
+            <span class="icon save-icon"></span>
           </button>
         </div>
         
         <div class="top-bar">
           <div class="filter-section">
-            <button class="icon-button">🔍</button>
+            <button class="icon-button" id="filter-search-button" title="Search logs" aria-label="Search logs">
+              <span class="icon search-icon"></span>
+            </button>
             <input type="text" class="filter-input" placeholder="Filter logs..." id="filter-input">
             <button class="clear-filter-button" id="clear-filter-button">✕</button>
           </div>
@@ -740,15 +743,15 @@ export function getHtmlForWebview(extensionUri: vscode.Uri, webview: vscode.Webv
                 </select>
             </div>
             <div class="button-group">
-              <button id="open-org-button" title="Open Org">
-                <span>🌐</span>
+              <button class="icon-button" id="open-org-button" title="Open Org" aria-label="Open Org">
+                <span class="icon globe-icon"></span>
               </button>
-              <button id="deploy-org-button" title="Deploy Org">
-                <span>🚀</span>
+              <button class="icon-button" id="deploy-org-button" title="Deploy Org" aria-label="Deploy Org">
+                  <span class="icon deploy-icon"></span>
               </button>
               <div class="dropdown-button-group" id="refresh-dropdown-group">
-                <button id="refresh-main-button" title="Refresh Logs using sfdx">
-                  <span>🔄</span>
+                <button class="icon-button" id="refresh-main-button" title="Refresh Logs using sfdx" aria-label="Refresh Logs">
+                  <span class="icon refresh-icon"></span>
                   <span class="dropdown-arrow" style="margin-left:4px; cursor:pointer;" title="Show more refresh options" aria-label="Show more refresh options">▼</span>
                 </button>
                 <div class="dropdown-menu hidden" id="refresh-dropdown-menu">
@@ -774,8 +777,8 @@ export function getHtmlForWebview(extensionUri: vscode.Uri, webview: vscode.Webv
               </div>
             </div>
             <div class="dropdown-button-group" id="terminal-dropdown-group">
-              <button class="text-button " id="terminal-main-button" title="Terminal">
-                <span>💻</span>
+              <button class="icon-button" id="terminal-main-button" title="Terminal" aria-label="Terminal">
+                <span class="icon terminal-icon"></span>
                 <span class="dropdown-arrow" style="margin-left:4px; cursor:pointer;" title="Show more terminal commands" aria-label="Show more terminal commands">▼</span>
               </button>
               <div class="dropdown-menu hidden" id="terminal-dropdown-menu">

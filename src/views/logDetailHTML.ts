@@ -221,7 +221,7 @@ export function getLogListTemplate(): string {
                 const DEBUG = true;
                 
                 // Elements
-				        const openOrgButton = document.getElementById('openOrgButton');
+				const openOrgButton = document.getElementById('openOrgButton');
                 const refreshButton = document.getElementById('refreshButton');
                 const refreshSoqlButton = document.getElementById('refreshSoqlButton');
                 const logsTable = document.getElementById('logsTable');
