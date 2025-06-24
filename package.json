@@ -342,6 +342,12 @@
             "methods": {}
           },
           "description": "Selected test methods for tracking failed tests"
+        },
+        "visbal.gitHistory.view": {
+          "type": "string",
+          "default": "webview",
+          "enum": ["panel", "webview"],
+          "description": "Choose the display mode for Git History: 'panel' for a separate panel, 'webview' for the classic view."
         }
       }
     }

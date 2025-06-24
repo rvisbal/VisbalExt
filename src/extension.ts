@@ -19,6 +19,7 @@ import { join } from 'path';
 import { existsSync, mkdirSync } from 'fs';
 import { GitService } from './services/gitService';
 import { GitHistoryView } from './views/gitHistoryView';
+import { GitHistoryViewPanels } from './views/gitHistoryViewPanels';
 import { ExecuteApexTab } from './views/executeApexTab';
 
 let outputChannel: vscode.OutputChannel;
@@ -458,8 +459,15 @@ export function activate(context: vscode.ExtensionContext) {
       const filePath = editor.document.uri.fsPath;
       const startLine = selection.start.line + 1; // Convert to 1-based line numbers
       const endLine = selection.end.line + 1;
-
-      GitHistoryView.createOrShow(context, gitService, filePath, startLine, endLine);
+      //@ext:visbal.gitHistory.view
+      //based on the configuration, show the git history view
+      if (vscode.workspace.getConfiguration().get('visbal.gitHistory.view') === 'panel') {
+        //@ext:visbal.gitHistory.view.panel
+        GitHistoryViewPanels.createOrShow(context, gitService, filePath, startLine, endLine);
+      }
+      else {
+        GitHistoryView.createOrShow(context, gitService, filePath, startLine, endLine);
+      }
     })
   );
 
