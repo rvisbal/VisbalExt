@@ -236,7 +236,7 @@ return `<!DOCTYPE html>
             }
     </>
     <style>
-        // Add styles after the existing button styles
+     
         .org-selector-container {
           display: flex;
           align-items: center;

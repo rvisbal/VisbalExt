@@ -57,6 +57,11 @@ export const styles = `
         cursor: not-allowed;
     }
 
+    .button-primary {
+        background-color: rgb(20, 96, 163)!important;
+        cursor: pointer;
+    }
+
     .clear-filter-button {
         background: none;
         border: none;

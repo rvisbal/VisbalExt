@@ -1,4 +1,11 @@
+import { styles } from "./styles";
+import * as vscode from "vscode";
+import { formatLogContentForHtml } from "../utils/logParsingUtils";
+
 export function getHtmlForWebview(): string {
+
+
+
     // HTML TEMPLATE STRING
     // JavaScript/HTML section, type script rule dont apply in this block
     return `<!DOCTYPE html>
@@ -6,6 +13,8 @@ export function getHtmlForWebview(): string {
     <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+        <style>${styles}</style>
         <style>
             body {
                 padding: 0;
@@ -92,7 +101,7 @@ export function getHtmlForWebview(): string {
                 font-size: 11px;
             }
             .results-container {
-                 padding: 10px;
+                padding: 10px;
                 display: flex;
                 gap: 10px;
                 background: var(--vscode-editor-background);
@@ -101,7 +110,10 @@ export function getHtmlForWebview(): string {
                 position: relative;
                 flex: 1;
                 min-height: 0; /* Important for flex child scrolling */
-                overflow: hidden;
+                max-height: 500px; /* Set a maximum height to enable scrolling */
+                overflow: auto; /* Enable both horizontal and vertical scrolling */
+                border: 1px solid var(--vscode-panel-border);
+                border-radius: 4px;
             }
             .table-container {
                 width: 100%;
@@ -173,6 +185,12 @@ export function getHtmlForWebview(): string {
             }
         </style>
         <style>
+        .container-wrapper {
+            margin-top: 3px;
+            margin-left: 3px;
+            margin-right: 3px;
+        }
+
         .toolbar {
                 padding: 3px 3px;
                 display: flex;
@@ -238,7 +256,7 @@ export function getHtmlForWebview(): string {
             }
         </style>
         <style>
-            // Add styles after the existing button styles
+
             .org-selector-container {
               display: flex;
               align-items: center;
@@ -318,62 +336,57 @@ export function getHtmlForWebview(): string {
         </style>
     </head>
     <body>
-        <div class="toolbar">
-            <div class="toolbar-left">
-                <div class="query-history">
-                    <select id="queryHistorySelect" title="Query History">
-                        <option value="">Query History</option>
+        <div class="container-wrapper">
+            <div class="toolbar">
+                <div class="toolbar-left">
+                    <div class="query-history">
+                        <select id="queryHistorySelect" title="Query History">
+                            <option value="">Query History</option>
+                        </select>
+                    </div>
+                    <div id="soqlStatus"></div>
+                </div>
+                <div class="toolbar-right">
+                    <div class="toolbar-checkbox">
+                        <input type="checkbox" id="useToolingApi" title="Use Tooling API for metadata queries">
+                        <label for="useToolingApi">Tooling API</label>
+                    </div>
+                    <select id="org-selector" class="org-selector" title="Select Salesforce Org">
+                        <option value="">Loading orgs...</option>
                     </select>
+                    <button class="icon-button button-primary" id="runSoqlButton" title="Run Query">
+                        <span class="icon play"></span>
+                    </button>
+                    <button class="icon-button " id="copyAsCsvButton" title="Copy result as CSV">
+                        <span class="icon file-binary"></span>
+                    </button>
+                     <button class="icon-button " id="copyAsExcelButton" title="Copy result as EXCEL">
+                        <span class="icon file-binary"></span>
+                    </button>
                 </div>
-                <div id="soqlStatus"></div>
             </div>
-            <div class="toolbar-right">
-                <div class="toolbar-checkbox">
-                    <input type="checkbox" id="useToolingApi" title="Use Tooling API for metadata queries">
-                    <label for="useToolingApi">Tooling API</label>
+            <div class="query-section">
+                <textarea id="soqlInput" placeholder="Enter SOQL query..." rows="4">SELECT FIELDS(ALL) FROM Account ORDER BY CreatedDate DESC Limit 200</textarea>
+            </div>
+            <div id="errorContainer" class="error-container">
+                <div id="errorMessage" class="error-message"></div>
+            </div>
+            <div id="noResultsContainer" class="no-results-container">
+                <div id="noResultsMessage"></div>
+            </div>
+            <div class="loading-container" id="loadingContainer">
+                <div class="loading-spinner"></div>
+                <span>Executing query...</span>
+            </div>
+            <div class="results-container">
+                <div class="table-container">
+                    <table>
+                        <thead id="soqlResultsHeader"></thead>
+                        <tbody id="soqlResultsBody"></tbody>
+                    </table>
                 </div>
-                <select id="org-selector" class="org-selector" title="Select Salesforce Org">
-                    <option value="">Loading orgs...</option>
-                </select>
-                <button id="runSoqlButton" title="Run Query">
-                    Execute Query
-                    <svg width="16" height="16" viewBox="0 0 16 16">
-                        <path fill="currentColor" d="M3.5 3v10l9-5-9-5z"/>
-                    </svg>
-                </button>
-                <button id="copyAsCsvButton" title="Copy as CSV" style="margin-left: 4px;" disabled>
-                    <svg width="16" height="16" viewBox="0 0 16 16">
-                        <path fill="currentColor" d="M11 3.9h3.8l-3.8-3.9v3.9zm1 .6v3h-7v-7h5v3.1h2v.9zm-8-4.5v7h-3v10h11v-3h1v4h-13v-12h3v-6h8.1l4.9 5v5h-1v-4h-11z"/>
-                    </svg>CSV
-                </button>
-                <button id="copyAsExcelButton" title="Copy as Excel Format" style="margin-left: 4px;" disabled>
-                    <svg width="16" height="16" viewBox="0 0 16 16">
-                        <path fill="currentColor" d="M11 3.9h3.8l-3.8-3.9v3.9zm1 .6v3h-7v-7h5v3.1h2v.9zm-8-4.5v7h-3v10h11v-3h1v4h-13v-12h3v-6h8.1l4.9 5v5h-1v-4h-11z"/>
-                    </svg>Excel
-                </button>
             </div>
-        </div>
-        <div class="query-section">
-            <textarea id="soqlInput" placeholder="Enter SOQL query..." rows="4">SELECT FIELDS(ALL) FROM Account ORDER BY CreatedDate DESC Limit 200</textarea>
-        </div>
-        <div id="errorContainer" class="error-container">
-            <div id="errorMessage" class="error-message"></div>
-        </div>
-        <div id="noResultsContainer" class="no-results-container">
-            <div id="noResultsMessage"></div>
-        </div>
-        <div class="loading-container" id="loadingContainer">
-            <div class="loading-spinner"></div>
-            <span>Executing query...</span>
-        </div>
-        <div class="results-container">
-            <div class="table-container">
-                <table>
-                    <thead id="soqlResultsHeader"></thead>
-                    <tbody id="soqlResultsBody"></tbody>
-                </table>
-            </div>
-        </div>
+        </di>
         <script>
             (function() {
                 const vscode = acquireVsCodeApi();
