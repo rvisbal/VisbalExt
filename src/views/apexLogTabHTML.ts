@@ -1,41 +1,40 @@
-import { styles } from './styles';
-import * as vscode from 'vscode';
-import { formatLogContentForHtml } from '../utils/logParsingUtils';
-
-
+import { styles } from "./styles";
+import * as vscode from "vscode";
+import { formatLogContentForHtml } from "../utils/logParsingUtils";
 
 export function getNonce() {
-    let text = '';
-    const possible = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+    let text = "";
+    const possible =
+        "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
     for (let i = 0; i < 32; i++) {
-      text += possible.charAt(Math.floor(Math.random() * possible.length));
+        text += possible.charAt(Math.floor(Math.random() * possible.length));
     }
     return text;
-  }
-  
+}
 
-export function getHtmlForWebview(extensionUri: vscode.Uri, webview: vscode.Webview): string {
+export function getHtmlForWebview(
+    extensionUri: vscode.Uri,
+    webview: vscode.Webview
+): string {
     const styleResetUri = webview.asWebviewUri(
-      vscode.Uri.joinPath(extensionUri, 'media', 'reset.css')
+        vscode.Uri.joinPath(extensionUri, "media", "reset.css")
     );
     const styleVSCodeUri = webview.asWebviewUri(
-      vscode.Uri.joinPath(extensionUri, 'media', 'vscode.css')
+        vscode.Uri.joinPath(extensionUri, "media", "vscode.css")
     );
     const styleMainUri = webview.asWebviewUri(
-      vscode.Uri.joinPath(extensionUri, 'media', 'main.css')
+        vscode.Uri.joinPath(extensionUri, "media", "main.css")
     );
     const scriptUri = webview.asWebviewUri(
-      vscode.Uri.joinPath(extensionUri, 'media', 'main.js')
+        vscode.Uri.joinPath(extensionUri, "media", "main.js")
     );
     const debugPresetUtilsUri = webview.asWebviewUri(
-      vscode.Uri.joinPath(extensionUri, 'media', 'debugPresetUtils.js')
+        vscode.Uri.joinPath(extensionUri, "media", "debugPresetUtils.js")
     );
     const orgList = webview.asWebviewUri(
-      vscode.Uri.joinPath(extensionUri, 'media', 'orgList.js')
+        vscode.Uri.joinPath(extensionUri, "media", "orgList.js")
     );
-    
-  
-  
+
     // Use a nonce to only allow a specific script to be run.
     const nonce = getNonce();
     // HTML TEMPLATE STRING
@@ -314,37 +313,24 @@ export function getHtmlForWebview(extensionUri: vscode.Uri, webview: vscode.Webv
           border-bottom: 1px solid var(--vscode-panel-border);
           padding: 6px 10px;
           gap: 8px;
+          overflow: hidden; /* Prevent wrapper from growing beyond container */
         }
         
-        .debug-config-bar {
-          flex: 1 1 auto;
-          min-width: 0;
-          overflow-x: auto;
-          display: flex;
-          gap: 8px;
-          scrollbar-width: thin;
-          scrollbar-color: var(--vscode-scrollbarSlider-background) var(--vscode-editor-background);
-          position: relative;
-        }
-        
-        .debug-config-options {
-          display: flex;
-          flex-wrap: wrap;
-          gap: 6px;
-          flex: 1;
-          min-width: max-content; /* Prevent wrapping, allow horizontal scroll */
-        }
+
         
         .debug-option {
           display: flex;
           align-items: center;
           gap: 3px;
+          flex-shrink: 0; /* Prevent options from shrinking */
+          min-width: fit-content; /* Ensure minimum content width */
         }
         
         .debug-option label {
           font-size: 10px;
           color: var(--vscode-descriptionForeground);
           white-space: nowrap;
+          min-width: fit-content; /* Prevent label from shrinking */
         }
         
         .debug-select {
@@ -354,7 +340,8 @@ export function getHtmlForWebview(extensionUri: vscode.Uri, webview: vscode.Webv
           color: var(--vscode-dropdown-foreground);
           border: 1px solid var(--vscode-dropdown-border);
           border-radius: 2px;
-          max-width: 70px;
+          min-width: 70px; /* Changed from max-width to min-width */
+          white-space: nowrap;
         }
         
         .debug-actions {
@@ -392,7 +379,7 @@ export function getHtmlForWebview(extensionUri: vscode.Uri, webview: vscode.Webv
           justify-content: flex-end;
           gap: 10px;
         }
-        // Add a new CSS rule for the refresh button
+
         #refresh-button {
           white-space: nowrap;
           font-size: 14px;
@@ -415,7 +402,7 @@ export function getHtmlForWebview(extensionUri: vscode.Uri, webview: vscode.Webv
         #refresh-button:active {
           background-color: #333333; /* Darker when clicked */
         }
-        // Add a new CSS rule for the SOQL button
+
         #soql-button {
           white-space: nowrap;
           font-size: 14px;
@@ -438,7 +425,7 @@ export function getHtmlForWebview(extensionUri: vscode.Uri, webview: vscode.Webv
         #soql-button:active {
           background-color: #333333; /* Darker when clicked */
         }
-        // Add styles after the existing button styles
+
         .org-selector-container {
           display: flex;
           align-items: center;
@@ -481,37 +468,7 @@ export function getHtmlForWebview(extensionUri: vscode.Uri, webview: vscode.Webv
         .text-button.danger-button#delete-selected-button.visible {
           display: flex;
         }
-        .debug-config-scroll-arrow {
-          position: absolute;
-          top: 38px;
-          z-index: 2;
-          width: 28px;
-          height: 28px;
-          background: var(--vscode-editor-background, #222);
-          color: var(--vscode-button-foreground, #fff);
-          border-radius: 50%;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          cursor: pointer;
-          opacity: 0.7;
-          transition: opacity 0.2s;
-          font-size: 18px;
-          box-shadow: 0 2px 8px rgba(0,0,0,0.15);
-          user-select: none;
-        }
-        .debug-config-scroll-arrow:hover {
-          opacity: 1;
-        }
-        .debug-config-scroll-arrow.left {
-          left: 4px;
-        }
-        .debug-config-scroll-arrow.right {
-          right: 4px;
-        }
-        .debug-config-scroll-arrow.hidden {
-          display: none;
-        }
+        
         .debug-config-preset-fixed {
           flex-shrink: 0;
           margin-right: 12px;
@@ -566,273 +523,345 @@ export function getHtmlForWebview(extensionUri: vscode.Uri, webview: vscode.Webv
           color: var(--vscode-button-foreground, #fff);
         }
       </style>
+      <style>
+        .scroll-wrapper {
+            position: relative;
+            width: 100%; /* Fill available width */
+            flex: 1; /* Take up remaining space in flex container */
+            min-width: 0; /* Allow shrinking below content size */
+        }
+        
+        .scroll-container {
+            width: 100%;
+            overflow-x: auto; /* Allow horizontal scrolling */
+            overflow-y: hidden; /* Hide vertical scrollbar */
+            scrollbar-width: none; /* Firefox */
+            -ms-overflow-style: none; /* Internet Explorer 10+ */
+        }
+        
+        .scroll-container::-webkit-scrollbar {
+            display: none; /* WebKit browsers */
+        }
+        
+        .scroll-content {
+            display: flex; /* Arrange items in a row */
+            gap: 8px; /* Add consistent spacing between items */
+            padding: 0 4px; /* Add small padding to prevent edge clipping */
+        }
+        
+        .item {
+            min-width: 100px; /* Set width for each item */
+            padding: 10px;
+            background-color: lightgray;
+            margin-right: 10px;
+            flex-shrink: 0; /* Prevent items from shrinking */
+        }
+        
+        .scroll-arrows {
+            position: absolute;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 100%;
+            display: flex;
+            justify-content: space-between;
+            pointer-events: none; /* Allow clicks to pass through */
+        }
+        
+        .scroll-left,
+        .scroll-right {
+            background-color: white;
+            border: 1px solid #ccc;
+            cursor: pointer;
+            pointer-events: auto; /* Re-enable clicks on buttons */
+            padding: 5px 10px;
+            border-radius: 3px;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+        
+        .scroll-left.visible,
+        .scroll-right.visible {
+            opacity: 1;
+        }
+    </style>
     </head>
     <body>
-      <div class="container">
+    <div class="container">
         <div class="debug-config-bar-wrapper">
-          <div class="debug-config-preset-fixed">
-            <div class="debug-option">
-              <label>Preset</label>
-              <select id="debug-preset" class="debug-select">
-                <option value="default">Default (Standard)</option>
-                <option value="detailed">Detailed</option>
-                <option value="developer">Developer</option>
-                <option value="custom">Custom</option>
-                <option value="debugonly">DebugOnly</option>
-              </select>
-            </div>
-          </div>
-          <div class="debug-config-scroll-arrow left hidden" id="debug-scroll-left" title="Scroll left">&#8592;</div>
-          <div class="debug-config-bar" id="debug-config-bar">
-            <div class="debug-config-options">
-              <div class="debug-option">
-                <label>Apex Code</label>
-                <select id="debug-apex-code" class="debug-select">
-                  <option value="NONE">NONE</option>
-                  <option value="ERROR">ERROR</option>
-                  <option value="WARN">WARN</option>
-                  <option value="INFO">INFO</option>
-                  <option value="DEBUG" >DEBUG</option>
-                  <option value="FINE" selected>FINE</option>
-                  <option value="FINER">FINER</option>
-                  <option value="FINEST">FINEST</option>
-                </select>
-              </div>
-              <div class="debug-option">
-                <label>Apex Profiling</label>
-                <select id="debug-apex-profiling" class="debug-select">
-                  <option value="NONE">NONE</option>
-                  <option value="INFO" selected>INFO</option>
-                  <option value="FINE">FINE</option>
-                  <option value="FINEST">FINEST</option>
-                </select>
-              </div>
-              <div class="debug-option">
-                <label>Callout</label>
-                <select id="debug-callout" class="debug-select">
-                  <option value="NONE">NONE</option>
-                  <option value="ERROR">ERROR</option>
-                  <option value="INFO" selected>INFO</option>
-                  <option value="FINER">FINER</option>
-                  <option value="FINEST">FINEST</option>
-                </select>
-              </div>
-              <div class="debug-option">
-                <label>Data Access</label>
-                <select id="debug-data-access" class="debug-select">
-                  <option value="NONE">NONE</option>
-                  <option value="WARN">WARN</option>
-                  <option value="INFO" >INFO</option>
-                  <option value="FINE" selected>FINE</option>
-                  <option value="FINEST">FINEST</option>
-                </select>
-              </div>
-              <div class="debug-option">
-                <label>Database</label>
-                <select id="debug-database" class="debug-select">
-                  <option value="NONE">NONE</option>
-                  <option value="WARN">WARN</option>
-                  <option value="INFO" >INFO</option>
-                  <option value="FINE" selected>FINE</option>
-                  <option value="FINEST">FINEST</option>
-                </select>
-              </div>
-              <div class="debug-option">
-                <label>NBA</label>
-                <select id="debug-nba" class="debug-select">
-                  <option value="NONE">NONE</option>
-                  <option value="ERROR">ERROR</option>
-                  <option value="INFO" selected>INFO</option>
-                  <option value="FINE">FINE</option>
-                </select>
-              </div>
-              <div class="debug-option">
-                <label>System</label>
-                <select id="debug-system" class="debug-select">
-                  <option value="NONE">NONE</option>
-                  <option value="INFO">INFO</option>
-                  <option value="DEBUG" selected>DEBUG</option>
-                  <option value="FINE">FINE</option>
-                  <option value="FINEST">FINEST</option>
-                </select>
-              </div>
-              <div class="debug-option">
-                <label>Validation</label>
-                <select id="debug-validation" class="debug-select">
-                  <option value="NONE">NONE</option>
-                  <option value="INFO" selected>INFO</option>
-                  <option value="FINEST">FINEST</option>
-                </select>
-              </div>
-              <div class="debug-option">
-                <label>Visualforce</label>
-                <select id="debug-visualforce" class="debug-select">
-                  <option value="NONE">NONE</option>
-                  <option value="INFO" selected>INFO</option>
-                  <option value="FINE">FINE</option>
-                  <option value="FINER">FINER</option>
-                  <option value="FINEST">FINEST</option>
-                </select>
-              </div>
-              <div class="debug-option">
-                <label>Wave</label>
-                <select id="debug-wave" class="debug-select">
-                  <option value="NONE">NONE</option>
-                  <option value="ERROR">ERROR</option>
-                  <option value="INFO" selected>INFO</option>
-                  <option value="FINE">FINE</option>
-                  <option value="FINER">FINER</option>
-                  <option value="FINEST">FINEST</option>
-                </select>
-              </div>
-              <div class="debug-option">
-                <label>Workflow</label>
-                <select id="debug-workflow" class="debug-select">
-                  <option value="NONE">NONE</option>
-                  <option value="ERROR">ERROR</option>
-                  <option value="WARN">WARN</option>
-                  <option value="INFO" selected>INFO</option>
-                  <option value="FINE">FINE</option>
-                  <option value="FINER">FINER</option>
-                  <option value="FINEST">FINEST</option>
-                </select>
-              </div>
-            </div>
-          </div>
-          <div class="debug-config-scroll-arrow right hidden" id="debug-scroll-right" title="Scroll right">&#8594;</div>
-          <button class="icon-button" id="apply-debug-config-button" title="Apply Debug Configuration and Turn On Debug" aria-label="Apply Debug Configuration">
-            <span class="icon save-icon"></span>
-          </button>
-        </div>
-        
-        <div class="top-bar">
-          <div class="filter-section">
-            <button class="icon-button" id="filter-search-button" title="Search logs" aria-label="Search logs">
-              <span class="icon search-icon"></span>
-            </button>
-            <input type="text" class="filter-input" placeholder="Filter logs..." id="filter-input">
-            <button class="clear-filter-button" id="clear-filter-button">✕</button>
-          </div>
-          <div class="actions-section">
-            <div class="org-selector-container">
-                <select id="org-selector" class="org-selector" title="Select Salesforce Org">
-                  <option value="">Loading orgs...</option>
-                </select>
-            </div>
-            <div class="button-group">
-            <button class="icon-button" id="open-org-button" title="Open Org" aria-label="Open Org">
-                <span class="icon globe-icon"></span>
-              </button>
-              <button class="icon-button" id="deploy-org-button" title="Deploy Org" aria-label="Deploy Org">
-                  <span class="icon deploy-icon"></span>
-              </button>
-              <div class="dropdown-button-group" id="refresh-dropdown-group">
-                <button class="icon-button" id="refresh-main-button" title="Refresh Logs using sfdx" aria-label="Refresh Logs" style="width: 75px">
-                  <span class="icon refresh-icon"></span>
-                  <span class="dropdown-arrow" style="margin-left:4px; display:flex; align-items:center;">
-                    <svg width="16" height="16" viewBox="0 0 16 16" fill="white" style="display:block;">
-                      <path d="M4 6l4 4 4-4" stroke="white" stroke-width="1.5" fill="none" stroke-linecap="round"/>
-                    </svg>
-                  </span>
-                </button>
-                <div class="dropdown-menu hidden" id="refresh-dropdown-menu">
-                  <div class="dropdown-item" data-action="sfdx">Refresh Logs using sfdx</div>
-                  <div class="dropdown-item" data-action="soql">Refresh with SOQL</div>
+            <div class="debug-config-preset-fixed">
+                <div class="debug-option">
+                    <label>Preset</label>
+                    <select id="debug-preset" class="debug-select">
+                        <option value="default">Default (Standard)</option>
+                        <option value="detailed">Detailed</option>
+                        <option value="developer">Developer</option>
+                        <option value="custom">Custom</option>
+                        <option value="debugonly">DebugOnly</option>
+                    </select>
                 </div>
-              </div>
             </div>
-            <button class="icon-button" id="deploy-org-button" title="Deploy Org" aria-label="Deploy Org">
-              <span class="icon deploy-icon"></span>
-           </button>
-            <button class="icon-button" id="clear-local-button" title="Clear Downloaded Log Files on local machine">
-              <span class="icon flame"></span>
+           
+            <div class="scroll-wrapper" id="debug-config-bar">
+                <div class="scroll-container">
+                    <div class="scroll-content" id="debug-config-options">
+                        <div class="debug-option">
+                            <label>Apex Code</label>
+                            <select id="debug-apex-code" class="debug-select">
+                                <option value="NONE">NONE</option>
+                                <option value="ERROR">ERROR</option>
+                                <option value="WARN">WARN</option>
+                                <option value="INFO">INFO</option>
+                                <option value="DEBUG">DEBUG</option>
+                                <option value="FINE" selected>FINE</option>
+                                <option value="FINER">FINER</option>
+                                <option value="FINEST">FINEST</option>
+                            </select>
+                        </div>
+                        <div class="debug-option">
+                            <label>Apex Profiling</label>
+                            <select id="debug-apex-profiling" class="debug-select">
+                                <option value="NONE">NONE</option>
+                                <option value="INFO" selected>INFO</option>
+                                <option value="FINE">FINE</option>
+                                <option value="FINEST">FINEST</option>
+                            </select>
+                        </div>
+                        <div class="debug-option">
+                            <label>Callout</label>
+                            <select id="debug-callout" class="debug-select">
+                                <option value="NONE">NONE</option>
+                                <option value="ERROR">ERROR</option>
+                                <option value="INFO" selected>INFO</option>
+                                <option value="FINER">FINER</option>
+                                <option value="FINEST">FINEST</option>
+                            </select>
+                        </div>
+                        <div class="debug-option">
+                            <label>Data Access</label>
+                            <select id="debug-data-access" class="debug-select">
+                                <option value="NONE">NONE</option>
+                                <option value="WARN">WARN</option>
+                                <option value="INFO">INFO</option>
+                                <option value="FINE" selected>FINE</option>
+                                <option value="FINEST">FINEST</option>
+                            </select>
+                        </div>
+                        <div class="debug-option">
+                            <label>Database</label>
+                            <select id="debug-database" class="debug-select">
+                                <option value="NONE">NONE</option>
+                                <option value="WARN">WARN</option>
+                                <option value="INFO">INFO</option>
+                                <option value="FINE" selected>FINE</option>
+                                <option value="FINEST">FINEST</option>
+                            </select>
+                        </div>
+                        <div class="debug-option">
+                            <label>NBA</label>
+                            <select id="debug-nba" class="debug-select">
+                                <option value="NONE">NONE</option>
+                                <option value="ERROR">ERROR</option>
+                                <option value="INFO" selected>INFO</option>
+                                <option value="FINE">FINE</option>
+                            </select>
+                        </div>
+                        <div class="debug-option">
+                            <label>System</label>
+                            <select id="debug-system" class="debug-select">
+                                <option value="NONE">NONE</option>
+                                <option value="INFO">INFO</option>
+                                <option value="DEBUG" selected>DEBUG</option>
+                                <option value="FINE">FINE</option>
+                                <option value="FINEST">FINEST</option>
+                            </select>
+                        </div>
+                        <div class="debug-option">
+                            <label>Validation</label>
+                            <select id="debug-validation" class="debug-select">
+                                <option value="NONE">NONE</option>
+                                <option value="INFO" selected>INFO</option>
+                                <option value="FINEST">FINEST</option>
+                            </select>
+                        </div>
+                        <div class="debug-option">
+                            <label>Visualforce</label>
+                            <select id="debug-visualforce" class="debug-select">
+                                <option value="NONE">NONE</option>
+                                <option value="INFO" selected>INFO</option>
+                                <option value="FINE">FINE</option>
+                                <option value="FINER">FINER</option>
+                                <option value="FINEST">FINEST</option>
+                            </select>
+                        </div>
+                        <div class="debug-option">
+                            <label>Wave</label>
+                            <select id="debug-wave" class="debug-select">
+                                <option value="NONE">NONE</option>
+                                <option value="ERROR">ERROR</option>
+                                <option value="INFO" selected>INFO</option>
+                                <option value="FINE">FINE</option>
+                                <option value="FINER">FINER</option>
+                                <option value="FINEST">FINEST</option>
+                            </select>
+                        </div>
+                        <div class="debug-option">
+                            <label>Workflow</label>
+                            <select id="debug-workflow" class="debug-select">
+                                <option value="NONE">NONE</option>
+                                <option value="ERROR">ERROR</option>
+                                <option value="WARN">WARN</option>
+                                <option value="INFO" selected>INFO</option>
+                                <option value="FINE">FINE</option>
+                                <option value="FINER">FINER</option>
+                                <option value="FINEST">FINEST</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+                <div class="scroll-arrows">
+                    <button class="scroll-left" onclick="scrollToLeft()">&#9664;</button>
+                    <button class="scroll-right" onclick="scrollToRight()">&#9654;</button>
+                </div>
+            </div>
+            <button class="icon-button" id="apply-debug-config-button" title="Apply Debug Configuration and Turn On Debug"
+                aria-label="Apply Debug Configuration">
+                <span class="icon save-icon"></span>
             </button>
-            <button class="icon-button" id="delete-selected-button" title="Delete Selected Logs" disabled>
-              <span class="icon trash"></span>
-            </button>
-            
-            <div class="dropdown-button-group" id="delete-dropdown-group">
-              <button class="icon-button" id="delete-main-button" title="Delete Logs from Server" aria-label="Terminal" style="width: 75px">
-                <span class="icon trash"></span>
-                <span class="dropdown-arrow" style="margin-left:4px; display:flex; align-items:center;">
-                  <svg width="16" height="16" viewBox="0 0 16 16" fill="white" style="display:block;">
-                    <path d="M4 6l4 4 4-4" stroke="white" stroke-width="1.5" fill="none" stroke-linecap="round"/>
-                  </svg>
-                </span>
-              </button>
-             
-              <div class="dropdown-menu hidden" id="delete-dropdown-menu">
-                <div class="dropdown-item" data-action="server">Delete Logs from Server</div>
-                <div class="dropdown-item" data-action="rest">Delete Logs using REST API (Tooling API)</div>
-              </div>
-            </div>
-            <div class="dropdown-button-group" id="terminal-dropdown-group">
-              <button class="icon-button" id="terminal-main-button" title="Terminal" aria-label="Terminal" style="width: 75px">
-                <span class="icon terminal-icon"></span>
-                <span class="dropdown-arrow" style="margin-left:4px; display:flex; align-items:center;">
-                  <svg width="16" height="16" viewBox="0 0 16 16" fill="white" style="display:block;">
-                    <path d="M4 6l4 4 4-4" stroke="white" stroke-width="1.5" fill="none" stroke-linecap="round"/>
-                  </svg>
-                </span>
-              </button>
-              <div class="dropdown-menu hidden" id="terminal-dropdown-menu">
-                <div class="dropdown-item" data-action="gulp">Create Scrath Org with Gulp</div>
-              </div>
-            </div>
-          </div>
         </div>
-        
+    
+        <div class="top-bar">
+            <div class="filter-section">
+                <button class="icon-button" id="filter-search-button" title="Search logs" aria-label="Search logs">
+                    <span class="icon search-icon"></span>
+                </button>
+                <input type="text" class="filter-input" placeholder="Filter logs..." id="filter-input">
+                <button class="clear-filter-button" id="clear-filter-button">✕</button>
+            </div>
+            <div class="actions-section">
+                <div class="org-selector-container">
+                    <select id="org-selector" class="org-selector" title="Select Salesforce Org">
+                        <option value="">Loading orgs...</option>
+                    </select>
+                </div>
+                <div class="button-group">
+                    <button class="icon-button" id="open-org-button" title="Open Org" aria-label="Open Org">
+                        <span class="icon globe-icon"></span>
+                    </button>
+                    <button class="icon-button" id="deploy-org-button" title="Deploy Org" aria-label="Deploy Org">
+                        <span class="icon deploy-icon"></span>
+                    </button>
+                    <div class="dropdown-button-group" id="refresh-dropdown-group">
+                        <button class="icon-button" id="refresh-main-button" title="Refresh Logs using sfdx"
+                            aria-label="Refresh Logs" style="width: 75px">
+                            <span class="icon refresh-icon"></span>
+                            <span class="dropdown-arrow" style="margin-left:4px; display:flex; align-items:center;">
+                                <svg width="16" height="16" viewBox="0 0 16 16" fill="white" style="display:block;">
+                                    <path d="M4 6l4 4 4-4" stroke="white" stroke-width="1.5" fill="none"
+                                        stroke-linecap="round" />
+                                </svg>
+                            </span>
+                        </button>
+                        <div class="dropdown-menu hidden" id="refresh-dropdown-menu">
+                            <div class="dropdown-item" data-action="sfdx">Refresh Logs using sfdx</div>
+                            <div class="dropdown-item" data-action="soql">Refresh with SOQL</div>
+                        </div>
+                    </div>
+                </div>
+                <button class="icon-button" id="deploy-org-button" title="Deploy Org" aria-label="Deploy Org">
+                    <span class="icon deploy-icon"></span>
+                </button>
+                <button class="icon-button" id="clear-local-button" title="Clear Downloaded Log Files on local machine">
+                    <span class="icon flame"></span>
+                </button>
+                <button class="icon-button" id="delete-selected-button" title="Delete Selected Logs" disabled>
+                    <span class="icon trash"></span>
+                </button>
+    
+                <div class="dropdown-button-group" id="delete-dropdown-group">
+                    <button class="icon-button" id="delete-main-button" title="Delete Logs from Server"
+                        aria-label="Terminal" style="width: 75px">
+                        <span class="icon trash"></span>
+                        <span class="dropdown-arrow" style="margin-left:4px; display:flex; align-items:center;">
+                            <svg width="16" height="16" viewBox="0 0 16 16" fill="white" style="display:block;">
+                                <path d="M4 6l4 4 4-4" stroke="white" stroke-width="1.5" fill="none"
+                                    stroke-linecap="round" />
+                            </svg>
+                        </span>
+                    </button>
+    
+                    <div class="dropdown-menu hidden" id="delete-dropdown-menu">
+                        <div class="dropdown-item" data-action="server">Delete Logs from Server</div>
+                        <div class="dropdown-item" data-action="rest">Delete Logs using REST API (Tooling API)</div>
+                    </div>
+                </div>
+                <div class="dropdown-button-group" id="terminal-dropdown-group">
+                    <button class="icon-button" id="terminal-main-button" title="Terminal" aria-label="Terminal"
+                        style="width: 75px">
+                        <span class="icon terminal-icon"></span>
+                        <span class="dropdown-arrow" style="margin-left:4px; display:flex; align-items:center;">
+                            <svg width="16" height="16" viewBox="0 0 16 16" fill="white" style="display:block;">
+                                <path d="M4 6l4 4 4-4" stroke="white" stroke-width="1.5" fill="none"
+                                    stroke-linecap="round" />
+                            </svg>
+                        </span>
+                    </button>
+                    <div class="dropdown-menu hidden" id="terminal-dropdown-menu">
+                        <div class="dropdown-item" data-action="gulp">Create Scrath Org with Gulp</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    
         <div id="error-container" class="error-container hidden">
-          <div id="error-message" class="status-message status-error" style="display: none;"></div>
+            <div id="error-message" class="status-message status-error" style="display: none;"></div>
         </div>
-        
+    
         <div id="success-container" class="success-container hidden">
-          <div id="success-message" class="status-message status-success" style="display: none;"></div>
+            <div id="success-message" class="status-message status-success" style="display: none;"></div>
         </div>
-        
+    
         <div id="loading-indicator" class="loading-container hidden">
-          <div class="loading-spinner"></div>
-          <div id="loading-text">Loading logs...</div>
+            <div class="loading-spinner"></div>
+            <div id="loading-text">Loading logs...</div>
         </div>
-        
+    
         <div id="confirm-modal" class="modal hidden">
-          <div class="modal-content">
-            <div class="modal-title" id="modal-title">Confirmation</div>
-            <div class="modal-message" id="modal-message">Are you sure you want to proceed?</div>
-            <div class="modal-buttons">
-              <button class="text-button" id="modal-cancel">Cancel</button>
-              <button class="text-button danger-button" id="modal-confirm">Confirm</button>
+            <div class="modal-content">
+                <div class="modal-title" id="modal-title">Confirmation</div>
+                <div class="modal-message" id="modal-message">Are you sure you want to proceed?</div>
+                <div class="modal-buttons">
+                    <button class="text-button" id="modal-cancel">Cancel</button>
+                    <button class="text-button danger-button" id="modal-confirm">Confirm</button>
+                </div>
             </div>
-          </div>
         </div>
-        
         <div class="logs-container">
-          <table class="logs-table">
-            <thead>
-              <tr>
-                <th class="checkbox-cell">
-                  <input type="checkbox" id="select-all-checkbox" title="Select All Visible Logs">
-                </th>
-                <th data-sort="id">ID</th>
-                <th class="checkbox-cell">Downloaded</th>
-                <th data-sort="logUser.name">User</th>
-                <th data-sort="application">Application</th>
-                <th data-sort="operation">Operation</th>
-                <th data-sort="lastModifiedDate">Time</th>
-                <th data-sort="status">Status</th>
-                <th data-sort="logLength">Size (bytes)</th>
-                <th>Actions</th>
-              </tr>
-            </thead>
-            <tbody id="logs-table-body">
-              <!-- Logs will be inserted here -->
-              <tr>
-                <td colspan="10">No logs found. Click Refresh to fetch logs.</td>
-              </tr>
-            </tbody>
-          </table>
+            <table class="logs-table">
+                <thead>
+                    <tr>
+                        <th class="checkbox-cell">
+                            <input type="checkbox" id="select-all-checkbox" title="Select All Visible Logs">
+                        </th>
+                        <th data-sort="id">ID</th>
+                        <th class="checkbox-cell">Downloaded</th>
+                        <th data-sort="logUser.name">User</th>
+                        <th data-sort="application">Application</th>
+                        <th data-sort="operation">Operation</th>
+                        <th data-sort="lastModifiedDate">Time</th>
+                        <th data-sort="status">Status</th>
+                        <th data-sort="logLength">Size (bytes)</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="logs-table-body">
+                    <!-- Logs will be inserted here -->
+                    <tr>
+                        <td colspan="10">No logs found. Click Refresh to fetch logs.</td>
+                    </tr>
+                </tbody>
+            </table>
         </div>
-      </div>
+    </div>
       <script src="${orgList}"></script>
       <script nonce="${nonce}">
         const vscode = acquireVsCodeApi();
@@ -1851,27 +1880,27 @@ export function getHtmlForWebview(extensionUri: vscode.Uri, webview: vscode.Webv
           }
         });
         
+        /*
         // Debug config bar scroll arrows
-        const debugConfigBar = document.getElementById('debug-config-bar');
+        const debugConfigOptions = document.getElementById('debug-config-options');
         const scrollLeftBtn = document.getElementById('debug-scroll-left');
         const scrollRightBtn = document.getElementById('debug-scroll-right');
-
         function updateScrollArrows() {
-          if (!debugConfigBar) return;
-          scrollLeftBtn.classList.toggle('hidden', debugConfigBar.scrollLeft <= 0);
-          scrollRightBtn.classList.toggle('hidden', debugConfigBar.scrollLeft + debugConfigBar.clientWidth >= debugConfigBar.scrollWidth - 1);
+          if (!debugConfigOptions) return;
+          scrollLeftBtn.classList.toggle('hidden', debugConfigOptions.scrollLeft <= 0);
+          scrollRightBtn.classList.toggle('hidden', debugConfigOptions.scrollLeft + debugConfigOptions.clientWidth >= debugConfigOptions.scrollWidth - 1);
         }
-
         scrollLeftBtn.addEventListener('click', () => {
-          debugConfigBar.scrollBy({ left: -120, behavior: 'smooth' });
+          debugConfigOptions.scrollBy({ left: -120, behavior: 'smooth' });
         });
         scrollRightBtn.addEventListener('click', () => {
-          debugConfigBar.scrollBy({ left: 120, behavior: 'smooth' });
+          debugConfigOptions.scrollBy({ left: 120, behavior: 'smooth' });
         });
-        debugConfigBar.addEventListener('scroll', updateScrollArrows);
+        debugConfigOptions.addEventListener('scroll', updateScrollArrows);
         window.addEventListener('resize', updateScrollArrows);
         setTimeout(updateScrollArrows, 300);
-
+		*/
+		
         // Deploy Org button
         const deployOrgButton = document.getElementById('deploy-org-button');
         if (deployOrgButton) {
@@ -1880,6 +1909,56 @@ export function getHtmlForWebview(extensionUri: vscode.Uri, webview: vscode.Webv
           });
         }
        </script>
+       <script>
+            function scrollToLeft() {
+                const scrollContainer = document.querySelector('.scroll-container');
+                scrollContainer.scrollBy({
+                    left: -100, // Adjust the scroll amount as needed
+                    behavior: 'smooth'
+                });
+            }
+
+            function scrollToRight() {
+                const scrollContainer = document.querySelector('.scroll-container');
+                scrollContainer.scrollBy({
+                    left: 100, // Adjust the scroll amount as needed
+                    behavior: 'smooth'
+                });
+            }
+
+            function updateArrowVisibility() {
+                const scrollContainer = document.querySelector('.scroll-container');
+                const leftArrow = document.querySelector('.scroll-left');
+                const rightArrow = document.querySelector('.scroll-right');
+
+                const scrollLeft = scrollContainer.scrollLeft;
+                const scrollWidth = scrollContainer.scrollWidth;
+                const clientWidth = scrollContainer.clientWidth;
+
+                // Show left arrow if we can scroll left
+                if (scrollLeft > 0) {
+                    leftArrow.classList.add('visible');
+                } else {
+                    leftArrow.classList.remove('visible');
+                }
+
+                // Show right arrow if we can scroll right
+                if (scrollLeft < scrollWidth - clientWidth) {
+                    rightArrow.classList.add('visible');
+                } else {
+                    rightArrow.classList.remove('visible');
+                }
+            }
+
+            // Check arrow visibility when page loads
+            document.addEventListener('DOMContentLoaded', function () {
+                updateArrowVisibility();
+
+                // Update arrow visibility when scrolling
+                const scrollContainer = document.querySelector('.scroll-container');
+                scrollContainer.addEventListener('scroll', updateArrowVisibility);
+            });
+        </script>
        <script>
         // terminalDropdownGroup = document.getElementById('terminal-dropdown-group');
         // terminalMainButton = document.getElementById('terminal-main-button');
@@ -1905,4 +1984,4 @@ export function getHtmlForWebview(extensionUri: vscode.Uri, webview: vscode.Webv
       <script type="module" src="${debugPresetUtilsUri}"></script>
     </body>
     </html>`;
-  }
+}
