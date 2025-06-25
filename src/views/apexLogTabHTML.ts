@@ -569,12 +569,8 @@ export function getHtmlForWebview(
         
         .scroll-left,
         .scroll-right {
-            background-color: white;
-            border: 1px solid #ccc;
             cursor: pointer;
             pointer-events: auto; /* Re-enable clicks on buttons */
-            padding: 5px 10px;
-            border-radius: 3px;
             opacity: 0;
             transition: opacity 0.3s ease;
         }
@@ -719,8 +715,12 @@ export function getHtmlForWebview(
                     </div>
                 </div>
                 <div class="scroll-arrows">
-                    <button class="scroll-left" onclick="scrollToLeft()">&#9664;</button>
-                    <button class="scroll-right" onclick="scrollToRight()">&#9654;</button>
+                    <button class="icon-button scroll-left" title="scroll to the left" onclick="scrollToLeft()">
+                        <span class="icon arrow-circle-left"></span>
+                    </button>
+                    <button class="icon-button scroll-right" title="scroll to the right" onclick="scrollToRight()">
+                        <span class="icon arrow-circle-right"></span>
+                    </button>
                 </div>
             </div>
             <button class="icon-button" id="apply-debug-config-button" title="Apply Debug Configuration and Turn On Debug"
@@ -1880,26 +1880,7 @@ export function getHtmlForWebview(
           }
         });
         
-        /*
-        // Debug config bar scroll arrows
-        const debugConfigOptions = document.getElementById('debug-config-options');
-        const scrollLeftBtn = document.getElementById('debug-scroll-left');
-        const scrollRightBtn = document.getElementById('debug-scroll-right');
-        function updateScrollArrows() {
-          if (!debugConfigOptions) return;
-          scrollLeftBtn.classList.toggle('hidden', debugConfigOptions.scrollLeft <= 0);
-          scrollRightBtn.classList.toggle('hidden', debugConfigOptions.scrollLeft + debugConfigOptions.clientWidth >= debugConfigOptions.scrollWidth - 1);
-        }
-        scrollLeftBtn.addEventListener('click', () => {
-          debugConfigOptions.scrollBy({ left: -120, behavior: 'smooth' });
-        });
-        scrollRightBtn.addEventListener('click', () => {
-          debugConfigOptions.scrollBy({ left: 120, behavior: 'smooth' });
-        });
-        debugConfigOptions.addEventListener('scroll', updateScrollArrows);
-        window.addEventListener('resize', updateScrollArrows);
-        setTimeout(updateScrollArrows, 300);
-		*/
+       
 		
         // Deploy Org button
         const deployOrgButton = document.getElementById('deploy-org-button');
