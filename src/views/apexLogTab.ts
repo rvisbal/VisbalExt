@@ -138,6 +138,10 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
                     OrgUtils.logDebug(`[VisbalExt.VisbalLogView] resolveWebviewView -- Opening log: ${message.logId}`);
                     await this.openLog(message.logId);
                     break;
+                case 'viewLog':
+                    OrgUtils.logDebug(`[VisbalExt.VisbalLogView] resolveWebviewView -- Viewing log in editor: ${message.logId}`);
+                    await this.viewLog(message.logId);
+                    break;
                 case 'toggleDownloaded':
                     OrgUtils.logDebug(`[VisbalExt.VisbalLogView] resolveWebviewView -- Toggling downloaded status for log: ${message.logId} to ${message.downloaded}`);
                     this._toggleDownloaded(message.logId, message.downloaded);
@@ -2158,6 +2162,9 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
 
     public async openLog(logId: string): Promise<void> {
         try {
+            // Show progress in status bar
+            statusBarService.showProgress(`Opening log ${logId}...`);
+            
             this._view?.webview.postMessage({ 
                 command: 'downloadStatus', 
                 logId: logId, 
@@ -2167,12 +2174,18 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
             const defaultView = config.get<string>('defaultView', 'user_debug');
             await OrgUtils.openLog(logId, this._extensionUri, defaultView);
 
+            // Show success in status bar
+            statusBarService.showSuccess(`Log ${logId} opened successfully`);
+            
             this._view?.webview.postMessage({ 
                 command: 'downloadStatus', 
                 logId: logId, 
                 status: 'downloaded' 
             });
         } catch (error: any) {
+            // Show error in status bar
+            statusBarService.showError(`Failed to open log ${logId}: ${error.message}`);
+            
             this._view?.webview.postMessage({ 
                 command: 'downloadStatus', 
                 logId: logId, 
@@ -2182,18 +2195,66 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
         }
     }
 
+    public async viewLog(logId: string): Promise<void> {
+        try {
+            OrgUtils.logDebug(`[VisbalExt.VisbalLogView] viewLog -- Starting to view log: ${logId}`);
+            
+            // Show progress in status bar
+            statusBarService.showProgress(`Opening log ${logId} in editor...`);
+            
+            // Use OrgUtils.openLog to open the log in editor (raw text mode)
+            await OrgUtils.openLog(logId, this._extensionUri, '', false);
+            
+            // Show success in status bar
+            statusBarService.showSuccess(`Log ${logId} opened in editor`);
+            
+            // Send success status to webview to re-enable buttons
+            this._view?.webview.postMessage({ 
+                command: 'viewLogStatus', 
+                success: true,
+                logId: logId
+            });
+            
+            OrgUtils.logDebug(`[VisbalExt.VisbalLogView] viewLog -- Successfully opened log in editor: ${logId}`);
+            
+        } catch (error: any) {
+            OrgUtils.logError(`[VisbalExt.VisbalLogView] viewLog -- Error viewing log ${logId}:`, error);
+            
+            // Show error in status bar
+            statusBarService.showError(`Failed to open log ${logId}: ${error.message}`);
+            
+            // Send error status to webview to re-enable buttons
+            this._view?.webview.postMessage({ 
+                command: 'viewLogStatus', 
+                success: false,
+                logId: logId,
+                error: error.message
+            });
+        }
+    }
+
     public async downloadLog(logId: string): Promise<void> {
         try {
             OrgUtils.logDebug('[VisbalExt.VisbalLogView] downloadLog -- logId:', logId);
             this._isLoading = true;
+            
+            // Show progress in status bar
+            statusBarService.showProgress(`Downloading log ${logId}...`);
+            
             this._view?.webview.postMessage({ command: 'downloading', logId, isDownloading: true });
 
             // Update OrgUtils with current logs data
             OrgUtils.initialize(this._logs, this._context);
             await OrgUtils.downloadLog(logId);
+            
+            // Show success in status bar
+            statusBarService.showSuccess(`Log ${logId} downloaded successfully`);
+            
             OrgUtils.logDebug('[VisbalExt.VisbalLogView] downloadLog _updateWebviewContent', logId);
             this._updateWebviewContent();
         } catch (error: any) {
+            // Show error in status bar
+            statusBarService.showError(`Failed to download log ${logId}: ${error.message}`);
             // Error handling is done by OrgUtils
             throw error;
         } finally {

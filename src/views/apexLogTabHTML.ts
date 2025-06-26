@@ -109,9 +109,7 @@ export function getHtmlForWebview(
         .open-icon {
           color: white;
         }
-        .view-icon {
-          color: white;
-        }
+        
         .action-cell {
           display: flex;
           gap: 4px;
@@ -219,6 +217,10 @@ export function getHtmlForWebview(
         }
         .logs-table tr:hover {
           background-color: var(--vscode-list-hoverBackground);
+        }
+        .logs-table tbody tr[data-log-id]:hover {
+          background-color: var(--vscode-list-hoverBackground);
+          cursor: pointer;
         }
         .checkbox-cell {
           text-align: center;
@@ -767,9 +769,7 @@ export function getHtmlForWebview(
                         </div>
                     </div>
                 </div>
-                <button class="icon-button" id="deploy-org-button" title="Deploy Org" aria-label="Deploy Org">
-                    <span class="icon deploy-icon"></span>
-                </button>
+               
                 <button class="icon-button" id="clear-local-button" title="Clear Downloaded Log Files on local machine">
                     <span class="icon flame"></span>
                 </button>
@@ -1155,6 +1155,18 @@ export function getHtmlForWebview(
                 // No cache available, request fresh data
                 vscode.postMessage({ command: 'refreshOrgList' });
               }
+              break;
+            case 'viewLogStatus':
+              
+              
+              if (message.success) {
+                // Success feedback will be handled by status bar in backend
+                console.log('[VisbalExt.htmlTemplate] Log opened successfully in editor');
+              } else {
+                // Error feedback will be handled by status bar in backend
+                console.error('[VisbalExt.htmlTemplate] Failed to open log in editor:', message.error);
+              }
+              break;
           }
         });
         
@@ -1586,6 +1598,18 @@ export function getHtmlForWebview(
               '  <button class="icon-button open-icon" data-id="' + log.id + '" title="Open" ' + (!log.downloaded ? 'disabled' : '') + '></button>' +
               '</td>';
             
+            // Add double-click functionality to the row
+            row.style.cursor = 'pointer';
+            row.setAttribute('data-log-id', log.id);
+            row.title = 'Double-click to view log in editor';
+            row.addEventListener('dblclick', () => {
+              console.log('[VisbalExt.htmlTemplate] handleRowDoubleClick -- Row double-clicked -- LogId:', log.id);
+              vscode.postMessage({
+                command: 'viewLog',
+                logId: log.id
+              });
+            });
+            
             logsTableBody.appendChild(row);
           });
           
@@ -1620,21 +1644,7 @@ export function getHtmlForWebview(
             });
           });
           
-          // Add event listeners for view buttons
-          document.querySelectorAll('.view-icon').forEach(button => {
-            button.addEventListener('click', () => {
-              const logId = button.getAttribute('data-id');
-              console.log('[VisbalExt.htmlTemplate] handleViewButton -- View button clicked -- LogId:', logId);
-              
-              vscode.postMessage({
-                command: 'viewLog',
-                logId: logId
-              });
-              
-              button.disabled = true;
-              button.title = 'Viewing...';
-            });
-          });
+         
           
           // Remove the event listeners for downloaded checkboxes since they're now just text indicators
           
