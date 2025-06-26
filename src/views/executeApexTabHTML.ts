@@ -1,12 +1,14 @@
+import { styles } from "./styles";
+
 export function getHtmlForWebview(): string {
 //JavaScript/HTML section, type script rule dont apply in this block
 return `<!DOCTYPE html>
-<html lang="en">
+<html >
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline';">
-    <title>Visbal Apex</title>
+    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; img-src data:;">
+    <style>${styles}</style>
     <style>
         body {
             padding: 0;
@@ -17,7 +19,7 @@ return `<!DOCTYPE html>
             background-color: var(--vscode-editor-background);
             color: var(--vscode-foreground);
         }
-        .container {
+        .apex-container {
             display: flex;
             flex-direction: column;
             height: 100vh;
@@ -94,7 +96,7 @@ return `<!DOCTYPE html>
             color: var(--vscode-input-foreground);
             border: 1px solid var(--vscode-input-border);
             padding: 8px;
-            font-family: var(--vscode-editor-font-family, monospace);
+            /*font-family: var(--vscode-editor-font-family, monospace);*/
             font-size: var(--vscode-editor-font-size, 14px);
             line-height: 1.4;
             resize: none;
@@ -172,7 +174,7 @@ return `<!DOCTYPE html>
             background: var(--vscode-input-background);
             border: 1px solid var(--vscode-input-border);
             padding: 8px;
-            font-family: var(--vscode-editor-font-family);
+            /*font-family: var(--vscode-editor-font-family);*/
             font-size: var(--vscode-editor-font-size);
             overflow-y: auto;
             height: 100%;
@@ -189,7 +191,7 @@ return `<!DOCTYPE html>
             font-style: italic;
         }
         .codicon {
-            font-family: codicon;
+            /*font-family: codicon;*/
             font-size: 16px;
             line-height: 16px;
         }
@@ -234,7 +236,7 @@ return `<!DOCTYPE html>
                 gap: 4px;
                 margin-left: auto;
             }
-    </>
+    </style>
     <style>
      
         .org-selector-container {
@@ -303,7 +305,7 @@ return `<!DOCTYPE html>
             border-radius: 3px;
         }
         .error-message {
-            font-family: var(--vscode-font-family);
+            /*font-family: var(--vscode-font-family);*/
             font-size: 12px;
             white-space: pre-wrap;
             word-break: break-word;
@@ -314,7 +316,7 @@ return `<!DOCTYPE html>
     </style>
 </head>
 <body>
-    <div class="container">
+    <div class="apex-container">
         <div class="tabs">
             <button class="tab active" data-tab="editor">Editor</button>
             <button class="tab" data-tab="results">Results</button>
@@ -323,7 +325,7 @@ return `<!DOCTYPE html>
             <div class="editor-container">
                 <div class="editor-header">
                     <div class="toolbar">
-                        <div class="toolbar-left">
+                        <div class="toolbar-left" style="display: none">
                             <select id="fileSelector" class="fileSelector" title="Select Apex File">
                                 <option value="">Select an Apex file...</option>
                             </select>
@@ -348,11 +350,8 @@ return `<!DOCTYPE html>
                             <select id="org-selector" class="org-selector" title="Select Salesforce Org">
                                 <option value="">Loading orgs...</option>
                             </select>
-                            <button id="executeButton" onclick="executeApex()" title="Execute Apex Code">
-                                Execute Code
-                                <svg width="16" height="16" viewBox="0 0 16 16">
-                                    <path fill="currentColor" d="M3.5 3v10l9-5-9-5z"/>
-                                </svg>
+                             <button class="icon-button button-primary" id="executeButton"  onclick="executeApex()" title="Execute Apex Code">
+                                <span class="icon play"></span>
                             </button>
                         </div>
                     </div>
