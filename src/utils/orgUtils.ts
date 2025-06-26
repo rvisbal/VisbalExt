@@ -69,7 +69,7 @@ export class OrgUtils {
     private static _orgAliasCache: { alias: string; timestamp: number } | null = null;
     private static _currentUserIdCache: { userId: string; timestamp: number } | null = null;
     private static readonly CACHE_EXPIRATION = 15 * 60 * 1000; // 15 minutes in milliseconds
-    public static DEBUG_MODE = false;
+    public static DEBUG_MODE = true;
 
     
 

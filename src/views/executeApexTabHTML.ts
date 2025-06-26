@@ -353,6 +353,9 @@ return `<!DOCTYPE html>
                              <button class="icon-button button-primary" id="executeButton"  onclick="executeApex()" title="Execute Apex Code">
                                 <span class="icon play"></span>
                             </button>
+                            <button class="icon-button" id="downloadButton" onclick="downloadResults()" title="Download Execution Results" disabled>
+                                <span class="icon download-icon"></span>
+                            </button>
                         </div>
                     </div>
                 </div>
@@ -360,13 +363,16 @@ return `<!DOCTYPE html>
                     
         
                 <div class="textarea-container">
-                    <textarea 
-                        id="apexTextarea" 
-                        placeholder="Type something here..."
-                        aria-label="Apex code editor"
-                        spellcheck="false"
-                        autocomplete="off"
-                    ></textarea>
+                    <div class="code-editor">
+                        <div class="line-numbers" id="lineNumbers">1</div>
+                        <textarea 
+                            id="apexTextarea" 
+                            placeholder="Type something here..."
+                            aria-label="Apex code editor"
+                            spellcheck="false"
+                            autocomplete="off"
+                        ></textarea>
+                    </div>
                     <div class="char-count">0 / 1000 characters</div>
                 </div>
             </div>
@@ -391,6 +397,7 @@ return `<!DOCTYPE html>
             const textarea = document.getElementById('apexTextarea');
             const charCount = document.querySelector('.char-count');
             const executeButton = document.getElementById('executeButton');
+            const downloadButton = document.getElementById('downloadButton');
             const outputContainer = document.getElementById('outputContainer');
             const tabs = document.querySelectorAll('.tab');
             const contents = document.querySelectorAll('.content');
@@ -466,12 +473,85 @@ return `<!DOCTYPE html>
                 charCount.textContent = \`\${length} characters\`;
             }
             
-            // Initialize character count
+            // Update line numbers
+            function updateLineNumbers() {
+                const lines = textarea.value.split('\\n');
+                const lineCount = lines.length;
+                const lineNumbers = document.getElementById('lineNumbers');
+                
+                // Generate line numbers
+                let lineNumbersText = '';
+                for (let i = 1; i <= lineCount; i++) {
+                    lineNumbersText += i + (i < lineCount ? '\\n' : '');
+                }
+                lineNumbers.textContent = lineNumbersText;
+            }
+            
+            // Sync scroll position between textarea and line numbers
+            function syncScroll() {
+                const lineNumbers = document.getElementById('lineNumbers');
+                lineNumbers.scrollTop = textarea.scrollTop;
+            }
+            
+            // Store execution results for download
+            let lastExecutionResult = null;
+            
+            // Download execution results
+            function downloadResults() {
+                if (!lastExecutionResult) {
+                    vscode.postMessage({
+                        command: 'showError',
+                        message: 'No execution results available to download'
+                    });
+                    return;
+                }
+                
+                vscode.postMessage({
+                    command: 'downloadExecutionResults',
+                    data: lastExecutionResult
+                });
+            }
+            
+            // Make downloadResults available globally
+            window.downloadResults = downloadResults;
+            
+            // Initialize
             updateCharCount();
+            updateLineNumbers();
             
             // Handle textarea input
             textarea.addEventListener('input', (e) => {
                 updateCharCount();
+                updateLineNumbers();
+            });
+            
+            // Handle textarea scroll
+            textarea.addEventListener('scroll', (e) => {
+                syncScroll();
+            });
+            
+            // Ensure clipboard operations work properly
+            textarea.addEventListener('paste', (e) => {
+                // Allow default paste behavior
+                setTimeout(() => {
+                    updateCharCount();
+                    updateLineNumbers();
+                }, 0);
+            });
+            
+            // Handle keyboard shortcuts for copy/paste
+            textarea.addEventListener('keydown', (e) => {
+                // Allow Ctrl+V (paste), Ctrl+C (copy), Ctrl+X (cut)
+                if (e.ctrlKey && (e.key === 'v' || e.key === 'c' || e.key === 'x')) {
+                    // Let the default behavior happen
+                    if (e.key === 'v') {
+                        // Update line numbers after paste
+                        setTimeout(() => {
+                            updateCharCount();
+                            updateLineNumbers();
+                        }, 0);
+                    }
+                }
             });
             
             // Handle messages from the extension
@@ -481,6 +561,7 @@ return `<!DOCTYPE html>
                 switch (message.command) {
                     case 'executionStarted':
                         executeButton.disabled = true;
+                        downloadButton.disabled = true;
                         outputContainer.className = 'output-container';
                         outputContainer.innerHTML = '<div class="loading">Executing Apex code...</div>';
                         switchToResultsTab();
@@ -491,6 +572,18 @@ return `<!DOCTYPE html>
                         stopLoading();
                         executeButton.disabled = false;
                         let output = '';
+                        
+                        // Store execution result for download
+                        lastExecutionResult = {
+                            timestamp: new Date().toISOString(),
+                            success: message.success,
+                            logs: message.logs,
+                            compileProblem: message.compileProblem,
+                            exceptionMessage: message.exceptionMessage,
+                            exceptionStackTrace: message.exceptionStackTrace,
+                            message: message.message,
+                            apexCode: textarea.value
+                        };
                         
                         if (message.success) {
                             output += '<div class="success">? Execution successful</div>\\n';
@@ -514,6 +607,9 @@ return `<!DOCTYPE html>
                         }
                         statusBar.textContent = message.message;
                         outputContainer.innerHTML = output;
+                        
+                        // Enable download button
+                        downloadButton.disabled = false;
                         break;
                     case 'updateOrgList':
                         updateOrgListUI(message.orgs || {}, message.fromCache, message.selectedOrg);

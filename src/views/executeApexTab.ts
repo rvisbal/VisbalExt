@@ -1,4 +1,7 @@
 import * as vscode from 'vscode';
+import * as fs from 'fs';
+import * as path from 'path';
+import * as os from 'os';
 import { MetadataService } from '../services/metadataService';
 import { OrgListCacheService } from '../services/orgListCacheService';
 import { OrgUtils } from '../utils/orgUtils';
@@ -186,6 +189,22 @@ export class ExecuteApexTab implements vscode.WebviewViewProvider {
                         });
                     }
                     break;
+                case 'downloadExecutionResults':
+                    try {
+                        await this._downloadExecutionResults(message.data);
+                    } catch (error: any) {
+                        this._view?.webview.postMessage({
+                            command: 'error',
+                            message: `Error downloading results: ${error.message}`
+                        });
+                    }
+                    break;
+                case 'showError':
+                    this._view?.webview.postMessage({
+                        command: 'error',
+                        message: message.message
+                    });
+                    break;
             }
         });
     }
@@ -293,6 +312,76 @@ export class ExecuteApexTab implements vscode.WebviewViewProvider {
             this._view?.webview.postMessage({
                 command: 'stopLoading'
             });
+        }
+    }
+
+    private async _downloadExecutionResults(executionData: any): Promise<void> {
+        try {
+            OrgUtils.logDebug('[VisbalExt.ExecuteApexTab] _downloadExecutionResults -- Starting download');
+            
+            // Determine target directory
+            const logsDir = vscode.workspace.workspaceFolders?.[0]
+                ? path.join(vscode.workspace.workspaceFolders[0].uri.fsPath, '.visbal', 'logs', 'apex-execution')
+                : path.join(os.homedir(), '.visbal', 'logs', 'apex-execution');
+            
+            // Ensure directory exists
+            await fs.promises.mkdir(logsDir, { recursive: true });
+            
+            // Create filename
+            const timestamp = new Date().toISOString().replace(/:/g, '-').replace(/\./g, '-');
+            const status = executionData.success ? 'SUCCESS' : 'FAILED';
+            const filename = `apex-execution_${status}_${timestamp}.log`;
+            const targetFilePath = path.join(logsDir, filename);
+            
+            // Build log content
+            let logContent = '';
+            logContent += `=== APEX EXECUTION RESULTS ===\n`;
+            logContent += `Timestamp: ${executionData.timestamp}\n`;
+            logContent += `Status: ${status}\n`;
+            logContent += `Org: ${await OrgUtils.getCurrentOrgAlias()}\n`;
+            logContent += `\n=== APEX CODE ===\n`;
+            logContent += executionData.apexCode || 'No code available';
+            logContent += `\n\n=== EXECUTION RESULTS ===\n`;
+            
+            if (executionData.success) {
+                logContent += `✅ Execution successful\n`;
+                if (executionData.logs) {
+                    logContent += `\nLogs:\n${executionData.logs}`;
+                }
+            } else {
+                logContent += `❌ Execution failed\n`;
+                if (executionData.compileProblem) {
+                    logContent += `\nCompile Error:\n${executionData.compileProblem}`;
+                }
+                if (executionData.exceptionMessage) {
+                    logContent += `\nException:\n${executionData.exceptionMessage}`;
+                }
+                if (executionData.exceptionStackTrace) {
+                    logContent += `\nStack Trace:\n${executionData.exceptionStackTrace}`;
+                }
+                if (executionData.message) {
+                    logContent += `\nError Message:\n${executionData.message}`;
+                }
+            }
+            
+            // Write log file
+            await fs.promises.writeFile(targetFilePath, logContent);
+            
+            // Notify user
+            this._view?.webview.postMessage({
+                command: 'success',
+                message: `Execution results saved to: ${filename}`
+            });
+            
+            // Open the log file
+            const document = await vscode.workspace.openTextDocument(targetFilePath);
+            await vscode.window.showTextDocument(document);
+            
+            OrgUtils.logDebug('[VisbalExt.ExecuteApexTab] _downloadExecutionResults -- Download completed');
+            
+        } catch (error: any) {
+            OrgUtils.logError('[VisbalExt.ExecuteApexTab] _downloadExecutionResults -- Error:', error);
+            throw error;
         }
     }
 } 
