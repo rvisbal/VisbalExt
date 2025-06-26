@@ -29,6 +29,15 @@ export function getOrgTabHtml(webview: Webview, orgs: Org[] = [], isLoading = fa
     return html;// WebviewUtils.injectDebugBox(html);
 }
 
+// Send status update to webview
+export function sendDeleteStatus(webview: Webview, success: boolean, message?: string) {
+    webview.postMessage({
+        command: 'deleteStatus',
+        success,
+        message
+    });
+}
+
 // Handle webview messages in your extension.ts
 export function handleWebviewMessage(webview: Webview, message: any, orgTable: OrgTable) {
     OrgUtils.logDebug('handleWebviewMessage.message.command: ' + message.command);
@@ -45,6 +54,14 @@ export function handleWebviewMessage(webview: Webview, message: any, orgTable: O
             break;
         case 'openOrg':
             // Handle org opening in your extension
+            break;
+        case 'deleteOrg':
+            // Handle org deletion in your extension
+            OrgUtils.logDebug(`Delete scratch org requested: alias=${message.alias}, username=${message.username}`);
+            // Example of how to send status updates:
+            // sendDeleteStatus(webview, true, 'Scratch org deleted successfully!');
+            // or
+            // sendDeleteStatus(webview, false, 'Failed to delete scratch org: error message');
             break;
     }
 } 
