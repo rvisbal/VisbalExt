@@ -320,6 +320,9 @@ return `<!DOCTYPE html>
         <div class="tabs">
             <button class="tab active" data-tab="editor">Editor</button>
             <button class="tab" data-tab="results">Results</button>
+            <button class="icon-button tab-download-button" id="downloadButton" onclick="downloadResults()" title="Download Execution Results" style="display: none;">
+                <span class="icon download-icon"></span>
+            </button>
         </div>
         <div id="editorContent" class="content active">
             <div class="editor-container">
@@ -352,9 +355,6 @@ return `<!DOCTYPE html>
                             </select>
                              <button class="icon-button button-primary" id="executeButton"  onclick="executeApex()" title="Execute Apex Code">
                                 <span class="icon play"></span>
-                            </button>
-                            <button class="icon-button" id="downloadButton" onclick="downloadResults()" title="Download Execution Results" disabled>
-                                <span class="icon download-icon"></span>
                             </button>
                         </div>
                     </div>
@@ -455,8 +455,20 @@ return `<!DOCTYPE html>
                             content.classList.remove('active');
                         }
                     });
+                    
+                    // Show/hide download button based on active tab
+                    updateDownloadButtonVisibility(tabId);
                 });
             });
+            
+            // Function to update download button visibility
+            function updateDownloadButtonVisibility(activeTab) {
+                if (activeTab === 'results') {
+                    downloadButton.style.display = 'flex';
+                } else {
+                    downloadButton.style.display = 'none';
+                }
+            }
 
             // Switch to results tab when executing
             function switchToResultsTab() {
@@ -465,6 +477,8 @@ return `<!DOCTYPE html>
                         tab.click();
                     }
                 });
+                // Ensure download button is visible when switching to results
+                updateDownloadButtonVisibility('results');
             }
             
             // Update character count
@@ -561,7 +575,6 @@ return `<!DOCTYPE html>
                 switch (message.command) {
                     case 'executionStarted':
                         executeButton.disabled = true;
-                        downloadButton.disabled = true;
                         outputContainer.className = 'output-container';
                         outputContainer.innerHTML = '<div class="loading">Executing Apex code...</div>';
                         switchToResultsTab();
@@ -607,9 +620,6 @@ return `<!DOCTYPE html>
                         }
                         statusBar.textContent = message.message;
                         outputContainer.innerHTML = output;
-                        
-                        // Enable download button
-                        downloadButton.disabled = false;
                         break;
                     case 'updateOrgList':
                         updateOrgListUI(message.orgs || {}, message.fromCache, message.selectedOrg);

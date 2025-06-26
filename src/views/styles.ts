@@ -451,4 +451,29 @@ export const styles = `
         margin-top: 4px;
         padding-right: 8px;
     }
+
+    /* ===== TABS CONTAINER ===== */
+    .tabs {
+        display: flex;
+        align-items: center;
+    }
+
+    /* ===== TAB DOWNLOAD BUTTON ===== */
+    .tab-download-button {
+        margin-left: auto;
+        margin-right: 8px;
+        background-color: var(--vscode-button-background, #0e639c);
+        border: 1px solid var(--vscode-button-border, transparent);
+        color: var(--vscode-button-foreground, #ffffff);
+    }
+
+    .tab-download-button:hover {
+        background-color: var(--vscode-button-hoverBackground, #1177bb);
+    }
+
+    .tab-download-button:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+        background-color: var(--vscode-button-background, #0e639c);
+    }
 `; 
