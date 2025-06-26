@@ -487,8 +487,20 @@ export function activate(context: vscode.ExtensionContext) {
     })
   );
 
+  // Command to show the Visbal Extension output channel
+  context.subscriptions.push(
+    vscode.commands.registerCommand('visbal-ext.showOutput', () => {
+      outputChannel.show();
+    })
+  );
+
   outputChannel.appendLine('[VisbalExt.Extension] Visbal Extension activated successfully');
-  outputChannel.show();
+  
+  // Only show output channel if configured to do so
+  const showOutputOnActivation = vscode.workspace.getConfiguration('visbal').get('output.showOnActivation', false);
+  if (showOutputOnActivation) {
+    outputChannel.show();
+  }
 }
 
 // This method is called when your extension is deactivated

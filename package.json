@@ -218,6 +218,12 @@
         "command": "visbal-ext.selectTestMethod",
         "title": "Select Test Method Selection",
         "category": "Visbal"
+      },
+      {
+        "command": "visbal-ext.showOutput",
+        "title": "Show Visbal Extension Output",
+        "category": "Visbal",
+        "icon": "$(output)"
       }
     ],
     "menus": {
@@ -348,6 +354,11 @@
           "default": "webview",
           "enum": ["panel", "webview"],
           "description": "Choose the display mode for Git History: 'panel' for a separate panel, 'webview' for the classic view."
+        },
+        "visbal.output.showOnActivation": {
+          "type": "boolean",
+          "default": false,
+          "description": "Show the Visbal Extension output channel when the extension activates. Set to false to prevent it from becoming the default output tab."
         }
       }
     }

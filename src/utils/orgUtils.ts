@@ -825,6 +825,7 @@ export class OrgUtils {
     public static openAndDisplayOutputTab(output: string): void {
         const outputChannel = vscode.window.createOutputChannel('Visbal Extension');
         outputChannel.appendLine(output);
+        // Only show output channel when explicitly requested, not by default
         outputChannel.show(true);
     }
 

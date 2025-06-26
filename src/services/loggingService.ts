@@ -106,6 +106,7 @@ export class LoggingService {
     }
 
     public show(): void {
+        // Only show output channel when explicitly requested
         this.outputChannel.show();
     }
 
