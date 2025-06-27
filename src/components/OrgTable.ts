@@ -89,14 +89,13 @@ export class OrgTable {
                 <div id="orgDetailsModal" class="modal-overlay" style="display:none">
                     <div class="modal-content org-details-modal">
                         <div class="modal-header">
-                            <h3>Org Details</h3>
-                            <button id="closeOrgDetailsBtn" class="close-button" title="Close" aria-label="Close">×</button>
-                        </div>
-                        <div class="modal-body">
-                            <div class="org-details-header">
+                            <div class="modal-header-left">
                                 <h4 id="orgDetailsAlias"></h4>
                                 <span id="orgDetailsType" class="org-type-badge"></span>
                             </div>
+                            <button id="closeOrgDetailsBtn" class="close-button" title="Close" aria-label="Close">×</button>
+                        </div>
+                        <div class="modal-body">
                             <div class="json-container">
                                 <pre id="orgDetailsJson" class="json-content"></pre>
                             </div>
@@ -201,11 +200,12 @@ export class OrgTable {
                 .org-type-badge {
                     background-color: var(--vscode-badge-background, #0e639c);
                     color: var(--vscode-badge-foreground, white);
-                    padding: 4px 8px;
-                    border-radius: 12px;
-                    font-size: 12px;
+                    padding: 2px 6px;
+                    border-radius: 10px;
+                    font-size: 11px;
                     font-weight: 500;
                     text-transform: uppercase;
+                    white-space: nowrap;
                 }
                 
                 .json-container {
@@ -322,14 +322,23 @@ export class OrgTable {
                 }
                 
                 .modal-header {
-                    padding: 16px 20px 12px;
+                    padding: 12px 16px 8px;
                     border-bottom: 1px solid var(--vscode-panel-border);
                     display: flex;
                     justify-content: space-between;
                     align-items: center;
+                    gap: 12px;
                 }
                 
-                .modal-header h3 {
+                .modal-header-left {
+                    display: flex;
+                    align-items: center;
+                    gap: 8px;
+                    flex: 1;
+                }
+                
+                .modal-header h3,
+                .modal-header h4 {
                     margin: 0;
                     font-size: 16px;
                     font-weight: 600;
@@ -337,7 +346,7 @@ export class OrgTable {
                 }
                 
                 .modal-body {
-                    padding: 16px 20px;
+                    padding: 12px 16px;
                 }
                 
                 .modal-body p {
@@ -358,7 +367,7 @@ export class OrgTable {
                 }
                 
                 .modal-footer {
-                    padding: 12px 20px 16px;
+                    padding: 8px 16px 12px;
                     display: flex;
                     justify-content: flex-end;
                     gap: 8px;
@@ -461,6 +470,7 @@ export class OrgTable {
                         e.preventDefault();
                         const alias = target.getAttribute('data-alias');
                         const username = target.getAttribute('data-username');
+                        console.log('[VisbalExt.OrgTable] Delete button clicked - alias:', alias, 'username:', username);
                         showDeleteConfirmation(alias, username);
                     }
                 });
@@ -501,6 +511,7 @@ export class OrgTable {
 
                 // Show delete confirmation dialog
                 function showDeleteConfirmation(alias, username) {
+                    console.log('[VisbalExt.OrgTable] showDeleteConfirmation - alias:', alias, 'username:', username);
                     pendingDeleteOrg = { alias, username };
                     document.getElementById('deleteOrgAlias').textContent = alias || '(No alias)';
                     document.getElementById('deleteOrgUsername').textContent = username || '(No username)';
@@ -553,13 +564,18 @@ export class OrgTable {
                 // Handle confirm delete button
                 document.getElementById('confirmDeleteBtn').addEventListener('click', () => {
                     if (pendingDeleteOrg) {
+                        console.log('[VisbalExt.OrgTable] Confirm delete clicked - sending message to extension:', pendingDeleteOrg);
                         showStatus('Deleting scratch org...', 'loading');
-                        vscode.postMessage({ 
+                        const deleteMessage = { 
                             command: 'deleteOrg', 
                             alias: pendingDeleteOrg.alias,
                             username: pendingDeleteOrg.username
-                        });
+                        };
+                        console.log('[VisbalExt.OrgTable] Sending message:', deleteMessage);
+                        vscode.postMessage(deleteMessage);
                         hideDeleteConfirmation();
+                    } else {
+                        console.log('[VisbalExt.OrgTable] ERROR: No pending delete org found!');
                     }
                 });
 
@@ -604,21 +620,27 @@ export class OrgTable {
                 // Handle messages from extension
                 window.addEventListener('message', event => {
                     const message = event.data;
+                    console.log('[VisbalExt.OrgTable] Received message from extension:', message);
                     switch (message.command) {
                         case 'updateOrgsHtml':
+                            console.log('[VisbalExt.OrgTable] Updating orgs HTML');
                             document.getElementById('orgsTableBody').innerHTML = message.html;
                             break;
                         case 'updateOrgList':
+                            console.log('[VisbalExt.OrgTable] Updating org list, count:', message.orgs?.length || 0);
                             currentOrgs = message.orgs;
                             requestUpdate();
                             break;
                         case 'deleteStatus':
+                            console.log('[VisbalExt.OrgTable] Delete status received - success:', message.success, 'message:', message.message);
                             if (message.success) {
                                 showStatus(message.message || 'Scratch org deleted successfully!', 'success');
                             } else {
                                 showStatus(message.message || 'Failed to delete scratch org', 'error');
                             }
                             break;
+                        default:
+                            console.log('[VisbalExt.OrgTable] Unknown message command:', message.command);
                     }
                 });
             </script>
