@@ -1972,22 +1972,7 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                                 }
                                 else {
                                     allQueueItemsCompleted = false;
-                                    // add the ApexClass.Name to the testRunningTaskSidePanel
-                                    this._testRunResultsView.updateMethodStatus(q.ApexClass.Name, '', TestStatus.running);
-
-                                    //todo: check if this is needed
-                                    /*
-                                    // if there is item on the storage service on that class, add it to the testRunningTaskSidePanel
-                                    const methods = await this._storageService.getTestMethodsForClass(q.ApexClass.Name);
-                                    if (methods.length > 0) {
-                                        OrgUtils.logDebug(`[VisbalExt.TestClassExplorerView] _runManyTest -- countIteration: ${countIteration} ADD -- methods: ${q.ApexClass.Name} -- methods.length: ${methods.length}`);
-                                        this._testRunResultsView.addTestRun(q.ApexClass.Name, methods.map(m => m.name));
-                                        for (const m of methods) {
-                                            OrgUtils.logDebug(`[VisbalExt.TestClassExplorerView] _runManyTest -- countIteration: ${countIteration} RUNNING -- methods: ${q.ApexClass.Name} -- m.name: ${m.name}`);
-                                            this._testRunResultsView.updateMethodStatus(q.ApexClass.Name, m.name, TestStatus.running);
-                                        }
-                                    }
-                                    */
+                                    OrgUtils.logDebug(`[VisbalExt.TestClassExplorerView] _runManyTest -- Queue item still running: ${q.ApexClass.Name}`);
                                 }
                             }
                             
@@ -2025,7 +2010,7 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                                     } else if (r.Outcome === 'Fail' || r.Outcome === 'Failed') {
                                         testStatus = TestStatus.failed;
                                     }
-                                    this._testRunResultsView.updateMethodStatus(className, r.MethodName, testStatus, r.ApexLogId);
+                                    this._testRunResultsView.updateMethodStatus(className, r.MethodName, testStatus, r.ApexLogId, r.Message);
                                 }
         
                                 //todo: check if this is needed
@@ -2118,7 +2103,7 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                             } else if (t.Outcome === 'Fail' || t.Outcome === 'Failed') {
                                 testStatus= TestStatus.failed;
                             }
-                            this._testRunResultsView.updateMethodStatus(t.ApexClass.Name, t.MethodName, testStatus, t.ApexLogId);
+                            this._testRunResultsView.updateMethodStatus(t.ApexClass.Name, t.MethodName, testStatus, t.ApexLogId, t.Message);
                         }       
                     }
 

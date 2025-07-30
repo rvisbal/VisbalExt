@@ -83,7 +83,7 @@ export class TestItem extends vscode.TreeItem {
         }
     }
 
-    updateStatus(status: 'running' | 'success' | 'failed' | 'pending' | 'downloading') {
+    updateStatus(status: 'running' | 'success' | 'failed' | 'downloading' | 'pending') {
         this._status = status;
         switch (status) {
             case 'running':
@@ -99,8 +99,14 @@ export class TestItem extends vscode.TreeItem {
                 this.description = 'Passed';
                 break;
             case 'failed':
-                this.iconPath = new vscode.ThemeIcon('error');
-                this.description = 'Failed';
+                // Check if the error indicates the method doesn't exist
+                if (this._error && this._error.includes('does not exist')) {
+                    this.iconPath = new vscode.ThemeIcon('warning', new vscode.ThemeColor('notificationsWarningIcon.foreground'));
+                    this.description = 'Method not found';
+                } else {
+                    this.iconPath = new vscode.ThemeIcon('error');
+                    this.description = 'Failed';
+                }
                 break;
             case 'pending':
                 this.iconPath = new vscode.ThemeIcon('circle-outline');
@@ -180,8 +186,9 @@ export class TestRunningTaskProvider implements vscode.TreeDataProvider<TestItem
             existingMethods = existingClassItem.children.map(child => child.label);
         }
         
-        // Combine existing and new methods, removing duplicates
-        const uniqueMethods = Array.from(new Set([...existingMethods, ...methods]));
+        // Filter out empty method names and combine existing and new methods, removing duplicates
+        const validMethods = methods.filter(method => method && method.trim() !== '');
+        const uniqueMethods = Array.from(new Set([...existingMethods, ...validMethods]));
         
         const methodItems = uniqueMethods.map(method => {
             OrgUtils.logDebug(`[VisbalExt.TestRunningTaskProvider] Creating method item: ${method}`);
@@ -248,8 +255,13 @@ export class TestRunningTaskProvider implements vscode.TreeDataProvider<TestItem
         if (classItem) {
             const methodItem = classItem.children.find(m => m.label === methodName);
             if (methodItem) {
-                //OrgUtils.logDebug(`[VisbalExt.TestRunningTaskProvider] updateMethodStatus -- Found method item, updating status`);
-                methodItem.updateStatus(status);
+                // Determine final status based on error message if provided
+                let finalStatus = status;
+                if (error && error.includes('does not exist')) {
+                    finalStatus = 'failed';
+                }
+                
+                methodItem.updateStatus(finalStatus);
                 
                 // Update logId if provided
                 if (logId) {
