@@ -494,6 +494,19 @@ export function activate(context: vscode.ExtensionContext) {
     })
   );
 
+  // Command to navigate to symbol definition based on cursor position
+  context.subscriptions.push(
+    vscode.commands.registerCommand('visbal-ext.navigateToSelectedDefinition', async () => {
+      try {
+        OrgUtils.logDebug('[VisbalExt.Extension] Navigating to selected definition');
+        await OrgUtils.navigateToSelectedDefinition();
+      } catch (error: any) {
+        OrgUtils.logError('[VisbalExt.Extension] Error navigating to selected definition:', error);
+        vscode.window.showErrorMessage(`Could not navigate to selected definition: ${error.message}`);
+      }
+    })
+  );
+
   outputChannel.appendLine('[VisbalExt.Extension] Visbal Extension activated successfully');
   
   // Only show output channel if configured to do so

@@ -224,6 +224,12 @@
         "title": "Show Visbal Extension Output",
         "category": "Visbal",
         "icon": "$(output)"
+      },
+      {
+        "command": "visbal-ext.navigateToSelectedDefinition",
+        "title": "Go to Selected Definition",
+        "category": "Visbal",
+        "icon": "$(go-to-file)"
       }
     ],
     "menus": {
@@ -253,6 +259,11 @@
         },
         {
           "command": "visbal-ext.showGitHistoryForFile",
+          "group": "navigation"
+        },
+        {
+          "command": "visbal-ext.navigateToSelectedDefinition",
+          "when": "editorTextFocus",
           "group": "navigation"
         }
       ],
