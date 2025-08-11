@@ -21,6 +21,7 @@ import { GitService } from './services/gitService';
 import { GitHistoryView } from './views/gitHistoryView';
 import { GitHistoryViewPanels } from './views/gitHistoryViewPanels';
 import { ExecuteApexTab } from './views/executeApexTab';
+import { TractionTab } from './views/tractionTab';
 
 let outputChannel: vscode.OutputChannel;
 
@@ -68,6 +69,7 @@ export function activate(context: vscode.ExtensionContext) {
   let soqlPanel: SoqlTab | undefined;
   let samplePanel: ExecuteApexTab | undefined;
   let orgTabViewProvider: OrgTabView | undefined;
+  let tractionTab: TractionTab | undefined;
 
   // Watch for configuration changes
   context.subscriptions.push(
@@ -256,6 +258,22 @@ export function activate(context: vscode.ExtensionContext) {
     );
   }
 
+  if (isModuleEnabled('traction')) {
+    // Create and register Traction Tab
+    tractionTab = new TractionTab(context);
+    context.subscriptions.push(
+      vscode.window.registerWebviewViewProvider(
+        'visbal-traction',
+        tractionTab,
+        {
+          webviewOptions: {
+            retainContextWhenHidden: true
+          }
+        }
+      )
+    );
+  }
+
   // Register commands for panel activation (only if respective modules are enabled)
   if (isModuleEnabled('logAnalyzer')) {
     context.subscriptions.push(
@@ -277,6 +295,14 @@ export function activate(context: vscode.ExtensionContext) {
     context.subscriptions.push(
       vscode.commands.registerCommand('visbal-ext.showVisbalSample', () => {
         vscode.commands.executeCommand('workbench.view.extension.visbal-apex-container');
+      })
+    );
+  }
+
+  if (isModuleEnabled('traction')) {
+    context.subscriptions.push(
+      vscode.commands.registerCommand('visbal-ext.showVisbalTraction', () => {
+        vscode.commands.executeCommand('workbench.view.extension.visbal-traction-container');
       })
     );
   }

@@ -1,6 +1,7 @@
 * reusability make sure that you use OrgUtils instead of creatign a new one
     ex: using OrgUtils.loadOrgListForView when populating a orl dropdown list
     OrgUtils.refreshOrgListForView
+Some *.ts files have inline HTML, becareful to implement type script in areas that are only javascript allowed.
 * Change console.log for OrgUtils.logDebug
 * change console.error for OrgUtils.logError
 * the message shoould contains '[VisbalExt.TestClassExplorerView] _viewTestLog --message' where 

@@ -44,6 +44,7 @@
     "onView:visbal-soql",
     "onView:visbal-apex",
     "onView:visbal-orgs",
+    "onView:visbal-traction",
     "workspaceContains:**/.sfdx/sfdx-config.json",
     "workspaceContains:**/sfdx-project.json"
   ],
@@ -70,6 +71,11 @@
           "id": "visbal-apex-container",
           "title": "Execute Apex",
           "icon": "$(beaker)"
+        },
+        {
+          "id": "visbal-traction-container",
+          "title": "Traction",
+          "icon": "$(rocket)"
         }
       ],
       "activitybar": [
@@ -136,6 +142,13 @@
           "id": "visbal-apex",
           "name": "Sample Panel"
         }
+      ],
+      "visbal-traction-container": [
+        {
+          "type": "webview",
+          "id": "visbal-traction",
+          "name": "Traction Panel"
+        }
       ]
     },
     "commands": [
@@ -174,6 +187,11 @@
       {
         "command": "visbal-ext.showVisbalSample",
         "title": "Show Visbal Apex",
+        "category": "Visbal"
+      },
+      {
+        "command": "visbal-ext.showVisbalTraction",
+        "title": "Show Traction Tab",
         "category": "Visbal"
       },
       {
@@ -307,6 +325,11 @@
           "type": "boolean",
           "default": true,
           "description": "Enable/disable the Orgs module"
+        },
+        "visbal.modules.traction.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable/disable the Traction module"
         },
         "visbal.logging.saveToFile": {
           "type": "boolean",
