@@ -72,36 +72,37 @@ export class StorageService {
         }
     }
 
-    public async getTestClasses(): Promise<TestClass[]> {
+    public async getTestClasses(orgAlias?: string): Promise<TestClass[]> {
         try {
-            const orgAlias = await OrgUtils.getCurrentOrgAlias();
+            const targetOrgAlias = orgAlias || await OrgUtils.getCurrentOrgAlias();
             const cache = this.readCache();
-            return cache[orgAlias]?.testClasses || [];
+            OrgUtils.logDebug(`[VisbalExt.StorageService] Getting test classes for org: ${targetOrgAlias}`);
+            return cache[targetOrgAlias]?.testClasses || [];
         } catch (error: any) {
             OrgUtils.logError('[VisbalExt.StorageService] Error reading test classes:', error);
             return [];
         }
     }
 
-    public async saveTestClasses(testClasses: TestClass[]): Promise<void> {
+    public async saveTestClasses(testClasses: TestClass[], orgAlias?: string): Promise<void> {
         try {
-            const orgAlias = await OrgUtils.getCurrentOrgAlias();
+            const targetOrgAlias = orgAlias || await OrgUtils.getCurrentOrgAlias();
             const cache = this.readCache();
             
-            cache[orgAlias] = {
+            cache[targetOrgAlias] = {
                 testClasses: testClasses
             };
 
             this.writeCache(cache);
-            OrgUtils.logDebug(`[VisbalExt.StorageService] Test classes saved for org ${orgAlias}`);
+            OrgUtils.logDebug(`[VisbalExt.StorageService] Test classes saved for org ${targetOrgAlias}`);
         } catch (error: any) {
             OrgUtils.logError('[VisbalExt.StorageService] Error saving test classes:', error);
             throw error;
         }
     }
 
-    public async getTestMethodsForClass(className: string): Promise<TestMethod[]> {
-        const testClasses = await this.getTestClasses();
+    public async getTestMethodsForClass(className: string, orgAlias?: string): Promise<TestMethod[]> {
+        const testClasses = await this.getTestClasses(orgAlias);
         const testClass = testClasses.find(tc => tc.name === className);
         return testClass?.methods?.map(methodName => ({
             name: methodName,
@@ -109,8 +110,8 @@ export class StorageService {
         })) || [];
     }
 
-    public async saveTestMethodsForClass(className: string, methods: TestMethod[]): Promise<void> {
-        const testClasses = await this.getTestClasses();
+    public async saveTestMethodsForClass(className: string, methods: TestMethod[], orgAlias?: string): Promise<void> {
+        const testClasses = await this.getTestClasses(orgAlias);
         const testClass = testClasses.find(tc => tc.name === className);
         
         if (testClass) {
@@ -127,17 +128,17 @@ export class StorageService {
             });
         }
 
-        await this.saveTestClasses(testClasses);
+        await this.saveTestClasses(testClasses, orgAlias);
     }
 
-    public async clearTestMethodsForClass(className: string): Promise<void> {
+    public async clearTestMethodsForClass(className: string, orgAlias?: string): Promise<void> {
         try {
-            const testClasses = await this.getTestClasses();
+            const testClasses = await this.getTestClasses(orgAlias);
             const testClass = testClasses.find(tc => tc.name === className);
             
             if (testClass) {
                 testClass.methods = [];
-                await this.saveTestClasses(testClasses);
+                await this.saveTestClasses(testClasses, orgAlias);
                 OrgUtils.logDebug(`[VisbalExt.StorageService] Test methods cleared for class ${className}`);
             }
         } catch (error: any) {

@@ -9,6 +9,7 @@ import { readFileSync, writeFileSync } from 'fs';
 import { existsSync, mkdirSync } from 'fs';
 import { OrgUtils } from '../utils/orgUtils';
 import { TestCaseListManager } from '../models/testCaseList';
+import { OrgListCacheService } from '../services/orgListCacheService';
 
 import { TestRunningTaskView } from './testRunningTaskSidePanel';
 import { TestSummaryView } from './testSummarySidePanel';
@@ -102,6 +103,8 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
     private _isRunning: boolean = false;
     private _salesforceApiService: SalesforceApiService;
     private _testCaseListManager: TestCaseListManager;
+    private _orgListCacheService: OrgListCacheService;
+    private _isRefreshing: boolean = false;
 
     constructor(
         extensionUri: vscode.Uri,
@@ -122,6 +125,7 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
         this._sfdxService = new SfdxService();
         this._salesforceApiService = salesforceApiService;
         this._testCaseListManager = new TestCaseListManager(_context);
+        this._orgListCacheService = new OrgListCacheService(_context);
         
         // Initialize Salesforce API
         this._salesforceApiService.initialize().catch(error => {
@@ -177,9 +181,12 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                 ]
             };
 
-            webviewView.webview.html = this._getHtmlForWebview(webviewView.webview);
+                    webviewView.webview.html = this._getHtmlForWebview(webviewView.webview);
 
-            webviewView.webview.onDidReceiveMessage(async (data) => {
+        // Load orgs when view is initialized
+        this._loadOrgList();
+
+        webviewView.webview.onDidReceiveMessage(async (data) => {
                 OrgUtils.logDebug(`[VisbalExt.TestClassExplorerView] resolveWebviewView -- Received message from webview ${data.command}: ${data.message}`, data);
                 switch (data.command) {
                     case 'getTestCaseLists':
@@ -309,6 +316,27 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                     case 'abortTests':
                         this.abortTests();
                         break;
+                    case 'refreshOrgList':
+                        try {
+                            await this._refreshOrgList();
+                        } catch (error: any) {
+                            if (this._view) {
+                                this._view.webview.postMessage({
+                                    command: 'error',
+                                    message: `Error refreshing org list: ${error.message}`
+                                });
+                            }
+                        }
+                        break;
+                    case 'setSelectedOrg':
+                        await this._setSelectedOrg(data.alias);
+                        break;
+                    case 'loadOrgList':
+                        await this._loadOrgList();
+                        break;
+                    case 'loadCachedTestClasses':
+                        await this._loadCachedTestClasses();
+                        break;
                 }
             });
 
@@ -317,8 +345,9 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
 
         webviewView.onDidChangeVisibility(() => {
             if (webviewView.visible) {
-                OrgUtils.logDebug('[VisbalExt.TestClassExplorerView] resolveWebviewView --  The user has clicked on your tab/view and it is now visible');
-                // The user has clicked on your tab/view and it is now visible
+                OrgUtils.logDebug('[VisbalExt.TestClassExplorerView] resolveWebviewView -- Tab became visible, ensuring org selection and loading test classes');
+                // When tab becomes visible, ensure org selection is current and load test classes
+                this._handleTabVisible();
             }
         });
     }
@@ -330,8 +359,9 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
             let testClasses: TestClass[];
             
             if (!forceRefresh) {
-                // Try to get from storage first
-                testClasses = await this._storageService.getTestClasses();
+                // Try to get from storage first  
+                const orgAlias = await this._getOrgAliasForStorage();
+                testClasses = await this._storageService.getTestClasses(orgAlias);
                 OrgUtils.logDebug('[VisbalExt.TestClassExplorerView] _fetchTestClasses -- Using stored test classes', testClasses?.length || 0);
                 if (testClasses.length > 0) {
                     OrgUtils.logDebug('[VisbalExt.TestClassExplorerView] _fetchTestClasses -- Using stored test classes');
@@ -368,7 +398,8 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                 })) || [];
 
             // Save to storage
-            await this._storageService.saveTestClasses(testClasses);
+            const orgAliasForSave = await this._getOrgAliasForStorage();
+            await this._storageService.saveTestClasses(testClasses, orgAliasForSave);
             OrgUtils.logDebug('[VisbalExt.TestClassExplorerView] _fetchTestClasses -- Test classes cached', testClasses);
 
             // If refreshMethods is true, fetch methods for each class
@@ -586,14 +617,15 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
             this._statusBarService.showMessage(`$(sync~spin) Fetching test methods for ${className}...`);
             OrgUtils.logDebug('[VisbalExt.TestClassExplorerView] _fetchTestMethods -- Fetching test methods for class', className);
             // Try to get from storage first
-            let testMethods = await this._storageService.getTestMethodsForClass(className);
+            const orgAliasForMethods = await this._getOrgAliasForStorage();
+            let testMethods = await this._storageService.getTestMethodsForClass(className, orgAliasForMethods);
             OrgUtils.logDebug('[VisbalExt.TestClassExplorerView] _fetchTestMethods -- Fetched methods from storage', testMethods);
             if (testMethods.length === 0) {
                 // If not in storage, fetch from Salesforce
                 testMethods = await this._metadataService.getTestMethodsForClass(className);
                 OrgUtils.logDebug('[VisbalExt.TestClassExplorerView] _fetchTestMethods -- Fetched methods from Salesforce', testMethods);
                 // Save to storage
-                await this._storageService.saveTestMethodsForClass(className, testMethods);
+                await this._storageService.saveTestMethodsForClass(className, testMethods, orgAliasForMethods);
             }
             
             // Send the test methods to the webview
@@ -649,7 +681,8 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
             this._statusBarService.showMessage(`$(sync~spin) Running tests in ${testClass}...`);
 
             OrgUtils.logDebug('[VisbalExt.TestClassExplorerView] _runTest -- Calling SfdxService.runTests');
-            const result = await this._sfdxService.runTests(testClass, testMethod);
+            const useDefaultOrg = await this._shouldUseDefaultOrg();
+            const result = await this._sfdxService.runTests(testClass, testMethod, useDefaultOrg);
             OrgUtils.logDebug('[VisbalExt.TestClassExplorerView] _runTest -- Test execution completed', result);
 
             if (result && result.testRunId) {
@@ -1211,7 +1244,8 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                             OrgUtils.logDebug('[VisbalExt.TestClassExplorerView] _runTestSelectedParallel -- testId', testId);
                             OrgUtils.logDebug(`[VisbalExt.TestClassExplorerView] _runTestSelectedParallel -- testId:`, testId);
                             //SELECT Id, ApexClass.Name, MethodName, Message, StackTrace, Outcome, ApexLogId FROM ApexTestResult
-                            const apiResult = await this._sfdxService.executeSoqlQuery(`SELECT Id, ApexClass.Name, MethodName, Message, StackTrace, Outcome, ApexLogId FROM ApexTestResult WHERE Id = '${testId}'`);
+                            const useDefaultOrg = await this._shouldUseDefaultOrg();
+                            const apiResult = await this._sfdxService.executeSoqlQuery(`SELECT Id, ApexClass.Name, MethodName, Message, StackTrace, Outcome, ApexLogId FROM ApexTestResult WHERE Id = '${testId}'`, useDefaultOrg);
                             OrgUtils.logDebug(`[VisbalExt.TestClassExplorerView] _runTestSelectedParallel -- API_RESULT ${progress.className}.${progress.methodName} -- runResult:`, apiResult);
                             if (apiResult.length > 0) {
                                 logId = apiResult[0].ApexLogId;
@@ -1364,7 +1398,8 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                                 OrgUtils.logDebug(`[VisbalExt.TestClassExplorerView] _runTestSelectedParallel -- Running: ${progress.className}.${progress.methodName} -- iteration:${countIteration}`);
                                 this._testRunResultsView.updateMethodStatus(progress.className, progress.methodName, 'running');
                                 // Execute test and wait for result
-                                const runTest = await this._sfdxService.runTests(progress.className, progress.methodName);
+                                const useDefaultOrg = await this._shouldUseDefaultOrg();
+                                const runTest = await this._sfdxService.runTests(progress.className, progress.methodName, useDefaultOrg);
                                 progress.runTest = runTest;
                                 progress.finishExecutingTest = true;
                                 progress.testRunId = runTest.testRunId;
@@ -1677,7 +1712,8 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                         try {
                             //const handleTestRun = async () => {
                                 // Execute test and wait for result
-                                const result = await this._sfdxService.runTests(className, methodName);
+                                const useDefaultOrg = await this._shouldUseDefaultOrg();
+                                const result = await this._sfdxService.runTests(className, methodName, useDefaultOrg);
                                 OrgUtils.logDebug(`[VisbalExt.TestClassExplorerView] _runTestSelectedSequentially -- runTests -- ${className}.${methodName} -- A -- iteration:${countIteration} result:`, result);
                                 progress.runTest = result;
                                 progress.testRunId = result.testRunId;
@@ -1900,7 +1936,8 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
             }
 
             //run many test using the format sf apex run test --tests ns.TestA.excitingMethod --tests ns.TestA.boringMethod --tests ns.TestB
-            const runResult = await this._sfdxService.runManyTests(tests);
+            const useDefaultOrg = await this._shouldUseDefaultOrg();
+            const runResult = await this._sfdxService.runManyTests(tests, useDefaultOrg);
             OrgUtils.logDebug('[VisbalExt.TestClassExplorerView] _runManyTest -- runResult:', runResult);  
 
             if (!runResult) {
@@ -1956,7 +1993,8 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                         countIteration++;
                         let allQueueItemsCompleted = true;
                         let queueItemsStatus = [];
-                        const queueItems = await this._sfdxService.executeSoqlQuery(`SELECT ApexClassId, ApexClass.Name, Status, ExtendedStatus, TestRunResultId  FROM ApexTestQueueItem WHERE ParentJobId='${testRunId}' `);
+                        const useDefaultOrg = await this._shouldUseDefaultOrg();
+                        const queueItems = await this._sfdxService.executeSoqlQuery(`SELECT ApexClassId, ApexClass.Name, Status, ExtendedStatus, TestRunResultId  FROM ApexTestQueueItem WHERE ParentJobId='${testRunId}' `, useDefaultOrg);
                         OrgUtils.logDebug(`[VisbalExt.TestClassExplorerView] _runManyTest -- countIteration: ${countIteration} -- queueItems:`, queueItems);
                         if (queueItems.length > 0) {
                             for (const q of queueItems) {
@@ -1978,7 +2016,8 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                             
                         }
         
-                        const resultItems = await this._sfdxService.executeSoqlQuery(`SELECT ApexClassId, ApexClass.Name, MethodName, Outcome, ApexLogId, Message, StackTrace, QueueItemId  FROM ApexTestResult WHERE AsyncApexJobId='${testRunId}' `);
+                        const useDefaultOrgForResults = await this._shouldUseDefaultOrg();
+                        const resultItems = await this._sfdxService.executeSoqlQuery(`SELECT ApexClassId, ApexClass.Name, MethodName, Outcome, ApexLogId, Message, StackTrace, QueueItemId  FROM ApexTestResult WHERE AsyncApexJobId='${testRunId}' `, useDefaultOrgForResults);
                         OrgUtils.logDebug(`[VisbalExt.TestClassExplorerView] _runManyTest -- countIteration: ${countIteration} -- resultItems:`, resultItems);
                         if (resultItems.length > 0) {
                             // Group results by class name to process all methods for each class together
@@ -2093,7 +2132,8 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
 
                     //const logIds = await this._sfdxService.getTestLogId(testRunId);
                     const testIdsString = testIds.map(id => `'${id}'`).join(', ');
-                    const apiResult = await this._sfdxService.executeSoqlQuery(`SELECT Id, ApexClass.Name, MethodName, Message, StackTrace, Outcome, ApexLogId FROM ApexTestResult WHERE Id IN (${testIdsString})`);
+                    const useDefaultOrgForResults = await this._shouldUseDefaultOrg();
+                    const apiResult = await this._sfdxService.executeSoqlQuery(`SELECT Id, ApexClass.Name, MethodName, Message, StackTrace, Outcome, ApexLogId FROM ApexTestResult WHERE Id IN (${testIdsString})`, useDefaultOrgForResults);
                     if (apiResult.length > 0) {
                         for (const t of apiResult) {
                             OrgUtils.logDebug('[VisbalExt.TestClassExplorerView] _runManyTest -- t:', t);
@@ -2169,7 +2209,8 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
             this._statusBarService.showMessage(`$(beaker~spin) Running all tests in ${runMode} mode...`);
 
             // Get all test classes first
-            const testClasses = await this._storageService.getTestClasses();
+            const orgAliasForRun = await this._getOrgAliasForStorage();
+            const testClasses = await this._storageService.getTestClasses(orgAliasForRun);
             //OrgUtils.logDebug('[VisbalExt.TestClassExplorerView] _runAllTests -- Found test classes:', testClasses?.length);
 
             // Add all test classes and their methods to the results view
@@ -2184,7 +2225,8 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
             }
 
             // Execute all tests
-            const runTest  = await this._sfdxService.runAllTests();
+            const useDefaultOrg = await this._shouldUseDefaultOrg();
+            const runTest  = await this._sfdxService.runAllTests(useDefaultOrg);
             OrgUtils.logDebug('[VisbalExt.TestClassExplorerView] _runAllTests -- testRunId:', runTest.testRunId);  
             //#region COLLECT_TEST_RESULTS_ALL_RUNN
             let countIteration = 0;
@@ -2193,7 +2235,8 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                 countIteration++;
                 let allQueueItemsCompleted = true;
                 let queueItemsStatus = [];
-                const queueItems = await this._sfdxService.executeSoqlQuery(`SELECT ApexClassId, ApexClass.Name, Status, ExtendedStatus, TestRunResultId  FROM ApexTestQueueItem WHERE ParentJobId='${runTest.testRunId}' `);
+                const useDefaultOrgForQueue = await this._shouldUseDefaultOrg();
+                const queueItems = await this._sfdxService.executeSoqlQuery(`SELECT ApexClassId, ApexClass.Name, Status, ExtendedStatus, TestRunResultId  FROM ApexTestQueueItem WHERE ParentJobId='${runTest.testRunId}' `, useDefaultOrgForQueue);
                 if (queueItems.length > 0) {
                     for (const q of queueItems) {
                         //add this method to the cache storage of test methods if it doesn't exist
@@ -2224,7 +2267,8 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                     
                 }
 
-                const resultItems = await this._sfdxService.executeSoqlQuery(`SELECT ApexClassId, ApexClass.Name, MethodName, Outcome, ApexLogId, Message, StackTrace, QueueItemId  FROM ApexTestResult WHERE AsyncApexJobId='${runTest.testRunId}' `);
+                const useDefaultOrgForAllResults = await this._shouldUseDefaultOrg();
+                const resultItems = await this._sfdxService.executeSoqlQuery(`SELECT ApexClassId, ApexClass.Name, MethodName, Outcome, ApexLogId, Message, StackTrace, QueueItemId  FROM ApexTestResult WHERE AsyncApexJobId='${runTest.testRunId}' `, useDefaultOrgForAllResults);
                 if (resultItems.length > 0) {
                     // Group results by class name to process all methods for each class together
                     const resultsByClass = new Map<string, any[]>();
@@ -2330,7 +2374,8 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
         try {
             OrgUtils.logDebug(`[VisbalExt.TestClassExplorerView] Executing test: ${className}.${methodName}`);
             
-            const result = await this._sfdxService.runTests(className, methodName);
+            const useDefaultOrg = await this._shouldUseDefaultOrg();
+            const result = await this._sfdxService.runTests(className, methodName, useDefaultOrg);
             if (result && result.testRunId) {
                 const [testRunResult, logId] = await Promise.all([
                     this._sfdxService.getTestRunResult(result.testRunId),
@@ -2371,7 +2416,8 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
         try {
             OrgUtils.logDebug(`[VisbalExt.TestClassExplorerView] _executeAllTest:`);
             
-            const result = await this._sfdxService.runAllTests();
+            const useDefaultOrg = await this._shouldUseDefaultOrg();
+            const result = await this._sfdxService.runAllTests(useDefaultOrg);
             OrgUtils.logDebug('[VisbalExt.TestClassExplorerView] _executeAllTest -- result:', result);
             if (result && result.testRunId) {
                 OrgUtils.logDebug('[VisbalExt.TestClassExplorerView] _executeAllTest -- result.testRunId:', result.testRunId);
@@ -2931,6 +2977,9 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                         </label>
                         <span id="selectionCount" class="selection-count">0 selected</span>
                         <div class="run-options">
+                            <select id="org-selector" class="org-selector" title="Select Salesforce Org">
+                                <option value="">Loading orgs...</option>
+                            </select>
                             <select id="runMode" class="run-mode-select">
                                 <option value="parallel">Parallel</option>
                                 <option value="sequential">Sequential</option>
@@ -3009,6 +3058,7 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                     const noTestClasses = document.getElementById('noTestClasses');
                     const runAllButton = document.getElementById('runAllButton');
                     const abortButton = document.getElementById('abortButton');
+                    const orgDropdown = document.getElementById('org-selector');
                     
                     // Track selected tests
                     const selectedTests = {
@@ -3043,6 +3093,13 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                     });
                     
                     // Functions
+                    function loadCachedTestClasses() {
+                        // Load cached test classes only (no auto-fetch from Salesforce)
+                        vscode.postMessage({ 
+                            command: 'loadCachedTestClasses'
+                        });
+                    }
+                    
                     function fetchTestClasses(forceRefresh = false, refreshMethods = false, refreshMode = 'batch') {
                         // Check if we already have content and forceRefresh is false
                         const testClassesList = document.getElementById('testClassesList');
@@ -3695,6 +3752,133 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                         container.insertBefore(resultsContainer, testClassesContainer);
                     }
                     
+                    //#region ORG SELECTOR FUNCTIONALITY
+                    
+                    // Cache handling functions
+                    const CACHE_KEY = 'visbal-org-cache';
+                    
+                    async function saveOrgCache(orgs) {
+                        try {
+                            vscode.postMessage({
+                                command: 'saveOrgCache',
+                                data: {
+                                    orgs,
+                                    timestamp: new Date().getTime()
+                                }
+                            });
+                        } catch (error) {
+                            console.error('[VisbalExt.TestClassExplorerView] Failed to save org cache:', error);
+                        }
+                    }
+
+                    async function loadOrgCache() {
+                        try {
+                            vscode.postMessage({
+                                command: 'loadOrgCache'
+                            });
+                        } catch (error) {
+                            console.error('[VisbalExt.TestClassExplorerView] Failed to load org cache:', error);
+                            return null;
+                        }
+                    }
+                    
+                    // Function to update org list UI
+                    function updateOrgListUI(orgs, fromCache = false, selectedOrg = null) {
+                        console.log('[VisbalExt.TestClassExplorerView] updateOrgListUI Updating org list UI with data:', orgs);
+                        console.log('[VisbalExt.TestClassExplorerView] updateOrgListUI Selected org:', selectedOrg);
+                        
+                        // Clear existing options
+                        orgDropdown.innerHTML = '';
+
+                        // Add refresh option at the top
+                        const refreshOption = document.createElement('option');
+                        refreshOption.value = '__refresh__';
+                        refreshOption.textContent = '↻ Refresh Org List';
+                        refreshOption.style.fontStyle = 'italic';
+                        refreshOption.style.backgroundColor = 'var(--vscode-dropdown-background)';
+                        orgDropdown.appendChild(refreshOption);
+
+                        // Add a separator
+                        const separator = document.createElement('option');
+                        separator.disabled = true;
+                        separator.textContent = '──────────────';
+                        orgDropdown.appendChild(separator);
+
+                        // Helper function to add section if it has items
+                        const addSection = (items, sectionName) => {
+                            if (items && items.length > 0) {
+                                const optgroup = document.createElement('optgroup');
+                                optgroup.label = sectionName;
+                                
+                                items.forEach(org => {
+                                    const option = document.createElement('option');
+                                    option.value = org.alias;
+                                    option.textContent = org.alias || org.username;
+                                    if (org.isDefault) {
+                                        option.textContent += ' (Default)';
+                                    }
+                                    // Select the option if it matches the selected org
+                                    option.selected = selectedOrg && org.alias === selectedOrg;
+                                    optgroup.appendChild(option);
+                                });
+                                
+                                orgDropdown.appendChild(optgroup);
+                                return true;
+                            }
+                            return false;
+                        };
+
+                        let hasAnyOrgs = false;
+                        hasAnyOrgs = addSection(orgs.devHubs, 'Dev Hubs') || hasAnyOrgs;
+                        hasAnyOrgs = addSection(orgs.nonScratchOrgs, 'Non-Scratch Orgs') || hasAnyOrgs;
+                        hasAnyOrgs = addSection(orgs.sandboxes, 'Sandboxes') || hasAnyOrgs;
+                        hasAnyOrgs = addSection(orgs.scratchOrgs, 'Scratch Orgs') || hasAnyOrgs;
+                        hasAnyOrgs = addSection(orgs.other, 'Other') || hasAnyOrgs;
+
+                        if (!hasAnyOrgs) {
+                            const option = document.createElement('option');
+                            option.value = '';
+                            option.textContent = 'No orgs found';
+                            orgDropdown.appendChild(option);
+                        }
+
+                        // If this was a fresh fetch (not from cache), update the cache
+                        if (!fromCache) {
+                            saveOrgCache(orgs);
+                        }
+
+                        // Store the selection
+                        if (selectedOrg) {
+                            orgDropdown.setAttribute('data-last-selection', selectedOrg);
+                        }
+                    }
+                    
+                    // Handle org selection
+                    orgDropdown.addEventListener('change', () => {
+                        const selectedOrg = orgDropdown.value;
+                        if (selectedOrg === '__refresh__') {
+                            showLoading('Refreshing organization list...');
+                            // Reset selection to previously selected value
+                            orgDropdown.value = orgDropdown.getAttribute('data-last-selection') || '';
+                            // Request org list refresh
+                            vscode.postMessage({ command: 'refreshOrgList' });
+                            return;
+                        }
+                        
+                        if (selectedOrg) {
+                            showLoading('Setting selected organization...');
+                            console.log('[VisbalExt.TestClassExplorerView] handleOrgSelection -- Org selected -- Details:', selectedOrg);
+                            // Store the selection
+                            orgDropdown.setAttribute('data-last-selection', selectedOrg);
+                            vscode.postMessage({
+                                command: 'setSelectedOrg',
+                                alias: selectedOrg
+                            });
+                        }
+                    });
+                    
+                    //#endregion ORG SELECTOR FUNCTIONALITY
+                    
                     // Handle messages from the extension
                     window.addEventListener('message', event => {
                         const message = event.data;
@@ -3735,6 +3919,10 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                                 break;
                             case 'showNotification':
                                 showNotification(message.message);
+                                break;
+                            case 'updateOrgList':
+                                updateOrgListUI(message.orgs || {}, message.fromCache, message.selectedOrg);
+                                hideLoading();
                                 break;
                             case 'testRunStarted':
                                 document.getElementById('testResults').innerHTML = \`
@@ -3820,8 +4008,8 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                         }
                     });
                     
-                    // Initial fetch without force refresh
-                    fetchTestClasses(false);
+                    // Initial load - show cached test classes only (no auto-fetch)
+                    loadCachedTestClasses();
 
                     const selectAllCheckbox = document.getElementById('selectAllCheckbox');
 
@@ -4254,5 +4442,202 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
         }
     }
 
+    //#region ORG MANAGEMENT
+    
+    /**
+     * Determines whether to use the default org for SFDX service calls
+     * @returns false if an org is selected (use selected org), true if no org selected (use default)
+     */
+    private async _shouldUseDefaultOrg(): Promise<boolean> {
+        try {
+            const selectedOrg = await OrgUtils.getSelectedOrg();
+            // If no org is selected, use default org
+            if (!selectedOrg || !selectedOrg.alias) {
+                OrgUtils.logDebug('[VisbalExt.TestClassExplorerView] _shouldUseDefaultOrg -- No org selected, using default');
+                return true;
+            }
+            OrgUtils.logDebug(`[VisbalExt.TestClassExplorerView] _shouldUseDefaultOrg -- Using selected org: ${selectedOrg.alias}`);
+            return false;
+        } catch (error: any) {
+            OrgUtils.logError('[VisbalExt.TestClassExplorerView] _shouldUseDefaultOrg -- Error getting selected org, using default:', error);
+            return true;
+        }
+    }
+
+    /**
+     * Gets the selected org alias for storage operations  
+     * @returns Selected org alias or null if none selected (falls back to current org)
+     */
+    private async _getOrgAliasForStorage(): Promise<string | undefined> {
+        try {
+            const selectedOrg = await OrgUtils.getSelectedOrg();
+            if (selectedOrg && selectedOrg.alias) {
+                OrgUtils.logDebug(`[VisbalExt.TestClassExplorerView] _getOrgAliasForStorage -- Using selected org: ${selectedOrg.alias}`);
+                return selectedOrg.alias;
+            }
+            // If no selected org, let StorageService use current org alias as fallback
+            OrgUtils.logDebug('[VisbalExt.TestClassExplorerView] _getOrgAliasForStorage -- No selected org, using fallback');
+            return undefined;
+        } catch (error: any) {
+            OrgUtils.logError('[VisbalExt.TestClassExplorerView] _getOrgAliasForStorage -- Error getting selected org:', error);
+            return undefined;
+        }
+    }
+    
+    private async _loadOrgList(): Promise<void> {
+        await OrgUtils.loadOrgListForView(
+            this._orgListCacheService,
+            this._context,
+            this._view?.webview,
+            '[VisbalExt.TestClassExplorerView]'
+        );
+    }
+
+    private async _refreshOrgList(): Promise<void> {
+        if (this._isRefreshing) {
+            OrgUtils.logDebug('[VisbalExt.TestClassExplorerView] _refreshOrgList -- Refresh already in progress');
+            this._view?.webview.postMessage({
+                command: 'showNotification',
+                message: 'Organization list refresh already in progress...'
+            });
+            return;
+        }
+
+        try {
+            this._isRefreshing = true;
+            await OrgUtils.refreshOrgListForView(
+                this._orgListCacheService,
+                this._context,
+                this._view?.webview,
+                '[VisbalExt.TestClassExplorerView]',
+                'startLoading',
+                'Refreshing organization list...'
+            );
+        } finally {
+            this._isRefreshing = false;
+        }
+    }
+
+    private async _setSelectedOrg(username: string): Promise<void> {
+        try {
+            OrgUtils.logDebug(`[VisbalExt.TestClassExplorerView] _setSelectedOrg -- Setting selected org: ${username}`);
+            
+            // Set the selected org
+            await OrgUtils.setSelectedOrg(username);
+            
+            // Check cache for the newly selected org
+            const cachedTestClasses = await this._storageService.getTestClasses(username);
+            
+            if (cachedTestClasses && cachedTestClasses.length > 0) {
+                // Show cached test classes for this org
+                OrgUtils.logDebug(`[VisbalExt.TestClassExplorerView] _setSelectedOrg -- Found ${cachedTestClasses.length} cached test classes for org: ${username}`);
+                this._view?.webview.postMessage({
+                    command: 'testClassesLoaded',
+                    testClasses: cachedTestClasses
+                });
+            } else {
+                // No cached test classes for this org - show empty state
+                OrgUtils.logDebug(`[VisbalExt.TestClassExplorerView] _setSelectedOrg -- No cached test classes found for org: ${username}`);
+                this._view?.webview.postMessage({
+                    command: 'testClassesLoaded',
+                    testClasses: []
+                });
+            }
+            
+            // Hide loading and show success message briefly
+            this._view?.webview.postMessage({
+                command: 'finish'
+            });
+            
+            this._view?.webview.postMessage({
+                command: 'showNotification',
+                message: `Switched to organization: ${username}`
+            });
+            
+        } catch (error: any) {
+            OrgUtils.logError('[VisbalExt.TestClassExplorerView] _setSelectedOrg -- Error setting selected org:', error);
+            
+            // Hide loading and show error
+            this._view?.webview.postMessage({
+                command: 'finish'
+            });
+            
+            this._view?.webview.postMessage({
+                command: 'error',
+                message: `Failed to set selected organization: ${error.message}`
+            });
+        }
+    }
+
+    //#endregion ORG MANAGEMENT
+
+    /**
+     * Loads cached test classes only (no fetch from Salesforce)
+     */
+    private async _loadCachedTestClasses(): Promise<void> {
+        try {
+            OrgUtils.logDebug('[VisbalExt.TestClassExplorerView] _loadCachedTestClasses -- Loading cached test classes only');
+            
+            const orgAlias = await this._getOrgAliasForStorage();
+            const cachedTestClasses = await this._storageService.getTestClasses(orgAlias);
+            
+            if (cachedTestClasses && cachedTestClasses.length > 0) {
+                OrgUtils.logDebug(`[VisbalExt.TestClassExplorerView] _loadCachedTestClasses -- Found ${cachedTestClasses.length} cached test classes`);
+                if (this._view) {
+                    this._view.webview.postMessage({
+                        command: 'testClassesLoaded',
+                        testClasses: cachedTestClasses
+                    });
+                }
+            } else {
+                OrgUtils.logDebug('[VisbalExt.TestClassExplorerView] _loadCachedTestClasses -- No cached test classes found, showing empty state');
+                if (this._view) {
+                    this._view.webview.postMessage({
+                        command: 'testClassesLoaded',
+                        testClasses: []
+                    });
+                }
+            }
+            
+        } catch (error: any) {
+            OrgUtils.logError('[VisbalExt.TestClassExplorerView] _loadCachedTestClasses -- Error loading cached test classes:', error);
+            if (this._view) {
+                this._view.webview.postMessage({
+                    command: 'testClassesLoaded',
+                    testClasses: []
+                });
+            }
+        }
+    }
+
+    /**
+     * Handles tab visibility changes - ensures org selection is current and loads test classes
+     */
+    private async _handleTabVisible(): Promise<void> {
+        try {
+            OrgUtils.logDebug('[VisbalExt.TestClassExplorerView] _handleTabVisible -- Tab became visible, checking org selection and test classes');
+
+            // 1. First, ensure orgs are loaded and current selected org is set
+            await this._loadOrgList();
+
+            // 2. Get the current org alias to check if we have test classes cached for this org
+            const currentOrgAlias = await OrgUtils.getCurrentOrgAlias();
+            OrgUtils.logDebug(`[VisbalExt.TestClassExplorerView] _handleTabVisible -- Current org alias: ${currentOrgAlias}`);
+
+            // 3. Load cached test classes only (no auto-fetch)
+            await this._loadCachedTestClasses();
+
+        } catch (error: any) {
+            OrgUtils.logError('[VisbalExt.TestClassExplorerView] _handleTabVisible -- Error handling tab visibility:', error);
+            
+            // Show error in the view
+            if (this._view) {
+                this._view.webview.postMessage({
+                    command: 'error',
+                    message: `Error loading test classes: ${error.message}`
+                });
+            }
+        }
+    }
     
 }
