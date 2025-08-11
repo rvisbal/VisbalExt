@@ -746,12 +746,6 @@ export function getHtmlForWebview(
                     </select>
                 </div>
                 <div class="button-group">
-                    <button class="icon-button" id="open-org-button" title="Open Org" aria-label="Open Org">
-                        <span class="icon globe-icon"></span>
-                    </button>
-                    <button class="icon-button" id="deploy-org-button" title="Deploy Org" aria-label="Deploy Org">
-                        <span class="icon deploy-icon"></span>
-                    </button>
                     <div class="dropdown-button-group" id="refresh-dropdown-group">
                         <button class="icon-button" id="refresh-main-button" title="Refresh Logs using sfdx"
                             aria-label="Refresh Logs" style="width: 75px">
@@ -794,21 +788,7 @@ export function getHtmlForWebview(
                         <div class="dropdown-item" data-action="rest">Delete Logs using REST API (Tooling API)</div>
                     </div>
                 </div>
-                <div class="dropdown-button-group" id="terminal-dropdown-group">
-                    <button class="icon-button" id="terminal-main-button" title="Terminal" aria-label="Terminal"
-                        style="width: 75px">
-                        <span class="icon terminal-icon"></span>
-                        <span class="dropdown-arrow" style="margin-left:4px; display:flex; align-items:center;">
-                            <svg width="16" height="16" viewBox="0 0 16 16" fill="white" style="display:block;">
-                                <path d="M4 6l4 4 4-4" stroke="white" stroke-width="1.5" fill="none"
-                                    stroke-linecap="round" />
-                            </svg>
-                        </span>
-                    </button>
-                    <div class="dropdown-menu hidden" id="terminal-dropdown-menu">
-                        <div class="dropdown-item" data-action="gulp">Create Scrath Org with Gulp</div>
-                    </div>
-                </div>
+
             </div>
         </div>
     
@@ -867,7 +847,7 @@ export function getHtmlForWebview(
         const vscode = acquireVsCodeApi();
         
         // Elements
-        const openOrgButton = document.getElementById('open-org-button');
+
         const refreshDropdownGroup = document.getElementById('refresh-dropdown-group');
         const refreshMainButton = document.getElementById('refresh-main-button');
         const refreshDropdownMenu = document.getElementById('refresh-dropdown-menu');
@@ -877,9 +857,7 @@ export function getHtmlForWebview(
         const deleteMainButton = document.getElementById('delete-main-button');
         const deleteDropdownMenu = document.getElementById('delete-dropdown-menu');
 
-        const terminalDropdownGroup = document.getElementById('terminal-dropdown-group');
-        const terminalMainButton = document.getElementById('terminal-main-button');
-        const terminalDropdownMenu = document.getElementById('terminal-dropdown-menu');
+
 
         const filterInput = document.getElementById('filter-input');
         const clearFilterButton = document.getElementById('clear-filter-button');
@@ -1216,7 +1194,6 @@ export function getHtmlForWebview(
           refreshMainButton.disabled = true;
           clearLocalButton.disabled = true;
           deleteMainButton.disabled = true;
-          terminalMainButton.disabled = true;
 
         }
         
@@ -1226,7 +1203,6 @@ export function getHtmlForWebview(
           refreshMainButton.disabled = false;
           clearLocalButton.disabled = false;
           deleteMainButton.disabled = false;
-          terminalMainButton.disabled = false;
         }
         
         // Show error message
@@ -1382,15 +1358,6 @@ export function getHtmlForWebview(
           }
         }
         
-        // Open Org button
-        openOrgButton.addEventListener('click', () => {
-          console.log('[VisbalExt.htmlTemplate] open org button clicked');
-          hideError();
-          vscode.postMessage({
-            command: 'openSelectedOrg'
-          });
-          showLoading('Open selected Org...');
-        });
         
         // Refresh dropdown logic
         let refreshDefaultAction = 'sfdx'; // Default action
@@ -1892,13 +1859,7 @@ export function getHtmlForWebview(
         
        
 		
-        // Deploy Org button
-        const deployOrgButton = document.getElementById('deploy-org-button');
-        if (deployOrgButton) {
-          deployOrgButton.addEventListener('click', () => {
-            vscode.postMessage({ command: 'deployOrg' });
-          });
-        }
+
        </script>
        <script>
             function scrollToLeft() {
@@ -1950,27 +1911,7 @@ export function getHtmlForWebview(
                 scrollContainer.addEventListener('scroll', updateArrowVisibility);
             });
         </script>
-       <script>
-        // terminalDropdownGroup = document.getElementById('terminal-dropdown-group');
-        // terminalMainButton = document.getElementById('terminal-main-button');
-        // terminalDropdownMenu = document.getElementById('terminal-dropdown-menu');
-        //use this already declared variables to show the terminal dropdown menu, when terminal-dropdown-group is clicked
-        terminalDropdownGroup.addEventListener('click', () => {
-          terminalDropdownMenu.classList.toggle('hidden');
-        });
 
-        //when any of the options are clicked, run the corresponding function
-        terminalDropdownMenu.addEventListener('click', (e) => {
-          const action = e.target.getAttribute('data-action');
-          if (action === 'gulp') {
-            vscode.postMessage({ command: 'runGulp' });
-
-            
-
-          }
-        });
-       
-      </script>
     
       <script type="module" src="${debugPresetUtilsUri}"></script>
     </body>
