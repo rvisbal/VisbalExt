@@ -3,6 +3,7 @@ import { OrgListCacheService } from '../services/orgListCacheService';
 import { OrgUtils, OrgGroups, SalesforceOrg } from '../utils/orgUtils';
 import { getOrgTabHtml } from './orgTabHtml';
 import { OrgTable } from '../components/OrgTable';
+import { statusBarService } from '../services/statusBarService';
 
 export class OrgTabView implements vscode.WebviewViewProvider {
   public static readonly viewType = 'visbal-orgs';
@@ -35,9 +36,12 @@ export class OrgTabView implements vscode.WebviewViewProvider {
           break;
         case 'openOrg':
           try {
+            statusBarService.showProgress(`Opening org: ${message.alias}...`);
             await OrgUtils.openOrg(message.alias);
+            statusBarService.showSuccess(`Successfully opened org: ${message.alias}`);
           } catch (error: any) {
             console.error('[VisbalExt.OrgTab] resolveWebviewView -- Error opening org:', error);
+            statusBarService.showError(`Failed to open org: ${error.message}`);
             vscode.window.showErrorMessage(`Failed to open org: ${error.message}`);
           }
           break;
@@ -82,6 +86,7 @@ export class OrgTabView implements vscode.WebviewViewProvider {
     this._error = '';
     this._render();
     try {
+      statusBarService.showProgress('Refreshing organization list...');
       await OrgUtils.refreshOrgListForView(
         this._orgListCacheService,
         this._context,
@@ -92,9 +97,11 @@ export class OrgTabView implements vscode.WebviewViewProvider {
       );
       // After refresh, reload from cache
       await this._loadOrgList();
+      statusBarService.showSuccess('Organization list refreshed successfully');
     } catch (error: any) {
       this._isLoading = false;
       this._error = error?.message || 'Failed to refresh orgs.';
+      statusBarService.showError(`Failed to refresh orgs: ${error?.message || 'Unknown error'}`);
       this._render();
     }
   }
@@ -119,6 +126,7 @@ export class OrgTabView implements vscode.WebviewViewProvider {
       // Validate inputs
       if (!alias && !username) {
         OrgUtils.logDebug(`[VisbalExt.OrgTab] _handleOrgDeletion -- ERROR: Both alias and username are empty`);
+        statusBarService.showError('No org identifier provided for deletion');
         this._sendDeleteStatus(webview, false, 'No org identifier provided for deletion');
         return;
       }
@@ -129,6 +137,9 @@ export class OrgTabView implements vscode.WebviewViewProvider {
 
       // Note: We rely on the UI to only show delete buttons for scratch orgs
       // The button should only be visible for scratch orgs based on the client-side filtering
+
+      // Show progress in status bar
+      statusBarService.showProgress(`Deleting scratch org: ${orgIdentifier}...`);
 
       // Execute the deletion command - try different command formats
       const deleteCommand = `sf org delete scratch --target-org "${orgIdentifier}" --no-prompt`;
@@ -148,13 +159,21 @@ export class OrgTabView implements vscode.WebviewViewProvider {
           
           // Check for specific error patterns
           if (error.message.includes('ENOENT') || error.message.includes('sf: command not found')) {
-            this._sendDeleteStatus(webview, false, 'Salesforce CLI (sf) not found. Please install Salesforce CLI.');
+            const errorMsg = 'Salesforce CLI (sf) not found. Please install Salesforce CLI.';
+            statusBarService.showError(errorMsg);
+            this._sendDeleteStatus(webview, false, errorMsg);
           } else if (error.message.includes('timeout')) {
-            this._sendDeleteStatus(webview, false, 'Deletion timed out. The org might still be deleting in the background.');
+            const errorMsg = 'Deletion timed out. The org might still be deleting in the background.';
+            statusBarService.showError(errorMsg);
+            this._sendDeleteStatus(webview, false, errorMsg);
           } else if (error.message.includes('No org found')) {
-            this._sendDeleteStatus(webview, false, `Org "${orgIdentifier}" not found or already deleted.`);
+            const errorMsg = `Org "${orgIdentifier}" not found or already deleted.`;
+            statusBarService.showError(errorMsg);
+            this._sendDeleteStatus(webview, false, errorMsg);
           } else {
-            this._sendDeleteStatus(webview, false, `Failed to delete scratch org: ${error.message}`);
+            const errorMsg = `Failed to delete scratch org: ${error.message}`;
+            statusBarService.showError(errorMsg);
+            this._sendDeleteStatus(webview, false, errorMsg);
           }
           return;
         }
@@ -172,11 +191,15 @@ export class OrgTabView implements vscode.WebviewViewProvider {
 
         if (hasError) {
           OrgUtils.logDebug(`[VisbalExt.OrgTab] _handleOrgDeletion -- DELETION FAILED DUE TO ERROR`);
-          this._sendDeleteStatus(webview, false, `Failed to delete scratch org: ${stderr}`);
+          const errorMsg = `Failed to delete scratch org: ${stderr}`;
+          statusBarService.showError(errorMsg);
+          this._sendDeleteStatus(webview, false, errorMsg);
         } else if (hasSuccess || (stdout.trim() === '' && stderr.includes('Warning') && !hasError)) {
           // Success case: either explicit success message or empty output with only warnings
           OrgUtils.logDebug(`[VisbalExt.OrgTab] _handleOrgDeletion -- DELETION SUCCESSFUL`);
-          this._sendDeleteStatus(webview, true, `Scratch org "${orgIdentifier}" deleted successfully!`);
+          const successMsg = `Scratch org "${orgIdentifier}" deleted successfully!`;
+          statusBarService.showSuccess(successMsg);
+          this._sendDeleteStatus(webview, true, successMsg);
           
           // Trigger org list refresh
           OrgUtils.logDebug(`[VisbalExt.OrgTab] _handleOrgDeletion -- Triggering org list refresh`);
@@ -193,12 +216,18 @@ export class OrgTabView implements vscode.WebviewViewProvider {
             OrgUtils.logDebug(`[VisbalExt.OrgTab] _handleOrgDeletion -- Alt stderr: ${altStderr}`);
             
             if (altError) {
-              this._sendDeleteStatus(webview, false, `Both deletion methods failed. Last error: ${altError.message}`);
+              const errorMsg = `Both deletion methods failed. Last error: ${altError.message}`;
+              statusBarService.showError(errorMsg);
+              this._sendDeleteStatus(webview, false, errorMsg);
             } else if (altStdout.includes('Successfully deleted') || altStdout.includes('deleted')) {
-              this._sendDeleteStatus(webview, true, `Scratch org "${orgIdentifier}" deleted successfully!`);
+              const successMsg = `Scratch org "${orgIdentifier}" deleted successfully!`;
+              statusBarService.showSuccess(successMsg);
+              this._sendDeleteStatus(webview, true, successMsg);
               this._refreshOrgList();
             } else {
-              this._sendDeleteStatus(webview, false, `Deletion result unclear. Original output: ${stdout || stderr}. Alt output: ${altStdout || altStderr}`);
+              const errorMsg = `Deletion result unclear. Original output: ${stdout || stderr}. Alt output: ${altStdout || altStderr}`;
+              statusBarService.showError(errorMsg);
+              this._sendDeleteStatus(webview, false, errorMsg);
             }
           });
         }
@@ -206,7 +235,9 @@ export class OrgTabView implements vscode.WebviewViewProvider {
 
     } catch (error: any) {
       OrgUtils.logDebug(`[VisbalExt.OrgTab] _handleOrgDeletion -- EXCEPTION: ${error.message}`);
-      this._sendDeleteStatus(webview, false, `Unexpected error during deletion: ${error.message}`);
+      const errorMsg = `Unexpected error during deletion: ${error.message}`;
+      statusBarService.showError(errorMsg);
+      this._sendDeleteStatus(webview, false, errorMsg);
     }
   }
 
