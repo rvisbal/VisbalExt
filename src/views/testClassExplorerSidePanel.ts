@@ -2948,6 +2948,50 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                 .test-case-list-dropdown.hide {
                     display: none;
                 }
+
+                /* Button visibility states */
+                .icon-button.hidden {
+                    display: none !important;
+                }
+
+                .icon-button.visible {
+                    display: inline-flex !important;
+                }
+
+                /* State-specific button visibility */
+                .test-case-list-controls.no-selection #newTestCaseList {
+                    display: inline-flex;
+                }
+
+                .test-case-list-controls.no-selection #editTestCaseList,
+                .test-case-list-controls.no-selection #deleteTestCaseList {
+                    display: none;
+                }
+
+                .test-case-list-controls.has-selection #newTestCaseList {
+                    display: none;
+                }
+
+                .test-case-list-controls.has-selection #editTestCaseList,
+                .test-case-list-controls.has-selection #deleteTestCaseList {
+                    display: inline-flex;
+                }
+
+                .test-case-list-controls.editing #newTestCaseList,
+                .test-case-list-controls.editing #editTestCaseList,
+                .test-case-list-controls.editing #deleteTestCaseList {
+                    display: none;
+                }
+
+                .test-case-list-controls.editing #saveTestCaseList,
+                .test-case-list-controls.editing #cancelTestCaseList {
+                    display: inline-flex;
+                }
+
+                .test-case-list-controls:not(.editing) #saveTestCaseList,
+                .test-case-list-controls:not(.editing) #cancelTestCaseList {
+                    display: none;
+                }
             </style>
         </head>
         <body>
@@ -2958,7 +3002,10 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                             <option value="">Select a test case list...</option>
                         </select>
                         <input type="text" id="testCaseListInput" class="test-case-list-input" placeholder="Enter list name...">
-                        <button class="icon-button" id="saveTestCaseList" title="Save current selection as test case list">
+                        <button class="icon-button" id="newTestCaseList" title="Create new test case list">
+                            <i class="codicon codicon-add"></i>
+                        </button>
+                        <button class="icon-button" id="saveTestCaseList" title="Save test case list">
                             <i class="codicon codicon-save"></i>
                         </button>
                         <button class="icon-button" id="editTestCaseList" title="Edit test case list name">
@@ -2966,6 +3013,9 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                         </button>
                         <button class="icon-button" id="deleteTestCaseList" title="Delete test case list">
                             <i class="codicon codicon-trash"></i>
+                        </button>
+                        <button class="icon-button" id="cancelTestCaseList" title="Cancel editing">
+                            <i class="codicon codicon-close"></i>
                         </button>
                     </div>
                 </div>
@@ -4141,16 +4191,34 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
 
                     const testCaseListDropdown = document.getElementById('testCaseList');
                     const testCaseListInput = document.getElementById('testCaseListInput');
+                    const testCaseListControls = document.querySelector('.test-case-list-controls');
+                    const newTestCaseListBtn = document.getElementById('newTestCaseList');
                     const saveTestCaseListBtn = document.getElementById('saveTestCaseList');
                     const editTestCaseListBtn = document.getElementById('editTestCaseList');
                     const deleteTestCaseListBtn = document.getElementById('deleteTestCaseList');
+                    const cancelTestCaseListBtn = document.getElementById('cancelTestCaseList');
 
                     // Initialize test case list dropdown
                     vscode.postMessage({ command: 'getTestCaseLists' });
 
+                    // Function to update UI state based on selection
+                    function updateTestCaseListUI() {
+                        const selectedId = testCaseListDropdown.value;
+                        if (selectedId) {
+                            testCaseListControls.className = 'test-case-list-controls has-selection';
+                        } else {
+                            testCaseListControls.className = 'test-case-list-controls no-selection';
+                        }
+                    }
+
+                    // Initialize UI state
+                    updateTestCaseListUI();
+
                     // Handle test case list selection
                     testCaseListDropdown.addEventListener('change', (e) => {
                         const selectedId = e.target.value;
+                        updateTestCaseListUI();
+                        
                         if (selectedId) {
                             // Clear all existing selections first
                             const allCheckboxes = document.querySelectorAll('.method-checkbox, .class-checkbox');
@@ -4186,6 +4254,8 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                                     option.text = list.name;
                                     testCaseListDropdown.add(option);
                                 });
+                                // Update UI state after dropdown is populated
+                                updateTestCaseListUI();
                                 break;
 
                             case 'selectTestMethod':
@@ -4223,53 +4293,65 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                         runSelectedButton.disabled = methodCount === 0;
                     }
 
-                    // Handle save test case list
-                    saveTestCaseListBtn.addEventListener('click', () => {
-                        const selectedMethods = Array.from(document.querySelectorAll('.method-checkbox:checked')).map(checkbox => {
-                            const methodItem = checkbox.closest('.test-method-item');
-                            return {
-                                className: checkbox.getAttribute('data-class'),
-                                methodName: checkbox.getAttribute('data-method')
-                            };
-                        });
-
-                        if (selectedMethods.length === 0) {
-                            vscode.postMessage({ 
-                                command: 'showMessage',
-                                type: 'warning',
-                                message: 'Please select at least one test method to save.'
-                            });
-                            return;
-                        }
-
+                    // Handle new test case list
+                    newTestCaseListBtn.addEventListener('click', () => {
+                        testCaseListControls.className = 'test-case-list-controls editing';
                         testCaseListInput.classList.add('show');
                         testCaseListDropdown.classList.add('hide');
+                        testCaseListInput.value = '';
+                        testCaseListInput.placeholder = 'Enter new list name...';
                         testCaseListInput.focus();
 
-                        const handleSave = () => {
+                        const handleNewList = () => {
                             const name = testCaseListInput.value.trim();
                             if (name) {
+                                // Get currently selected methods to save with the new list
+                                const selectedMethods = Array.from(document.querySelectorAll('.method-checkbox:checked')).map(checkbox => {
+                                    return {
+                                        className: checkbox.getAttribute('data-class'),
+                                        methodName: checkbox.getAttribute('data-method')
+                                    };
+                                });
+
                                 vscode.postMessage({ 
                                     command: 'saveTestCaseList',
                                     name,
                                     methods: selectedMethods
                                 });
-                                testCaseListInput.classList.remove('show');
-                                testCaseListDropdown.classList.remove('hide');
-                                testCaseListInput.value = '';
+                                
+                                exitEditMode();
                             }
+                        };
+
+                        const handleCancel = () => {
+                            exitEditMode();
+                        };
+
+                        const exitEditMode = () => {
+                            testCaseListInput.classList.remove('show');
+                            testCaseListDropdown.classList.remove('hide');
+                            testCaseListInput.value = '';
+                            updateTestCaseListUI();
+                            // Remove event listeners
+                            testCaseListInput.onkeyup = null;
+                            saveTestCaseListBtn.onclick = null;
+                            cancelTestCaseListBtn.onclick = null;
                         };
 
                         testCaseListInput.onkeyup = (e) => {
                             if (e.key === 'Enter') {
-                                handleSave();
+                                handleNewList();
                             } else if (e.key === 'Escape') {
-                                testCaseListInput.classList.remove('show');
-                                testCaseListDropdown.classList.remove('hide');
-                                testCaseListInput.value = '';
+                                handleCancel();
                             }
                         };
+
+                        // Set up save and cancel button handlers
+                        saveTestCaseListBtn.onclick = handleNewList;
+                        cancelTestCaseListBtn.onclick = handleCancel;
                     });
+
+                    // Note: Save test case list functionality is now handled by the new and edit button handlers
 
                     // Handle edit test case list
                     editTestCaseListBtn.addEventListener('click', () => {
@@ -4284,9 +4366,11 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                         }
 
                         const selectedOption = testCaseListDropdown.selectedOptions[0];
+                        testCaseListControls.className = 'test-case-list-controls editing';
                         testCaseListInput.value = selectedOption.text;
                         testCaseListInput.classList.add('show');
                         testCaseListDropdown.classList.add('hide');
+                        testCaseListInput.placeholder = 'Edit list name...';
                         testCaseListInput.focus();
 
                         const handleEdit = () => {
@@ -4297,21 +4381,36 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                                     id: selectedId,
                                     name: newName
                                 });
-                                testCaseListInput.classList.remove('show');
-                                testCaseListDropdown.classList.remove('hide');
-                                testCaseListInput.value = '';
+                                exitEditMode();
                             }
+                        };
+
+                        const handleCancel = () => {
+                            exitEditMode();
+                        };
+
+                        const exitEditMode = () => {
+                            testCaseListInput.classList.remove('show');
+                            testCaseListDropdown.classList.remove('hide');
+                            testCaseListInput.value = '';
+                            updateTestCaseListUI();
+                            // Remove event listeners
+                            testCaseListInput.onkeyup = null;
+                            saveTestCaseListBtn.onclick = null;
+                            cancelTestCaseListBtn.onclick = null;
                         };
 
                         testCaseListInput.onkeyup = (e) => {
                             if (e.key === 'Enter') {
                                 handleEdit();
                             } else if (e.key === 'Escape') {
-                                testCaseListInput.classList.remove('show');
-                                testCaseListDropdown.classList.remove('hide');
-                                testCaseListInput.value = '';
+                                handleCancel();
                             }
                         };
+
+                        // Set up save and cancel button handlers
+                        saveTestCaseListBtn.onclick = handleEdit;
+                        cancelTestCaseListBtn.onclick = handleCancel;
                     });
 
                     // Handle delete test case list
@@ -4332,25 +4431,7 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                         });
                     });
 
-                    // Handle messages from the extension
-                    window.addEventListener('message', event => {
-                        const message = event.data;
-                        switch (message.command) {
-                            case 'updateTestCaseLists':
-                                // Clear existing options except the first one
-                                while (testCaseListDropdown.options.length > 1) {
-                                    testCaseListDropdown.remove(1);
-                                }
-                                // Add new options
-                                message.lists.forEach(list => {
-                                    const option = document.createElement('option');
-                                    option.value = list.id;
-                                    option.text = list.name;
-                                    testCaseListDropdown.add(option);
-                                });
-                                break;
-                        }
-                    });
+
 					
                 })();
             </script>
