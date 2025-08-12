@@ -3027,7 +3027,7 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                         </label>
                         <span id="selectionCount" class="selection-count">0 selected</span>
                         <div class="run-options">
-                            <select id="org-selector" class="org-selector" title="Select Salesforce Org">
+                            <select id="org-selector" class="org-selector" title="Select Salesforce Org" style="width: 120px;font-size: 11px;padding: 2px 6px;border-radius: 2px;">
                                 <option value="">Loading orgs...</option>
                             </select>
                             <select id="runMode" class="run-mode-select">
