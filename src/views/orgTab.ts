@@ -35,9 +35,7 @@ export class OrgTabView implements vscode.WebviewViewProvider {
           break;
         case 'openOrg':
           try {
-            console.log('[VisbalExt.OrgTab] resolveWebviewView -- Opening org:', message.alias);
             await OrgUtils.openOrg(message.alias);
-            console.log('[VisbalExt.OrgTab] resolveWebviewView -- Successfully opened org:', message.alias);
           } catch (error: any) {
             console.error('[VisbalExt.OrgTab] resolveWebviewView -- Error opening org:', error);
             vscode.window.showErrorMessage(`Failed to open org: ${error.message}`);

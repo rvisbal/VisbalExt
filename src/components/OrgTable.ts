@@ -409,6 +409,85 @@ export class OrgTable {
                 const vscode = acquireVsCodeApi();
                 let currentOrgs = ${JSON.stringify(this.orgs)};
                 let pendingDeleteOrg = null;
+                
+                // Get previous webview state (includes scroll position)
+                const previousState = vscode.getState() || {};
+
+                // Function to save scroll position to webview state
+                function saveScrollPosition() {
+                    const tableContainer = document.querySelector('.orgs-table-container');
+                    if (tableContainer) {
+                        const currentState = vscode.getState() || {};
+                        const scrollTop = tableContainer.scrollTop;
+                        currentState.scrollPosition = scrollTop;
+                        vscode.setState(currentState);
+                    }
+                }
+                
+                // Function to restore scroll position from webview state
+                function restoreScrollPosition() {
+                    const tableContainer = document.querySelector('.orgs-table-container');
+                    if (tableContainer && previousState.scrollPosition !== undefined) {
+
+                        
+                        // Try a few times with short delays to handle async DOM updates
+                        [0, 100, 300].forEach((delay) => {
+                            setTimeout(() => {
+                                if (tableContainer.scrollTop !== previousState.scrollPosition) {
+                                    tableContainer.scrollTop = previousState.scrollPosition;
+                                }
+                            }, delay);
+                        });
+                    }
+                }
+                
+                // Restore scroll position when DOM is ready
+                document.addEventListener('DOMContentLoaded', () => {
+                    requestAnimationFrame(() => {
+                        restoreScrollPosition();
+                    });
+                });
+                
+                // Also try to restore immediately if DOM is already loaded
+                if (document.readyState !== 'loading') {
+                    requestAnimationFrame(() => {
+                        restoreScrollPosition();
+                    });
+                }
+                
+                // Add focus listeners to restore scroll when window regains focus (after returning from browser)
+                window.addEventListener('focus', () => {
+                    setTimeout(() => {
+                        restoreScrollPosition();
+                    }, 100);
+                });
+                
+                // Also listen for visibility change events
+                document.addEventListener('visibilitychange', () => {
+                    if (!document.hidden) {
+                        setTimeout(() => {
+                            restoreScrollPosition();
+                        }, 100);
+                    }
+                });
+
+                // Add scroll event listener to save scroll position continuously
+                document.addEventListener('DOMContentLoaded', () => {
+                    const tableContainer = document.querySelector('.orgs-table-container');
+                    if (tableContainer) {
+                        // Throttle scroll events to avoid excessive state saves
+                        let scrollTimeout = null;
+                        tableContainer.addEventListener('scroll', () => {
+                            if (scrollTimeout) {
+                                clearTimeout(scrollTimeout);
+                            }
+                            scrollTimeout = setTimeout(() => {
+                                saveScrollPosition();
+                            }, 100); // Save after 100ms of no scrolling
+                        });
+
+                    }
+                });
 
                 // Handle search input
                 const searchInput = document.getElementById('orgSearchInput');
@@ -438,9 +517,16 @@ export class OrgTable {
                 document.addEventListener('click', (e) => {
                     const target = e.target;
                     if (target && target.classList && target.classList.contains('org-alias')) {
+
                         e.preventDefault();
+                        e.stopPropagation();
+                        
+                        // Save scroll position immediately before sending the message
+                        saveScrollPosition();
+                        
                         const alias = target.getAttribute('data-alias');
                         if (alias) {
+
                             vscode.postMessage({ command: 'openOrg', alias });
                         }
                     }
@@ -625,11 +711,20 @@ export class OrgTable {
                         case 'updateOrgsHtml':
                             console.log('[VisbalExt.OrgTable] Updating orgs HTML');
                             document.getElementById('orgsTableBody').innerHTML = message.html;
+                            // Scroll position is automatically handled by the state-based system
                             break;
                         case 'updateOrgList':
                             console.log('[VisbalExt.OrgTable] Updating org list, count:', message.orgs?.length || 0);
+                            const orgListChanged = JSON.stringify(currentOrgs) !== JSON.stringify(message.orgs);
+                            console.log('[VisbalExt.OrgTable] Org list data changed:', orgListChanged);
                             currentOrgs = message.orgs;
-                            requestUpdate();
+                            // Only trigger HTML update if the org list actually changed
+                            if (orgListChanged) {
+                                console.log('[VisbalExt.OrgTable] Org data changed, updating HTML');
+                                requestUpdate();
+                            } else {
+                                console.log('[VisbalExt.OrgTable] Org data unchanged, skipping HTML update to preserve scroll');
+                            }
                             break;
                         case 'deleteStatus':
                             console.log('[VisbalExt.OrgTable] Delete status received - success:', message.success, 'message:', message.message);
