@@ -37,17 +37,7 @@
   "engines": {
     "vscode": "^1.87.0"
   },
-  "activationEvents": [
-    "onStartupFinished",
-    "onView:testClassExplorerView",
-    "onView:visbal-log",
-    "onView:visbal-soql",
-    "onView:visbal-apex",
-    "onView:visbal-orgs",
-    "onView:visbal-traction",
-    "workspaceContains:**/.sfdx/sfdx-config.json",
-    "workspaceContains:**/sfdx-project.json"
-  ],
+  "activationEvents": [],
   "contributes": {
     "viewsContainers": {
       "debug": [],

@@ -307,8 +307,7 @@ export function activate(context: vscode.ExtensionContext) {
     );
   }
 
-  // Ensure the view container is visible
-  vscode.commands.executeCommand('workbench.view.extension.visbal-test-container');
+  // Note: Removed automatic view container activation to respect user's previous panel selection
 
   // Register debug view commands
   context.subscriptions.push(
