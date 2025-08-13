@@ -218,6 +218,12 @@
         "category": "Visbal"
       },
       {
+        "command": "visbal-ext.showGitHistoryForSelectionAlternative",
+        "title": "Show Git History List (Click to Diff)",
+        "category": "Visbal",
+        "icon": "$(diff)"
+      },
+      {
         "command": "visbal-ext.showGitHistoryForFile",
         "title": "Show Git History for File",
         "category": "Visbal"
@@ -262,11 +268,17 @@
       "editor/context": [
         {
           "command": "visbal-ext.showGitHistoryForSelection",
-          "when": "editorHasSelection",
+          "when": "editorHasSelection && !isInUntitledFile && config.visbal.gitHistory.view != 'IDE'",
+          "group": "navigation"
+        },
+        {
+          "command": "visbal-ext.showGitHistoryForSelectionAlternative",
+          "when": "editorTextFocus && !isInUntitledFile && config.visbal.gitHistory.view == 'IDE'",
           "group": "navigation"
         },
         {
           "command": "visbal-ext.showGitHistoryForFile",
+          "when": "!isInUntitledFile",
           "group": "navigation"
         },
         {
@@ -376,7 +388,7 @@
         "visbal.gitHistory.view": {
           "type": "string",
           "default": "webview",
-          "enum": ["panel", "webview"],
+          "enum": ["panel", "webview", "IDE"],
           "description": "Choose the display mode for Git History: 'panel' for a separate panel, 'webview' for the classic view."
         },
         "visbal.output.showOnActivation": {

@@ -60,6 +60,10 @@ export class GitService {
         const statusBarService = StatusBarService.getInstance();
         try {
             statusBarService.showProgress('Loading git history...');
+            
+            // First check if the file is tracked by Git
+            await this.checkIfFileIsTracked(filePath);
+            
             // Escape the file path to handle spaces and special characters
             const escapedPath = filePath.replace(/(["\s'$`\\])/g,'\\$1');
 
@@ -134,6 +138,9 @@ export class GitService {
     }
 
     async processGitCommand (filePath: string, startLine: number, endLine: number) {
+        // First check if the file is tracked by Git
+        await this.checkIfFileIsTracked(filePath);
+        
         // Escape the file path to handle spaces and special characters
         const escapedPath = filePath.replace(/(["\s'$`\\])/g,'\\$1');
 
@@ -342,5 +349,108 @@ export class GitService {
         }
         // Return unique commits as an array
         return Array.from(allCommitsMap.values());
+    }
+
+    /**
+     * Gets the content of a file from a specific commit
+     */
+    async getFileContentFromCommit(commitHash: string, filePath: string): Promise<string> {
+        const statusBarService = StatusBarService.getInstance();
+        try {
+            statusBarService.showProgress('Loading file content from commit...');
+            
+            // Convert absolute path to relative path from git root
+            const relativePath = await this.getRelativePathFromGitRoot(filePath);
+            
+            // Escape the file path to handle spaces and special characters
+            const escapedPath = relativePath.replace(/(["\s'$`\\])/g,'\\$1');
+            
+            // Command to get file content from specific commit
+            const command = `git show ${commitHash}:${escapedPath}`;
+            
+            OrgUtils.logDebug(`[VisbalExt.GitService] getFileContentFromCommit -- Git command:`, command);
+            
+            const { stdout } = await execAsync(command, { maxBuffer: GitService.MAX_EXEC_BUFFER });
+            
+            return stdout;
+        } catch (error: any) {
+            OrgUtils.logError('[VisbalExt.GitService] getFileContentFromCommit -- Error:', error);
+            if (error.code === 128) {
+                // Git error - file might not exist in that commit
+                throw new Error(`File does not exist in commit ${commitHash.substring(0, 8)}`);
+            }
+            throw error;
+        } finally {
+            statusBarService.hide();
+        }
+    }
+
+    /**
+     * Gets the relative path of a file from the git root directory
+     */
+    private async getRelativePathFromGitRoot(filePath: string): Promise<string> {
+        try {
+            // Get git root directory
+            const { stdout: gitRoot } = await execAsync('git rev-parse --show-toplevel');
+            const gitRootPath = gitRoot.trim();
+            
+            // Convert to relative path
+            const path = require('path');
+            const relativePath = path.relative(gitRootPath, filePath);
+            
+            // Normalize path separators for git (always use forward slashes)
+            return relativePath.replace(/\\/g, '/');
+        } catch (error: any) {
+            OrgUtils.logError('[VisbalExt.GitService] getRelativePathFromGitRoot -- Error:', error);
+            // Fallback to using the original file path
+            return filePath;
+        }
+    }
+
+    /**
+     * Gets the parent commit hash for a given commit
+     */
+    async getParentCommitHash(commitHash: string): Promise<string | null> {
+        try {
+            const command = `git rev-parse ${commitHash}^`;
+            OrgUtils.logDebug(`[VisbalExt.GitService] getParentCommitHash -- Git command:`, command);
+            
+            const { stdout } = await execAsync(command, { maxBuffer: GitService.MAX_EXEC_BUFFER });
+            const parentHash = stdout.trim();
+            
+            OrgUtils.logDebug(`[VisbalExt.GitService] getParentCommitHash -- Parent hash:`, parentHash);
+            return parentHash;
+        } catch (error: any) {
+            OrgUtils.logDebug(`[VisbalExt.GitService] getParentCommitHash -- No parent found for commit ${commitHash}:`, error.message);
+            // Return null if no parent exists (initial commit)
+            return null;
+        }
+    }
+
+    /**
+     * Checks if a file is tracked by Git
+     */
+    private async checkIfFileIsTracked(filePath: string): Promise<void> {
+        try {
+            // Convert to relative path for git commands
+            const relativePath = await this.getRelativePathFromGitRoot(filePath);
+            const escapedPath = relativePath.replace(/(["\s'$`\\])/g,'\\$1');
+            
+            // Check if file is tracked by Git using git ls-files
+            const command = `git ls-files --error-unmatch ${escapedPath}`;
+            
+            OrgUtils.logDebug(`[VisbalExt.GitService] checkIfFileIsTracked -- Git command:`, command);
+            
+            await execAsync(command, { maxBuffer: GitService.MAX_EXEC_BUFFER });
+            
+            // If we reach here, the file is tracked
+        } catch (error: any) {
+            OrgUtils.logError('[VisbalExt.GitService] checkIfFileIsTracked -- Error:', error);
+            if (error.code === 128) {
+                // Git error - file is not tracked
+                throw new Error(`The file "${require('path').basename(filePath)}" is not tracked by Git. Please add it to the repository first.`);
+            }
+            throw error;
+        }
     }
 } 

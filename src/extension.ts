@@ -20,6 +20,7 @@ import { existsSync, mkdirSync } from 'fs';
 import { GitService } from './services/gitService';
 import { GitHistoryView } from './views/gitHistoryView';
 import { GitHistoryViewPanels } from './views/gitHistoryViewPanels';
+import { GitHistoryListView } from './views/gitHistoryListView';
 import { ExecuteApexTab } from './views/executeApexTab';
 import { TractionTab } from './views/tractionTab';
 
@@ -467,11 +468,20 @@ export function activate(context: vscode.ExtensionContext) {
 
   const gitService = new GitService(context);
   
+  const gitHistorySelectionMode = vscode.workspace.getConfiguration('visbal.gitHistory').get('view');
+
+  if (gitHistorySelectionMode != 'IDE') {
   context.subscriptions.push(
     vscode.commands.registerCommand('visbal-ext.showGitHistoryForSelection', () => {
       const editor = vscode.window.activeTextEditor;
       if (!editor) {
         vscode.window.showErrorMessage('No active editor');
+        return;
+      }
+
+      // Check if the file is saved
+      if (editor.document.isUntitled) {
+        vscode.window.showErrorMessage('Please save the file before viewing its Git history');
         return;
       }
 
@@ -486,7 +496,7 @@ export function activate(context: vscode.ExtensionContext) {
       const endLine = selection.end.line + 1;
       //@ext:visbal.gitHistory.view
       //based on the configuration, show the git history view
-      if (vscode.workspace.getConfiguration().get('visbal.gitHistory.view') === 'panel') {
+      if (gitHistorySelectionMode === 'panel') {
         //@ext:visbal.gitHistory.view.panel
         GitHistoryViewPanels.createOrShow(context, gitService, filePath, startLine, endLine);
       }
@@ -495,22 +505,69 @@ export function activate(context: vscode.ExtensionContext) {
       }
     })
   );
-
+}
+else {
+  // Alternative command that shows Git history in a dedicated panel with click-to-diff functionality
   context.subscriptions.push(
+    vscode.commands.registerCommand('visbal-ext.showGitHistoryForSelectionAlternative', () => {
+      const editor = vscode.window.activeTextEditor;
+      if (!editor) {
+        vscode.window.showErrorMessage('No active editor');
+        return;
+      }
+
+      // Check if the file is saved
+      if (editor.document.isUntitled) {
+        vscode.window.showErrorMessage('Please save the file before viewing its Git history');
+        return;
+      }
+
+      const filePath = editor.document.uri.fsPath;
+      const selection = editor.selection;
+      
+      // Show the Git history list view
+      if (selection.isEmpty) {
+        // Show history for entire file
+        GitHistoryListView.createOrShow(context, gitService, filePath);
+      } else {
+        // Show history for selection
+        const startLine = selection.start.line + 1; // Convert to 1-based line numbers
+        const endLine = selection.end.line + 1;
+        GitHistoryListView.createOrShow(context, gitService, filePath, startLine, endLine);
+      }
+    })
+  );
+}
+
+context.subscriptions.push(
     vscode.commands.registerCommand('visbal-ext.showGitHistoryForFile', (fileUri?: vscode.Uri) => {
       let filePath: string | undefined;
+      let isUntitled = false;
+      
       if (fileUri && fileUri.fsPath) {
         filePath = fileUri.fsPath;
+        // Check if this is an untitled URI
+        isUntitled = fileUri.scheme === 'untitled';
       } else if (vscode.window.activeTextEditor) {
         filePath = vscode.window.activeTextEditor.document.uri.fsPath;
+        isUntitled = vscode.window.activeTextEditor.document.isUntitled;
       }
+      
       if (!filePath) {
         vscode.window.showErrorMessage('No file selected');
         return;
       }
+      
+      if (isUntitled) {
+        vscode.window.showErrorMessage('Please save the file before viewing its Git history');
+        return;
+      }
+      
       GitHistoryView.createOrShowForFile(context, gitService, filePath);
     })
   );
+
+  
 
   // Command to show the Visbal Extension output channel
   context.subscriptions.push(

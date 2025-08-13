@@ -23,6 +23,9 @@ export class GitHistoryView {
                     case 'selectCommit':
                         this._updateDiffView(message.commitIndex);
                         return;
+                    case 'openCommitDiff':
+                        this._openCommitDiffView(message.currentIndex, message.previousIndex);
+                        return;
                     case 'openCommitInBrowser':
                         const workspaceFolders = vscode.workspace.workspaceFolders;
                         if (workspaceFolders && workspaceFolders.length > 0) {
@@ -44,6 +47,7 @@ export class GitHistoryView {
     }
 
     private _currentHistory: any[] = [];
+    private _currentFilePath: string = '';
 
     /*
     * This method is used to create or show the git history view for a selection
@@ -164,6 +168,7 @@ export class GitHistoryView {
     * @param endLine - The end line of the selection
     */
     private async updateContent(filePath: string, startLine: number, endLine: number) {
+        this._currentFilePath = filePath;
         try {
             this._showLoadingOverlay();
             const history = await this.gitService.getHistoryForSelection(filePath, startLine, endLine);
@@ -196,6 +201,7 @@ export class GitHistoryView {
     * @param filePath - The path to the file
     */
     private async updateContentForFile(filePath: string) {
+        this._currentFilePath = filePath;
         try {
             this._showLoadingOverlay();
             const history = await this.gitService.getHistoryForFile(filePath);
@@ -231,6 +237,70 @@ export class GitHistoryView {
                 command: 'updateDiff',
                 diff: this._parseDiff(this._currentHistory[commitIndex].diff)
             });
+        }
+    }
+
+    private async _openCommitDiffView(currentIndex: number, previousIndex: number) {
+        if (!this._currentHistory[currentIndex] || !this._currentHistory[previousIndex]) {
+            return;
+        }
+
+        try {
+            const currentCommit = this._currentHistory[currentIndex];
+            const previousCommit = this._currentHistory[previousIndex];
+            
+            // Get file content from both commits
+            const currentFileContent = await this.gitService.getFileContentFromCommit(
+                currentCommit.hash, 
+                this._currentFilePath
+            );
+
+            const previousFileContent = await this.gitService.getFileContentFromCommit(
+                previousCommit.hash, 
+                this._currentFilePath
+            );
+
+            // Create URIs for virtual documents
+            const fileName = require('path').basename(this._currentFilePath);
+            const fileExtension = require('path').extname(this._currentFilePath);
+            
+            // Create virtual URIs that won't appear as untitled files
+            const previousUri = vscode.Uri.parse(`git-diff:${fileName}-${previousCommit.hash.substring(0, 8)}${fileExtension}`);
+            const currentUri = vscode.Uri.parse(`git-diff:${fileName}-${currentCommit.hash.substring(0, 8)}${fileExtension}`);
+
+            // Register a text document content provider for these virtual URIs
+            const provider = new class implements vscode.TextDocumentContentProvider {
+                provideTextDocumentContent(uri: vscode.Uri): string {
+                    if (uri.path.includes(previousCommit.hash.substring(0, 8))) {
+                        return previousFileContent;
+                    } else if (uri.path.includes(currentCommit.hash.substring(0, 8))) {
+                        return currentFileContent;
+                    }
+                    return '';
+                }
+            };
+
+            const registration = vscode.workspace.registerTextDocumentContentProvider('git-diff', provider);
+
+            try {
+                // Open diff view showing comparison between the two commits
+                await vscode.commands.executeCommand('vscode.diff', 
+                    previousUri, 
+                    currentUri, 
+                    `${fileName}: ${previousCommit.hash.substring(0, 8)} ↔ ${currentCommit.hash.substring(0, 8)}`,
+                    { 
+                        preview: true,
+                        preserveFocus: false 
+                    }
+                );
+            } finally {
+                // Clean up the provider after a short delay to allow the diff to load
+                setTimeout(() => registration.dispose(), 1000);
+            }
+
+        } catch (error: any) {
+            OrgUtils.logError('[VisbalExt.GitHistoryView] _openCommitDiffView -- Error:', error);
+            vscode.window.showErrorMessage(`Failed to open commit diff view: ${error.message}`);
         }
     }
 
@@ -285,7 +355,7 @@ export class GitHistoryView {
         }
         .list-header {
             display: grid;
-            grid-template-columns: 100px 150px 150px 1fr;
+            grid-template-columns: 100px 150px 150px 1fr 100px;
             gap: 10px;
             padding: 8px 10px;
             background-color: var(--vscode-editorGroupHeader-tabsBackground);
@@ -326,7 +396,7 @@ export class GitHistoryView {
             cursor: pointer;
             border-bottom: 1px solid var(--vscode-panel-border);
             display: grid;
-            grid-template-columns: 100px 150px 150px 1fr;
+            grid-template-columns: 100px 150px 150px 1fr 100px;
             gap: 10px;
             align-items: center;
             /*font-family: var(--vscode-editor-font-family, 'JetBrains Mono', 'Fira Mono', 'Consolas', monospace);*/
@@ -360,6 +430,44 @@ export class GitHistoryView {
             /*font-family: var(--vscode-font-family);*/
             font-size: var(--vscode-font-size);
             color: var(--vscode-foreground);
+        }
+        .commit-actions {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+        .action-button {
+            background-color: var(--vscode-button-background);
+            color: var(--vscode-button-foreground);
+            border: none;
+            padding: 4px 8px;
+            border-radius: 3px;
+            cursor: pointer;
+            font-size: 11px;
+            transition: background-color 0.2s ease;
+        }
+        .action-button:hover {
+            background-color: var(--vscode-button-hoverBackground);
+        }
+        .action-button:active {
+            transform: translateY(1px);
+        }
+        .action-button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            background-color: var(--vscode-button-background);
+        }
+        .action-button:disabled:hover {
+            background-color: var(--vscode-button-background);
+            transform: none;
+        }
+        .primary-button {
+            background-color: #0e639c;
+            color: white;
+            font-weight: 500;
+        }
+        .primary-button:hover {
+            background-color: #1177bb;
         }
         .diff-container {
             display: flex;
@@ -745,6 +853,7 @@ export class GitHistoryView {
             <div>Date</div>
             <div>Author</div>
             <div>Commit Message</div>
+            <div>Actions</div>
         </div>
         <div class="list-content">
             ${history.map((commit, index) => `
@@ -753,6 +862,11 @@ export class GitHistoryView {
                     <span class="commit-date">${commit.date}</span>
                     <span class="commit-author">${commit.author}</span>
                     <span class="commit-message">${commit.message}</span>
+                    <span class="commit-actions">
+                        <button class="action-button primary-button" onclick="event.stopPropagation(); openCommitDiff(${index}, ${index + 1})" title="Compare with previous commit" ${index + 1 >= history.length ? 'disabled' : ''}>
+                            Diff
+                        </button>
+                    </span>
                 </div>
             `).join('')}
         </div>
@@ -803,6 +917,14 @@ export class GitHistoryView {
             vscode.postMessage({
                 command: 'openCommitInBrowser',
                 hash: hash
+            });
+        }
+
+        function openCommitDiff(currentIndex, previousIndex) {
+            vscode.postMessage({
+                command: 'openCommitDiff',
+                currentIndex: currentIndex,
+                previousIndex: previousIndex
             });
         }
 
