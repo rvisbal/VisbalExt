@@ -2170,9 +2170,9 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
                 logId: logId, 
                 status: 'downloading' 
             });
-            const config = vscode.workspace.getConfiguration('visbal.apexLog');
-            const defaultView = config.get<string>('defaultView', 'user_debug');
-            await OrgUtils.openLog(logId, this._extensionUri, defaultView);
+           
+        
+            await OrgUtils.openLog(logId, this._extensionUri);
 
             // Show success in status bar
             statusBarService.showSuccess(`Log ${logId} opened successfully`);
@@ -2203,7 +2203,7 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
             statusBarService.showProgress(`Opening log ${logId} in editor...`);
             
             // Use OrgUtils.openLog to open the log in editor (raw text mode)
-            await OrgUtils.openLog(logId, this._extensionUri, '', false);
+            await OrgUtils.openLog(logId, this._extensionUri, false);
             
             // Show success in status bar
             statusBarService.showSuccess(`Log ${logId} opened in editor`);

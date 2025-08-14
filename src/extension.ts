@@ -179,9 +179,7 @@ export function activate(context: vscode.ExtensionContext) {
       vscode.commands.registerCommand('visbal-ext.viewTestLog', async (logId: string, testName: string) => {
         try {
           OrgUtils.logDebug('[VisbalExt.Extension] Viewing test log:', { logId, testName });
-          const config = vscode.workspace.getConfiguration('visbal.apexLog');
-          const defaultView = config.get<string>('defaultView', 'user_debug');
-          OrgUtils.openLog(logId, context.extensionUri, defaultView, true);
+          OrgUtils.openLog(logId, context.extensionUri, true);
           
         } catch (error: any) {
           TestItem.setDownloading(logId, false);
@@ -509,28 +507,11 @@ export function activate(context: vscode.ExtensionContext) {
     });
   });
 
-  // Register the Show Log Summary command
-  let showLogSummaryCommand = vscode.commands.registerCommand('visbal-ext.showLogSummary', () => {
-    // Get the active editor
-    const editor = vscode.window.activeTextEditor;
-    if (!editor) {
-      vscode.window.showInformationMessage('No active editor found');
-      return;
-    }
-
-    // Get the log file path
-    const logFilePath = editor.document.uri.fsPath;
-    OrgUtils.logDebug('[VisbalExt.Extension] showLogSummary -- logFilePath:', logFilePath);
-    // Use a generated ID based on the file path
-    const logId = `summary_${Date.now()}`;
-
-    // Show the log detail view instead of the summary view
-    LogDetailView.createOrShow(context.extensionUri, logFilePath, logId);
-  });
+  
 
   // Add commands to subscriptions
   context.subscriptions.push(showFindModelCommand);
-  context.subscriptions.push(showLogSummaryCommand);
+
 
   // Update debug event handlers
   vscode.debug.onDidStartDebugSession(() => {

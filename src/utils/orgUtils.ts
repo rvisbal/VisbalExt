@@ -401,7 +401,7 @@ export class OrgUtils {
     public static async openTheLogFromTestId(testId: string) {
         const logId = await this.getLogId(testId);
         if (logId) {
-            await this.openLog(logId, vscode.Uri.file(logId), 'overview');
+            await this.openLog(logId, vscode.Uri.file(logId));
         }
 
     }
@@ -433,31 +433,19 @@ export class OrgUtils {
      * @param extensionUri The extension's URI for creating the detail view
      * @param tab The tab to open initially (e.g., 'overview', 'timeline', 'execution', etc.)
      */
-    public static async openLog(logId: string, extensionUri: vscode.Uri, tab: string, useDefaultOrg: boolean = false): Promise<void> {
+    public static async openLog(logId: string, extensionUri: vscode.Uri, useDefaultOrg: boolean = false): Promise<void> {
         try {
-            OrgUtils.logDebug(`[VisbalExt.OrgUtils] openLog -- Opening log: ${logId} with tab: ${tab}`);
+       
 
-            const openLogPreview = vscode.workspace.getConfiguration('visbal.apexLog').get<boolean>('openLogPreview', false);
+           
             // Check if we have a local copy of the log
             const localFilePath = this._downloadedLogPaths.get(logId);
             if (localFilePath && fs.existsSync(localFilePath)) {
-               
-                if (openLogPreview) {
-                    //open log extension preview
-                    const view = LogDetailView.createOrShow(extensionUri, localFilePath, logId);
-                    console.log(`[VisbalExt.OrgUtils] openLog 0. -- view ${view}`);
-                    if (openLogPreview && tab != '') {
-                    // Change to the requested tab after creation
-                        view.changeTab(tab);
-                        console.log(`[VisbalExt.OrgUtils] openLog 1. -- changeTab tab ${tab}`);
-                    }
-                }
-                else {
-                    //open log raw file in new tab
-                    const document = await vscode.workspace.openTextDocument(localFilePath);
-                    await vscode.window.showTextDocument(document);
-                }
-    
+            
+                //open log raw file in new tab
+                const document = await vscode.workspace.openTextDocument(localFilePath);
+                await vscode.window.showTextDocument(document);
+            
                 return;
             }
 
@@ -468,22 +456,11 @@ export class OrgUtils {
             const tempFile = path.join(os.tmpdir(), `sf_${sanitizedLogId}_${timestamp}.log`);
             
             await fs.promises.writeFile(tempFile, logContent);
-            
-            if (openLogPreview) {
-                //open log extension preview
-                const view = LogDetailView.createOrShow(extensionUri, tempFile, logId);
-                console.log(`[VisbalExt.OrgUtils] openLog 3. -- view ${view}`);
-                if (openLogPreview && tab != '') {
-                    // Change to the requested tab after creation
-                    view.changeTab(tab);
-                    console.log(`[VisbalExt.OrgUtils] openLog 2. -- changeTab tab ${tab}`);
-                }
-            }
-            else {
-                //open log raw file in new tab
-                const document = await vscode.workspace.openTextDocument(tempFile);
-                await vscode.window.showTextDocument(document);
-            }
+        
+            //open log raw file in new tab
+            const document = await vscode.workspace.openTextDocument(tempFile);
+            await vscode.window.showTextDocument(document);
+        
 
             // Mark as downloaded
             this._downloadedLogs.add(logId);

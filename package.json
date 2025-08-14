@@ -278,11 +278,6 @@
       ],
       "editor/title": [
         {
-          "command": "visbal-ext.showLogSummary",
-          "when": "resourceExtname == .log",
-          "group": "navigation"
-        },
-        {
           "command": "visbal-ext.showLogFilterManager",
           "when": "resourceExtname == .log",
           "group": "navigation"
@@ -395,16 +390,6 @@
           "type": "boolean",
           "default": false,
           "description": "Enable/disable custom handling of test execution"
-        },
-        "visbal.apexLog.openLogPreview": {
-          "type": "boolean",
-          "default": false,
-          "description": "open apex log in preview by default"
-        },
-        "visbal.apexLog.defaultView": {
-          "type": "string",
-          "default": "user_debug",
-          "description": "default view for log analyzer"
         },
         "visbal.selectedTests": {
           "type": "object",

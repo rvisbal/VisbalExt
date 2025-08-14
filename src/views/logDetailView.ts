@@ -1,15 +1,12 @@
 import * as vscode from 'vscode';
 import * as fs from 'fs';
 import * as path from 'path';
-import { getHtmlTemplate } from './logDetailHTML';
-import { extractDebugLines, extractCategoryLines, formatLogContentForHtml, extractInfoLines } from '../utils/logParsingUtils';
-import { LogTab, LogCategory, LogSummary, LogTimelineEvent, ParsedLogData } from '../models/logInterfaces';
-import { ExecutionTabHandler } from './logDetailExecution';
-import { RawLogTabHandler } from './logDetailRawHandler';
+
+
+
 import { statusBarService } from '../services/statusBarService';
 import { OrgUtils } from '../utils/orgUtils';
-import { logFilterService } from '../services/logFilterService';
-import { LogFilter, FilterResult } from '../types/logFilter';
+
 
 /**
  * LogDetailView class for displaying detailed log information in a webview panel
@@ -23,8 +20,7 @@ export class LogDetailView {
     private _logId: string;
     private _currentTab: string = 'overview';
     private _parsedData: any = {};
-    private _executionTabHandler: ExecutionTabHandler;
-    private _rawLogTabHandler: RawLogTabHandler;
+
     private _activeFilters: string[] = [];
     private _filteredContent: string = '';
 
@@ -46,7 +42,7 @@ export class LogDetailView {
         if (LogDetailView.currentPanel) {
             OrgUtils.logDebug('[VisbalExt.LogDetailView] createOrShow -- Reusing existing panel');
             LogDetailView.currentPanel._panel.reveal(column);
-            LogDetailView.currentPanel.updateLogFile(logFilePath, logId);
+      
             return LogDetailView.currentPanel;
         }
 
@@ -81,53 +77,21 @@ export class LogDetailView {
         this._extensionUri = extensionUri;
         this._logFilePath = logFilePath;
         this._logId = logId;
-        this._executionTabHandler = new ExecutionTabHandler(panel.webview);
-        this._rawLogTabHandler = new RawLogTabHandler(panel.webview);
 
-        // Set the webview's initial html content
-        this._update();
+
 
         // Listen for when the panel is disposed
         // This happens when the user closes the panel or when the panel is closed programmatically
         this._panel.onDidDispose(() => this.dispose(), null, this._disposables);
 
-        // Update the content based on view changes
-        this._panel.onDidChangeViewState(
-            e => {
-                if (this._panel.visible) {
-                    OrgUtils.logDebug('[VisbalExt.LogDetailView] onDidChangeViewState -- Panel became visible, updating content');
-                    this._update();
-                }
-            },
-            null,
-            this._disposables
-        );
-
+       
         // Handle messages from the webview
         this._panel.webview.onDidReceiveMessage(
             message => {
                 OrgUtils.logDebug(`[VisbalExt.LogDetailView] onDidReceiveMessage -- Received message: ${message.command}`, message);
                 
                 switch (message.command) {
-                    case 'changeTab':
-                        OrgUtils.logDebug(`[VisbalExt.LogDetailView] onDidReceiveMessage -- Changing tab to: ${message.tab}`);
-                        this._currentTab = message.tab;
-                        this._update();
-                        
-                        // If changing to execution tab, update execution tab content
-                        if (message.tab === 'execution') {
-                            setTimeout(() => {
-                                this._executionTabHandler.updateExecutionTab();
-                            }, 100); // Small delay to ensure the webview is ready
-                        }
-                        
-                        // If changing to raw log tab, update raw log tab content
-                        if (message.tab === 'raw') {
-                            setTimeout(() => {
-                                this._rawLogTabHandler.updateRawLogTab();
-                            }, 100); // Small delay to ensure the webview is ready
-                        }
-                        break;
+                   
                     case 'backToList':
                         OrgUtils.logDebug('[VisbalExt.LogDetailView] onDidReceiveMessage -- Going back to log list');
                         this.dispose();
@@ -154,22 +118,7 @@ export class LogDetailView {
                         OrgUtils.logDebug(`[VisbalExt.LogDetailView] onDidReceiveMessage -- Searching raw log for: ${message.term}`);
                         this._searchRawLog(message.searchTerm, message.caseSensitive, message.wholeWord, message.useRegex);
                         break;
-                    case 'getLogChunk':
-                        OrgUtils.logDebug(`[VisbalExt.LogDetailView] onDidReceiveMessage -- Getting log chunk: ${message.chunkIndex}`);
-                        this._getLogChunk(message.chunkIndex, message.chunkSize);
-                        break;
-                    case 'toggleLogFilter':
-                        OrgUtils.logDebug(`[VisbalExt.LogDetailView] onDidReceiveMessage -- Toggling log filter: ${message.filterId}`);
-                        this._toggleLogFilter(message.filterId);
-                        break;
-                    case 'applyLogFilters':
-                        OrgUtils.logDebug(`[VisbalExt.LogDetailView] onDidReceiveMessage -- Applying log filters: ${message.filterIds}`);
-                        this._applyLogFilters(message.filterIds);
-                        break;
-                    case 'clearLogFilters':
-                        OrgUtils.logDebug('[VisbalExt.LogDetailView] onDidReceiveMessage -- Clearing all log filters');
-                        this._clearLogFilters();
-                        break;
+                   
                     case 'openFilterManager':
                         OrgUtils.logDebug('[VisbalExt.LogDetailView] onDidReceiveMessage -- Opening filter manager');
                         vscode.commands.executeCommand('visbal-ext.showLogFilterManager');
@@ -181,22 +130,7 @@ export class LogDetailView {
         );
     }
 
-    /**
-     * Updates the log file being displayed
-     * @param logFilePath The path to the log file
-     * @param logId The ID of the log
-     */
-    public updateLogFile(logFilePath: string, logId: string): void {
-        OrgUtils.logDebug(`[VisbalExt.LogDetailView] updateLogFile -- Updating log file: ${logFilePath}`);
-        statusBarService.showProgress(`Loading log file: ${path.basename(logFilePath)}`);
-        
-        this._logFilePath = logFilePath;
-        this._logId = logId;
-        this._update();
-        
-        statusBarService.showSuccess(`Log file loaded: ${path.basename(logFilePath)}`);
-    }
-
+   
     /**
      * Searches the log content for a specific term
      * @param term The search term
@@ -230,349 +164,12 @@ export class LogDetailView {
         // Implement filter functionality
         // This would typically involve filtering the log content based on the selected category
         
-        // For now, just update the UI
-        this._update();
+       
     }
 
-    /**
-     * Parses the log file content
-     */
-    private _parseLogFile(): ParsedLogData {
-        try {
-            OrgUtils.logDebug(`[VisbalExt.LogDetailView] _parseLogFile -- Parsing log file: ${this._logFilePath}`);
-            statusBarService.showProgress(`Parsing log file: ${path.basename(this._logFilePath)}`);
-            
-            if (!fs.existsSync(this._logFilePath)) {
-                OrgUtils.logDebug(`[VisbalExt.LogDetailView] _parseLogFile -- Log file not found: ${this._logFilePath}`);
-                return { error: 'Log file not found' } as ParsedLogData;
-            }
 
-            const logContent = fs.readFileSync(this._logFilePath, 'utf8');
-            OrgUtils.logDebug(`[VisbalExt.LogDetailView] _parseLogFile -- Read log file, size: ${logContent.length} bytes`);
-            
-            const lines = logContent.split('\n');
-            
-            // Extract lines by category using utility functions
-            const executionLines = extractCategoryLines(lines, 'EXECUTION_');
-            const soqlLines = extractCategoryLines(lines, 'SOQL_');
-            const dmlLines = extractCategoryLines(lines, 'DML_');
-            const heapLines = extractCategoryLines(lines, 'HEAP_');
-            const limitLines = extractCategoryLines(lines, 'LIMIT_');
-            const userDebugLines = extractDebugLines(lines);
 
-            const userInfoLines =  extractInfoLines(lines);
-            
-            // Parse database operations
-            const soqlQueries = this._parseSoqlQueries(soqlLines);
-            const dmlOperations = this._parseDmlOperations(dmlLines);
-            
-            // Parse limits
-            const limits = this._parseLimits(limitLines);
-            
-            // Extract execution path data
-            const executionPath = ExecutionTabHandler.extractExecutionPath(executionLines);
-            
-            // Create a summary
-            const summary = {
-                totalLines: lines.length,
-                executionCount: executionLines.length,
-                soqlCount: soqlLines.length,
-                dmlCount: dmlLines.length,
-                heapCount: heapLines.length,
-                limitCount: limitLines.length,
-                userDebugCount: userDebugLines.length,
-                userInfoCount: userInfoLines.length
-            };
-            
-            // Create categories for overview
-            const categories = [
-                { name: 'EXECUTION', count: executionLines.length, description: 'Execution events' },
-                { name: 'SOQL', count: soqlLines.length, description: 'SOQL queries' },
-                { name: 'DML', count: dmlLines.length, description: 'DML operations' },
-                { name: 'HEAP', count: heapLines.length, description: 'Heap usage' },
-                { name: 'LIMIT', count: limitLines.length, description: 'Governor limits' },
-                { name: 'USER_DEBUG', count: userDebugLines.length, description: 'Debug logs' },
-                { name: 'USER_INFO', count: userInfoLines.length, description: 'Info logs' }
-            ];
-            
-            // Create timeline events
-            const timeline = this._extractTimeline(lines);
-            
-            // Create the parsed data object
-            const parsedData: ParsedLogData = {
-                rawLog: logContent,
-                userDebugLog: userDebugLines.join('\n'),
-                userInfoLog: userInfoLines.join('\n'),
-                summary,
-                categories,
-                timeline,
-                soqlQueries,
-                dmlOperations,
-                limits,
-                executionPath
-            };
-            
-            // Store execution path data and update handlers
-            this._executionTabHandler.setExecutionData(executionPath);
-            this._rawLogTabHandler.setLogContent(logContent);
-            
-            OrgUtils.logDebug('[VisbalExt.LogDetailView] _parseLogFile -- Parsed log data:', parsedData.summary);
-            statusBarService.showSuccess(`Log file parsed: ${path.basename(this._logFilePath)}`);
-            return parsedData;
-        } catch (error: any) {
-            OrgUtils.logError('[VisbalExt.LogDetailView] _parseLogFile -- Error parsing log file:', error);
-            statusBarService.showError(`Error parsing log file: ${error.message}`);
-            vscode.window.showErrorMessage(`Error parsing log file: ${error.message}`);
-            return { 
-                error: `Error parsing log file: ${error.message}`,
-                rawLog: '',
-                userDebugLog: '',
-                userInfoLog: '',
-                summary: this._createEmptySummary(),
-                categories: [],
-                timeline: [],
-                soqlQueries: [],
-                dmlOperations: [],
-                limits: [],
-                executionPath: []
-            };
-        }
-    }
 
-    private _parseSoqlQueries(soqlLines: string[]): any[] {
-        return soqlLines.map(line => {
-            const match = line.match(/SOQL_EXECUTE_(\w+).*?(\d+)\s+ms.*?(\d+)\s+rows/i);
-            if (match) {
-                return {
-                    query: line,
-                    time: parseInt(match[2], 10),
-                    rows: parseInt(match[3], 10)
-                };
-            }
-            return null;
-        }).filter(Boolean);
-    }
-
-    private _parseDmlOperations(dmlLines: string[]): any[] {
-        return dmlLines.map(line => {
-            const match = line.match(/DML_(\w+).*?(\w+)__?c?.*?(\d+)\s+ms.*?(\d+)\s+rows/i);
-            if (match) {
-                return {
-                    operation: match[1],
-                    object: match[2],
-                    time: parseInt(match[3], 10),
-                    rows: parseInt(match[4], 10)
-                };
-            }
-            return null;
-        }).filter(Boolean);
-    }
-
-    private _parseLimits(limitLines: string[]): any[] {
-        const limitMap = new Map<string, { used: number, available: number }>();
-        
-        limitLines.forEach(line => {
-            const match = line.match(/LIMIT_USAGE_FOR_NS.*?(\w+)\s+(\d+)\s+of\s+(\d+)/i);
-            if (match) {
-                const [, name, used, available] = match;
-                limitMap.set(name, {
-                    used: parseInt(used, 10),
-                    available: parseInt(available, 10)
-                });
-            }
-        });
-        
-        return Array.from(limitMap.entries()).map(([name, values]) => ({
-            name,
-            used: values.used,
-            available: values.available
-        }));
-    }
-
-    /**
-     * Creates an empty summary object
-     * @returns Empty summary object
-     */
-    private _createEmptySummary(): LogSummary {
-        return {
-            totalLines: 0,
-            executionCount: 0,
-            soqlCount: 0,
-            dmlCount: 0,
-            heapCount: 0,
-            limitCount: 0,
-            userDebugCount: 0
-        };
-    }
-
-    /**
-     * Extracts timeline information from log lines
-     * @param lines The log lines
-     */
-    private _extractTimeline(lines: string[]): LogTimelineEvent[] {
-        OrgUtils.logDebug('[VisbalExt.LogDetailView] _extractTimeline -- Extracting timeline from log lines');
-        
-        const timeline: LogTimelineEvent[] = [];
-        let currentTime = 0;
-        
-        lines.forEach((line, index) => {
-            // Simple time extraction - in a real implementation, this would be more sophisticated
-            if (line.includes('|')) {
-                const parts = line.split('|');
-                if (parts.length >= 2) {
-                    const timeMatch = parts[0].match(/(\d+):(\d+):(\d+)\.(\d+)/);
-                    if (timeMatch) {
-                        const hours = parseInt(timeMatch[1]);
-                        const minutes = parseInt(timeMatch[2]);
-                        const seconds = parseInt(timeMatch[3]);
-                        const milliseconds = parseInt(timeMatch[4]);
-                        
-                        currentTime = (hours * 3600 + minutes * 60 + seconds) * 1000 + milliseconds;
-                    }
-                    
-                    // Extract event type and content
-                    let eventType = 'INFO';
-                    let content = parts[1].trim();
-                    
-                    if (content.includes('EXECUTION_')) eventType = 'EXECUTION';
-                    else if (content.includes('SOQL_')) eventType = 'SOQL';
-                    else if (content.includes('DML_')) eventType = 'DML';
-                    else if (content.includes('HEAP_')) eventType = 'HEAP';
-                    else if (content.includes('LIMIT_')) eventType = 'LIMIT';
-                    else if (content.includes('ERROR')) eventType = 'ERROR';
-                    else if (content.includes('WARNING')) eventType = 'WARNING';
-                    
-                    timeline.push({
-                        time: currentTime,
-                        formattedTime: this._formatTime(currentTime),
-                        lineNumber: index + 1,
-                        eventType,
-                        content
-                    });
-                }
-            }
-        });
-        
-        OrgUtils.logDebug(`[VisbalExt.LogDetailView] _extractTimeline -- Extracted ${timeline.length} timeline events`);
-        
-        return timeline;
-    }
-
-    /**
-     * Formats a time value in milliseconds
-     * @param timeMs The time in milliseconds
-     */
-    private _formatTime(timeMs: number): string {
-        const hours = Math.floor(timeMs / 3600000);
-        const minutes = Math.floor((timeMs % 3600000) / 60000);
-        const seconds = Math.floor((timeMs % 60000) / 1000);
-        const milliseconds = timeMs % 1000;
-        
-        return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}.${milliseconds.toString().padStart(3, '0')}`;
-    }
-
-    /**
-     * Updates the webview content
-     */
-    private _update(): void {
-        try {
-            OrgUtils.logDebug('[VisbalExt.LogDetailView] _update -- Updating webview content');
-            statusBarService.showProgress('Updating log view...');
-            
-            const webview = this._panel.webview;
-            
-            // Parse the log file
-            this._parsedData = this._parseLogFile();
-            
-            // Get file information
-            const fileName = path.basename(this._logFilePath);
-            let fileSize = 'Unknown';
-            
-            try {
-                const stats = fs.statSync(this._logFilePath);
-                fileSize = this._formatFileSize(stats.size);
-            } catch (error: any) {
-                OrgUtils.logError('[VisbalExt.LogDetailView] _update -- Error getting file stats:', error);
-            }
-            
-            // Update the title
-            this._panel.title = `Log: ${fileName}`;
-            
-            // Define tabs including the new USER_DEBUG tab
-            const tabs: LogTab[] = [
-                { id: 'overview', label: 'Overview' },
-                { id: 'timeline', label: 'Timeline' },
-                { id: 'execution', label: 'Execution' },
-                { id: 'database', label: 'Database' },
-                { id: 'limits', label: 'Limits' },
-                { id: 'user_debug', label: 'Debug' },
-                { id: 'user_info', label: 'Info' },
-                { id: 'raw', label: 'Raw Log' }
-            ];
-            
-            
-            
-            // Get custom content for tabs
-            const executionTabContent = ExecutionTabHandler.getPlaceholderHtml();
-            const rawLogTabContent = RawLogTabHandler.getPlaceholderHtml();
-            
-            // Get JavaScript for custom tabs
-            const executionTabJs = ExecutionTabHandler.getJavaScript();
-            const rawLogTabJs = RawLogTabHandler.getJavaScript();
-            
-            // Combine JavaScript
-            const customJavaScript = executionTabJs + '\n' + rawLogTabJs;
-            
-            // Update the webview content with execution tab HTML and JavaScript
-            webview.html = getHtmlTemplate(
-                this._parsedData,
-                fileName,
-                fileSize,
-                this._currentTab,
-                tabs,
-                executionTabContent,
-                customJavaScript,
-                rawLogTabContent,
-                [], // categories - deprecated parameter
-                this._getAvailableFilters(),
-                this._activeFilters
-            );
-            
-            // If the current tab is execution, update execution tab content
-            if (this._currentTab === 'execution') {
-                setTimeout(() => {
-                    this._executionTabHandler.updateExecutionTab();
-                }, 100); // Small delay to ensure the webview is ready
-            }
-            
-            // If the current tab is raw log, update raw log tab content
-            if (this._currentTab === 'raw') {
-                setTimeout(() => {
-                    this._rawLogTabHandler.updateRawLogTab();
-                }, 100); // Small delay to ensure the webview is ready
-            }
-            
-            statusBarService.showSuccess('Log view updated');
-        } catch (error: any) {
-            OrgUtils.logError('[VisbalExt.LogDetailView] _update -- Error updating webview content:', error);
-            statusBarService.showError(`Error updating log view: ${error.message}`);
-            vscode.window.showErrorMessage(`Error updating log view: ${error.message}`);
-        }
-    }
-
-    /**
-     * Formats a file size in bytes to a human-readable string
-     * @param bytes The file size in bytes
-     */
-    private _formatFileSize(bytes: number): string {
-        if (bytes === 0) return '0 Bytes';
-        
-        const k = 1024;
-        const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
-        const i = Math.floor(Math.log(bytes) / Math.log(k));
-        
-        return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
-    }
 
     /**
      * Disposes of the panel
@@ -593,28 +190,7 @@ export class LogDetailView {
         }
     }
 
-    // Add a new method to handle the getLogChunk message
-    private _getLogChunk(chunkIndex: number, chunkSize: number): void {
-        OrgUtils.logDebug(`[VisbalExt.LogDetailView] _getLogChunk -- Getting chunk ${chunkIndex} with size ${chunkSize}`);
-        
-        try {
-            // Calculate start and end indices
-            const startIndex = chunkIndex * chunkSize;
-            const endIndex = startIndex + chunkSize;
-            
-            // Get the chunk from the raw log tab handler
-            const chunk = this._rawLogTabHandler.getLogChunk(startIndex, endIndex);
-            
-            // Send the chunk back to the webview
-            this._panel.webview.postMessage({
-                command: 'logChunk',
-                chunkIndex: chunkIndex,
-                chunk: chunk
-            });
-        } catch (error: any) {
-            OrgUtils.logError(`[VisbalExt.LogDetailView] _getLogChunk -- Error getting chunk ${chunkIndex}:`, error);
-        }
-    }
+    
 
     // Add a new method to handle the searchRawLog message
     private _searchRawLog(searchTerm: string, caseSensitive: boolean = false, wholeWord: boolean = false, useRegex: boolean = false): void {
@@ -688,103 +264,10 @@ export class LogDetailView {
         }
     }
 
-    /**
-     * Toggles a log filter on/off
-     */
-    private _toggleLogFilter(filterId: string): void {
-        try {
-            const filterIndex = this._activeFilters.indexOf(filterId);
-            if (filterIndex >= 0) {
-                this._activeFilters.splice(filterIndex, 1);
-            } else {
-                this._activeFilters.push(filterId);
-            }
+   
+    
 
-            this._applyCurrentFilters();
-            statusBarService.showSuccess('Filter toggled successfully');
-        } catch (error: any) {
-            OrgUtils.logError('[VisbalExt.LogDetailView] _toggleLogFilter -- Error toggling filter:', error);
-            statusBarService.showError(`Error toggling filter: ${error.message}`);
-        }
-    }
-
-    /**
-     * Applies specified log filters
-     */
-    private _applyLogFilters(filterIds: string[]): void {
-        try {
-            this._activeFilters = filterIds;
-            this._applyCurrentFilters();
-            statusBarService.showSuccess(`Applied ${filterIds.length} filters`);
-        } catch (error: any) {
-            OrgUtils.logError('[VisbalExt.LogDetailView] _applyLogFilters -- Error applying filters:', error);
-            statusBarService.showError(`Error applying filters: ${error.message}`);
-        }
-    }
-
-    /**
-     * Clears all active log filters
-     */
-    private _clearLogFilters(): void {
-        try {
-            this._activeFilters = [];
-            this._filteredContent = '';
-            this._update();
-            statusBarService.showSuccess('All filters cleared');
-        } catch (error: any) {
-            OrgUtils.logError('[VisbalExt.LogDetailView] _clearLogFilters -- Error clearing filters:', error);
-            statusBarService.showError(`Error clearing filters: ${error.message}`);
-        }
-    }
-
-    /**
-     * Applies the currently active filters to the log content
-     */
-    private _applyCurrentFilters(): void {
-        if (this._activeFilters.length === 0) {
-            this._filteredContent = '';
-            this._update();
-            return;
-        }
-
-        try {
-            const logContent = this._parsedData.rawLog || '';
-            const result = logFilterService.applyFilters(logContent, this._activeFilters);
-            
-            // Convert filtered lines back to text content
-            this._filteredContent = result.filteredLines.map(line => line.content).join('\n');
-            
-            // Update webview with filter results
-            this._panel.webview.postMessage({
-                command: 'filterResults',
-                results: {
-                    totalMatches: result.totalMatches,
-                    executionTime: result.executionTime,
-                    appliedFilters: result.appliedFilters.map(f => f.name)
-                }
-            });
-
-            this._update();
-        } catch (error: any) {
-            OrgUtils.logError('[VisbalExt.LogDetailView] _applyCurrentFilters -- Error applying filters:', error);
-            statusBarService.showError(`Error applying filters: ${error.message}`);
-        }
-    }
-
-    /**
-     * Gets the current filtered content or original content if no filters are applied
-     */
-    private _getDisplayContent(): string {
-        return this._filteredContent || this._parsedData.rawLog || '';
-    }
-
-    /**
-     * Gets available filters for the current log
-     */
-    private _getAvailableFilters(): LogFilter[] {
-        return logFilterService.getAllFilters();
-    }
-
+    
     /**
      * Changes the current tab
      * @param tab The tab to change to

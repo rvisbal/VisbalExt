@@ -735,9 +735,8 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                                 if ( mainClassMap.size === 0) {
                                     OrgUtils.logDebug('[VisbalExt.TestClassExplorer] _runTest -- Downloading and opening log', logId);
                                     await this._orgUtils.downloadLog(logId);
-                                    const config = vscode.workspace.getConfiguration('visbal.apexLog');
-                                    const defaultView = config.get<string>('defaultView', 'user_debug');
-                                    await this._orgUtils.openLog(logId, this._extensionUri, defaultView);
+                                
+                                    await this._orgUtils.openLog(logId, this._extensionUri);
                                 } else {
                                     // For subsequent tests, just download in background
                                     OrgUtils.logDebug('[VisbalExt.TestClassExplorer] _runTest -- Downloading additional log', logId);
@@ -4453,9 +4452,8 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
             OrgUtils.logDebug('[VisbalExt.TestClassExplorerView] _viewTestLog -- Viewing test log:', { logId, testName });
             //
             //const logContent = await this._sfdxService.getLogContent(logId);
-            const config = vscode.workspace.getConfiguration('visbal.apexLog');
-            const defaultView = config.get<string>('defaultView', 'user_debug');
-            OrgUtils.openLog(logId, this._extensionUri, defaultView, true);
+
+            OrgUtils.openLog(logId, this._extensionUri, true);
           
         } catch (error: any) {
             OrgUtils.logError(`VisbalExt.TestClassExplorerView] _viewTestLog -- testName:${testName} logId:${logId}   Error viewing test log:`, error);
