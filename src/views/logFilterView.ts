@@ -71,9 +71,6 @@ export class LogFilterView {
                     case 'toggleFilter':
                         this._toggleFilter(message.filterId);
                         break;
-                    case 'testFilter':
-                        this._testFilter(message.filter, message.sampleLog);
-                        break;
                     case 'duplicateFilter':
                         this._duplicateFilter(message.filterId);
                         break;
@@ -197,41 +194,7 @@ export class LogFilterView {
         }
     }
 
-    private _testFilter(filterData: any, sampleLog: string): void {
-        try {
-            // Create a temporary filter for testing
-            const tempFilter: LogFilter = {
-                id: 'temp-test',
-                name: 'Test Filter',
-                description: '',
-                isActive: true,
-                isBuiltIn: false,
-                created: new Date(),
-                lastModified: new Date(),
-                conditions: filterData.conditions,
-                logicalOperator: filterData.logicalOperator
-            };
-
-            const result = logFilterService.applyFilters(sampleLog, ['temp-test']);
-
-            // Send test results back to webview
-            this._panel.webview.postMessage({
-                command: 'testResult',
-                result: {
-                    totalLines: sampleLog.split('\n').length,
-                    matchedLines: result.totalMatches,
-                    executionTime: result.executionTime,
-                    filteredLines: result.filteredLines.slice(0, 10) // Show first 10 matches
-                }
-            });
-
-            statusBarService.showSuccess(`Filter test completed: ${result.totalMatches} matches found`);
-        } catch (error: any) {
-            OrgUtils.logError('[LogFilterView] Error testing filter:', error);
-            statusBarService.showError(`Error testing filter: ${error.message}`);
-        }
-    }
-
+   
     private _duplicateFilter(filterId: string): void {
         try {
             const originalFilter = logFilterService.getFilter(filterId);
@@ -640,6 +603,20 @@ export class LogFilterView {
             align-items: center;
         }
         
+        .button-group {
+            display: flex;
+            gap: 12px;
+            justify-content: flex-end;
+            align-items: center;
+            margin-top: 8px;
+        }
+        
+        .button-group .btn {
+            min-width: 100px;
+            padding: 8px 16px;
+            font-size: 13px;
+        }
+        
                     .icon {
                 width: 16px;
                 height: 16px;
@@ -776,9 +753,10 @@ export class LogFilterView {
                     </div>
                 </div>
                 <div class="form-group">
-                    <button type="submit" class="btn">Save Filter</button>
-                    <button type="button" class="btn btn-secondary" onclick="closeModal()">Cancel</button>
-                    <button type="button" class="btn btn-secondary" onclick="testFilter()">Test Filter</button>
+                    <div class="button-group">
+                        <button type="submit" class="btn">Save Filter</button>
+                        <button type="button" class="btn btn-secondary" onclick="closeModal()">Cancel</button>
+                    </div>
                 </div>
             </form>
         </div>

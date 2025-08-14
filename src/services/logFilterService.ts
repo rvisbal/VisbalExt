@@ -418,9 +418,9 @@ export class LogFilterService {
     private initializeBuiltInFilters(): void {
         const builtInFilters: LogFilter[] = [
             {
-                id: 'builtin-errors',
-                name: 'Errors & Exceptions',
-                description: 'Shows all error messages and exceptions',
+                id: 'builtin-common',
+                name: 'Common ',
+                description: 'Shows all common',
                 isActive: false,
                 isBuiltIn: true,
                 created: new Date(),
@@ -443,21 +443,7 @@ export class LogFilterService {
                         caseSensitive: false,
                         useRegex: false,
                         negated: false
-                    }
-                ],
-                logicalOperator: 'OR',
-                color: '#ff4444',
-                icon: 'error'
-            },
-            {
-                id: 'builtin-performance',
-                name: 'Performance Issues',
-                description: 'Shows operations taking longer than 1000ms',
-                isActive: false,
-                isBuiltIn: true,
-                created: new Date(),
-                lastModified: new Date(),
-                conditions: [
+                    },
                     {
                         id: 'perf-1',
                         field: 'duration',
@@ -466,21 +452,7 @@ export class LogFilterService {
                         caseSensitive: false,
                         useRegex: false,
                         negated: false
-                    }
-                ],
-                logicalOperator: 'AND',
-                color: '#ff8800',
-                icon: 'clock'
-            },
-            {
-                id: 'builtin-database',
-                name: 'Database Operations',
-                description: 'Shows SOQL queries and DML operations',
-                isActive: false,
-                isBuiltIn: true,
-                created: new Date(),
-                lastModified: new Date(),
-                conditions: [
+                    },
                     {
                         id: 'db-1',
                         field: 'category',
@@ -489,11 +461,29 @@ export class LogFilterService {
                         caseSensitive: false,
                         useRegex: true,
                         negated: false
+                    },
+                    {
+                        id: 'debug-1',
+                        field: 'category',
+                        operator: 'equals',
+                        value: 'USER_DEBUG',
+                        caseSensitive: false,
+                        useRegex: false,
+                        negated: false
+                    },
+                    {
+                        id: 'limits-1',
+                        field: 'category',
+                        operator: 'startsWith',
+                        value: 'LIMIT_',
+                        caseSensitive: false,
+                        useRegex: false,
+                        negated: false
                     }
                 ],
-                logicalOperator: 'AND',
-                color: '#4488ff',
-                icon: 'database'
+                logicalOperator: 'OR',
+                color: '#ff4444',
+                icon: 'gauge'
             },
             {
                 id: 'builtin-user-debug',
@@ -505,6 +495,24 @@ export class LogFilterService {
                 lastModified: new Date(),
                 conditions: [
                     {
+                        id: 'error-1',
+                        field: 'logLevel',
+                        operator: 'equals',
+                        value: 'ERROR',
+                        caseSensitive: false,
+                        useRegex: false,
+                        negated: false
+                    },
+                    {
+                        id: 'error-2',
+                        field: 'content',
+                        operator: 'contains',
+                        value: 'Exception',
+                        caseSensitive: false,
+                        useRegex: false,
+                        negated: false
+                    },
+                    {
                         id: 'debug-1',
                         field: 'category',
                         operator: 'equals',
@@ -514,33 +522,11 @@ export class LogFilterService {
                         negated: false
                     }
                 ],
-                logicalOperator: 'AND',
+                logicalOperator: 'OR',
                 color: '#00aa00',
                 icon: 'bug'
             },
-            {
-                id: 'builtin-limits',
-                name: 'Governor Limits',
-                description: 'Shows governor limit usage information',
-                isActive: false,
-                isBuiltIn: true,
-                created: new Date(),
-                lastModified: new Date(),
-                conditions: [
-                    {
-                        id: 'limits-1',
-                        field: 'category',
-                        operator: 'startsWith',
-                        value: 'LIMIT_',
-                        caseSensitive: false,
-                        useRegex: false,
-                        negated: false
-                    }
-                ],
-                logicalOperator: 'AND',
-                color: '#8844ff',
-                icon: 'gauge'
-            }
+ 
         ];
 
         for (const filter of builtInFilters) {
