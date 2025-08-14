@@ -23,6 +23,8 @@ import { GitHistoryViewPanels } from './views/gitHistoryViewPanels';
 import { GitHistoryListView } from './views/gitHistoryListView';
 import { ExecuteApexTab } from './views/executeApexTab';
 import { TractionTab } from './views/tractionTab';
+import { LogFilterView } from './views/logFilterView';
+import { LogFilterService, logFilterService } from './services/logFilterService';
 
 let outputChannel: vscode.OutputChannel;
 
@@ -40,6 +42,9 @@ export function activate(context: vscode.ExtensionContext) {
 
   OrgUtils.logDebug('[VisbalExt.Extension] Activating extension');
   outputChannel.appendLine('[VisbalExt.Extension] Activating extension');
+  
+  // Initialize services with context
+  LogFilterService.getInstance(context);
   
   // Initialize status bar
   statusBarService.showMessage('[VisbalExt.Extension] activated', 'rocket');
@@ -280,6 +285,86 @@ export function activate(context: vscode.ExtensionContext) {
     context.subscriptions.push(
       vscode.commands.registerCommand('visbal-ext.showVisbalLog', () => {
         vscode.commands.executeCommand('workbench.view.extension.visbal-log-container');
+      })
+    );
+    
+    // Register log filter commands
+    context.subscriptions.push(
+      vscode.commands.registerCommand('visbal-ext.showLogFilterManager', () => {
+        LogFilterView.createOrShow(context.extensionUri);
+      })
+    );
+    
+    context.subscriptions.push(
+      vscode.commands.registerCommand('visbal-ext.createLogFilter', async () => {
+        const name = await vscode.window.showInputBox({
+          prompt: 'Enter filter name',
+          placeHolder: 'My Custom Filter'
+        });
+        
+        if (name) {
+          const description = await vscode.window.showInputBox({
+            prompt: 'Enter filter description (optional)',
+            placeHolder: 'Description of what this filter does'
+          });
+          
+          try {
+            const condition = logFilterService.createCondition('content', 'contains', 'USER_DEBUG');
+            const filter = logFilterService.createFilter(name, description || '', [condition]);
+            statusBarService.showSuccess(`Filter "${filter.name}" created successfully`);
+            
+            // Open filter manager to edit the filter
+            LogFilterView.createOrShow(context.extensionUri);
+          } catch (error: any) {
+            vscode.window.showErrorMessage(`Error creating filter: ${error.message}`);
+          }
+        }
+      })
+    );
+    
+    context.subscriptions.push(
+      vscode.commands.registerCommand('visbal-ext.applyLogFilter', async () => {
+        const activeEditor = vscode.window.activeTextEditor;
+        if (!activeEditor || !activeEditor.document.fileName.endsWith('.log')) {
+          vscode.window.showErrorMessage('Please open a .log file to apply filters');
+          return;
+        }
+        
+        const filters = logFilterService.getAllFilters();
+        if (filters.length === 0) {
+          vscode.window.showErrorMessage('No filters available. Create a filter first.');
+          return;
+        }
+        
+        const filterItems = filters.map(f => ({
+          label: f.name,
+          description: f.description,
+          detail: `${f.conditions.length} conditions - ${f.isBuiltIn ? 'Built-in' : 'Custom'}`,
+          filterId: f.id
+        }));
+        
+        const selectedFilter = await vscode.window.showQuickPick(filterItems, {
+          placeHolder: 'Select a filter to apply to the current log file'
+        });
+        
+        if (selectedFilter) {
+          try {
+            const logContent = activeEditor.document.getText();
+            const result = logFilterService.applyFilters(logContent, [selectedFilter.filterId]);
+            
+            // Create a new document with filtered content
+            const filteredContent = result.filteredLines.map(line => line.content).join('\n');
+            const newDoc = await vscode.workspace.openTextDocument({
+              content: filteredContent,
+              language: 'log'
+            });
+            
+            await vscode.window.showTextDocument(newDoc);
+            statusBarService.showSuccess(`Filter applied: ${result.totalMatches} matches found`);
+          } catch (error: any) {
+            vscode.window.showErrorMessage(`Error applying filter: ${error.message}`);
+          }
+        }
       })
     );
   }

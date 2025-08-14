@@ -8,6 +8,8 @@ import { ExecutionTabHandler } from './logDetailExecution';
 import { RawLogTabHandler } from './logDetailRawHandler';
 import { statusBarService } from '../services/statusBarService';
 import { OrgUtils } from '../utils/orgUtils';
+import { logFilterService } from '../services/logFilterService';
+import { LogFilter, FilterResult } from '../types/logFilter';
 
 /**
  * LogDetailView class for displaying detailed log information in a webview panel
@@ -23,6 +25,8 @@ export class LogDetailView {
     private _parsedData: any = {};
     private _executionTabHandler: ExecutionTabHandler;
     private _rawLogTabHandler: RawLogTabHandler;
+    private _activeFilters: string[] = [];
+    private _filteredContent: string = '';
 
     /**
      * Creates or shows the log detail view
@@ -153,6 +157,22 @@ export class LogDetailView {
                     case 'getLogChunk':
                         OrgUtils.logDebug(`[VisbalExt.LogDetailView] onDidReceiveMessage -- Getting log chunk: ${message.chunkIndex}`);
                         this._getLogChunk(message.chunkIndex, message.chunkSize);
+                        break;
+                    case 'toggleLogFilter':
+                        OrgUtils.logDebug(`[VisbalExt.LogDetailView] onDidReceiveMessage -- Toggling log filter: ${message.filterId}`);
+                        this._toggleLogFilter(message.filterId);
+                        break;
+                    case 'applyLogFilters':
+                        OrgUtils.logDebug(`[VisbalExt.LogDetailView] onDidReceiveMessage -- Applying log filters: ${message.filterIds}`);
+                        this._applyLogFilters(message.filterIds);
+                        break;
+                    case 'clearLogFilters':
+                        OrgUtils.logDebug('[VisbalExt.LogDetailView] onDidReceiveMessage -- Clearing all log filters');
+                        this._clearLogFilters();
+                        break;
+                    case 'openFilterManager':
+                        OrgUtils.logDebug('[VisbalExt.LogDetailView] onDidReceiveMessage -- Opening filter manager');
+                        vscode.commands.executeCommand('visbal-ext.showLogFilterManager');
                         break;
                 }
             },
@@ -512,7 +532,10 @@ export class LogDetailView {
                 tabs,
                 executionTabContent,
                 customJavaScript,
-                rawLogTabContent
+                rawLogTabContent,
+                [], // categories - deprecated parameter
+                this._getAvailableFilters(),
+                this._activeFilters
             );
             
             // If the current tab is execution, update execution tab content
@@ -663,6 +686,103 @@ export class LogDetailView {
             OrgUtils.logError(`[VisbalExt.LogDetailView] _searchRawLog -- Error searching for "${searchTerm}":`, error);
             statusBarService.showError(`Error searching log: ${error.message}`);
         }
+    }
+
+    /**
+     * Toggles a log filter on/off
+     */
+    private _toggleLogFilter(filterId: string): void {
+        try {
+            const filterIndex = this._activeFilters.indexOf(filterId);
+            if (filterIndex >= 0) {
+                this._activeFilters.splice(filterIndex, 1);
+            } else {
+                this._activeFilters.push(filterId);
+            }
+
+            this._applyCurrentFilters();
+            statusBarService.showSuccess('Filter toggled successfully');
+        } catch (error: any) {
+            OrgUtils.logError('[VisbalExt.LogDetailView] _toggleLogFilter -- Error toggling filter:', error);
+            statusBarService.showError(`Error toggling filter: ${error.message}`);
+        }
+    }
+
+    /**
+     * Applies specified log filters
+     */
+    private _applyLogFilters(filterIds: string[]): void {
+        try {
+            this._activeFilters = filterIds;
+            this._applyCurrentFilters();
+            statusBarService.showSuccess(`Applied ${filterIds.length} filters`);
+        } catch (error: any) {
+            OrgUtils.logError('[VisbalExt.LogDetailView] _applyLogFilters -- Error applying filters:', error);
+            statusBarService.showError(`Error applying filters: ${error.message}`);
+        }
+    }
+
+    /**
+     * Clears all active log filters
+     */
+    private _clearLogFilters(): void {
+        try {
+            this._activeFilters = [];
+            this._filteredContent = '';
+            this._update();
+            statusBarService.showSuccess('All filters cleared');
+        } catch (error: any) {
+            OrgUtils.logError('[VisbalExt.LogDetailView] _clearLogFilters -- Error clearing filters:', error);
+            statusBarService.showError(`Error clearing filters: ${error.message}`);
+        }
+    }
+
+    /**
+     * Applies the currently active filters to the log content
+     */
+    private _applyCurrentFilters(): void {
+        if (this._activeFilters.length === 0) {
+            this._filteredContent = '';
+            this._update();
+            return;
+        }
+
+        try {
+            const logContent = this._parsedData.rawLog || '';
+            const result = logFilterService.applyFilters(logContent, this._activeFilters);
+            
+            // Convert filtered lines back to text content
+            this._filteredContent = result.filteredLines.map(line => line.content).join('\n');
+            
+            // Update webview with filter results
+            this._panel.webview.postMessage({
+                command: 'filterResults',
+                results: {
+                    totalMatches: result.totalMatches,
+                    executionTime: result.executionTime,
+                    appliedFilters: result.appliedFilters.map(f => f.name)
+                }
+            });
+
+            this._update();
+        } catch (error: any) {
+            OrgUtils.logError('[VisbalExt.LogDetailView] _applyCurrentFilters -- Error applying filters:', error);
+            statusBarService.showError(`Error applying filters: ${error.message}`);
+        }
+    }
+
+    /**
+     * Gets the current filtered content or original content if no filters are applied
+     */
+    private _getDisplayContent(): string {
+        return this._filteredContent || this._parsedData.rawLog || '';
+    }
+
+    /**
+     * Gets available filters for the current log
+     */
+    private _getAvailableFilters(): LogFilter[] {
+        return logFilterService.getAllFilters();
     }
 
     /**

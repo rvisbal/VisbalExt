@@ -244,6 +244,24 @@
         "title": "Go to Selected Definition",
         "category": "Visbal",
         "icon": "$(go-to-file)"
+      },
+      {
+        "command": "visbal-ext.showLogFilterManager",
+        "title": "Show Log Filter Manager",
+        "category": "Visbal",
+        "icon": "$(filter)"
+      },
+      {
+        "command": "visbal-ext.createLogFilter",
+        "title": "Create Log Filter",
+        "category": "Visbal",
+        "icon": "$(add)"
+      },
+      {
+        "command": "visbal-ext.applyLogFilter",
+        "title": "Apply Log Filter to Current Log",
+        "category": "Visbal",
+        "icon": "$(filter-filled)"
       }
     ],
     "menus": {
@@ -261,6 +279,16 @@
       "editor/title": [
         {
           "command": "visbal-ext.showLogSummary",
+          "when": "resourceExtname == .log",
+          "group": "navigation"
+        },
+        {
+          "command": "visbal-ext.showLogFilterManager",
+          "when": "resourceExtname == .log",
+          "group": "navigation"
+        },
+        {
+          "command": "visbal-ext.applyLogFilter",
           "when": "resourceExtname == .log",
           "group": "navigation"
         }
@@ -395,6 +423,21 @@
           "type": "boolean",
           "default": false,
           "description": "Show the Visbal Extension output channel when the extension activates. Set to false to prevent it from becoming the default output tab."
+        },
+        "visbal.logFilter.autoApplyBuiltInFilters": {
+          "type": "boolean",
+          "default": false,
+          "description": "Automatically apply built-in filters when opening log files"
+        },
+        "visbal.logFilter.maxFilterExecutionTime": {
+          "type": "number",
+          "default": 5000,
+          "description": "Maximum execution time for filters in milliseconds"
+        },
+        "visbal.logFilter.showFilterPanelByDefault": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show the filter panel by default in log views"
         }
       }
     }

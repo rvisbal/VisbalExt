@@ -607,7 +607,9 @@ export function getHtmlTemplate(
     executionTabHtml: string = '',
     customJavaScript: string = '',
     rawLogTabHtml: string = '',
-    categories: any[] = []
+    categories: any[] = [],
+    availableFilters: any[] = [],
+    activeFilters: string[] = []
 ): string {
     console.log('[VisbalExt.htmlTemplate:WebView] Generating HTML template for log detail view');
     console.log('[VisbalExt.htmlTemplate:WebView] Log filename:', logFileName);
@@ -680,6 +682,109 @@ export function getHtmlTemplate(
             .log-actions .button svg {
                 width: 16px;
                 height: 16px;
+            }
+            .filter-panel {
+                background-color: var(--vscode-editor-inactiveSelectionBackground);
+                border-bottom: 1px solid var(--vscode-panel-border);
+                padding: 10px 15px;
+                display: flex;
+                align-items: center;
+                gap: 10px;
+                flex-wrap: wrap;
+                min-height: 40px;
+            }
+            .filter-panel.collapsed {
+                display: none;
+            }
+            .filter-toggle-btn {
+                background: var(--vscode-button-secondaryBackground);
+                color: var(--vscode-button-secondaryForeground);
+                border: none;
+                padding: 5px 10px;
+                border-radius: 3px;
+                cursor: pointer;
+                font-size: 12px;
+                display: flex;
+                align-items: center;
+                gap: 5px;
+            }
+            .filter-toggle-btn:hover {
+                background: var(--vscode-button-secondaryHoverBackground);
+            }
+            .filter-chips {
+                display: flex;
+                gap: 8px;
+                flex-wrap: wrap;
+            }
+            .filter-chip {
+                background: var(--vscode-button-background);
+                color: var(--vscode-button-foreground);
+                border: none;
+                padding: 4px 12px;
+                border-radius: 15px;
+                font-size: 11px;
+                cursor: pointer;
+                display: flex;
+                align-items: center;
+                gap: 5px;
+                transition: all 0.2s;
+            }
+            .filter-chip:hover {
+                background: var(--vscode-button-hoverBackground);
+            }
+            .filter-chip.active {
+                background: var(--vscode-textLink-foreground);
+                color: var(--vscode-editor-background);
+            }
+            .filter-chip .remove-btn {
+                background: none;
+                border: none;
+                color: inherit;
+                cursor: pointer;
+                font-size: 14px;
+                line-height: 1;
+                margin-left: 4px;
+            }
+            .filter-dropdown {
+                position: relative;
+                display: inline-block;
+            }
+            .filter-dropdown-content {
+                display: none;
+                position: absolute;
+                background-color: var(--vscode-dropdown-background);
+                border: 1px solid var(--vscode-dropdown-border);
+                border-radius: 4px;
+                box-shadow: 0 4px 8px rgba(0,0,0,0.3);
+                z-index: 1000;
+                min-width: 200px;
+                max-height: 300px;
+                overflow-y: auto;
+                top: 100%;
+                left: 0;
+            }
+            .filter-dropdown:hover .filter-dropdown-content {
+                display: block;
+            }
+            .filter-option {
+                padding: 8px 12px;
+                cursor: pointer;
+                border-bottom: 1px solid var(--vscode-panel-border);
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+            }
+            .filter-option:hover {
+                background-color: var(--vscode-list-hoverBackground);
+            }
+            .filter-option.active {
+                background-color: var(--vscode-list-activeSelectionBackground);
+                color: var(--vscode-list-activeSelectionForeground);
+            }
+            .filter-status {
+                font-size: 11px;
+                color: var(--vscode-descriptionForeground);
+                margin-left: auto;
             }
             h1 {
                 margin: 0;
@@ -992,7 +1097,80 @@ export function getHtmlTemplate(
                 </div>
             </div>
             
-           
+            <!-- Filter Panel -->
+            <div class="filter-panel" id="filterPanel">
+                <div class="filter-dropdown">
+                    <button class="filter-toggle-btn">
+                        🔍 Filters (${activeFilters.length})
+                        <span style="font-size: 10px;">▼</span>
+                    </button>
+                    <div class="filter-dropdown-content">
+                        ${availableFilters.map(filter => {
+                            const getFilterIcon = (icon: string) => {
+                                const icons: { [key: string]: string } = {
+                                    'filter': '🔍',
+                                    'error': '❌',
+                                    'clock': '⏱️',
+                                    'database': '🗄️',
+                                    'bug': '🐛',
+                                    'gauge': '⚡'
+                                };
+                                return icons[icon] || '🔍';
+                            };
+                            return `
+                            <div class="filter-option ${activeFilters.includes(filter.id) ? 'active' : ''}" 
+                                 onclick="toggleLogFilter('${filter.id}')">
+                                <span style="color: ${filter.color || '#666'}">${getFilterIcon(filter.icon || 'filter')}</span>
+                                <span>${filter.name}</span>
+                                <span class="filter-status">
+                                    ${filter.isBuiltIn ? 'Built-in' : 'Custom'}
+                                </span>
+                            </div>
+                        `;
+                        }).join('')}
+                        <div style="border-top: 1px solid var(--vscode-panel-border); padding: 8px 12px;">
+                            <button class="filter-toggle-btn" onclick="openFilterManager()" style="width: 100%;">
+                                ⚙️ Manage Filters
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="filter-chips">
+                    ${activeFilters.map(filterId => {
+                        const filter = availableFilters.find(f => f.id === filterId);
+                        if (!filter) return '';
+                        
+                        const getFilterIcon = (icon: string) => {
+                            const icons: { [key: string]: string } = {
+                                'filter': '🔍',
+                                'error': '❌',
+                                'clock': '⏱️',
+                                'database': '🗄️',
+                                'bug': '🐛',
+                                'gauge': '⚡'
+                            };
+                            return icons[icon] || '🔍';
+                        };
+                        
+                        return `
+                            <div class="filter-chip active">
+                                <span style="color: ${filter.color || '#666'}">${getFilterIcon(filter.icon || 'filter')}</span>
+                                ${filter.name}
+                                <button class="remove-btn" onclick="toggleLogFilter('${filter.id}')" title="Remove filter">×</button>
+                            </div>
+                        `;
+                    }).join('')}
+                </div>
+                
+                ${activeFilters.length > 0 ? `
+                    <button class="filter-toggle-btn" onclick="clearLogFilters()" title="Clear all filters">
+                        🗑️ Clear All
+                    </button>
+                ` : ''}
+                
+                <div id="filterResults" style="margin-left: auto; font-size: 11px; color: var(--vscode-descriptionForeground);"></div>
+            </div>
             
             <div class="tabs">
                 ${tabs.map(tab => `<button class="tab ${tab.id === currentTab ? 'active' : ''}" data-tab="${tab.id}">${tab.label}</button>`).join('')}
@@ -1325,6 +1503,52 @@ export function getHtmlTemplate(
                             console.log('[VisbalExt.htmlTemplate:WebView] Updating execution tab');
                             updateExecutionTab(message.executionData);
                             break;
+                    }
+                });
+                
+                // Filter functions
+                window.toggleLogFilter = function(filterId) {
+                    console.log('[VisbalExt.htmlTemplate:WebView] Toggle filter clicked:', filterId);
+                    vscode.postMessage({
+                        command: 'toggleLogFilter',
+                        filterId: filterId
+                    });
+                };
+                
+                window.clearLogFilters = function() {
+                    console.log('[VisbalExt.htmlTemplate:WebView] Clear all filters clicked');
+                    vscode.postMessage({
+                        command: 'clearLogFilters'
+                    });
+                };
+                
+                window.openFilterManager = function() {
+                    console.log('[VisbalExt.htmlTemplate:WebView] Open filter manager clicked');
+                    vscode.postMessage({
+                        command: 'openFilterManager'
+                    });
+                };
+                
+                window.getFilterIcon = function(icon) {
+                    const icons = {
+                        'filter': '🔍',
+                        'error': '❌',
+                        'clock': '⏱️',
+                        'database': '🗄️',
+                        'bug': '🐛',
+                        'gauge': '⚡'
+                    };
+                    return icons[icon] || '🔍';
+                };
+                
+                // Listen for filter results
+                window.addEventListener('message', event => {
+                    const message = event.data;
+                    if (message.command === 'filterResults') {
+                        const resultsDiv = document.getElementById('filterResults');
+                        if (resultsDiv && message.results) {
+                            resultsDiv.innerHTML = 'Found ' + message.results.totalMatches + ' matches in ' + message.results.executionTime.toFixed(2) + 'ms';
+                        }
                     }
                 });
                 
