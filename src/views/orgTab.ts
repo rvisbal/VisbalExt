@@ -109,13 +109,45 @@ export class OrgTabView implements vscode.WebviewViewProvider {
   // Flatten OrgGroups to a single array for the grid
   private _flattenOrgGroups(orgGroups?: OrgGroups): SalesforceOrg[] {
     if (!orgGroups) return [];
-    return [
+    
+    // Combine all orgs and deduplicate by username and orgId
+    const allOrgs = [
       ...orgGroups.devHubs,
       ...orgGroups.sandboxes,
       ...orgGroups.scratchOrgs,
       ...orgGroups.nonScratchOrgs,
       ...orgGroups.other
     ];
+
+    // Deduplicate using a Map with composite key (username + orgId)
+    const deduplicatedMap = new Map<string, SalesforceOrg>();
+    
+    for (const org of allOrgs) {
+      if (!org) continue;
+      
+      // Create a unique key using username and orgId (fallback to instanceUrl if orgId missing)
+      const uniqueKey = `${org.username || 'unknown'}_${org.orgId || org.instanceUrl || 'nokey'}`;
+      
+      // Only add if not already present, prioritizing more specific org types
+      if (!deduplicatedMap.has(uniqueKey)) {
+        deduplicatedMap.set(uniqueKey, org);
+      } else {
+        // If duplicate found, keep the one with more specific type (devHub > sandbox > scratchOrg > other)
+        const existing = deduplicatedMap.get(uniqueKey)!;
+        const typeHierarchy = { 'devHub': 4, 'sandbox': 3, 'scratchOrg': 2, 'nonScratchOrg': 1, 'other': 0 };
+        const existingPriority = typeHierarchy[existing.type] || 0;
+        const newPriority = typeHierarchy[org.type] || 0;
+        
+        if (newPriority > existingPriority) {
+          deduplicatedMap.set(uniqueKey, org);
+        }
+      }
+    }
+
+    const result = Array.from(deduplicatedMap.values());
+    OrgUtils.logDebug(`[VisbalExt.OrgTab] _flattenOrgGroups -- Original count: ${allOrgs.length}, Deduplicated count: ${result.length}`);
+    
+    return result;
   }
 
   // Handle org deletion

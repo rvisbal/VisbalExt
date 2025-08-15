@@ -98,7 +98,9 @@ export class OrgUtils {
     public static getSectionArray(orgs: Set<object>): any[] {
         if (Array.isArray(orgs)) {
             const result = [];
+            const seenOrgs = new Set<string>(); // Track unique orgs by username+orgId
             const validStatuses = ['Active', 'Connected', 'Connected (Scratch Org)'];
+            
             for (const org of orgs) {
                 if (!org || typeof org !== 'object') {
                     //OrgUtils.logDebug('[VisbalExt.OrgUtils] getSectionArray -- Skipping invalid org entry:', org);
@@ -112,6 +114,14 @@ export class OrgUtils {
                     //OrgUtils.logDebug(`[VisbalExt.OrgUtils] getSectionArray -- SKIP: ${org.alias} status:${org.status} connectedStatus:${org.connectedStatus}`);
                     continue;
                 }
+
+                // Create unique identifier to prevent duplicates within this section
+                const uniqueId = `${org.username || 'unknown'}_${org.orgId || org.instanceUrl || 'nokey'}`;
+                if (seenOrgs.has(uniqueId)) {
+                    OrgUtils.logDebug(`[VisbalExt.OrgUtils] getSectionArray -- Skipping duplicate org: ${org.alias || org.username}`);
+                    continue;
+                }
+                seenOrgs.add(uniqueId);
 
                 const orgInfo: SalesforceOrg = {
                     username: org.username || 'Unknown',
