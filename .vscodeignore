@@ -1,41 +1,50 @@
-.vscode/**
-.vscode-test/**
-src/**
-out/test/**
-test/**
-.gitignore
-.yarnrc
-vsc-extension-quickstart.md
-**/tsconfig.json
-**/.eslintrc.json
-**/*.map
-**/*.ts
-.cursor/**
-temp/**
-.bak/**
-node_modules/**
-!node_modules/@vscode/codicons/**
-!node_modules/@salesforce/core/**
-!node_modules/jsforce/**
-!node_modules/axios/**
-.github/**
-.git/**
-package-lock.json
-yarn.lock
+# Build and temp files
+out/
+node_modules/@types/
+
+# Exclude ALL zip and backup files  
+*.vsix
+*.zip
+*.bak
+*.bak.*
+.bak/
+.bak.zip
+
+# SFDX files (these are huge and not needed in the extension)
+.sfdx/
+.sf/
+
+# Debug and cache files - exclude entire .visbal directory
+.visbal/
+*.log
+
+# Development files
+src/**/*.test.ts
+tests/
+__mocks__/
+jest.config.js
 webpack.config.js
-.eslintignore
-.eslintrc.js
-.prettierrc
-.prettierignore
-coverage/**
-.nyc_output/**
-**/*.vsix
-src.zip
-fix.txt
-package.json.bak
-Screenshot*.png
+tsconfig.json
+.cursorrules
 cursor.rules.json
-scripts/**
-!media/icon.png
-!templates/**
-!.visbal/templates/** 
+
+# Git and IDE files
+.git/
+.gitignore
+.vscode/
+.cursor/
+
+# Documentation (keep only essential)
+Screenshot*.png
+README-SALESFORCE-API.md
+
+# Source maps (these are large and not needed in production)
+**/*.map
+**/*.js.map
+
+# Backup files
+*.bak
+.bak.*
+
+# Package artifacts
+package-lock.json
