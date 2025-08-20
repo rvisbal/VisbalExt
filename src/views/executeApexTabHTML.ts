@@ -21,7 +21,7 @@ return `<!DOCTYPE html>
         }
         .apex-container {
             display: flex;
-            flex-direction: column;
+            flex-direction: row;
             height: 100vh;
             overflow: hidden;
         }
@@ -38,38 +38,40 @@ return `<!DOCTYPE html>
             justify-content: space-between;
             padding: 4px 8px;
         }
-        .tabs {
-            display: flex;
-            padding: 0;
-            background: var(--vscode-tab-inactiveBackground);
-            border-bottom: 1px solid var(--vscode-tab-border);
-        }
-        .tab {
-            padding: 4px 12px;
-            cursor: pointer;
-            border: none;
-            background: none;
-            color: var(--vscode-tab-inactiveForeground);
-            border-bottom: 2px solid transparent;
-            font-size: 12px;
-        }
-        .tab.active {
-            background: var(--vscode-tab-activeBackground);
-            color: var(--vscode-tab-activeForeground);
-            border-bottom: 2px solid var(--vscode-focusBorder);
-        }
-        .tab:hover:not(.active) {
-            background: var(--vscode-tab-hoverBackground);
-        }
-        .content {
-            flex: 1;
-            display: none;
-            height: calc(100vh - 30px);
-            overflow: hidden;
-        }
-        .content.active {
+        .left-panel {
             display: flex;
             flex-direction: column;
+            width: 50%;
+            min-width: 300px;
+            height: 100vh;
+            overflow: hidden;
+        }
+        .right-panel {
+            display: flex;
+            flex-direction: column;
+            width: 50%;
+            min-width: 300px;
+            height: 100vh;
+            overflow: hidden;
+            background: var(--vscode-editor-background);
+        }
+        .resizer {
+            width: 4px;
+            background: var(--vscode-panel-border);
+            cursor: col-resize;
+            transition: background-color 0.2s ease;
+            position: relative;
+        }
+        .resizer:hover {
+            background: var(--vscode-focusBorder);
+        }
+        .resizer::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -2px;
+            right: -2px;
+            bottom: 0;
         }
         .editor-container {
             display: flex;
@@ -77,6 +79,24 @@ return `<!DOCTYPE html>
             height: 100%;
             overflow: hidden;
             padding: 8px;
+        }
+        .results-container {
+            display: flex;
+            flex-direction: column;
+            height: 100%;
+            overflow: hidden;
+            padding: 8px;
+        }
+        .panel-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 4px 8px;
+            background: var(--vscode-editor-background);
+            border-bottom: 1px solid var(--vscode-panel-border);
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--vscode-foreground);
         }
         .textarea-container {
             display: flex;
@@ -177,8 +197,9 @@ return `<!DOCTYPE html>
             /*font-family: var(--vscode-editor-font-family);*/
             font-size: var(--vscode-editor-font-size);
             overflow-y: auto;
-            height: 100%;
+            flex: 1;
             white-space: pre-wrap;
+            border-radius: 2px;
         }
         .success {
             color: var(--vscode-testing-iconPassed);
@@ -194,6 +215,28 @@ return `<!DOCTYPE html>
             /*font-family: codicon;*/
             font-size: 16px;
             line-height: 16px;
+        }
+        .code-editor {
+            display: flex;
+            flex: 1;
+            border: 1px solid var(--vscode-input-border);
+            border-radius: 2px;
+            overflow: hidden;
+            position: relative;
+        }
+        .line-numbers {
+            background: var(--vscode-editorLineNumber-background, var(--vscode-editor-background));
+            color: var(--vscode-editorLineNumber-foreground);
+            padding: 8px 4px;
+            text-align: right;
+            font-size: var(--vscode-editor-font-size, 14px);
+            line-height: 1.4;
+            white-space: pre;
+            user-select: none;
+            border-right: 1px solid var(--vscode-input-border);
+            overflow: hidden;
+            width: 40px;
+            min-width: 40px;
         }
     </style>
      <style>
@@ -298,11 +341,16 @@ return `<!DOCTYPE html>
         .error-container {
             display: none;
             padding: 10px;
-            margin: 10px 0;
+            margin: 10px;
             background-color: var(--vscode-inputValidation-errorBackground);
             border: 1px solid var(--vscode-inputValidation-errorBorder);
             color: var(--vscode-inputValidation-errorForeground);
             border-radius: 3px;
+            position: absolute;
+            top: 50px;
+            left: 10px;
+            right: 10px;
+            z-index: 1000;
         }
         .error-message {
             /*font-family: var(--vscode-font-family);*/
@@ -317,51 +365,20 @@ return `<!DOCTYPE html>
 </head>
 <body>
     <div class="apex-container">
-        <div class="tabs">
-            <button class="tab active" data-tab="editor">Editor</button>
-            <button class="tab" data-tab="results">Results</button>
-            <button class="icon-button tab-download-button" id="downloadButton" onclick="downloadResults()" title="Download Execution Results" style="display: none;">
-                <span class="icon download-icon"></span>
-            </button>
-        </div>
-        <div id="editorContent" class="content active">
-            <div class="editor-container">
-                <div class="editor-header">
-                    <div class="toolbar">
-                        <div class="toolbar-left" style="display: none">
-                            <select id="fileSelector" class="fileSelector" title="Select Apex File">
-                                <option value="">Select an Apex file...</option>
-                            </select>
-                            <button id="saveButton" onclick="saveApexFile()" title="Save Changes" disabled>
-                                <svg width="16" height="16" viewBox="0 0 16 16">
-                                    <path fill="currentColor" d="M13.353 1.146l1.5 1.5L15 3v11.5l-.5.5h-13l-.5-.5v-13l.5-.5H13l.353.146zM2 2v12h12V3.208L12.793 2H2zm2 3h8v1H4V5zm6 3H4v1h6V8zM4 11h4v1H4v-1z"/>
-                                </svg>
-                            </button>
-                            <button id="clearButton" onclick="clearEditor()" title="Clear Editor">
-                                <svg width="16" height="16" viewBox="0 0 16 16">
-                                    <path fill="currentColor" d="M10 12.6l.7.7 1.6-1.6 1.6 1.6.8-.7L13 11l1.7-1.6-.8-.8-1.6 1.7-1.6-1.7-.7.8 1.6 1.6-1.6 1.6zM1 4h14V3H1v1zm0 3h14V6H1v1zm0 3h8V9H1v1zm0 3h8v-1H1v1z"/>
-                                </svg>
-                            </button>
-                            <button id="updateTemplatesButton" onclick="updateTemplates()" title="Update Template Files">
-                                <svg width="16" height="16" viewBox="0 0 16 16">
-                                    <path fill="currentColor" d="M12.75 8a4.5 4.5 0 0 1-8.61 1.834l-1.391.565A6.001 6.001 0 0 0 14.25 8 6 6 0 0 0 3.5 4.334V2.5H2v4l.75.75h3.5v-1.5H4.352A4.5 4.5 0 0 1 12.75 8z"/>
-                                </svg>
-                            </button>
-                            <div id="statusBar"></div>
-                        </div>
-                        <div class="toolbar-right">
-                            <select id="org-selector" class="org-selector" title="Select Salesforce Org">
-                                <option value="">Loading orgs...</option>
-                            </select>
-                             <button class="icon-button button-primary" id="executeButton"  onclick="executeApex()" title="Execute Apex Code">
-                                <span class="icon play"></span>
-                            </button>
-                        </div>
-                    </div>
+        <!-- Left Panel - Editor -->
+        <div class="left-panel">
+            <div class="panel-header">
+                <span>Apex Editor</span>
+                <div class="toolbar-right">
+                    <select id="org-selector" class="org-selector" title="Select Salesforce Org">
+                        <option value="">Loading orgs...</option>
+                    </select>
+                    <button class="icon-button button-primary" id="executeButton" onclick="executeApex()" title="Execute Apex Code">
+                        <span class="icon play"></span>
+                    </button>
                 </div>
-          
-                    
-        
+            </div>
+            <div class="editor-container">
                 <div class="textarea-container">
                     <div class="code-editor">
                         <div class="line-numbers" id="lineNumbers">1</div>
@@ -381,29 +398,84 @@ return `<!DOCTYPE html>
                 <span id="loadingMessage">Loading...</span>
             </div>
         </div>
-        <div id="resultsContent" class="content">
-            <div id="outputContainer" class="output-container">
-                Execute Apex code to see results here
+        
+        <!-- Resizable Divider -->
+        <div class="resizer" id="resizer"></div>
+        
+        <!-- Right Panel - Results -->
+        <div class="right-panel">
+            <div class="panel-header">
+                <span>Execution Results</span>
+                <div class="toolbar-right">
+                    <button class="icon-button tab-download-button" id="downloadButton" onclick="downloadResults()" title="Download Execution Results">
+                        <span class="icon download-icon"></span>
+                    </button>
+                </div>
+            </div>
+            <div class="results-container">
+                <div id="outputContainer" class="output-container">
+                    Execute Apex code to see results here
+                </div>
             </div>
         </div>
+        
         <div id="errorContainer" class="error-container">
-            <div id="errorMessage" class="error-message"></div>
+            <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+                <div id="errorMessage" class="error-message" style="flex: 1;"></div>
+                <button onclick="document.getElementById('errorContainer').classList.remove('show')" style="background: none; border: none; color: inherit; cursor: pointer; padding: 0; margin-left: 10px;">✕</button>
+            </div>
         </div>
     </div>
     <script>
         (function() {
             const vscode = acquireVsCodeApi();
-             const statusBar = document.getElementById('statusBar');
             const textarea = document.getElementById('apexTextarea');
             const charCount = document.querySelector('.char-count');
             const executeButton = document.getElementById('executeButton');
             const downloadButton = document.getElementById('downloadButton');
             const outputContainer = document.getElementById('outputContainer');
-            const tabs = document.querySelectorAll('.tab');
-            const contents = document.querySelectorAll('.content');
             const loadingContainer = document.getElementById('loadingContainer');
             const errorContainer = document.getElementById('errorContainer');
             const errorMessage = document.getElementById('errorMessage');
+            
+            // Resizer functionality
+            const resizer = document.getElementById('resizer');
+            const leftPanel = document.querySelector('.left-panel');
+            const rightPanel = document.querySelector('.right-panel');
+            let isResizing = false;
+            
+            // Resizer event handlers
+            resizer.addEventListener('mousedown', (e) => {
+                isResizing = true;
+                document.body.style.cursor = 'col-resize';
+                e.preventDefault();
+            });
+            
+            document.addEventListener('mousemove', (e) => {
+                if (!isResizing) return;
+                
+                const containerRect = document.querySelector('.apex-container').getBoundingClientRect();
+                const newLeftWidth = e.clientX - containerRect.left;
+                const containerWidth = containerRect.width;
+                const resizerWidth = resizer.offsetWidth;
+                
+                // Calculate percentages with constraints
+                const minWidth = 300;
+                const maxLeftWidth = containerWidth - minWidth - resizerWidth;
+                const constrainedLeftWidth = Math.max(minWidth, Math.min(newLeftWidth, maxLeftWidth));
+                const leftPercent = (constrainedLeftWidth / containerWidth) * 100;
+                const rightPercent = ((containerWidth - constrainedLeftWidth - resizerWidth) / containerWidth) * 100;
+                
+                leftPanel.style.width = leftPercent + '%';
+                rightPanel.style.width = rightPercent + '%';
+            });
+            
+            document.addEventListener('mouseup', () => {
+                if (isResizing) {
+                    isResizing = false;
+                    document.body.style.cursor = '';
+                }
+            });
             
             //#region LISTBOX
             // Dropdown functionality
@@ -437,49 +509,6 @@ return `<!DOCTYPE html>
                 }
             });
             //#endregion LISTBOX
-            
-            // Tab switching
-            tabs.forEach(tab => {
-                tab.addEventListener('click', () => {
-                    const tabId = tab.getAttribute('data-tab');
-                    
-                    // Update tab states
-                    tabs.forEach(t => t.classList.remove('active'));
-                    tab.classList.add('active');
-                    
-                    // Update content states
-                    contents.forEach(content => {
-                        if (content.id === tabId + 'Content') {
-                            content.classList.add('active');
-                        } else {
-                            content.classList.remove('active');
-                        }
-                    });
-                    
-                    // Show/hide download button based on active tab
-                    updateDownloadButtonVisibility(tabId);
-                });
-            });
-            
-            // Function to update download button visibility
-            function updateDownloadButtonVisibility(activeTab) {
-                if (activeTab === 'results') {
-                    downloadButton.style.display = 'flex';
-                } else {
-                    downloadButton.style.display = 'none';
-                }
-            }
-
-            // Switch to results tab when executing
-            function switchToResultsTab() {
-                tabs.forEach(tab => {
-                    if (tab.getAttribute('data-tab') === 'results') {
-                        tab.click();
-                    }
-                });
-                // Ensure download button is visible when switching to results
-                updateDownloadButtonVisibility('results');
-            }
             
             // Update character count
             function updateCharCount() {
@@ -577,8 +606,6 @@ return `<!DOCTYPE html>
                         executeButton.disabled = true;
                         outputContainer.className = 'output-container';
                         outputContainer.innerHTML = '<div class="loading">Executing Apex code...</div>';
-                        switchToResultsTab();
-                           
                         break;
                         
                     case 'executionResult':
@@ -618,7 +645,6 @@ return `<!DOCTYPE html>
                                 output += '\\nError:\\n' + message.message;
                             }
                         }
-                        statusBar.textContent = message.message;
                         outputContainer.innerHTML = output;
                         break;
                     case 'updateOrgList':
@@ -627,12 +653,9 @@ return `<!DOCTYPE html>
                         break;
                     case 'refreshComplete':
                         stopLoading();
-                        refreshButton.innerHTML = '↻ Refresh Org List';
-                        refreshButton.disabled = false;
                         break;
                     case 'error':
                         stopLoading();
-                        statusBar.textContent = message.message;
                         console.error('[VisbalExt.htmlTemplate] Error:', message.message);
                         errorMessage.textContent = message.message;
                         errorContainer.classList.add('show');
@@ -644,9 +667,6 @@ return `<!DOCTYPE html>
                         stopLoading();
                         break;
                     case 'success':
-                        statusBar.textContent = message.message;
-                        // Ensure we switch to results tab
-                        switchToResultsTab();
                         break;
                 }
             });
@@ -655,14 +675,12 @@ return `<!DOCTYPE html>
             function startLoading(message) {
                 loadingContainer.style.display = 'flex';
                 document.getElementById('loadingMessage').textContent = message || 'Loading...';
-                statusBar.textContent = message || 'Loading...';
                 executeButton.disabled = true;
             }
             
             function stopLoading() {
                 // Hide loading state
                 loadingContainer.style.display = 'none';
-                statusBar.textContent = '';
                 executeButton.disabled = false;
                 document.getElementById('loadingMessage').textContent = '';
             }
@@ -844,14 +862,12 @@ return `<!DOCTYPE html>
             // Clear editor function
             window.clearEditor = function() {
                 textarea.value = '';
-                fileSelector.value = '';
+                const fileSelector = document.getElementById('fileSelector');
+                const saveButton = document.getElementById('saveButton');
+                if (fileSelector) fileSelector.value = '';
                 currentFilePath = '';
-                saveButton.disabled = true;
+                if (saveButton) saveButton.disabled = true;
                 updateCharCount();
-                statusBar.textContent = 'Editor cleared';
-                setTimeout(() => {
-                    statusBar.textContent = '';
-                }, 3000);
             };
 
             // Save file function
@@ -903,10 +919,6 @@ return `<!DOCTYPE html>
                     case 'fileSaved':
                         stopLoading();
                         document.getElementById('saveButton').disabled = false;
-                        statusBar.textContent = message.message;
-                        setTimeout(() => {
-                            statusBar.textContent = '';
-                        }, 3000);
                         break;
                 }
             });
@@ -929,9 +941,8 @@ return `<!DOCTYPE html>
                 switch (message.command) {
                     case 'templatesUpdated':
                         stopLoading();
-                        statusBar.textContent = message.message;
                         const updateButton = document.getElementById('updateTemplatesButton');
-                        updateButton.disabled = false;
+                        if (updateButton) updateButton.disabled = false;
                         break;
                 }
             });
