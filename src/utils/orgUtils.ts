@@ -237,22 +237,22 @@ export class OrgUtils {
      //#region Organization Management
     public static async getCurrentOrgAlias(): Promise<string> {
         try {
-            OrgUtils.logDebug('[VisbalExt.OrgUtils] getCurrentOrgAlias -- this._orgAliasCache:', this._orgAliasCache);
-            if (this._orgAliasCache) {
-                OrgUtils.logDebug('[VisbalExt.OrgUtils] getCurrentOrgAlias -- Date.now() - this._orgAliasCache.timestamp:', Date.now() - this._orgAliasCache.timestamp);
-            }
             if (this._orgAliasCache && (Date.now() - this._orgAliasCache.timestamp) < this.CACHE_EXPIRATION) {
-                OrgUtils.logDebug('[VisbalExt.OrgUtils] getCurrentOrgAlias -- CACHED');
+                const cacheAgeMs = Date.now() - this._orgAliasCache.timestamp;
+                const cacheAgeMinutes = Math.round(cacheAgeMs / 60000 * 10) / 10; // Round to 1 decimal
+                OrgUtils.logDebug(`[VisbalExt.OrgUtils] getCurrentOrgAlias -- Using cached alias (age: ${cacheAgeMinutes}min / ${cacheAgeMs}ms) --`, this._orgAliasCache);
                 return this._orgAliasCache.alias;
             }
+            else {
             
-            const alias = await this.sfdxService.getCurrentOrgAlias();
-            this._orgAliasCache = {
-                alias,
-                timestamp: Date.now()
-            };
-            OrgUtils.logDebug('[VisbalExt.OrgUtils] getCurrentOrgAlias -- SFDX & CACHED');
-            return alias;
+                const alias = await this.sfdxService.getCurrentOrgAlias();
+                this._orgAliasCache = {
+                    alias,
+                    timestamp: Date.now()
+                };
+                OrgUtils.logDebug(`[VisbalExt.OrgUtils] getCurrentOrgAlias -- SFDX & CACHED --:`, this._orgAliasCache);
+                return alias;
+            }
         } catch (error: any) {
             if (error instanceof Error) {
                 OrgUtils.logError('[VisbalExt.OrgUtils] getCurrentOrgAlias Error:', error);

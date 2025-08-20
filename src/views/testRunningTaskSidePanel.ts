@@ -3,7 +3,7 @@ import { OrgUtils } from '../utils/orgUtils';
 
 //@description: TestItem is a class that represents a test item in the test run results view or RUNNING TASK view
 export class TestItem extends vscode.TreeItem {
-    private _status: 'running' | 'success' | 'failed' | 'pending' | 'downloading';
+    private _status: any = 'pending';
     private _logId?: string;
     private _error?: string;
     private static downloadingLogs = new Set<string>();
@@ -11,7 +11,7 @@ export class TestItem extends vscode.TreeItem {
     constructor(
         public readonly label: string,
         public readonly collapsibleState: vscode.TreeItemCollapsibleState,
-        status: 'running' | 'success' | 'failed' | 'pending' | 'downloading' = 'pending',
+        status: 'running' | 'success' | 'failed' | 'pending' | 'downloading' | 'skipped' = 'pending',
         public readonly children: TestItem[] = [],
         logId?: string,
         public readonly className?: string
@@ -41,7 +41,7 @@ export class TestItem extends vscode.TreeItem {
         }
     }
 
-    get status(): 'running' | 'success' | 'failed' | 'pending' | 'downloading' {
+    get status(): 'running' | 'success' | 'failed' | 'pending' | 'downloading' | 'skipped' {
         return this._status;
     }
 
@@ -83,7 +83,7 @@ export class TestItem extends vscode.TreeItem {
         }
     }
 
-    updateStatus(status: 'running' | 'success' | 'failed' | 'downloading' | 'pending') {
+    updateStatus(status: 'running' | 'success' | 'failed' | 'pending' | 'downloading' | 'skipped') {
         this._status = status;
         switch (status) {
             case 'running':
@@ -112,6 +112,10 @@ export class TestItem extends vscode.TreeItem {
                 this.iconPath = new vscode.ThemeIcon('circle-outline');
                 this.description = 'Pending';
                 break;
+            case 'skipped':
+                this.iconPath = new vscode.ThemeIcon('circle-slash');
+                this.description = 'Skipped';
+                break;
         }
     }
 
@@ -120,10 +124,15 @@ export class TestItem extends vscode.TreeItem {
         return this.children.some(child => child.status === 'failed');
     }
 
-    // Helper method to check if all children are complete (success or failed)
+    // Helper method to check if any children have been skipped
+    hasSkippedChildren(): boolean {
+        return this.children.some(child => child.status === 'skipped');
+    }
+
+    // Helper method to check if all children are complete (success, failed, or skipped)
     areAllChildrenComplete(): boolean {
         return this.children.every(child => 
-            child.status === 'success' || child.status === 'failed'
+            child.status === 'success' || child.status === 'failed' || child.status === 'skipped'
         );
     }
 }
@@ -247,7 +256,7 @@ export class TestRunningTaskProvider implements vscode.TreeDataProvider<TestItem
         }
     }
 
-    updateMethodStatus(className: string, methodName: string, status: 'running' | 'success' | 'failed' | 'downloading' | 'pending', logId?: string, error?: string) {
+    updateMethodStatus(className: string, methodName: string, status: 'running' | 'success' | 'failed' | 'pending' | 'downloading' | 'skipped', logId?: string, error?: string) {
         const startTime = Date.now();
         OrgUtils.logDebug(`[VisbalExt.TestRunningTaskProvider] updateMethodStatus -- Updating method status: ${className}.${methodName} -> ${status} at ${new Date(startTime).toISOString()}`);
         
@@ -277,9 +286,18 @@ export class TestRunningTaskProvider implements vscode.TreeDataProvider<TestItem
                 
                 // Auto-update class status if all methods are complete
                 if (classItem.areAllChildrenComplete()) {
-                    const newStatus = classItem.hasFailedChildren() ? 'failed' : 'success';
+                    let newStatus: 'success' | 'failed' | 'skipped';
+                    if (classItem.hasFailedChildren()) {
+                        newStatus = 'failed';
+                    } else if (classItem.hasSkippedChildren()) {
+                        newStatus = 'skipped';
+                    } else {
+                        newStatus = 'success';
+                    }
+                    
                     OrgUtils.logDebug(`[VisbalExt.TestRunningTaskProvider] updateMethodStatus updating class status to ${newStatus} on ${className}.${methodName}`);
                     classItem.updateStatus(newStatus);
+                    
                     if (newStatus === 'failed') {
                         OrgUtils.logDebug(`[VisbalExt.TestRunningTaskProvider] updateMethodStatus selectTestMethod -- className:${className} -- methodName:${methodName}`);
                         OrgUtils.selectTestMethod(className, methodName);
@@ -302,7 +320,7 @@ export class TestRunningTaskProvider implements vscode.TreeDataProvider<TestItem
         }
     }
 
-    updateClassStatus(className: string, status: 'running' | 'success' | 'failed' | 'downloading' | 'pending') {
+    updateClassStatus(className: string, status: 'running' | 'success' | 'failed' | 'pending' | 'downloading' | 'skipped') {
         const startTime = Date.now();
         OrgUtils.logDebug(`[VisbalExt.TestRunningTaskProvider] updateClassStatus -- Updating class status: ${className} -> ${status} at ${new Date(startTime).toISOString()}`);
         
@@ -359,11 +377,11 @@ export class TestRunningTaskView {
         this.provider.addTestRun(className, methods);
     }
 
-    updateMethodStatus(className: string, methodName: string, status: 'running' | 'success' | 'failed' | 'downloading' | 'pending', logId?: string, error?: string) {
+    updateMethodStatus(className: string, methodName: string, status: 'running' | 'success' | 'failed' | 'pending' | 'downloading' | 'skipped', logId?: string, error?: string) {
         this.provider.updateMethodStatus(className, methodName, status, logId, error);
     }
 
-    updateClassStatus(className: string, status: 'running' | 'success' | 'failed' | 'downloading' | 'pending') {
+    updateClassStatus(className: string, status: 'running' | 'success' | 'failed' | 'pending' | 'downloading' | 'skipped') {
         this.provider.updateClassStatus(className, status);
     }
 

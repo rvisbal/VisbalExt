@@ -133,26 +133,26 @@ export class SfdxService {
     //#region Organization Management
     public async getCurrentOrgAlias(): Promise<string> {
         try {
-            OrgUtils.logDebug('[VisbalExt.SfdxService] getCurrentOrgAlias', 'BEGIN');
+            OrgUtils.logDebug('[VisbalExt.SfdxService] getCurrentOrgAlias from SFDX CLI', 'BEGIN');
             const command = 'sf org display --json';
             const orgInfo = await this._executeCommand(command);
             const result = JSON.parse(orgInfo.stdout);
             if (result.status === 0 && result.result) {
                 // Use alias if available, otherwise use username
                 const alias = result.result.alias || result.result.username;
-                OrgUtils.logDebug('[VisbalExt.SfdxService] getCurrentOrgAlias -- alias:', alias);
+                OrgUtils.logDebug('[VisbalExt.SfdxService] getCurrentOrgAlias from SFDX CLI -- alias:', alias);
                 if (!alias) {
                     throw new Error('No org alias or username found');
                 }
                 
-                OrgUtils.logDebug('[VisbalExt.SfdxService] getCurrentOrgAlias', `CACHED & RETURN alias: `, alias);
+                OrgUtils.logDebug('[VisbalExt.SfdxService] getCurrentOrgAlias from SFDX CLI', `CACHED & RETURN alias: `, alias);
                 
                 return alias;
             }
             throw new Error('No default org set');
         } catch (error: any) {
             
-            OrgUtils.logError('[VisbalExt.SfdxService] getCurrentOrgAlias', error);
+            OrgUtils.logError('[VisbalExt.SfdxService] getCurrentOrgAlias from SFDX CLI', error);
             throw error;
         }
     }
