@@ -1263,6 +1263,10 @@ export class OrgUtils {
     ): Promise<void> {
         try {
             OrgUtils.logDebug(`${loggerPrefix} loadOrgListForView -- Loading org list`);
+            
+            // Show progress in status bar
+            statusBarService.showProgress('Loading Salesforce organizations...');
+            
             // Try to get from cache first
             const cachedData = await orgListCacheService.getCachedOrgList();
             let orgs;
@@ -1270,11 +1274,13 @@ export class OrgUtils {
             if (cachedData) {
                 OrgUtils.logDebug(`${loggerPrefix} loadOrgListForView -- Using cached org list`);
                 orgs = cachedData.orgs;
+                statusBarService.showSuccess('Organization list loaded from cache');
             } else {
                 OrgUtils.logDebug(`${loggerPrefix} loadOrgListForView -- Fetching fresh org list`);
                 orgs = await OrgUtils.listOrgs();
                 // Save to cache
                 await orgListCacheService.saveOrgList(orgs);
+                statusBarService.showSuccess('Organization list loaded successfully');
             }
 
             // Get the selected org
@@ -1290,6 +1296,7 @@ export class OrgUtils {
             });
         } catch (error: any) {
             OrgUtils.logError(`${loggerPrefix} loadOrgListForView -- Error loading org list:`, error);
+            statusBarService.showError(`Error loading organization list: ${error.message}`);
             webview?.postMessage({
                 command: 'error',
                 message: `Failed to load org list: ${error.message}`
@@ -1314,6 +1321,10 @@ export class OrgUtils {
     ): Promise<void> {
         try {
             OrgUtils.logDebug(`${loggerPrefix} refreshOrgListForView -- Refreshing org list`);
+            
+            // Show progress in status bar
+            statusBarService.showProgress(loadingMessage);
+            
             webview?.postMessage({
                 command: loadingType,
                 isLoading: true,
@@ -1336,9 +1347,11 @@ export class OrgUtils {
                 selectedOrg: selectedOrg?.alias
             });
 
+            statusBarService.showSuccess('Organization list refreshed successfully');
             OrgUtils.logDebug(`${loggerPrefix} refreshOrgListForView -- Successfully sent org list to webview`);
         } catch (error: any) {
             OrgUtils.logError(`${loggerPrefix} refreshOrgListForView -- Error refreshing org list:`, error);
+            statusBarService.showError(`Error refreshing organization list: ${error.message}`);
             webview?.postMessage({
                 command: 'error',
                 message: `Failed to refresh org list: ${error.message}`

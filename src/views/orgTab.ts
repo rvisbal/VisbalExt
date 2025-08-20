@@ -86,7 +86,6 @@ export class OrgTabView implements vscode.WebviewViewProvider {
     this._error = '';
     this._render();
     try {
-      statusBarService.showProgress('Refreshing organization list...');
       await OrgUtils.refreshOrgListForView(
         this._orgListCacheService,
         this._context,
