@@ -102,6 +102,7 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
     private _sfdxService: SfdxService;
     private _abortController: AbortController | null = null;
     private _isRunning: boolean = false;
+    private _currentTestRunId: string | null = null;
     private _salesforceApiService: SalesforceApiService;
     private _testCaseListManager: TestCaseListManager;
     private _orgListCacheService: OrgListCacheService;
@@ -2294,7 +2295,10 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
             // Execute all tests
             const useDefaultOrg = await this._shouldUseDefaultOrg();
             const runTest  = await this._sfdxService.runAllTests(useDefaultOrg, false, true, this._abortController?.signal);
-            OrgUtils.logDebug('[VisbalExt.TestClassExplorerSidePanel] _runAllTests -- testRunId:', runTest.testRunId);  
+            
+            // Store the testRunId for potential cancellation
+            this._currentTestRunId = runTest.testRunId;
+            OrgUtils.logDebug('[VisbalExt.TestClassExplorerSidePanel] _runAllTests -- testRunId stored:', runTest.testRunId);  
             //#region COLLECT_TEST_RESULTS_ALL_RUNN
             let countIteration = 0;
             let allTestCompleted = false;
@@ -2456,6 +2460,7 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
             // Clean up abort controller
             this._isRunning = false;
             this._abortController = null;
+            this._currentTestRunId = null;
             
             // Send testRunFinished message to update UI
             if (this._view) {
@@ -4052,6 +4057,7 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                                 break;
                             case 'testRunFinished':
                             case 'testRunAborted':
+                                hideLoading();
                                 abortButton.style.display = 'none';
                                 runAllButton.style.display = 'inline-block';
                                 // Update button visibility based on current selection count
@@ -4114,6 +4120,7 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                                 break;
                             case 'testRunFinished':
                             case 'testRunAborted':
+                                hideLoading();
                                 abortButton.style.display = 'none';
                                 runAllButton.style.display = 'inline-block';
                                 // Update button visibility based on current selection count
@@ -4591,12 +4598,24 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
             OrgUtils.logDebug('[VisbalExt.TestClassExplorerSidePanel] abortTests -- Aborting test run');
             this._abortController.abort();
             
+            // Attempt to cancel server-side job if we have a testRunId
+            if (this._currentTestRunId) {
+                this._attemptServerSideJobCancellation(this._currentTestRunId);
+            }
+            
             // Clean up state
             this._isRunning = false;
             this._abortController = null;
+            this._currentTestRunId = null;
             
-            // Hide status bar
+            // Clear the status bar message
             this._statusBarService.hide();
+            
+            // Clear the Running Tasks panel
+            this._testRunResultsView.clearResults();
+            
+            // Clear the Summary View panel
+            this._testSummaryView.clearView();
             
             // Send testRunAborted message to update UI
             if (this._view) {
@@ -4605,9 +4624,52 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                 });
             }
             
-            OrgUtils.logDebug('[VisbalExt.TestClassExplorerSidePanel] abortTests -- Test run aborted successfully');
+            OrgUtils.logDebug('[VisbalExt.TestClassExplorerSidePanel] abortTests -- Test run aborted successfully - status, running tasks, and summary cleared');
         } else {
             OrgUtils.logDebug('[VisbalExt.TestClassExplorerSidePanel] abortTests -- No running test to abort');
+        }
+    }
+
+    /**
+     * Attempts to cancel the server-side test job using the testRunId
+     * Note: Salesforce AsyncApexJob status cannot be directly updated through DML,
+     * but we log the attempt and provide information for manual cancellation if needed
+     */
+    private async _attemptServerSideJobCancellation(testRunId: string) {
+        try {
+            OrgUtils.logDebug(`[VisbalExt.TestClassExplorerSidePanel] _attemptServerSideJobCancellation -- Attempting to cancel test job with ID: ${testRunId}`);
+            
+            // Query the current job status
+            const useDefaultOrg = await this._shouldUseDefaultOrg();
+            const jobQuery = `SELECT Id, Status, CreatedDate FROM AsyncApexJob WHERE Id = '${testRunId}'`;
+            const jobResult = await this._sfdxService.executeSoqlQuery(jobQuery, useDefaultOrg, false);
+            
+            if (jobResult && jobResult.length > 0) {
+                const job = jobResult[0];
+                OrgUtils.logDebug(`[VisbalExt.TestClassExplorerSidePanel] _attemptServerSideJobCancellation -- Current job status: ${job.Status}`);
+                
+                if (job.Status === 'Processing' || job.Status === 'Queued') {
+                    // Log information for manual cancellation
+                    OrgUtils.logDebug(`[VisbalExt.TestClassExplorerSidePanel] _attemptServerSideJobCancellation -- Job ${testRunId} is ${job.Status}. The client-side abort has been triggered, but the server-side job may continue. Consider manual cancellation in Salesforce Setup > Apex Jobs if needed.`);
+                    
+                    // Show a user message for long-running jobs
+                    vscode.window.showInformationMessage(
+                        `Test execution aborted locally. Server-side job ${testRunId} may still be running. You can monitor or cancel it manually in Salesforce Setup > Apex Jobs.`,
+                        'Open Apex Jobs'
+                    ).then(selection => {
+                        if (selection === 'Open Apex Jobs') {
+                            // This would need the org URL to be helpful
+                            vscode.env.openExternal(vscode.Uri.parse('https://login.salesforce.com'));
+                        }
+                    });
+                } else {
+                    OrgUtils.logDebug(`[VisbalExt.TestClassExplorerSidePanel] _attemptServerSideJobCancellation -- Job ${testRunId} status is ${job.Status}, no cancellation needed`);
+                }
+            } else {
+                OrgUtils.logDebug(`[VisbalExt.TestClassExplorerSidePanel] _attemptServerSideJobCancellation -- No job found with ID: ${testRunId}`);
+            }
+        } catch (error: any) {
+            OrgUtils.logError('[VisbalExt.TestClassExplorerSidePanel] _attemptServerSideJobCancellation -- Error querying job status:', error);
         }
     }
 
