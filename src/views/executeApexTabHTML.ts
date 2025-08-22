@@ -739,8 +739,7 @@ return `<!DOCTYPE html>
 
             function updateOrgListUI(orgs, fromCache = false, selectedOrg = null) {
                // _updateOrgListUI(orgDropdown, orgs, fromCache , selectedOrg);
-                console.log('[VisbalExt.soqPanel] updateOrgListUI Updating org list UI with data:', orgs);
-                console.log('[VisbalExt.soqPanel] updateOrgListUI Selected org:', selectedOrg);
+
                 
                 // Clear existing options
                 orgDropdown.innerHTML = '';

@@ -1345,9 +1345,12 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
             const errorMap = new Map<string, string>();
 
             while (!allTestsCompleted && retryCount < maxRetries) {
-                if (signal.aborted) {
-                    return [];
+                // Check for abort signal
+                if (this._abortController?.signal.aborted) {
+                    OrgUtils.logDebug('[VisbalExt.TestClassExplorerSidePanel] _runTestSelectedParallel -- Test run aborted by user');
+                    throw new Error('Test execution aborted by user');
                 }
+                
                 countIteration++;
                 //get 5 testProgress where initiated is false
                 const pendingTests = Array.from(testProgress.values()).filter((progress: TestProgressState) => !progress.initiated);
@@ -1542,8 +1545,16 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                         }
                     }
 
-                    // Add a small delay between batches to prevent overwhelming the system
-                    await new Promise(resolve => setTimeout(resolve, 1000));
+                    // Add a small delay between batches to prevent overwhelming the system (with abort support)
+                    try {
+                        await this._abortableDelay(1000);
+                    } catch (error: any) {
+                        if (error.message === 'Aborted') {
+                            OrgUtils.logDebug('[VisbalExt.TestClassExplorerSidePanel] _runTestSelectedParallel -- Test run aborted during delay');
+                            throw new Error('Test execution aborted by user');
+                        }
+                        throw error;
+                    }
                 }
                 
                 // filter where progress.finishGettingTestResult get progress.runResult
@@ -1985,6 +1996,12 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                     let countIteration = 0;
                     let allTestCompleted = false;
                     while (!allTestCompleted) {
+                        // Check for abort signal
+                        if (this._abortController?.signal.aborted) {
+                            OrgUtils.logDebug('[VisbalExt.TestClassExplorerSidePanel] _runManyTest -- Test run aborted by user');
+                            throw new Error('Test execution aborted by user');
+                        }
+                        
                         countIteration++;
                         let allQueueItemsCompleted = true;
                         let queueItemsStatus = [];
@@ -2080,8 +2097,16 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                             } 
                         }
         
-                        //make a delay of 20 seconds
-                        await new Promise(resolve => setTimeout(resolve, 20000));
+                        //make a delay of 20 seconds (with abort support)
+                        try {
+                            await this._abortableDelay(20000);
+                        } catch (error: any) {
+                            if (error.message === 'Aborted') {
+                                OrgUtils.logDebug('[VisbalExt.TestClassExplorerSidePanel] _runManyTest -- Test run aborted during delay');
+                                throw new Error('Test execution aborted by user');
+                            }
+                            throw error;
+                        }
                     }
 
                     const testRunResult = await this._sfdxService.getTestRunResult(testRunId);
@@ -2201,7 +2226,32 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
 
     private getMethodId(className: string, methodName: string) {
         return `${className}.${methodName}`;
-    }   
+        }
+
+    /**
+     * Creates an abortable delay that can be cancelled via the abort controller
+     * @param ms Delay in milliseconds
+     */
+    private async _abortableDelay(ms: number): Promise<void> {
+        return new Promise((resolve, reject) => {
+            const timeout = setTimeout(() => resolve(), ms);
+            
+            // Listen for abort signal
+            if (this._abortController?.signal) {
+                const abortListener = () => {
+                    clearTimeout(timeout);
+                    reject(new Error('Aborted'));
+                };
+                
+                this._abortController.signal.addEventListener('abort', abortListener);
+                
+                // Clean up listener when promise resolves
+                setTimeout(() => {
+                    this._abortController?.signal.removeEventListener('abort', abortListener);
+                }, ms + 100);
+            }
+        });
+    }
 
     private async _runAllTests(runMode: 'sequential' | 'parallel') {
         try {
@@ -2249,6 +2299,12 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
             let countIteration = 0;
             let allTestCompleted = false;
             while (!allTestCompleted) {
+                // Check for abort signal
+                if (this._abortController?.signal.aborted) {
+                    OrgUtils.logDebug('[VisbalExt.TestClassExplorerSidePanel] _runAllTests -- Test run aborted by user');
+                    throw new Error('Test execution aborted by user');
+                }
+                
                 countIteration++;
                 let allQueueItemsCompleted = true;
                 let queueItemsStatus = [];
@@ -2347,8 +2403,16 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                     } 
                 }
 
-                //make a delay of 20 seconds
-                await new Promise(resolve => setTimeout(resolve, 20000));
+                //make a delay of 20 seconds (with abort support)
+                try {
+                    await this._abortableDelay(20000);
+                } catch (error: any) {
+                    if (error.message === 'Aborted') {
+                        OrgUtils.logDebug('[VisbalExt.TestClassExplorerSidePanel] _runAllTests -- Test run aborted during delay');
+                        throw new Error('Test execution aborted by user');
+                    }
+                    throw error;
+                }
             }
             
             const testRunResult = await this._sfdxService.getTestRunResult(runTest.testRunId);
@@ -3829,8 +3893,6 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                     
                     // Function to update org list UI
                     function updateOrgListUI(orgs, fromCache = false, selectedOrg = null) {
-                        console.log('[VisbalExt.TestClassExplorerSidePanel] updateOrgListUI Updating org list UI with data:', orgs);
-                        console.log('[VisbalExt.TestClassExplorerSidePanel] updateOrgListUI Selected org:', selectedOrg);
                         
                         // Clear existing options
                         orgDropdown.innerHTML = '';
