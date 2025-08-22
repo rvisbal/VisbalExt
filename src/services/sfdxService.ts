@@ -44,7 +44,7 @@ export class SfdxService {
         return new Promise((resolve, reject) => {
             child_process.exec(command, { maxBuffer: MAX_BUFFER_SIZE }, (error, stdout, stderr) => {
                 if (!command.includes('sf apex list log')) {
-                    OrgUtils.logDebug(`[VisbalExt.SfdxService] _executeCommand command:${command} -- stdout:`);
+                    OrgUtils.logDebug(`[VisbalExt.SfdxService] _executeCommand command:${command} -- stdout:`, stdout);
                 }
                 if (error) {
                     // If we have stdout even with an error, we might want to use it
@@ -84,6 +84,51 @@ export class SfdxService {
     }
 
     /**
+     * Execute a command with abort signal support
+     */
+    private _executeCommandWithSignal(command: string, signal?: AbortSignal): Promise<ExecResult> {
+        return new Promise((resolve, reject) => {
+            const childProcess = child_process.exec(command, { maxBuffer: MAX_BUFFER_SIZE }, (error, stdout, stderr) => {
+                if (!command.includes('sf apex list log')) {
+                    OrgUtils.logDebug(`[VisbalExt.SfdxService] _executeCommandWithSignal command:${command} -- stdout:`);
+                }
+                
+                if (error) {
+                    // Check if the error is due to abortion
+                    if (signal?.aborted) {
+                        reject(new Error('Command aborted by user'));
+                        return;
+                    }
+                    
+                    // If we have stdout even with an error, we might want to use it
+                    if (stdout) {
+                        resolve({ stdout: stdout.toString(), stderr: stderr?.toString() || '' });
+                        return;
+                    }
+                    OrgUtils.logError('[VisbalExt.SfdxService] _executeCommandWithSignal', error);
+                    reject(error);
+                    return;
+                }
+                
+                if (stderr) {
+                    OrgUtils.logDebug('[VisbalExt.SfdxService] _executeCommandWithSignal', `stderr: ${stderr}`);
+                }
+                
+                resolve({ stdout: stdout.toString(), stderr: stderr?.toString() || '' });
+            });
+
+            // Handle abort signal
+            if (signal) {
+                signal.addEventListener('abort', () => {
+                    OrgUtils.logDebug('[VisbalExt.SfdxService] _executeCommandWithSignal -- Aborting command:', command);
+                    childProcess.kill('SIGTERM');
+                    reject(new Error('Command aborted by user'));
+                });
+            }
+        });
+    }
+
+    /**
      * Gets the current user ID using either new SF CLI or old SFDX CLI format
      * @returns Promise<string> The user ID
      * @throws Error if unable to get user ID
@@ -91,7 +136,7 @@ export class SfdxService {
     public async getCurrentUserId(): Promise<string> {
         let userId = '';
         try {
-            OrgUtils.logDebug('[VisbalExt.SfdxService] getCurrentUserId', 'Getting current user ID');
+            OrgUtils.logDebug('[VisbalExt.SfdxService] getCurrentUserId from SFDX CLI', 'BEGIN');
             try {
                 let command = 'sf org display user';
                 
@@ -135,6 +180,7 @@ export class SfdxService {
         try {
             OrgUtils.logDebug('[VisbalExt.SfdxService] getCurrentOrgAlias from SFDX CLI', 'BEGIN');
             const command = 'sf org display --json';
+            OrgUtils.logDebug('[VisbalExt.SfdxService] getCurrentOrgAlias', `command: ${command}`);
             const orgInfo = await this._executeCommand(command);
             const result = JSON.parse(orgInfo.stdout);
             if (result.status === 0 && result.result) {
@@ -152,7 +198,7 @@ export class SfdxService {
             throw new Error('No default org set');
         } catch (error: any) {
             
-            OrgUtils.logError('[VisbalExt.SfdxService] getCurrentOrgAlias from SFDX CLI', error);
+            OrgUtils.logError('[VisbalExt.SfdxService] getCurrentOrgAlias from SFDX CLI -- error:', error);
             throw error;
         }
     }
@@ -967,7 +1013,7 @@ export class SfdxService {
     /**
      * Runs Apex tests
      */
-    public async runTests(testClass: string, testMethod?: string, useDefaultOrg: boolean = false, showTestCoverage: boolean = true): Promise<any> {
+    public async runTests(testClass: string, testMethod?: string, useDefaultOrg: boolean = false, showTestCoverage: boolean = true, signal?: AbortSignal): Promise<any> {
         const startTime = Date.now();
         try {
             OrgUtils.logDebug(`[VisbalExt.SfdxService] runTests -- START at ${new Date(startTime).toISOString()}`);
@@ -987,7 +1033,7 @@ export class SfdxService {
                 command += ` --target-org ${selectedOrg.alias}`;
             }
             OrgUtils.logDebug(`[VisbalExt.SfdxService] runTests -- _executeCommand: ${command}`);
-            const output = await this._executeCommand(command);
+            const output = await this._executeCommandWithSignal(command, signal);
             const endTime = Date.now();
            //OrgUtils.logDebug(`[VisbalExt.MetadataService] runTests -- ${methodLabel} TIME COMPLETED: ${endTime - startTime}ms`);
             const result: { isJson: boolean; content: ResultContent | null; rawContent: string } = OrgUtils.parseResultJson(output.stdout);
@@ -1074,7 +1120,7 @@ export class SfdxService {
         }
     }
 
-    public async runAllTests(useDefaultOrg: boolean = false, synchronous: boolean = false, showTestCoverage: boolean = true): Promise<any> {
+    public async runAllTests(useDefaultOrg: boolean = false, synchronous: boolean = false, showTestCoverage: boolean = true, signal?: AbortSignal): Promise<any> {
         const startTime = Date.now();
         try {
             OrgUtils.logDebug(`[VisbalExt.SfdxService] runAllTests -- START at ${new Date(startTime).toISOString()}`);
@@ -1093,7 +1139,7 @@ export class SfdxService {
             }
             command += ' --json --wait 0'; // Add --wait 0 to get immediate response with testRunId
             OrgUtils.logDebug(`[VisbalExt.SfdxService] runAllTests -- _executeCommand: ${command}`);
-            const output = await this._executeCommand(command);
+            const output = await this._executeCommandWithSignal(command, signal);
             const result = JSON.parse(output.stdout).result;
             OrgUtils.logDebug('[VisbalExt.SfdxService] runAllTests -- Initial result:', result);
             return result;

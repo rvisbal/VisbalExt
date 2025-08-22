@@ -74,6 +74,7 @@ export class StorageService {
 
     public async getTestClasses(orgAlias?: string): Promise<TestClass[]> {
         try {
+            OrgUtils.logDebug('[VisbalExt.StorageService] getTestClasses -- BEGIN');
             const targetOrgAlias = orgAlias || await OrgUtils.getCurrentOrgAlias();
             const cache = this.readCache();
             OrgUtils.logDebug(`[VisbalExt.StorageService] Getting test classes for org: ${targetOrgAlias}`);
@@ -86,6 +87,7 @@ export class StorageService {
 
     public async saveTestClasses(testClasses: TestClass[], orgAlias?: string): Promise<void> {
         try {
+            OrgUtils.logDebug('[VisbalExt.StorageService] saveTestClasses -- BEGIN');
             const targetOrgAlias = orgAlias || await OrgUtils.getCurrentOrgAlias();
             const cache = this.readCache();
             
@@ -149,6 +151,7 @@ export class StorageService {
 
     public async clearStorage(): Promise<void> {
         try {
+            OrgUtils.logDebug('[VisbalExt.StorageService] clearStorage -- BEGIN');
             const orgAlias = await OrgUtils.getCurrentOrgAlias();
             const cache = this.readCache();
             delete cache[orgAlias];

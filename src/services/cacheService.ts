@@ -84,6 +84,7 @@ export class CacheService {
 
     public async saveCachedLogs(logs: SalesforceLog[]): Promise<void> {
         try {
+            OrgUtils.logDebug('[VisbalExt.CacheService] saveCachedLogs -- BEGIN');
             const orgAlias = await OrgUtils.getCurrentOrgAlias();
             const cache = this.readCache();
             
@@ -147,6 +148,7 @@ export class CacheService {
 
     public async getLastFetchTime(): Promise<number> {
         try {
+            OrgUtils.logDebug('[VisbalExt.CacheService] getLastFetchTime -- BEGIN');
             const orgAlias = await OrgUtils.getCurrentOrgAlias();
             const cache = this.readCache();
             return cache[orgAlias]?.lastFetchTime || 0;
@@ -158,6 +160,7 @@ export class CacheService {
 
     public async getDownloadedLogs(): Promise<Set<string>> {
         try {
+            OrgUtils.logDebug('[VisbalExt.CacheService] getDownloadedLogs -- BEGIN');
             const orgAlias = await OrgUtils.getCurrentOrgAlias();
             const cache = this.readCache();
             return new Set(cache[orgAlias]?.downloadedLogs || []);
@@ -169,6 +172,7 @@ export class CacheService {
 
     public async getDownloadedLogPaths(): Promise<Map<string, string>> {
         try {
+            OrgUtils.logDebug('[VisbalExt.CacheService] getDownloadedLogPaths -- BEGIN');
             const orgAlias = await OrgUtils.getCurrentOrgAlias();
             const cache = this.readCache();
             return new Map(Object.entries(cache[orgAlias]?.downloadedLogPaths || {}));
@@ -180,6 +184,7 @@ export class CacheService {
 
     public async saveDownloadedLogs(downloadedLogs: Set<string>, downloadedLogPaths: Map<string, string>): Promise<void> {
         try {
+            OrgUtils.logDebug('[VisbalExt.CacheService] saveDownloadedLogs -- BEGIN');
             const orgAlias = await OrgUtils.getCurrentOrgAlias();
             const cache = this.readCache();
             
@@ -205,6 +210,7 @@ export class CacheService {
 
     public async clearCache(): Promise<void> {
         try {
+            OrgUtils.logDebug('[VisbalExt.CacheService] clearCache -- BEGIN');
             const orgAlias = await OrgUtils.getCurrentOrgAlias();
             const cache = this.readCache();
             delete cache[orgAlias];

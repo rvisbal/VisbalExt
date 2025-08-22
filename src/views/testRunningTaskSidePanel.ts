@@ -147,7 +147,7 @@ export class TestRunningTaskProvider implements vscode.TreeDataProvider<TestItem
     private _view?: vscode.TreeView<TestItem>;
 
     constructor() {
-        OrgUtils.logDebug('[VisbalExt.TestRunningTaskProvider] constructor -- Initializing provider');
+        OrgUtils.logDebug('[VisbalExt.TestRunningTaskProvider] constructor -- Initializing Test Running Task Provider');
     }
 
     setTreeView(view: vscode.TreeView<TestItem>) {
@@ -399,9 +399,9 @@ export class TestRunningTaskView {
 
     // Update rerunAllTests method
     public async rerunAllTests() {
-        OrgUtils.logDebug('[VisbalExt.TestRunResultsView] rerunAllTests -- Starting rerun of all tests');
+        OrgUtils.logDebug('[VisbalExt.TestRunningTaskView] rerunAllTests -- Starting rerun of all tests');
         const testRuns = this.provider.getTestRuns();
-        console.log('[VisbalExt.TestRunResultsView] rerunAllTests -- testRuns', testRuns);
+        console.log('[VisbalExt.TestRunningTaskView] rerunAllTests -- testRuns', testRuns);
         if (testRuns.size === 0) {
             vscode.window.showInformationMessage('No tests to rerun');
             return;

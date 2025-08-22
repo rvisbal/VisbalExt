@@ -47,7 +47,7 @@ export class MetadataService {
             const { stdout, stderr } = await execAsync(command);
             
             if (stderr) {
-                OrgUtils.logDebug(`[MetadataService] Command produced stderr: ${stderr}`);
+                OrgUtils.logDebug(`[VisbalExt.MetadataService] executeCliCommandAnonymous Command produced stderr: ${stderr}`);
                 // Only throw if it seems like a real error, as some commands output warnings to stderr
                 if (stderr.includes('Error:') || stderr.includes('error:')) {
                     throw new Error(stderr);
@@ -179,7 +179,7 @@ export class MetadataService {
                     throw new Error('No default org set. Please use "sf org set default" to set a default org.');
                 }
             } catch (orgError) {
-                OrgUtils.logDebug('[MetadataService] Failed to get target org:', orgError);
+                OrgUtils.logDebug('[VisbalExt.MetadataService] executeCliCommandTargetOrg Failed to get target org:', orgError);
                 
                 // Check if Salesforce CLI is installed
                 try {
