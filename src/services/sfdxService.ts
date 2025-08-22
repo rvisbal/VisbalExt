@@ -346,7 +346,7 @@ export class SfdxService {
                 command += ` --target-org ${selectedOrg.alias}`;
             }
             command += ' --json';
-            
+            OrgUtils.logDebug('[VisbalExt.SfdxService] createDebugLevel -- command:', command);
             const result = await this._executeCommand(command);
             const parsedResult = JSON.parse(result.stdout);
             
@@ -535,7 +535,7 @@ export class SfdxService {
                 command += ` --target-org ${selectedOrg.alias}`;
             }
             command += ' --json';
-            
+            OrgUtils.logDebug('[VisbalExt.SfdxService] listApexLogs -- Listing Apex logs command:', command);
             const result = await this._executeCommand(command);
             return result.stdout;
         } catch (error: any) {
