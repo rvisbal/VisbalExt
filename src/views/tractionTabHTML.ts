@@ -434,6 +434,9 @@ export function getTractionHtml(): string {
                 separator.textContent = '──────────────';
                 orgSelector.appendChild(separator);
         
+                // Track default org for auto-selection
+                let defaultOrg = null;
+                
                 // Helper function to add section if it has items
                 const addSection = (items, sectionName) => {
                     if (items && items.length > 0) {
@@ -446,6 +449,9 @@ export function getTractionHtml(): string {
                             option.textContent = org.alias || org.username;
                             if (org.isDefault) {
                                 option.textContent += ' (Default)';
+                                if (!defaultOrg) {
+                                    defaultOrg = org.alias; // Remember the first default org we find
+                                }
                             }
                             // Select the option if it matches the selected org
                             option.selected = selectedOrg && org.alias === selectedOrg;
@@ -472,12 +478,30 @@ export function getTractionHtml(): string {
                     orgSelector.appendChild(option);
                     updateStatus('No orgs found', 'error');
                 } else {
-                    updateStatus('Org list updated', 'success');
+                    if (!selectedOrg && defaultOrg) {
+                        // Auto-select the default org if no org is currently selected
+                        orgSelector.value = defaultOrg;
+                        selectedOrg = defaultOrg; // Update for the traction tab's selectedOrg variable
+                        console.log('[VisbalExt.TractionTab] Auto-selected default org:', defaultOrg);
+                        
+                        // Notify the backend about the auto-selection
+                        setTimeout(() => {
+                            vscode.postMessage({
+                                command: 'setSelectedOrg',
+                                alias: defaultOrg
+                            });
+                        }, 100);
+                        
+                        updateStatus('Auto-selected default org: ' + defaultOrg, 'success');
+                    } else {
+                        updateStatus('Org list updated', 'success');
+                    }
                 }
         
-                // Store the selection
-                if (selectedOrg) {
-                    orgSelector.setAttribute('data-last-selection', selectedOrg);
+                // Store the selection (including auto-selected default)
+                const currentSelection = orgSelector.value;
+                if (currentSelection) {
+                    orgSelector.setAttribute('data-last-selection', currentSelection);
                 }
             }
             

@@ -757,6 +757,9 @@ return `<!DOCTYPE html>
                 separator.textContent = '--------------';
                 orgDropdown.appendChild(separator);
         
+                // Track default org for auto-selection
+                let defaultOrg = null;
+                
                 // Helper function to add section if it has items
                 const addSection = (items, sectionName) => {
                     if (items && items.length > 0) {
@@ -768,7 +771,10 @@ return `<!DOCTYPE html>
                         option.value = org.alias;
                         option.textContent = org.alias || org.username;
                         if (org.isDefault) {
-                        option.textContent += ' (Default)';
+                            option.textContent += ' (Default)';
+                            if (!defaultOrg) {
+                                defaultOrg = org.alias; // Remember the first default org we find
+                            }
                         }
                         // Select the option if it matches the selected org
                         option.selected = selectedOrg && org.alias === selectedOrg;
@@ -793,6 +799,18 @@ return `<!DOCTYPE html>
                     option.value = '';
                     option.textContent = 'No orgs found';
                     orgDropdown.appendChild(option);
+                } else if (!selectedOrg && defaultOrg) {
+                    // Auto-select the default org if no org is currently selected
+                    orgDropdown.value = defaultOrg;
+                    console.log('[VisbalExt.ExecuteApexTab] Auto-selected default org:', defaultOrg);
+                    
+                    // Notify the backend about the auto-selection
+                    setTimeout(() => {
+                        vscode.postMessage({
+                            command: 'setSelectedOrg',
+                            alias: defaultOrg
+                        });
+                    }, 100);
                 }
         
                 // If this was a fresh fetch (not from cache), update the cache
@@ -800,9 +818,10 @@ return `<!DOCTYPE html>
                     saveOrgCache(orgs);
                 }
         
-                // Store the selection
-                if (selectedOrg) {
-                    orgDropdown.setAttribute('data-last-selection', selectedOrg);
+                // Store the selection (including auto-selected default)
+                const currentSelection = orgDropdown.value;
+                if (currentSelection) {
+                    orgDropdown.setAttribute('data-last-selection', currentSelection);
                 }
 
             }

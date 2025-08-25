@@ -1774,6 +1774,9 @@ export function getHtmlForWebview(
           separator.textContent = '──────────────';
           orgSelector.appendChild(separator);
   
+          // Track default org for auto-selection
+          let defaultOrg = null;
+          
           // Helper function to add section if it has items
           const addSection = (items, sectionName) => {
             if (items && items.length > 0) {
@@ -1786,6 +1789,9 @@ export function getHtmlForWebview(
                 option.textContent = org.alias || org.username;
                 if (org.isDefault) {
                   option.textContent += ' (Default)';
+                  if (!defaultOrg) {
+                    defaultOrg = org.alias; // Remember the first default org we find
+                  }
                 }
                 // Select the option if it matches the selected org
                 option.selected = selectedOrg && org.alias === selectedOrg;
@@ -1810,6 +1816,18 @@ export function getHtmlForWebview(
             option.value = '';
             option.textContent = 'No orgs found';
             orgSelector.appendChild(option);
+          } else if (!selectedOrg && defaultOrg) {
+            // Auto-select the default org if no org is currently selected
+            orgSelector.value = defaultOrg;
+            console.log('[VisbalExt.ApexLogTab] Auto-selected default org:', defaultOrg);
+            
+            // Notify the backend about the auto-selection
+            setTimeout(() => {
+              vscode.postMessage({
+                command: 'setSelectedOrg',
+                alias: defaultOrg
+              });
+            }, 100);
           }
   
           // If this was a fresh fetch (not from cache), update the cache
@@ -1817,9 +1835,10 @@ export function getHtmlForWebview(
             saveOrgCache(orgs);
           }
   
-          // Store the selection
-          if (selectedOrg) {
-            orgSelector.setAttribute('data-last-selection', selectedOrg);
+          // Store the selection (including auto-selected default)
+          const currentSelection = orgSelector.value;
+          if (currentSelection) {
+            orgSelector.setAttribute('data-last-selection', currentSelection);
           }
         }
   
