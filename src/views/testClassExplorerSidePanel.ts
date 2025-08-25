@@ -4631,15 +4631,13 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
     }
 
     /**
-     * Attempts to cancel the server-side test job using the testRunId
-     * Note: Salesforce AsyncApexJob status cannot be directly updated through DML,
-     * but we log the attempt and provide information for manual cancellation if needed
+     * Attempts to cancel the server-side test job using CLI and Anonymous Apex
      */
     private async _attemptServerSideJobCancellation(testRunId: string) {
         try {
             OrgUtils.logDebug(`[VisbalExt.TestClassExplorerSidePanel] _attemptServerSideJobCancellation -- Attempting to cancel test job with ID: ${testRunId}`);
             
-            // Query the current job status
+            // First, query the current job status
             const useDefaultOrg = await this._shouldUseDefaultOrg();
             const jobQuery = `SELECT Id, Status, CreatedDate FROM AsyncApexJob WHERE Id = '${testRunId}'`;
             const jobResult = await this._sfdxService.executeSoqlQuery(jobQuery, useDefaultOrg, false);
@@ -4649,19 +4647,36 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                 OrgUtils.logDebug(`[VisbalExt.TestClassExplorerSidePanel] _attemptServerSideJobCancellation -- Current job status: ${job.Status}`);
                 
                 if (job.Status === 'Processing' || job.Status === 'Queued') {
-                    // Log information for manual cancellation
-                    OrgUtils.logDebug(`[VisbalExt.TestClassExplorerSidePanel] _attemptServerSideJobCancellation -- Job ${testRunId} is ${job.Status}. The client-side abort has been triggered, but the server-side job may continue. Consider manual cancellation in Salesforce Setup > Apex Jobs if needed.`);
+                    // Attempt to cancel the test run using CLI and Anonymous Apex
+                    OrgUtils.logDebug(`[VisbalExt.TestClassExplorerSidePanel] _attemptServerSideJobCancellation -- Attempting CLI cancellation for job ${testRunId}`);
                     
-                    // Show a user message for long-running jobs
-                    vscode.window.showInformationMessage(
-                        `Test execution aborted locally. Server-side job ${testRunId} may still be running. You can monitor or cancel it manually in Salesforce Setup > Apex Jobs.`,
-                        'Open Apex Jobs'
-                    ).then(selection => {
-                        if (selection === 'Open Apex Jobs') {
-                            // This would need the org URL to be helpful
-                            vscode.env.openExternal(vscode.Uri.parse('https://login.salesforce.com'));
+                    try {
+                        const cancelResult = await this._sfdxService.cancelTestRun(testRunId, useDefaultOrg);
+                        OrgUtils.logDebug(`[VisbalExt.TestClassExplorerSidePanel] _attemptServerSideJobCancellation -- CLI cancellation result:`, cancelResult);
+                        
+                        // Check if the cancellation was successful
+                        if (cancelResult?.result?.success) {
+                            vscode.window.showInformationMessage(
+                                `✅ Test execution aborted successfully. Server-side job ${testRunId} has been canceled.`
+                            );
+                            OrgUtils.logDebug(`[VisbalExt.TestClassExplorerSidePanel] _attemptServerSideJobCancellation -- Successfully canceled test job ${testRunId}`);
+                        } else {
+                            // Fallback to manual cancellation message
+                            this._showManualCancellationMessage(testRunId);
                         }
-                    });
+                    } catch (cliError: any) {
+                        OrgUtils.logError('[VisbalExt.TestClassExplorerSidePanel] _attemptServerSideJobCancellation -- CLI cancellation failed:', cliError);
+                        
+                        // Show fallback message with CLI error details
+                        vscode.window.showWarningMessage(
+                            `Test execution aborted locally, but CLI cancellation failed: ${cliError.message}. You can cancel the server-side job manually in Salesforce Setup > Apex Jobs.`,
+                            'Open Apex Jobs'
+                        ).then(selection => {
+                            if (selection === 'Open Apex Jobs') {
+                                vscode.env.openExternal(vscode.Uri.parse('https://login.salesforce.com'));
+                            }
+                        });
+                    }
                 } else {
                     OrgUtils.logDebug(`[VisbalExt.TestClassExplorerSidePanel] _attemptServerSideJobCancellation -- Job ${testRunId} status is ${job.Status}, no cancellation needed`);
                 }
@@ -4669,7 +4684,45 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                 OrgUtils.logDebug(`[VisbalExt.TestClassExplorerSidePanel] _attemptServerSideJobCancellation -- No job found with ID: ${testRunId}`);
             }
         } catch (error: any) {
-            OrgUtils.logError('[VisbalExt.TestClassExplorerSidePanel] _attemptServerSideJobCancellation -- Error querying job status:', error);
+            OrgUtils.logError('[VisbalExt.TestClassExplorerSidePanel] _attemptServerSideJobCancellation -- Error during cancellation attempt:', error);
+            this._showManualCancellationMessage(testRunId);
+        }
+    }
+
+    /**
+     * Shows a message for manual cancellation when CLI cancellation is not available
+     */
+    private _showManualCancellationMessage(testRunId: string) {
+        vscode.window.showInformationMessage(
+            `Test execution aborted locally. Server-side job ${testRunId} may still be running. You can monitor or cancel it manually in Salesforce Setup > Apex Jobs.`,
+            'Open Apex Jobs'
+        ).then(selection => {
+            if (selection === 'Open Apex Jobs') {
+                vscode.env.openExternal(vscode.Uri.parse('https://login.salesforce.com'));
+            }
+        });
+    }
+
+    /**
+     * Cancels all running tests (fallback method when no specific testRunId is available)
+     */
+    public async cancelAllRunningTests() {
+        try {
+            OrgUtils.logDebug('[VisbalExt.TestClassExplorerSidePanel] cancelAllRunningTests -- Attempting to cancel all running tests');
+            
+            const useDefaultOrg = await this._shouldUseDefaultOrg();
+            const cancelResult = await this._sfdxService.cancelTestRun(undefined, useDefaultOrg);
+            
+            OrgUtils.logDebug('[VisbalExt.TestClassExplorerSidePanel] cancelAllRunningTests -- Cancellation result:', cancelResult);
+            
+            if (cancelResult?.result?.success) {
+                vscode.window.showInformationMessage('✅ All running tests have been canceled successfully.');
+            } else {
+                vscode.window.showInformationMessage('No running tests found to cancel.');
+            }
+        } catch (error: any) {
+            OrgUtils.logError('[VisbalExt.TestClassExplorerSidePanel] cancelAllRunningTests -- Error:', error);
+            vscode.window.showErrorMessage(`Failed to cancel running tests: ${error.message}`);
         }
     }
 

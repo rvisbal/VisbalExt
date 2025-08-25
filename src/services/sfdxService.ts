@@ -1326,6 +1326,90 @@ export class SfdxService {
 
     //#endregion
 
+    /**
+     * Cancels running Apex tests using Anonymous Apex execution
+     * @param testRunId The test run ID to cancel (optional - if not provided, cancels all running tests)
+     * @param useDefaultOrg Whether to use the default org
+     * @returns Promise with cancellation result
+     */
+    public async cancelTestRun(testRunId?: string, useDefaultOrg: boolean = false): Promise<any> {
+        try {
+            OrgUtils.logDebug(`[VisbalExt.SfdxService] cancelTestRun -- Canceling test run${testRunId ? ` with ID: ${testRunId}` : 's'}`);
+            
+            // Create Anonymous Apex code to cancel tests
+            let apexCode: string;
+            
+            if (testRunId) {
+                // Cancel specific test run
+                apexCode = `
+// Cancel specific test run: ${testRunId}
+ApexTestQueueItem[] items = [
+    SELECT Id, Status, ParentJobId 
+    FROM ApexTestQueueItem 
+    WHERE ParentJobId = '${testRunId}' 
+    AND Status IN ('Holding', 'Queued', 'Preparing', 'Processing')
+];
+
+System.debug('Found ' + items.size() + ' test queue items to cancel for job: ${testRunId}');
+
+for (ApexTestQueueItem item : items) {
+    item.Status = 'Aborted';
+    System.debug('Aborting test queue item: ' + item.Id);
+}
+
+if (!items.isEmpty()) {
+    try {
+        update items;
+        System.debug('Successfully aborted ' + items.size() + ' test queue items');
+    } catch (Exception e) {
+        System.debug('Error aborting test queue items: ' + e.getMessage());
+        throw e;
+    }
+} else {
+    System.debug('No running test queue items found for job: ${testRunId}');
+}
+`;
+            } else {
+                // Cancel all running tests
+                apexCode = `
+// Cancel all running tests
+ApexTestQueueItem[] items = [
+    SELECT Id, Status, ParentJobId 
+    FROM ApexTestQueueItem 
+    WHERE Status IN ('Holding', 'Queued', 'Preparing', 'Processing')
+];
+
+System.debug('Found ' + items.size() + ' test queue items to cancel');
+
+for (ApexTestQueueItem item : items) {
+    item.Status = 'Aborted';
+    System.debug('Aborting test queue item: ' + item.Id + ' for job: ' + item.ParentJobId);
+}
+
+if (!items.isEmpty()) {
+    try {
+        update items;
+        System.debug('Successfully aborted ' + items.size() + ' test queue items');
+    } catch (Exception e) {
+        System.debug('Error aborting test queue items: ' + e.getMessage());
+        throw e;
+    }
+} else {
+    System.debug('No running test queue items found');
+}
+`;
+            }
+            
+            const result = await this.executeAnonymousApex(apexCode);
+            OrgUtils.logDebug(`[VisbalExt.SfdxService] cancelTestRun -- Cancellation result:`, result);
+            
+            return result;
+        } catch (error: any) {
+            OrgUtils.logError('[VisbalExt.SfdxService] cancelTestRun -- Error canceling test run:', error);
+            throw new Error(`Failed to cancel test run: ${error.message}`);
+        }
+    }
+
     //#region SOQL Operations
     /**
      * Executes a SOQL query
