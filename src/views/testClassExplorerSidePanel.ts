@@ -2261,31 +2261,18 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                     }
 
                     //const logIds = await this._sfdxService.getTestLogId(testRunId);
-                    const testIdsString = testIds.map(id => `'${id}'`).join(', ');
-                    // Use selected org instead of default org determination
-                    // Note: currentOrgAlias already retrieved above in the same method
-                    const apiResult = await this._sfdxService.executeSoqlQuery(`SELECT Id, ApexClass.Name, MethodName, Message, StackTrace, Outcome, ApexLogId FROM ApexTestResult WHERE Id IN (${testIdsString})`, false, false, currentOrgAlias);
-                    if (apiResult.length > 0) {
-                        for (const t of apiResult) {
-                            OrgUtils.logDebug('[VisbalExt.TestClassExplorerSidePanel] _runManyTest -- t:', t);
-                            let testStatus = TestStatus.running;
-                            if (t.Outcome === 'Pass' || t.Outcome === 'Passed') {
-                                testStatus = TestStatus.success;
-                            } else if (t.Outcome === 'Skip' || t.Outcome === 'Skipped') {
-                                testStatus = TestStatus.skipped;
-                            } else if (t.Outcome === 'Fail' || t.Outcome === 'Failed') {
-                                testStatus= TestStatus.failed;
-                            }
-                            this._testRunResultsView.updateMethodStatus(t.ApexClass.Name, t.MethodName, testStatus, t.ApexLogId, t.Message);
-                        }       
-                    }
-
+                    // Update TEST SUMMARY immediately (don't wait for additional details)
                     this._testSummaryView.updateSummary(testRunResult.summary, testRunResult.tests);
+                    
+                    // Send finish message immediately to update UI
                     if (this._view) {
                         this._view.webview.postMessage({
                             command: 'finish'
                         });
                     }
+
+                    // Process additional test details in background (non-blocking)
+                    this._processAdditionalTestDetailsAsync(testIds, currentOrgAlias || '');
                 }
             }
 
@@ -2323,8 +2310,60 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
         OrgUtils.logDebug('[VisbalExt.TestClassExplorerSidePanel] _runManyTest -- tests:', tests);
 
 
-    }
+        }
 
+    /**
+     * Process additional test details asynchronously without blocking UI updates
+     */
+    private async _processAdditionalTestDetailsAsync(testIds: string[], currentOrgAlias: string): Promise<void> {
+        try {
+            if (testIds.length === 0) {
+                return;
+            }
+
+            OrgUtils.logDebug('[VisbalExt.TestClassExplorerSidePanel] _processAdditionalTestDetailsAsync -- Processing additional details for test IDs:', testIds);
+            
+            const testIdsString = testIds.map(id => `'${id}'`).join(', ');
+            
+            // Execute SOQL query with timeout protection
+            const apiResult = await this._sfdxService.executeSoqlQuery(
+                `SELECT Id, ApexClass.Name, MethodName, Message, StackTrace, Outcome, ApexLogId FROM ApexTestResult WHERE Id IN (${testIdsString})`, 
+                false, 
+                false, 
+                currentOrgAlias
+            );
+            
+            if (apiResult.length > 0) {
+                for (const t of apiResult) {
+                    OrgUtils.logDebug('[VisbalExt.TestClassExplorerSidePanel] _processAdditionalTestDetailsAsync -- Processing test result:', t);
+                    
+                    let testStatus = TestStatus.running;
+                    if (t.Outcome === 'Pass' || t.Outcome === 'Passed') {
+                        testStatus = TestStatus.success;
+                    } else if (t.Outcome === 'Skip' || t.Outcome === 'Skipped') {
+                        testStatus = TestStatus.skipped;
+                    } else if (t.Outcome === 'Fail' || t.Outcome === 'Failed') {
+                        testStatus = TestStatus.failed;
+                    }
+                    
+                    // Update method status with additional details (log ID, message)
+                    this._testRunResultsView.updateMethodStatus(
+                        t.ApexClass.Name, 
+                        t.MethodName, 
+                        testStatus, 
+                        t.ApexLogId, 
+                        t.Message
+                    );
+                }       
+            }
+            
+            OrgUtils.logDebug('[VisbalExt.TestClassExplorerSidePanel] _processAdditionalTestDetailsAsync -- Additional details processing completed');
+        } catch (error: any) {
+            OrgUtils.logError('[VisbalExt.TestClassExplorerSidePanel] _processAdditionalTestDetailsAsync -- Error processing additional test details:', error);
+            // Don't throw - this is background processing and shouldn't affect main flow
+        }
+    }
+    
     private getMethodId(className: string, methodName: string) {
         return `${className}.${methodName}`;
         }
