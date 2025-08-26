@@ -2,6 +2,7 @@ import * as vscode from 'vscode';
 import { MetadataService } from '../services/metadataService';
 import { OrgListCacheService } from '../services/orgListCacheService';
 import { OrgUtils } from '../utils/orgUtils';
+import { ViewId } from '../types/salesforceTypes';
 import { SfdxService } from '../services/sfdxService';
 import { getHtmlForWebview } from './soqlTabHTML';
 
@@ -75,7 +76,7 @@ export class SoqlTab implements vscode.WebviewViewProvider {
         }
 
         try {
-            const selectedOrg = await OrgUtils.getSelectedOrg();
+            const selectedOrg = await OrgUtils.getSelectedOrgForView(ViewId.SOQL);
             this._view?.webview.postMessage({
                 command: 'startLoading',
                 message: `Executing SOQL ${selectedOrg?.alias}...`
@@ -97,7 +98,7 @@ export class SoqlTab implements vscode.WebviewViewProvider {
                 command: m
             });
 
-            const result = await this._sfdxService.executeSoqlQuery(soql, useToolingApi, useToolingApi);
+            const result = await this._sfdxService.executeSoqlQuery(soql, false, useToolingApi, selectedOrg?.alias);
             OrgUtils.logDebug('[VisbalExt.soqlPanel] executeSOQL Execution result:', result);
 
             if (!result || result.length === 0) {
@@ -138,7 +139,8 @@ export class SoqlTab implements vscode.WebviewViewProvider {
             this._orgListCacheService,
             this._context,
             this._view?.webview,
-            '[VisbalExt.soqlPanel]'
+            '[VisbalExt.soqlPanel]',
+            ViewId.SOQL
         );
     }
 
@@ -180,7 +182,7 @@ export class SoqlTab implements vscode.WebviewViewProvider {
                 message: `Setting selected organization...`
             });
             
-            await OrgUtils.setSelectedOrg(username);
+            await OrgUtils.setSelectedOrgForView(ViewId.SOQL, username);
             
             this._view?.webview.postMessage({
                 command: 'stopLoading'

@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import { OrgListCacheService } from '../services/orgListCacheService';
 import { OrgUtils, SalesforceOrg } from '../utils/orgUtils';
+import { ViewId } from '../types/salesforceTypes';
 import { getTractionHtml } from './tractionTabHTML';
 
 export class TractionTab implements vscode.WebviewViewProvider {
@@ -41,6 +42,7 @@ export class TractionTab implements vscode.WebviewViewProvider {
                     break;
                 case 'setSelectedOrg':
                     this._selectedOrg = message.alias;
+                    await this._setSelectedOrg(message.alias);
                     this._updateStatus(`Selected org: ${message.alias}`, 'success');
                     break;
                 case 'openOrg':
@@ -69,15 +71,19 @@ export class TractionTab implements vscode.WebviewViewProvider {
             this._orgs = this._flattenOrgGroups(orgGroups);
             this._isLoading = false;
             
+            // Get the view-specific selected org
+            const viewSpecificOrg = await OrgUtils.getSelectedOrgForView(ViewId.TRACTION);
+            const selectedOrgAlias = viewSpecificOrg?.alias || this._selectedOrg;
+            
             // Send the org groups in the same format as other tabs
             this._view?.webview.postMessage({
                 command: 'updateOrgList',
                 orgs: orgGroups,
                 fromCache: true,
-                selectedOrg: this._selectedOrg
+                selectedOrg: selectedOrgAlias
             });
             
-            OrgUtils.logDebug(`[VisbalExt.TractionTab] _loadOrgList -- Loaded ${this._orgs.length} orgs`);
+            OrgUtils.logDebug(`[VisbalExt.TractionTab] _loadOrgList -- Loaded ${this._orgs.length} orgs, selected: ${selectedOrgAlias}`);
         } catch (error: any) {
             this._isLoading = false;
             this._error = error?.message || 'Failed to load orgs.';
@@ -107,11 +113,15 @@ export class TractionTab implements vscode.WebviewViewProvider {
             const orgGroups = cache?.orgs;
             this._orgs = this._flattenOrgGroups(orgGroups);
             
+            // Get the view-specific selected org
+            const viewSpecificOrg = await OrgUtils.getSelectedOrgForView(ViewId.TRACTION);
+            const selectedOrgAlias = viewSpecificOrg?.alias || this._selectedOrg;
+            
             this._view?.webview.postMessage({
                 command: 'updateOrgList',
                 orgs: orgGroups,
                 fromCache: false,
-                selectedOrg: this._selectedOrg
+                selectedOrg: selectedOrgAlias
             });
         } catch (error: any) {
             this._isLoading = false;
@@ -119,6 +129,17 @@ export class TractionTab implements vscode.WebviewViewProvider {
             OrgUtils.logError(`[VisbalExt.TractionTab] _refreshOrgList -- Error refreshing orgs`, error as Error);
             
             this._updateStatus(this._error, 'error');
+        }
+    }
+
+    private async _setSelectedOrg(username: string): Promise<void> {
+        try {
+            OrgUtils.logDebug(`[VisbalExt.TractionTab] _setSelectedOrg -- Setting selected org: ${username}`);
+            await OrgUtils.setSelectedOrgForView(ViewId.TRACTION, username);
+        }
+        catch (error: any) {
+            OrgUtils.logError('[VisbalExt.TractionTab] _setSelectedOrg -- Error setting selected org:', error);
+            this._updateStatus(`Failed to set selected org: ${error.message}`, 'error');
         }
     }
 

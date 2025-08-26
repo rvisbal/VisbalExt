@@ -504,7 +504,8 @@ return `<!DOCTYPE html>
                     orgDropdown.setAttribute('data-last-selection', selectedOrg);
                     vscode.postMessage({
                         command: 'setSelectedOrg',
-                        alias: selectedOrg
+                        alias: selectedOrg,
+                        viewId: 'executeApex'
                     });
                 }
             });
@@ -808,7 +809,8 @@ return `<!DOCTYPE html>
                     setTimeout(() => {
                         vscode.postMessage({
                             command: 'setSelectedOrg',
-                            alias: defaultOrg
+                            alias: defaultOrg,
+                            viewId: 'executeApex'
                         });
                     }, 100);
                 }
@@ -846,7 +848,8 @@ return `<!DOCTYPE html>
                     orgDropdown.setAttribute('data-last-selection', selectedOrg);
                     vscode.postMessage({
                         command: 'setSelectedOrg',
-                        alias: selectedOrg
+                        alias: selectedOrg,
+                        viewId: 'executeApex'
                     });
                 }
             });

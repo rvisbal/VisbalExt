@@ -8,6 +8,7 @@ import { join } from 'path';
 import { readFileSync, writeFileSync } from 'fs';
 import { existsSync, mkdirSync } from 'fs';
 import { OrgUtils } from '../utils/orgUtils';
+import { ViewId } from '../types/salesforceTypes';
 import { TestCaseListManager } from '../models/testCaseList';
 import { OrgListCacheService } from '../services/orgListCacheService';
 
@@ -376,7 +377,7 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
 
             // Fetch from Salesforce if not in storage or force refresh
             const apexClasses = await this._metadataService.getTestClasses();
-            OrgUtils.logDebug('[VisbalExt.TestClassExplorerSidePanel] _fetchTestClasses -- Received test classes', apexClasses?.length || 0);
+            OrgUtils.logDebug('[VisbalExt.TestClassExplorerSidePanel] _fetchTestClasses -- Fetched test classes from Salesforce', apexClasses?.length || 0);
             
             // Filter and transform ApexClass to TestClass
             testClasses = apexClasses
@@ -384,10 +385,11 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                     apexClass && 
                     apexClass.name && 
                     apexClass.name.endsWith('Test'))
-                .map((apexClass: { name: string }) => ({
+                .map((apexClass: { name: string, namespace?: string }) => ({
                     name: apexClass.name,
                     id: apexClass.name,
                     methods: [],
+                    namePrefix: apexClass.namespace,
                     symbolTable: {},
                     attributes: {
                         fileName: `${apexClass.name}.cls`,
@@ -398,7 +400,7 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
             // Save to storage
             const orgAliasForSave = await this._getOrgAliasForStorage();
             await this._storageService.saveTestClasses(testClasses, orgAliasForSave);
-            OrgUtils.logDebug('[VisbalExt.TestClassExplorerSidePanel] _fetchTestClasses -- Test classes cached', testClasses);
+            OrgUtils.logDebug('[VisbalExt.TestClassExplorerSidePanel] _fetchTestClasses -- saved test classes to storage', testClasses);
 
             // If refreshMethods is true, fetch methods for each class
             if (refreshMethods) {
@@ -3439,7 +3441,8 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                             
                             const nameSpan = document.createElement('span');
                             nameSpan.className = 'test-class-name';
-                            nameSpan.textContent = testClass.name || 'Unknown Class';
+                            const displayName = testClass.namePrefix ? testClass.namePrefix + '.' + testClass.name : testClass.name;
+                            nameSpan.textContent = displayName || 'Unknown Class';
                             
                             // Create refresh button with refresh icon
                             const refreshClassButton = document.createElement('button');
@@ -3967,7 +3970,8 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                             setTimeout(() => {
                                 vscode.postMessage({
                                     command: 'setSelectedOrg',
-                                    alias: defaultOrg
+                                    alias: defaultOrg,
+                                    viewId: 'testExplorer'
                                 });
                             }, 100);
                         }
@@ -4003,7 +4007,8 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                             orgDropdown.setAttribute('data-last-selection', selectedOrg);
                             vscode.postMessage({
                                 command: 'setSelectedOrg',
-                                alias: selectedOrg
+                                alias: selectedOrg,
+                                viewId: 'testExplorer'
                             });
                         }
                     });
@@ -4753,7 +4758,7 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
      */
     private async _shouldUseDefaultOrg(): Promise<boolean> {
         try {
-            const selectedOrg = await OrgUtils.getSelectedOrg();
+            const selectedOrg = await OrgUtils.getSelectedOrgForView(ViewId.TEST_EXPLORER);
             // If no org is selected, use default org
             if (!selectedOrg || !selectedOrg.alias) {
                 OrgUtils.logDebug('[VisbalExt.TestClassExplorerSidePanel] _shouldUseDefaultOrg -- No org selected, using default');
@@ -4773,7 +4778,7 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
      */
     private async _getOrgAliasForStorage(): Promise<string | undefined> {
         try {
-            const selectedOrg = await OrgUtils.getSelectedOrg();
+            const selectedOrg = await OrgUtils.getSelectedOrgForView(ViewId.TEST_EXPLORER);
             if (selectedOrg && selectedOrg.alias) {
                 OrgUtils.logDebug(`[VisbalExt.TestClassExplorerSidePanel] _getOrgAliasForStorage -- Using selected org: ${selectedOrg.alias}`);
                 return selectedOrg.alias;
@@ -4792,7 +4797,8 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
             this._orgListCacheService,
             this._context,
             this._view?.webview,
-            '[VisbalExt.TestClassExplorerSidePanel]'
+            '[VisbalExt.TestClassExplorerSidePanel]',
+            ViewId.TEST_EXPLORER
         );
     }
 
@@ -4825,8 +4831,16 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
         try {
             OrgUtils.logDebug(`[VisbalExt.TestClassExplorerSidePanel] _setSelectedOrg -- Setting selected org: ${username}`);
             
+            // Clear current test classes display immediately to avoid showing wrong org's data
+            if (this._view) {
+                this._view.webview.postMessage({
+                    command: 'testClassesLoaded',
+                    testClasses: []
+                });
+            }
+            
             // Set the selected org
-            await OrgUtils.setSelectedOrg(username);
+            await OrgUtils.setSelectedOrgForView(ViewId.TEST_EXPLORER, username);
             
             // Check cache for the newly selected org
             const cachedTestClasses = await this._storageService.getTestClasses(username);
@@ -4839,12 +4853,18 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                     testClasses: cachedTestClasses
                 });
             } else {
-                // No cached test classes for this org - show empty state
-                OrgUtils.logDebug(`[VisbalExt.TestClassExplorerSidePanel] _setSelectedOrg -- No cached test classes found for org: ${username}`);
+                // No cached test classes for this org - fetch from Salesforce
+                OrgUtils.logDebug(`[VisbalExt.TestClassExplorerSidePanel] _setSelectedOrg -- No cached test classes found for org: ${username}, fetching from Salesforce`);
+                
+                // Fetch test classes for the new org - this will handle its own loading state
+                await this._fetchTestClasses(true, false);
+                
+                // Show success message after fetch completes
                 this._view?.webview.postMessage({
-                    command: 'testClassesLoaded',
-                    testClasses: []
+                    command: 'showNotification',
+                    message: `Switched to organization: ${username} and loaded test classes`
                 });
+                return; // _fetchTestClasses handles the loading states
             }
             
             // Hide loading and show success message briefly
@@ -4875,11 +4895,11 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
     //#endregion ORG MANAGEMENT
 
     /**
-     * Loads cached test classes only (no fetch from Salesforce)
+     * Loads cached test classes, fetches from Salesforce if no cache found
      */
     private async _loadCachedTestClasses(): Promise<void> {
         try {
-            OrgUtils.logDebug('[VisbalExt.TestClassExplorerSidePanel] _loadCachedTestClasses -- Loading cached test classes only');
+            OrgUtils.logDebug('[VisbalExt.TestClassExplorerSidePanel] _loadCachedTestClasses -- Loading cached test classes, will fetch if not found');
             
             const orgAlias = await this._getOrgAliasForStorage();
             const cachedTestClasses = await this._storageService.getTestClasses(orgAlias);
@@ -4893,13 +4913,9 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                     });
                 }
             } else {
-                OrgUtils.logDebug('[VisbalExt.TestClassExplorerSidePanel] _loadCachedTestClasses -- No cached test classes found, showing empty state');
-                if (this._view) {
-                    this._view.webview.postMessage({
-                        command: 'testClassesLoaded',
-                        testClasses: []
-                    });
-                }
+                OrgUtils.logDebug('[VisbalExt.TestClassExplorerSidePanel] _loadCachedTestClasses -- No cached test classes found, fetching from Salesforce');
+                // Fetch test classes from Salesforce when no cache is found
+                await this._fetchTestClasses(false, false);
             }
             
         } catch (error: any) {

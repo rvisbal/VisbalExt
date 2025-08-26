@@ -492,7 +492,8 @@ export function getHtmlForWebview(): string {
                         orgDropdown.setAttribute('data-last-selection', selectedOrg);
                         vscode.postMessage({
                             command: 'setSelectedOrg',
-                            alias: selectedOrg
+                            alias: selectedOrg,
+                            viewId: 'soql'
                         });
                     }
                 });
@@ -799,10 +800,11 @@ export function getHtmlForWebview(): string {
                         
                         // Notify the backend about the auto-selection
                         setTimeout(() => {
-                            vscode.postMessage({
-                                command: 'setSelectedOrg',
-                                alias: defaultOrg
-                            });
+                                                    vscode.postMessage({
+                            command: 'setSelectedOrg',
+                            alias: defaultOrg,
+                            viewId: 'soql'
+                        });
                         }, 100);
                     }
             
@@ -839,7 +841,8 @@ export function getHtmlForWebview(): string {
                         orgDropdown.setAttribute('data-last-selection', selectedOrg);
                         vscode.postMessage({
                             command: 'setSelectedOrg',
-                            alias: selectedOrg
+                            alias: selectedOrg,
+                            viewId: 'soql'
                         });
                     }
                 });

@@ -11,6 +11,7 @@ import { MetadataService } from '../services/metadataService';
 import { OrgUtils } from '../utils/orgUtils';
 import { CacheService } from '../services/cacheService';
 import { SalesforceLog } from '../types/salesforceLog';
+import { ViewId } from '../types/salesforceTypes';
 import { SfdxService } from '../services/sfdxService';
 import { OrgListCacheService } from '../services/orgListCacheService';
 
@@ -520,7 +521,7 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
     private async _fetchSalesforceLogsSoql(): Promise<SalesforceLog[]> {
         OrgUtils.logDebug('[VisbalExt.apexLogTab.VisbalLogView] _fetchSalesforceLogsSoql -- Starting to fetch Salesforce logs via SOQL');
         try {
-            const selectedOrg = await OrgUtils.getSelectedOrg();
+            const selectedOrg = await OrgUtils.getSelectedOrgForView(ViewId.APEX_LOG);
             if (!selectedOrg) {
                 throw new Error('No org selected');
             }
@@ -1156,7 +1157,7 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
       private async _applyDebugConfig(config: any, turnOnDebug: boolean): Promise<void> {
         try {
             OrgUtils.logDebug('[VisbalExt.apexLogTab.VisbalLogView] _applyDebugConfig -1 -- Applying debug configuration:', config);
-            const selectedOrg = await OrgUtils.getSelectedOrg();
+            const selectedOrg = await OrgUtils.getSelectedOrgForView(ViewId.APEX_LOG);
             OrgUtils.logDebug('[VisbalExt.apexLogTab.VisbalLogView] _applyDebugConfig -2 -- Selected org:', selectedOrg);
             // Set loading state
             this._isLoading = true;
@@ -1939,7 +1940,7 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
     public async openSelectedOrg(): Promise<void> {
         try {
             
-            const selectedOrg = await OrgUtils.getSelectedOrg();
+            const selectedOrg = await OrgUtils.getSelectedOrgForView(ViewId.APEX_LOG);
             OrgUtils.logDebug('[VisbalExt.apexLogTab.VisbalLogView] openSelectedOrg -- Opening default org');
             this._showLoading(`Opening ${selectedOrg?.alias} org...`);
             
@@ -1959,7 +1960,7 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
     private async _getLogContent(logId: string): Promise<string> {
         try {
 			OrgUtils.logDebug('[VisbalExt.apexLogTab.VisbalLogView] _getLogContent -- logId:',logId);
-            const selectedOrg = await OrgUtils.getSelectedOrg();
+            const selectedOrg = await OrgUtils.getSelectedOrgForView(ViewId.APEX_LOG);
             const tempFile = path.join(os.tmpdir(), `${logId}.log`);
             const command = `sf apex log get --log-id ${logId} > "${tempFile}" --target-org ${selectedOrg?.alias}`;
 			OrgUtils.logDebug('[VisbalExt.apexLogTab.VisbalLogView] _getLogContent -- command:',command);
@@ -1996,7 +1997,7 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
 
     private async _fetchSalesforceLogs(): Promise<void> {
         try {
-            const selectedOrg = await OrgUtils.getSelectedOrg();
+            const selectedOrg = await OrgUtils.getSelectedOrgForView(ViewId.APEX_LOG);
             const result = await this._executeCommand(`sf apex log list --json --target-org ${selectedOrg?.alias}`);
             // ... rest of the method ...
         } catch (error: any) {
@@ -2058,7 +2059,8 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
             this._orgListCacheService,
             this._context,
             this._view?.webview,
-            '[VisbalExt.apexLogTab.VisbalLogView]'
+            '[VisbalExt.apexLogTab.VisbalLogView]',
+            ViewId.APEX_LOG
         );
     }
 
@@ -2119,7 +2121,7 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
             OrgUtils.logDebug(`[VisbalExt.apexLogTab.VisbalLogView] _setSelectedOrg -- Setting selected org: ${username}`);
             this._showLoading(`Setting selected org to ${username}...`);
             
-            await OrgUtils.setSelectedOrg(username);
+            await OrgUtils.setSelectedOrgForView(ViewId.APEX_LOG, username);
         }
         catch (error: any) {
             OrgUtils.logError('[VisbalExt.apexLogTab.VisbalLogView] _setSelectedOrg -- Error setting selected org:', error);

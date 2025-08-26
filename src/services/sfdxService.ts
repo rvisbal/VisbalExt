@@ -43,8 +43,11 @@ export class SfdxService {
     private _executeCommand(command: string): Promise<ExecResult> {
         return new Promise((resolve, reject) => {
             child_process.exec(command, { maxBuffer: MAX_BUFFER_SIZE }, (error, stdout, stderr) => {
-                if (!command.includes('sf apex list log')) {
+                if (!command.includes('sf apex list log') && !command.includes('sf data query')) {
                     OrgUtils.logDebug(`[VisbalExt.SfdxService] _executeCommand command:${command} -- stdout:`, stdout);
+                }
+                else {
+                    OrgUtils.logDebug(`[VisbalExt.SfdxService] _executeCommand command:${command} `);
                 }
                 if (error) {
                     // If we have stdout even with an error, we might want to use it
@@ -1414,13 +1417,20 @@ if (!items.isEmpty()) {
     /**
      * Executes a SOQL query
      */
-    public async executeSoqlQuery(query: string, useDefaultOrg: boolean = false, useToolingApi: boolean = false): Promise<any[]> {
+    public async executeSoqlQuery(query: string, useDefaultOrg: boolean = false, useToolingApi: boolean = false, targetOrgAlias?: string): Promise<any[]> {
         try {
-            OrgUtils.logDebug('[VisbalExt.SfdxService] Executing SOQL query:', query);
+            OrgUtils.logDebug(`[VisbalExt.SfdxService] executeSoqlQuery -- Executing SOQL query: ${query} useDefaultOrg: ${useDefaultOrg} useToolingApi: ${useToolingApi} targetOrgAlias: ${targetOrgAlias}`);
             
             // Execute the query using the Salesforce CLI
             let command = `sf data query  `;
-            const selectedOrg = await OrgUtils.getSelectedOrg();
+            
+            // Use provided target org or fall back to selected org
+            let orgAlias = targetOrgAlias;
+            if (!orgAlias && !useDefaultOrg) {
+                const selectedOrg = await OrgUtils.getSelectedOrg();
+                orgAlias = selectedOrg?.alias;
+            }
+            
             //if query includes breakpoint, new line, or other special characters then use the advance query
             const advanceQuery = query.includes('breakpoint') || query.includes('\n') || query.includes(' ') || query.includes('(') || query.length > 200;
             if (advanceQuery)  {
@@ -1441,8 +1451,9 @@ if (!items.isEmpty()) {
                 command += ` --query "${query}"`;
             }
 
-            if (!useDefaultOrg && selectedOrg && selectedOrg?.alias) {
-                command += ` --target-org ${selectedOrg.alias}`;
+            if (!useDefaultOrg && orgAlias) {
+                command += ` --target-org ${orgAlias}`;
+                OrgUtils.logDebug(`[VisbalExt.SfdxService] executeSoqlQuery -- Using target org: ${orgAlias}`);
             }
             if (useToolingApi) {
                 command += ' --use-tooling-api';
@@ -1492,7 +1503,7 @@ if (!items.isEmpty()) {
     /**
      * Executes anonymous Apex code
      */
-    public async executeAnonymousApex(code: string): Promise<any> {
+    public async executeAnonymousApex(code: string, targetOrgAlias?: string): Promise<any> {
         try {
             OrgUtils.logDebug('[VisbalExt.SfdxService] Executing anonymous Apex:', code);
             
@@ -1505,9 +1516,17 @@ if (!items.isEmpty()) {
 
             // Execute the anonymous Apex using the Salesforce CLI
             let command = `sf apex run --file "${tempFile}" `;
-            const selectedOrg = await OrgUtils.getSelectedOrg();
-            if (selectedOrg?.alias) {
-                command += ` --target-org ${selectedOrg.alias}`;
+            
+            // Use provided target org or fall back to selected org
+            let orgAlias = targetOrgAlias;
+            if (!orgAlias) {
+                const selectedOrg = await OrgUtils.getSelectedOrg();
+                orgAlias = selectedOrg?.alias;
+            }
+            
+            if (orgAlias) {
+                command += ` --target-org ${orgAlias}`;
+                OrgUtils.logDebug(`[VisbalExt.SfdxService] executeAnonymousApex -- Using target org: ${orgAlias}`);
             }
             command += ' --json';
             const resultStr = await this._executeCommand(command);

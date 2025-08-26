@@ -316,10 +316,11 @@ export function getTractionHtml(): string {
                     updateStatus(\`Selected org: \${selectedOrg}\`, 'success');
                     // Store the selection
                     orgSelector.setAttribute('data-last-selection', selectedOrg);
-                    vscode.postMessage({
-                        command: 'setSelectedOrg',
-                        alias: selectedOrg
-                    });
+                                            vscode.postMessage({
+                            command: 'setSelectedOrg',
+                            alias: selectedOrg,
+                            viewId: 'traction'
+                        });
                 } else {
                     updateStatus('No org selected');
                 }
@@ -488,7 +489,8 @@ export function getTractionHtml(): string {
                         setTimeout(() => {
                             vscode.postMessage({
                                 command: 'setSelectedOrg',
-                                alias: defaultOrg
+                                alias: defaultOrg,
+                                viewId: 'traction'
                             });
                         }, 100);
                         

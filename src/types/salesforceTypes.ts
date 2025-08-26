@@ -1,4 +1,15 @@
 /**
+ * Enumeration of view IDs used throughout the extension
+ */
+export enum ViewId {
+    APEX_LOG = 'apexLog',
+    EXECUTE_APEX = 'executeApex',
+    TEST_EXPLORER = 'testExplorer',
+    SOQL = 'soql',
+    TRACTION = 'traction'
+}
+
+/**
  * Represents an Apex class in Salesforce
  */
 export interface ApexClass {

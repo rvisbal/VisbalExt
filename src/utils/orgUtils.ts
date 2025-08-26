@@ -8,6 +8,7 @@ import { statusBarService } from '../services/statusBarService';
 import { CacheService } from '../services/cacheService';
 import { SfdxService } from '../services/sfdxService';
 import { OrgListCacheService } from '../services/orgListCacheService';
+import { ViewId } from '../types/salesforceTypes';
 import * as cp from 'child_process';
 
 export interface SalesforceOrg {
@@ -224,14 +225,169 @@ export class OrgUtils {
     public static async getSelectedOrg(): Promise<SelectedOrg | null> {
         try {
             OrgUtils.logDebug('[VisbalExt.OrgUtils] getSelectedOrg -- Fetching selected org');
+            
+            // First try to get from cache service
             const cacheService = new CacheService(this._context);
             const selectedOrg = await cacheService.getCachedOrg();
-            OrgUtils.logDebug('[VisbalExt.OrgUtils] getSelectedOrg -- Retrieved org:', selectedOrg);
-            return selectedOrg;
+            
+            if (selectedOrg) {
+                OrgUtils.logDebug('[VisbalExt.OrgUtils] getSelectedOrg -- Retrieved org from cache:', selectedOrg);
+                return selectedOrg;
+            }
+            
+            // Fallback: Try to find any view-specific selection as the most recently selected org
+            // This helps when switching to a new org that doesn't have global cache yet
+            try {
+                const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
+                if (workspaceFolder) {
+                    const viewOrgCacheFile = path.join(workspaceFolder.uri.fsPath, '.visbal', 'cache', 'view-org-selections.json');
+                    
+                    if (fs.existsSync(viewOrgCacheFile)) {
+                        const cacheContent = fs.readFileSync(viewOrgCacheFile, 'utf8');
+                        const viewOrgCache = JSON.parse(cacheContent);
+                        
+                        // Find the most recently selected org across all views
+                        let mostRecentOrg: SelectedOrg | null = null;
+                        let mostRecentTime = 0;
+                        
+                        for (const viewId in viewOrgCache) {
+                            const viewOrg = viewOrgCache[viewId];
+                            const timestamp = new Date(viewOrg.timestamp).getTime();
+                            
+                            if (timestamp > mostRecentTime) {
+                                mostRecentTime = timestamp;
+                                mostRecentOrg = viewOrg;
+                            }
+                        }
+                        
+                        if (mostRecentOrg) {
+                            OrgUtils.logDebug('[VisbalExt.OrgUtils] getSelectedOrg -- Using most recent view-selected org as fallback:', mostRecentOrg);
+                            return mostRecentOrg;
+                        }
+                    }
+                }
+            } catch (fallbackError) {
+                OrgUtils.logDebug('[VisbalExt.OrgUtils] getSelectedOrg -- Fallback lookup failed:', fallbackError);
+            }
+            
+            OrgUtils.logDebug('[VisbalExt.OrgUtils] getSelectedOrg -- No selected org found');
+            return null;
         }
         catch (error: any) {
             OrgUtils.logError('[VisbalExt.OrgUtils] getSelectedOrg -- Error getting selected org:', error as Error);
             return null;
+        }
+    }
+
+    /**
+     * Set selected org for a specific view
+     */
+    public static async setSelectedOrgForView(viewId: ViewId, alias: string): Promise<void> {
+        try {
+            OrgUtils.logDebug(`[VisbalExt.OrgUtils] setSelectedOrgForView -- Setting selected org for ${viewId}: ${alias}`);
+            const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
+            if (!workspaceFolder) {
+                throw new Error('No workspace folder found');
+            }
+
+            const cachePath = path.join(workspaceFolder.uri.fsPath, '.visbal', 'cache');
+            const viewOrgCacheFile = path.join(cachePath, 'view-org-selections.json');
+
+            // Ensure cache directory exists
+            if (!fs.existsSync(cachePath)) {
+                fs.mkdirSync(cachePath, { recursive: true });
+            }
+
+            // Read existing cache or create new one
+            let viewOrgCache: { [viewId: string]: SelectedOrg } = {};
+            if (fs.existsSync(viewOrgCacheFile)) {
+                try {
+                    const cacheContent = fs.readFileSync(viewOrgCacheFile, 'utf8');
+                    viewOrgCache = JSON.parse(cacheContent);
+                } catch (parseError) {
+                    OrgUtils.logDebug('[VisbalExt.OrgUtils] setSelectedOrgForView -- Error parsing existing cache, creating new one');
+                }
+            }
+
+            // Update cache for this view
+            viewOrgCache[viewId] = { alias, timestamp: new Date().toISOString() };
+
+            // Write back to file
+            fs.writeFileSync(viewOrgCacheFile, JSON.stringify(viewOrgCache, null, 2));
+            OrgUtils.logDebug(`[VisbalExt.OrgUtils] setSelectedOrgForView -- Cached org for ${viewId}: ${alias}`);
+
+            // Also update the global selected org cache to ensure SfdxService uses the correct org
+            // This ensures that when switching to a new org, the SfdxService methods will use the selected org
+            try {
+                OrgUtils.logDebug(`[VisbalExt.OrgUtils] setSelectedOrgForView -- Also updating global cache for org: ${alias}`);
+                await OrgUtils.setSelectedOrg(alias);
+                
+              
+            } catch (globalUpdateError) {
+                // Log but don't fail the operation if global update fails
+                OrgUtils.logError('[VisbalExt.OrgUtils] setSelectedOrgForView -- Failed to update global cache or CLI default:', globalUpdateError);
+            }
+
+        } catch (error: any) {
+            OrgUtils.logError('[VisbalExt.OrgUtils] setSelectedOrgForView -- Error:', error);
+            throw new Error(`Failed to set selected org for view: ${error.message}`);
+        }
+    }
+
+    /**
+     * Get selected org for a specific view
+     */
+    public static async getSelectedOrgForView(viewId: ViewId): Promise<SelectedOrg | null> {
+        try {
+            const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
+            if (!workspaceFolder) {
+                return null;
+            }
+
+            const viewOrgCacheFile = path.join(workspaceFolder.uri.fsPath, '.visbal', 'cache', 'view-org-selections.json');
+            
+            if (fs.existsSync(viewOrgCacheFile)) {
+                try {
+                    const cacheContent = fs.readFileSync(viewOrgCacheFile, 'utf8');
+                    const viewOrgCache = JSON.parse(cacheContent);
+                    
+                    if (viewOrgCache[viewId]) {
+                        const selectedOrg = viewOrgCache[viewId];
+                        OrgUtils.logDebug(`[VisbalExt.OrgUtils] getSelectedOrgForView -- Found cached org for ${viewId}: ${selectedOrg.alias}`);
+                        return selectedOrg;
+                    }
+                } catch (parseError) {
+                    OrgUtils.logDebug('[VisbalExt.OrgUtils] getSelectedOrgForView -- Error parsing view org cache:', parseError);
+                }
+            }
+
+            OrgUtils.logDebug(`[VisbalExt.OrgUtils] getSelectedOrgForView -- No cached org for view: ${viewId}`);
+            return null;
+
+        } catch (error: any) {
+            OrgUtils.logError('[VisbalExt.OrgUtils] getSelectedOrgForView -- Error:', error);
+            return null;
+        }
+    }
+
+    /**
+     * Set the IDE Project default Alias ( CLI default target org)
+     */
+    public static async setCliDefaultOrg(alias: string): Promise<void> {
+        try {
+            OrgUtils.logDebug(`[VisbalExt.OrgUtils] setCliDefaultOrg -- Setting CLI default org to: ${alias}`);
+            
+            // Use the SF CLI to set the default target org
+            const command = `sf config set target-org ${alias}`;
+            await execAsync(command);
+            
+            // Clear the cached org alias since we just changed it
+            this._orgAliasCache = null;
+            
+            OrgUtils.logDebug(`[VisbalExt.OrgUtils] setCliDefaultOrg -- Successfully set CLI default org to: ${alias}`);
+        } catch (error: any) {
+            OrgUtils.logError('[VisbalExt.OrgUtils] setCliDefaultOrg -- Error setting CLI default org:', error);
+            throw new Error(`Failed to set CLI default org: ${error.message}`);
         }
     }
 
@@ -288,7 +444,7 @@ export class OrgUtils {
     }
 
     /**
-     * Helper method to read Salesforce config files
+     * Get the default target org from the sfdx & sf config files
      * @param preferProject If true, checks project config first, then global
      * @returns The target org alias/username or null
      */
@@ -1503,7 +1659,8 @@ export class OrgUtils {
         orgListCacheService: any,
         context: vscode.ExtensionContext,
         webview: vscode.Webview | undefined,
-        loggerPrefix: string = '[VisbalExt.OrgUtils]'
+        loggerPrefix: string = '[VisbalExt.OrgUtils]',
+        viewId?: ViewId
     ): Promise<void> {
         try {
             OrgUtils.logDebug(`${loggerPrefix} loadOrgListForView -- Loading org list`);
@@ -1523,20 +1680,36 @@ export class OrgUtils {
                 OrgUtils.logDebug(`${loggerPrefix} loadOrgListForView -- Fetching fresh org list`);
                 orgs = await OrgUtils.listOrgs();
                 // Save to cache
+                OrgUtils.logDebug(`${loggerPrefix} loadOrgListForView -- Saving org list to cache`, orgs);
                 await orgListCacheService.saveOrgList(orgs);
                 statusBarService.showSuccess('Organization list loaded successfully');
             }
 
-            // Get the selected org
-            const selectedOrg = await OrgUtils.getSelectedOrg();
-            OrgUtils.logDebug(`${loggerPrefix} loadOrgListForView -- Selected org:`, selectedOrg);
+            let alias = null;
+            // Get the selected org (view-specific if viewId provided, otherwise global)
+            let selectedOrg = null;
+            if (viewId) {
+                const viewSpecificOrg = await OrgUtils.getSelectedOrgForView(viewId);
+                selectedOrg = viewSpecificOrg;
+                OrgUtils.logDebug(`${loggerPrefix} loadOrgListForView -- View-specific selected org for ${viewId}:`, selectedOrg);
+                alias = selectedOrg?.alias;
+
+                if (selectedOrg == null) {
+                    //get the alis set as a default project
+                    alias = await OrgUtils.getDefaultTargetOrgFromConfig();
+                }
+            } else {
+                selectedOrg = await OrgUtils.getSelectedOrg();
+                OrgUtils.logDebug(`${loggerPrefix} loadOrgListForView -- Global selected org:`, selectedOrg);
+                alias = selectedOrg?.alias;
+            }
 
             // Send the categorized orgs to the webview
             webview?.postMessage({
                 command: 'updateOrgList',
                 orgs: orgs,
                 fromCache: !!cachedData,
-                selectedOrg: selectedOrg?.alias
+                selectedOrg: alias
             });
         } catch (error: any) {
             OrgUtils.logError(`${loggerPrefix} loadOrgListForView -- Error loading org list:`, error);

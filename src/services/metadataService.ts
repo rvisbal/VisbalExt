@@ -244,7 +244,7 @@ export class MetadataService {
         try {
             OrgUtils.logDebug('[VisbalExt.MetadataService] Listing Apex classes...');
             // Use SOQL query to get Apex classes with TracHier namespace
-            const soqlQuery = "SELECT Id, Name, NamespacePrefix FROM ApexClass WHERE NamespacePrefix IN ('TracHier', 'TracRTC') ORDER BY Name";
+            const soqlQuery = "SELECT Id, Name, NamespacePrefix FROM ApexClass WHERE BodyCrc >0 ORDER BY Name";
             const records =  await this._sfdxService.executeSoqlQuery(soqlQuery);
             OrgUtils.logDebug(`[VisbalExt.MetadataService] Found ${records.length} classes in TracHier, TracRTC  namespace`);
             
@@ -321,7 +321,7 @@ export class MetadataService {
                 const methodName = methodMatch[1];
                 // Skip constructor, known non-test methods, @TestSetup methods, and common keywords
                 const commonKeywords = ['for', 'if', 'while', 'catch', 'finally', 'else', 'do', 'try', 'switch', 'case'];
-                if (!methodName.includes('__') && 
+                if (methodName && !methodName.includes('__') && 
                     !['equals', 'hashCode', 'toString', 'clone'].includes(methodName) &&
                     !testSetupMethods.has(methodName) &&
                     !commonKeywords.includes(methodName.toLowerCase()) &&
@@ -329,7 +329,7 @@ export class MetadataService {
                     // Additional check to ensure it's not a TestSetup method
                     const methodStart = classBody.indexOf(methodName);
                     const methodContext = classBody.substring(Math.max(0, methodStart - 100), methodStart);
-                    if (!methodContext.toLowerCase().includes('@testsetup')) {
+                    if (methodContext && !methodContext.toLowerCase().includes('@testsetup')) {
                         OrgUtils.logDebug(`[VisbalExt.MetadataService] extractTestMethods -- Found potential test method in @isTest class: ${methodName}`);
                         methods.push({
                             name: methodName,

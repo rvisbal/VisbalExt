@@ -5,6 +5,7 @@ import * as os from 'os';
 import { MetadataService } from '../services/metadataService';
 import { OrgListCacheService } from '../services/orgListCacheService';
 import { OrgUtils } from '../utils/orgUtils';
+import { ViewId } from '../types/salesforceTypes';
 import { SfdxService } from '../services/sfdxService';
 import { getHtmlForWebview } from './executeApexTabHTML';
 
@@ -211,7 +212,7 @@ export class ExecuteApexTab implements vscode.WebviewViewProvider {
 
     private async executeApex(code: string) {
         try {
-            const selectedOrg = await OrgUtils.getSelectedOrg();
+            const selectedOrg = await OrgUtils.getSelectedOrgForView(ViewId.EXECUTE_APEX);
             this._view?.webview.postMessage({
                 command: 'startLoading',
                 message: `Executing Apex on ${selectedOrg?.alias}...`
@@ -224,7 +225,7 @@ export class ExecuteApexTab implements vscode.WebviewViewProvider {
                 return;
             }
             OrgUtils.logDebug(`[VisbalExt.ExecuteApexTab] executeAnonymousApex -- Executing on ${selectedOrg?.alias} org code:`, code);
-            const result = await this._sfdxService.executeAnonymousApex(code);
+            const result = await this._sfdxService.executeAnonymousApex(code, selectedOrg?.alias);
             OrgUtils.logDebug('[VisbalExt.ExecuteApexTab] Execution result:', result);
             if (result.success) {
                 this._view?.webview.postMessage({
@@ -273,7 +274,8 @@ export class ExecuteApexTab implements vscode.WebviewViewProvider {
             this._orgListCacheService,
             this._context,
             this._view?.webview,
-            '[VisbalExt.ExecuteApexTab]'
+            '[VisbalExt.ExecuteApexTab]',
+            ViewId.EXECUTE_APEX
         );
     }
 
@@ -304,7 +306,7 @@ export class ExecuteApexTab implements vscode.WebviewViewProvider {
     private async _setSelectedOrg(username: string): Promise<void> {
         try {
             OrgUtils.logDebug(`[VisbalExt.ExecuteApexTab] _setSelectedOrg -- Setting selected org: ${username}`);
-            await OrgUtils.setSelectedOrg(username);
+            await OrgUtils.setSelectedOrgForView(ViewId.EXECUTE_APEX, username);
         }
         catch (error: any) {
             OrgUtils.logError('[VisbalExt.ExecuteApexTab] _setSelectedOrg -- Error setting selected org:', error);

@@ -123,7 +123,7 @@ export class CacheService {
     public async saveCachedOrg(selectedOrg: { alias: string; timestamp: string }): Promise<void> {
         try {
             const orgAlias = await OrgUtils.getCurrentOrgAlias();
-            OrgUtils.logDebug('[VisbalExt.CacheService] getCasaveCachedOrgchedOrg -- orgAlias:', orgAlias);
+            OrgUtils.logDebug('[VisbalExt.CacheService] saveCachedOrg -- orgAlias:', orgAlias);
             const cache = this.readCache();
             
             if (!cache[orgAlias]) {

@@ -1825,7 +1825,8 @@ export function getHtmlForWebview(
             setTimeout(() => {
               vscode.postMessage({
                 command: 'setSelectedOrg',
-                alias: defaultOrg
+                alias: defaultOrg,
+                viewId: 'apexLog'
               });
             }, 100);
           }
@@ -1869,10 +1870,11 @@ export function getHtmlForWebview(
             console.log('[VisbalExt.htmlTemplate] handleOrgSelection -- Org selected -- Details:', selectedOrg);
             // Store the selection
             orgSelector.setAttribute('data-last-selection', selectedOrg);
-            vscode.postMessage({
-              command: 'setSelectedOrg',
-              alias: selectedOrg
-            });
+                      vscode.postMessage({
+            command: 'setSelectedOrg',
+            alias: selectedOrg,
+            viewId: 'apexLog'
+          });
           }
         });
         
