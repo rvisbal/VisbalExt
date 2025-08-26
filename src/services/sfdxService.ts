@@ -367,7 +367,11 @@ export class SfdxService {
      */
     public async getTraceFlag(userId: string): Promise<any> {
         try {
-            const query = `SELECT Id, DebugLevelId FROM TraceFlag WHERE TracedEntityId = '${userId}' AND LogType = 'DEVELOPER_LOG'`;
+            let query = `SELECT Id, DebugLevelId FROM TraceFlag WHERE LogType = 'DEVELOPER_LOG'`;
+            if (userId != undefined) {
+                query += ` AND TracedEntityId = '${userId}'`;
+            }
+            OrgUtils.logDebug(`[VisbalExt.SfdxService] getTraceFlag -- userId:${userId} -- query: ${query}`);
 			const records =  await this.executeSoqlQuery(query, false, true);
             if (records?.length > 0) {
                 return records[0];

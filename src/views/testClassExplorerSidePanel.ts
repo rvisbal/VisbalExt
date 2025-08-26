@@ -356,6 +356,14 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
         try {
             this._statusBarService.showMessage('$(sync~spin) Fetching test classes...');
             
+            // Show loading state in webview
+            if (this._view) {
+                this._view.webview.postMessage({
+                    command: 'startLoading',
+                    message: 'Fetching test classes from Salesforce...'
+                });
+            }
+            
             let testClasses: TestClass[];
             
             if (!forceRefresh) {
@@ -367,6 +375,18 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                     OrgUtils.logDebug('[VisbalExt.TestClassExplorerSidePanel] _fetchTestClasses -- Using stored test classes');
                     this._statusBarService.hide();
                     if (this._view) {
+                        // Set default namespace filter for the current org (silently)
+                        if (orgAlias) {
+                            const orgNamespacePrefix = await this._getOrgNamespacePrefix(orgAlias);
+                            if (orgNamespacePrefix) {
+                                this._view.webview.postMessage({
+                                    command: 'setDefaultNamespaceFilter',
+                                    namespace: orgNamespacePrefix,
+                                    silent: true
+                                });
+                            }
+                        }
+                        
                         this._view.webview.postMessage({
                             command: 'testClassesLoaded',
                             testClasses: testClasses
@@ -506,6 +526,20 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
 
             if (this._view) {
                 OrgUtils.logDebug('[VisbalExt.TestClassExplorerSidePanel] _fetchTestClasses -- Sending test classes to webview');
+                
+                // Set default namespace filter for the current org (silently)
+                const currentOrgAlias = await this._getOrgAliasForStorage();
+                if (currentOrgAlias) {
+                    const orgNamespacePrefix = await this._getOrgNamespacePrefix(currentOrgAlias);
+                    if (orgNamespacePrefix) {
+                        this._view.webview.postMessage({
+                            command: 'setDefaultNamespaceFilter',
+                            namespace: orgNamespacePrefix,
+                            silent: true
+                        });
+                    }
+                }
+                
                 this._view.webview.postMessage({
                     command: 'testClassesLoaded',
                     testClasses: testClasses
@@ -1138,8 +1172,9 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                                                 
                                                 if (this._view) {
                                                     this._view.webview.postMessage({
-                                                        command: 'showNotification',
-                                                        message: `Test ${className}.${methodName} is already running. Waiting for completion...`
+                                                                                                command: 'showNotification',
+                                        message: `Test ${className}.${methodName} is already running. Waiting for completion...`,
+                                        autoDismiss: false
                                                     });
                                                 }
                                                 
@@ -1531,8 +1566,9 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                                         
                                     if (this._view) {
                                         this._view.webview.postMessage({
-                                            command: 'showNotification',
-                                            message: `Test ${progress.className}.${progress.methodName} is already running. Waiting for completion...`
+                                                                                    command: 'showNotification',
+                                        message: `Test ${progress.className}.${progress.methodName} is already running. Waiting for completion...`,
+                                        autoDismiss: false
                                         });
                                     }
 
@@ -3454,13 +3490,33 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                         errorContainer.classList.add('hidden');
                     }
                     
-                    function showNotification(message) {
+                    let notificationTimeout = null;
+                    
+                    function showNotification(message, autoDismiss = true, dismissTime = 3000) {
                         notificationMessage.textContent = message;
                         notificationContainer.classList.remove('hidden');
+                        
+                        // Clear any existing timeout
+                        if (notificationTimeout) {
+                            clearTimeout(notificationTimeout);
+                        }
+                        
+                        // Set auto-dismiss if enabled
+                        if (autoDismiss) {
+                            notificationTimeout = setTimeout(() => {
+                                hideNotification();
+                                notificationTimeout = null;
+                            }, dismissTime);
+                        }
                     }
                     
                     function hideNotification() {
                         notificationContainer.classList.add('hidden');
+                        // Clear timeout if notification is manually hidden
+                        if (notificationTimeout) {
+                            clearTimeout(notificationTimeout);
+                            notificationTimeout = null;
+                        }
                     }
                     
                     function updateSelectionCount() {
@@ -3587,7 +3643,7 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                         };
                         
                         if (testsToRun.classes.length === 0 && testsToRun.methods.length === 0) {
-                            showNotification('No tests selected to run.');
+                            showNotification('No tests selected to run.', false); // Don't auto-dismiss error-like messages
                             return;
                         }
                         
@@ -4268,7 +4324,7 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                         if (isProcessInProgress) {
                             // Reset to previous selection
                             orgDropdown.value = orgDropdown.getAttribute('data-last-selection') || '';
-                            showNotification('Cannot change organization while a process is in progress.');
+                            showNotification('Cannot change organization while a process is in progress.', false); // Don't auto-dismiss warning messages
                             return;
                         }
                         
@@ -4373,7 +4429,7 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                                 showError(message.message);
                                 break;
                             case 'showNotification':
-                                showNotification(message.message);
+                                showNotification(message.message, message.autoDismiss);
                                 break;
                             case 'updateOrgList':
                                 updateOrgListUI(message.orgs || {}, message.fromCache, message.selectedOrg);
@@ -4462,10 +4518,22 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                                 // Update button visibility based on current selection count
                                 updateSelectionCount();
                                 break;
+                            case 'setDefaultNamespaceFilter':
+                                // Set the default namespace filter when org is selected
+                                if (message.namespace) {
+                                    setNamespaceFilter(message.namespace);
+                                    // Only show notification if it's not the silent initial set
+                                    if (!message.silent) {
+                                        showNotification('Filtered to namespace: ' + message.namespace);
+                                    }
+                                }
+                                break;
                         }
                     });
                     
                     // Initial load - show cached test classes only (no auto-fetch)
+                    // Disable org dropdown during initial loading
+                    setOrgDropdownEnabled(false);
                     loadCachedTestClasses();
 
                     // Initialize button visibility states (but respect any loaded selection state)
@@ -5171,6 +5239,97 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
             return undefined;
         }
     }
+
+    /**
+     * Gets the namespace prefix for the specified org - first from cache, then by querying organization metadata
+     */
+    private async _getOrgNamespacePrefix(username: string): Promise<string | null> {
+        try {
+            OrgUtils.logDebug(`[VisbalExt.TestClassExplorerSidePanel] _getOrgNamespacePrefix -- Getting namespace prefix for org: ${username}`);
+            
+            // STEP 1: Try to get namespace from cached org list first (fastest)
+            try {
+                const cachedOrgList = await this._orgListCacheService.getCachedOrgList();
+                if (cachedOrgList && cachedOrgList.orgs) {
+                    // Search through all org categories
+                    const allOrgs = [
+                        ...cachedOrgList.orgs.devHubs,
+                        ...cachedOrgList.orgs.sandboxes,
+                        ...cachedOrgList.orgs.scratchOrgs,
+                        ...cachedOrgList.orgs.nonScratchOrgs,
+                        ...cachedOrgList.orgs.other
+                    ];
+                    
+                    const orgInfo = allOrgs.find(org => org.alias === username || org.username === username);
+                    if (orgInfo && orgInfo.namespacePrefix) {
+                        OrgUtils.logDebug(`[VisbalExt.TestClassExplorerSidePanel] _getOrgNamespacePrefix -- Found namespace prefix from cache: ${orgInfo.namespacePrefix}`);
+                        return orgInfo.namespacePrefix;
+                    }
+                    
+                    if (orgInfo) {
+                        OrgUtils.logDebug(`[VisbalExt.TestClassExplorerSidePanel] _getOrgNamespacePrefix -- Org found in cache but no namespace prefix`);
+                    } else {
+                        OrgUtils.logDebug(`[VisbalExt.TestClassExplorerSidePanel] _getOrgNamespacePrefix -- Org not found in cached org list`);
+                    }
+                }
+            } catch (error) {
+                OrgUtils.logDebug(`[VisbalExt.TestClassExplorerSidePanel] _getOrgNamespacePrefix -- Could not get org info from cache: ${error}`);
+            }
+            
+            // STEP 2: If not found in cache, try to detect from existing test classes (faster than org query)
+            try {
+                const testClasses = await this._metadataService.listApexClasses(username);
+                const namespacePrefixes = new Set<string>();
+                
+                testClasses.forEach(cls => {
+                    if (cls.namespace) {
+                        namespacePrefixes.add(cls.namespace);
+                    }
+                });
+                
+                // If we found any namespaces, prioritize known patterns or pick the most common one
+                if (namespacePrefixes.size > 0) {
+                    const namespacesArray = Array.from(namespacePrefixes);
+                    
+                    // Check for known namespace patterns first
+                    const knownNamespaces = ['TracHier', 'TracRTC', 'DNBConnect', 'DNBoptimizer'];
+                    for (const knownNs of knownNamespaces) {
+                        if (namespacesArray.includes(knownNs)) {
+                            OrgUtils.logDebug(`[VisbalExt.TestClassExplorerSidePanel] _getOrgNamespacePrefix -- Found known namespace from test classes: ${knownNs}`);
+                            return knownNs;
+                        }
+                    }
+                    
+                    // Otherwise, return the first namespace found
+                    OrgUtils.logDebug(`[VisbalExt.TestClassExplorerSidePanel] _getOrgNamespacePrefix -- Using first detected namespace from test classes: ${namespacesArray[0]}`);
+                    return namespacesArray[0];
+                }
+            } catch (error) {
+                OrgUtils.logDebug(`[VisbalExt.TestClassExplorerSidePanel] _getOrgNamespacePrefix -- Could not detect namespace from test classes: ${error}`);
+            }
+            
+            // STEP 3: Last resort - Query Organization object (slowest)
+            try {
+                OrgUtils.logDebug(`[VisbalExt.TestClassExplorerSidePanel] _getOrgNamespacePrefix -- Falling back to Organization query for org: ${username}`);
+                const soqlQuery = "SELECT NamespacePrefix FROM Organization LIMIT 1";
+                const records = await this._sfdxService.executeSoqlQuery(soqlQuery, false, false, username);
+                
+                if (records && records.length > 0 && records[0].NamespacePrefix) {
+                    const namespacePrefix = records[0].NamespacePrefix;
+                    OrgUtils.logDebug(`[VisbalExt.TestClassExplorerSidePanel] _getOrgNamespacePrefix -- Found namespace prefix from Organization query: ${namespacePrefix}`);
+                    return namespacePrefix;
+                }
+            } catch (error) {
+                OrgUtils.logDebug(`[VisbalExt.TestClassExplorerSidePanel] _getOrgNamespacePrefix -- Could not query Organization object: ${error}`);
+            }
+            
+            OrgUtils.logDebug(`[VisbalExt.TestClassExplorerSidePanel] _getOrgNamespacePrefix -- No namespace prefix found for org: ${username}`);
+            return null;
+        } catch (error: any) {
+            OrgUtils.logError('[VisbalExt.TestClassExplorerSidePanel] _getOrgNamespacePrefix -- Error getting org namespace prefix:', error);
+            return null;
+        }
+    }
     
     private async _loadOrgList(): Promise<void> {
         await OrgUtils.loadOrgListForView(
@@ -5211,32 +5370,44 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
         try {
             OrgUtils.logDebug(`[VisbalExt.TestClassExplorerSidePanel] _setSelectedOrg -- Setting selected org: ${username}`);
             
-            // Clear current test classes display immediately to avoid showing wrong org's data
+            // Show loading state immediately
             if (this._view) {
                 this._view.webview.postMessage({
-                    command: 'testClassesLoaded',
-                    testClasses: []
+                    command: 'startLoading',
+                    message: `Switching to organization: ${username}...`
                 });
             }
             
             // Set the selected org
             await OrgUtils.setSelectedOrgForView(ViewId.TEST_EXPLORER, username);
             
+            // Get org namespace information for later use
+            const orgNamespacePrefix = await this._getOrgNamespacePrefix(username);
+            
             // Check cache for the newly selected org
             const cachedTestClasses = await this._storageService.getTestClasses(username);
             
             if (cachedTestClasses && cachedTestClasses.length > 0) {
-                // Show cached test classes for this org
+                // Show cached test classes for this org first
                 OrgUtils.logDebug(`[VisbalExt.TestClassExplorerSidePanel] _setSelectedOrg -- Found ${cachedTestClasses.length} cached test classes for org: ${username}`);
                 this._view?.webview.postMessage({
                     command: 'testClassesLoaded',
                     testClasses: cachedTestClasses
                 });
+                
+                // Then set the namespace filter AFTER test classes are loaded (silently)
+                if (orgNamespacePrefix && this._view) {
+                    this._view.webview.postMessage({
+                        command: 'setDefaultNamespaceFilter',
+                        namespace: orgNamespacePrefix,
+                        silent: true
+                    });
+                }
             } else {
                 // No cached test classes for this org - fetch from Salesforce
                 OrgUtils.logDebug(`[VisbalExt.TestClassExplorerSidePanel] _setSelectedOrg -- No cached test classes found for org: ${username}, fetching from Salesforce`);
                 
-                // Fetch test classes for the new org - this will handle its own loading state
+                // Fetch test classes for the new org - this will handle its own loading state and namespace filter
                 await this._fetchTestClasses(true, false);
                 
                 // Show success message after fetch completes
@@ -5281,8 +5452,28 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
         try {
             OrgUtils.logDebug('[VisbalExt.TestClassExplorerSidePanel] _loadCachedTestClasses -- Loading cached test classes, will fetch if not found');
             
+            // Disable org dropdown during loading
+            if (this._view) {
+                this._view.webview.postMessage({
+                    command: 'startLoading',
+                    message: 'Loading test classes...'
+                });
+            }
+            
             const orgAlias = await this._getOrgAliasForStorage();
             const cachedTestClasses = await this._storageService.getTestClasses(orgAlias);
+            
+            // Set default namespace filter for the current org (silently)
+            if (orgAlias) {
+                const orgNamespacePrefix = await this._getOrgNamespacePrefix(orgAlias);
+                if (orgNamespacePrefix && this._view) {
+                    this._view.webview.postMessage({
+                        command: 'setDefaultNamespaceFilter',
+                        namespace: orgNamespacePrefix,
+                        silent: true
+                    });
+                }
+            }
             
             if (cachedTestClasses && cachedTestClasses.length > 0) {
                 OrgUtils.logDebug(`[VisbalExt.TestClassExplorerSidePanel] _loadCachedTestClasses -- Found ${cachedTestClasses.length} cached test classes`);
