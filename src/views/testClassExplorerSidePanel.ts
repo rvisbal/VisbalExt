@@ -677,73 +677,50 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                 }
                 //test finish we collect the test run id and the logs    
                 const mainClassMap = new Map<string, Boolean>();
-                for (const t of testRunResult.tests) {
-                    try {
-                        if (t.Outcome === 'Skip') {
-                            this._testRunResultsView.updateMethodStatus(testClass, t.MethodName, TestStatus.skipped);
-                            OrgUtils.logDebug('[VisbalExt.TestClassExplorerSidePanel] _runTest ', t.Message);
-                        } else {
-                            //update the "Running Task" treeview status
-                            //this._testRunResultsView.updateMethodStatus(testClass, t.MethodName, 'downloading');
-                            let logId = '';
-                            if (t.Id) {
-                                
-                                logId = await this._orgUtils.getLogId(t.Id, currentOrgAlias);
-            
-                            }
-                            
-                            if (!logId) {
-                                const currentOrgAlias = await this._getOrgAliasForStorage();
-                                logId = await this._metadataService.getTestLogId(result.testRunId, true, currentOrgAlias);
-                            }
                 
-                            if (logId) {
-                                this._testRunResultsView.updateMethodStatus(testClass, t.MethodName, 'downloading', logId);
-                                OrgUtils.logDebug('[VisbalExt.TestClassExplorerSidePanel] _runTest Processing log for test', t.ApexClass?.Name);
-                                
-                                const config = vscode.workspace.getConfiguration('visbal.apexTest');
-                                const downloadTestLogOnExecution = config.get<boolean>('downloadTestLogOnExecution', true);
-                                console.log('[VisbalExt.TestClassExplorerSidePanel] _runTest -- downloadTestLogOnExecution', downloadTestLogOnExecution);
-                                if (downloadTestLogOnExecution) {
-                                    // Download and open log for the first test only to avoid multiple windows
-                                    if ( mainClassMap.size === 0) {
-                                        OrgUtils.logDebug('[VisbalExt.TestClassExplorerSidePanel] _runTest -- Downloading and opening log', logId);
-                                        await this._orgUtils.downloadLog(logId);
-                                    
-                                        await this._orgUtils.openLog(logId, this._extensionUri);
-                                    } else {
-                                        // For subsequent tests, just download in background
-                                        OrgUtils.logDebug('[VisbalExt.TestClassExplorerSidePanel] _runTest -- Downloading additional log', logId);
-                                        this._orgUtils.downloadLog(logId);
-                                    }
-                                }
+                // Process all tests and wait for all async operations to complete
+                const testProcessingPromises: Promise<void>[] = [];
+                
+                for (const t of testRunResult.tests) {
+                    const processTestPromise = (async () => {
+                        try {
+                            if (t.Outcome === 'Skip') {
+                                this._testRunResultsView.updateMethodStatus(testClass, t.MethodName, TestStatus.skipped);
+                                OrgUtils.logDebug('[VisbalExt.TestClassExplorerSidePanel] _runTest ', t.Message);
                             } else {
-                                OrgUtils.logDebug('[VisbalExt.TestClassExplorerSidePanel] _runTest -- No log ID found for test', t.ApexClass?.Name);
-                    
+                                //UPDATE THE STATUS OF THE METHOD FIRST (before log retrieval)
+                                if (!mainClassMap.has(t.ApexClass.Name)) {
+                                    mainClassMap.set(t.ApexClass.Name, true);
+                                }
+                                OrgUtils.logDebug('[VisbalExt.TestClassExplorerSidePanel] _runTest -- Processing test result', t);
+                                if (t.Outcome === 'Pass' || t.Outcome === 'Passed') {
+                                    this._testRunResultsView.updateMethodStatus(testClass, t.MethodName, 'success');
+                                }
+                                else if (t.Outcome === 'Skip' || t.Outcome === 'Skipped') {
+                                    this._testRunResultsView.updateMethodStatus(testClass, t.MethodName, 'skipped');
+                                }
+                                else if (t.Outcome === 'Fail' || t.Outcome === 'Failed') {
+                                    OrgUtils.logDebug('[VisbalExt.TestClassExplorerSidePanel] _runTest -- Test failed', t.Outcome);
+                                    this._testRunResultsView.updateMethodStatus(testClass, t.MethodName, 'failed');
+                                    mainClassMap.set(t.ApexClass.Name, false);
+                                }
+                                
+                                // Process logs in background (non-blocking)
+                                this._processTestLogAsync(t, testClass, result.testRunId, currentOrgAlias || '', mainClassMap.size === 0);
                             }
-                            
-                            //UPDATE THE STATUS OF THE METHOD
-                            if (!mainClassMap.has(t.ApexClass.Name)) {
-                                mainClassMap.set(t.ApexClass.Name, true);
-                            }
-                            OrgUtils.logDebug('[VisbalExt.TestClassExplorerSidePanel] _runTest -- Processing test result', t);
-                            if (t.Outcome === 'Pass' || t.Outcome === 'Passed') {
-                                this._testRunResultsView.updateMethodStatus(testClass, t.MethodName, 'success');
-                            }
-                            else if (t.Outcome === 'Skip' || t.Outcome === 'Skipped') {
-                                this._testRunResultsView.updateMethodStatus(testClass, t.MethodName, 'skipped');
-                            }
-                            else if (t.Outcome === 'Fail' || t.Outcome === 'Failed') {
-                                OrgUtils.logDebug('[VisbalExt.TestClassExplorerSidePanel] _runTest -- Test failed', t.Outcome);
-                                this._testRunResultsView.updateMethodStatus(testClass, t.MethodName, 'failed');
-                                mainClassMap.set(t.ApexClass.Name, false);
-                            }
+                        } catch (error: any) {
+                            OrgUtils.logError('[VisbalExt.TestClassExplorerSidePanel] _runTest -- Error processing test result', error as Error);
                         }
-                    } catch (error: any) {
-                        OrgUtils.logError('[VisbalExt.TestClassExplorerSidePanel] _runTest -- Error processing test log', error as Error);
-                    }
+                    })();
+                    
+                    testProcessingPromises.push(processTestPromise);
                 }
 
+                // Wait for all test processing to complete
+                await Promise.all(testProcessingPromises);
+                OrgUtils.logDebug('[VisbalExt.TestClassExplorerSidePanel] _runTest -- All test processing completed');
+
+                // Update final class statuses
                 for (const [className, isSuccess] of mainClassMap.entries()) {
                     if (isSuccess) {
                         this._testRunResultsView.updateClassStatus(className, 'success');
@@ -752,6 +729,8 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                         this._testRunResultsView.updateClassStatus(className, 'failed');
                     }
                 }
+                
+                OrgUtils.logDebug('[VisbalExt.TestClassExplorerSidePanel] _runTest -- Final class status updates completed');
                
             }
         } catch (error: any) {
@@ -767,10 +746,96 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
             this._abortController = null;
             
             this._statusBarService.hide();
+            
+            OrgUtils.logDebug('[VisbalExt.TestClassExplorerSidePanel] _runTest -- Sending testRunFinished message to webview');
             if (this._view) {
                 this._view.webview.postMessage({
                     command: 'testRunFinished'
                 });
+            }
+            OrgUtils.logDebug('[VisbalExt.TestClassExplorerSidePanel] _runTest -- Cleanup completed, test run finished');
+        }
+    }
+
+    /**
+     * Process test logs asynchronously without blocking test completion
+     */
+    private async _processTestLogAsync(
+        testResult: any, 
+        testClass: string, 
+        testRunId: string, 
+        currentOrgAlias: string, 
+        isFirstTest: boolean
+    ): Promise<void> {
+        try {
+            OrgUtils.logDebug('[VisbalExt.TestClassExplorerSidePanel] _processTestLogAsync -- Starting log processing for', testResult.ApexClass?.Name);
+            
+            // Update to downloading status
+            this._testRunResultsView.updateMethodStatus(testClass, testResult.MethodName, 'downloading');
+            
+            let logId = '';
+            
+            // Try to get log ID from test result first
+            if (testResult.Id) {
+                try {
+                    logId = await this._orgUtils.getLogId(testResult.Id, currentOrgAlias);
+                } catch (error) {
+                    OrgUtils.logDebug('[VisbalExt.TestClassExplorerSidePanel] _processTestLogAsync -- Error getting log from test ID, trying metadata service');
+                }
+            }
+            
+            // Fallback to metadata service (with timeout)
+            if (!logId) {
+                try {
+                    logId = await this._metadataService.getTestLogId(testRunId, true, currentOrgAlias);
+                } catch (error) {
+                    OrgUtils.logDebug('[VisbalExt.TestClassExplorerSidePanel] _processTestLogAsync -- Metadata service failed or timed out');
+                }
+            }
+
+            if (logId) {
+                this._testRunResultsView.updateMethodStatus(testClass, testResult.MethodName, 'downloading', logId);
+                OrgUtils.logDebug('[VisbalExt.TestClassExplorerSidePanel] _processTestLogAsync -- Processing log for test', testResult.ApexClass?.Name);
+                
+                const config = vscode.workspace.getConfiguration('visbal.apexTest');
+                const downloadTestLogOnExecution = config.get<boolean>('downloadTestLogOnExecution', true);
+                
+                if (downloadTestLogOnExecution) {
+                    try {
+                        if (isFirstTest) {
+                            // Download and open log for the first test only to avoid multiple windows
+                            OrgUtils.logDebug('[VisbalExt.TestClassExplorerSidePanel] _processTestLogAsync -- Downloading and opening log', logId);
+                            await this._orgUtils.downloadLog(logId);
+                            await this._orgUtils.openLog(logId, this._extensionUri);
+                        } else {
+                            // For subsequent tests, just download in background
+                            OrgUtils.logDebug('[VisbalExt.TestClassExplorerSidePanel] _processTestLogAsync -- Downloading additional log', logId);
+                            await this._orgUtils.downloadLog(logId);
+                        }
+                    } catch (error) {
+                        OrgUtils.logError('[VisbalExt.TestClassExplorerSidePanel] _processTestLogAsync -- Error downloading log', error as Error);
+                    }
+                }
+            } else {
+                OrgUtils.logDebug('[VisbalExt.TestClassExplorerSidePanel] _processTestLogAsync -- No log ID found for test', testResult.ApexClass?.Name);
+            }
+            
+            // Update final status based on test outcome
+            if (testResult.Outcome === 'Pass' || testResult.Outcome === 'Passed') {
+                this._testRunResultsView.updateMethodStatus(testClass, testResult.MethodName, 'success', logId);
+            } else if (testResult.Outcome === 'Fail' || testResult.Outcome === 'Failed') {
+                this._testRunResultsView.updateMethodStatus(testClass, testResult.MethodName, 'failed', logId);
+            } else if (testResult.Outcome === 'Skip' || testResult.Outcome === 'Skipped') {
+                this._testRunResultsView.updateMethodStatus(testClass, testResult.MethodName, 'skipped', logId);
+            }
+            
+        } catch (error: any) {
+            OrgUtils.logError('[VisbalExt.TestClassExplorerSidePanel] _processTestLogAsync -- Error processing test log', error as Error);
+            // Ensure we still update the final status even if log processing fails
+            if (testResult.Outcome === 'Pass' || testResult.Outcome === 'Passed') {
+                this._testRunResultsView.updateMethodStatus(testClass, testResult.MethodName, 'success');
+            } else if (testResult.Outcome === 'Fail' || testResult.Outcome === 'Failed') {
+                this._testRunResultsView.updateMethodStatus(testClass, testResult.MethodName, 'failed');
             }
         }
     }

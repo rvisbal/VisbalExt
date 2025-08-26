@@ -747,7 +747,24 @@ export class MetadataService {
         try {
             OrgUtils.logDebug('[VisbalExt.MetadataService] getTestLogId -- apexId:', apexId);
 
+            // Set a timeout for the entire operation to prevent hanging
+            const timeoutPromise = new Promise<string>((_, reject) => {
+                setTimeout(() => {
+                    reject(new Error('getTestLogId operation timed out after 30 seconds'));
+                }, 30000);
+            });
 
+            const logIdPromise = this._getTestLogIdInternal(apexId, showTestCoverage, targetOrgAlias);
+            
+            return await Promise.race([logIdPromise, timeoutPromise]);
+        } catch (error: any) {
+            OrgUtils.logError('[VisbalExt.MetadataService] getTestLogId -- error:', error);
+            return ''; // Return empty string on timeout or error
+        }
+    }
+
+    private async _getTestLogIdInternal(apexId: string, showTestCoverage: boolean = true, targetOrgAlias?: string): Promise<string> {
+        try {
             // Get test run details to get the start time
             let testRunDetailsCommand = `sf apex get test --test-run-id ${apexId} --json`;
             if (targetOrgAlias) {
@@ -818,12 +835,12 @@ export class MetadataService {
             const latestLog = relevantLogs[0];
             OrgUtils.logDebug('[VisbalExt.MetadataService] getTestLogId -- latestLog:', latestLog);
             // If you just need the ID:
-            return latestLog?.Id;
+            return latestLog?.Id || '';
 
             
         } catch (error: any) {
-            OrgUtils.logError('[VisbalExt.MetadataService] getTestLogId -- error:', error);
-            throw error;
+            OrgUtils.logError('[VisbalExt.MetadataService] _getTestLogIdInternal -- error:', error);
+            return '';
         }
     }
 	
