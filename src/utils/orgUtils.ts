@@ -782,14 +782,15 @@ export class OrgUtils {
         }
     }
 
-    public static async getLogIdFromProgress(progress: any): Promise<string> {
+    public static async getLogIdFromProgress(progress: any, targetOrgAlias?: string): Promise<string> {
         let result = '';
         try {
-            OrgUtils.logDebug(`[VisbalExt.OrgUtils] getLogIdFromProgress -- progress:`, progress);
+            OrgUtils.logDebug(`[VisbalExt.OrgUtils] getLogIdFromProgress -- progress:`, progress, `targetOrgAlias: ${targetOrgAlias}`);
             if (progress.runResult && progress.runResult.tests && progress.runResult.tests.length > 0) {
                 let testId = progress.runResult.tests[0].Id;
                 OrgUtils.logDebug(`[VisbalExt.OrgUtils] getLogIdFromProgress -- testId:`, testId);
-                const apiResult = await this._sfdxService.executeSoqlQuery(`SELECT Id, ApexClass.Name, MethodName, Message, StackTrace, Outcome, ApexLogId FROM ApexTestResult WHERE Id = '${testId}'`);
+                // Always use current/selected org as we need to ensure we're querying the right org
+                const apiResult = await this.sfdxService.executeSoqlQuery(`SELECT Id, ApexClass.Name, MethodName, Message, StackTrace, Outcome, ApexLogId FROM ApexTestResult WHERE Id = '${testId}'`);
                 OrgUtils.logDebug(`[VisbalExt.OrgUtils] getLogIdFromProgress  -- API_RESULT ${progress.className}.${progress.methodName} -- runResult:`, apiResult);
                 if (apiResult.length > 0) {
                     result = apiResult[0].ApexLogId || '';
@@ -808,8 +809,8 @@ export class OrgUtils {
     }
 
 
-    public static async openTheLogFromTestId(testId: string) {
-        const logId = await this.getLogId(testId);
+    public static async openTheLogFromTestId(testId: string, targetOrgAlias?: string) {
+        const logId = await this.getLogId(testId, targetOrgAlias);
         if (logId) {
             await this.openLog(logId, vscode.Uri.file(logId));
         }
@@ -817,12 +818,13 @@ export class OrgUtils {
     }
 
 
-    public static async getLogId(testId: string): Promise<string> {
+    public static async getLogId(testId: string, targetOrgAlias?: string): Promise<string> {
         let result = '';
         try {
             if (testId) {
-                OrgUtils.logDebug(`[VisbalExt.OrgUtils] getLogId -- testId:`, testId);
-                const apiResult = await this._sfdxService.executeSoqlQuery(`SELECT Id, ApexClass.Name, MethodName, Message, StackTrace, Outcome, ApexLogId FROM ApexTestResult WHERE Id = '${testId}'`);
+                OrgUtils.logDebug(`[VisbalExt.OrgUtils] getLogId -- testId: ${testId}, targetOrgAlias: ${targetOrgAlias}`);
+                // Always use current/selected org as we need to ensure we're querying the right org
+                const apiResult = await this.sfdxService.executeSoqlQuery(`SELECT Id, ApexClass.Name, MethodName, Message, StackTrace, Outcome, ApexLogId FROM ApexTestResult WHERE Id = '${testId}'`);
                 OrgUtils.logDebug(`[VisbalExt.OrgUtils] getLogId -- API_RESULT -- runResult:`, apiResult);
                 if (apiResult.length > 0) {
                     result = apiResult[0].ApexLogId || '';

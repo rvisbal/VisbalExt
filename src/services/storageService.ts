@@ -173,8 +173,8 @@ export class StorageService {
         }
     }
 
-    public async addTestMethod(className: string, methodName: string): Promise<void> {
-        const testClasses = await this.getTestClasses();
+    public async addTestMethod(className: string, methodName: string, orgAlias?: string): Promise<void> {
+        const testClasses = await this.getTestClasses(orgAlias);
         const testClass = testClasses.find(tc => tc.name === className);
         
         if (testClass) {
@@ -196,6 +196,6 @@ export class StorageService {
             });
         }
 
-        await this.saveTestClasses(testClasses);
+        await this.saveTestClasses(testClasses, orgAlias);
     }
 } 

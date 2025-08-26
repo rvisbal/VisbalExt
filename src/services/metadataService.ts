@@ -240,12 +240,12 @@ export class MetadataService {
     /**
      * Lists all Apex classes using SOQL query
      */
-    public async listApexClasses(): Promise<ApexClass[]> {
+    public async listApexClasses(targetOrgAlias?: string): Promise<ApexClass[]> {
         try {
             OrgUtils.logDebug('[VisbalExt.MetadataService] Listing Apex classes...');
             // Use SOQL query to get Apex classes with TracHier namespace
             const soqlQuery = "SELECT Id, Name, NamespacePrefix FROM ApexClass WHERE BodyCrc >0 ORDER BY Name";
-            const records =  await this._sfdxService.executeSoqlQuery(soqlQuery);
+            const records =  await this._sfdxService.executeSoqlQuery(soqlQuery, false, false, targetOrgAlias);
             OrgUtils.logDebug(`[VisbalExt.MetadataService] Found ${records.length} classes in TracHier, TracRTC  namespace`);
             
             return records.map((cls: any) => ({
@@ -264,12 +264,12 @@ export class MetadataService {
     /**
      * Gets the body of an Apex class using SOQL query
      */
-    public async getApexClassBody(className: string): Promise<string> {
+    public async getApexClassBody(className: string, targetOrgAlias?: string): Promise<string> {
         try {
             OrgUtils.logDebug(`[VisbalExt.MetadataService] getApexClassBody -- Getting body for class: ${className}`);
             // Use SOQL query to get the class body
             const soqlQuery = `SELECT Id, Name, Body FROM ApexClass WHERE Name = '${className}' LIMIT 1`;
-			const records =  await this._sfdxService.executeSoqlQuery(soqlQuery);
+			const records =  await this._sfdxService.executeSoqlQuery(soqlQuery, false, false, targetOrgAlias);
             
             const classRecord = records[0];
             OrgUtils.logDebug('[VisbalExt.MetadataService] getApexClassBody -- Successfully retrieved class body');
@@ -411,11 +411,11 @@ export class MetadataService {
     /**
      * Gets all test classes from the org
      */
-    public async getTestClasses(): Promise<ApexClass[]> {
+    public async getTestClasses(targetOrgAlias?: string): Promise<ApexClass[]> {
         try {
             OrgUtils.logDebug('[VisbalExt.MetadataService] Getting all test classes...');
             // Get all classes first
-            const allClasses = await this.listApexClasses();
+            const allClasses = await this.listApexClasses(targetOrgAlias);
             OrgUtils.logDebug(`[VisbalExt.MetadataService] Retrieved ${allClasses.length} total classes`);
             
             // Filter test classes by name only (without checking body)
@@ -499,11 +499,11 @@ export class MetadataService {
     /**
      * Gets test methods for a specific class
      */
-    public async getTestMethodsForClass(className: string): Promise<TestMethod[]> {
+    public async getTestMethodsForClass(className: string, targetOrgAlias?: string): Promise<TestMethod[]> {
         try {
             OrgUtils.logDebug(`[VisbalExt.MetadataService] getTestMethodsForClass -- Getting test methods for class: ${className}`);
             // Get the class body
-            const classBody = await this.getApexClassBody(className);
+            const classBody = await this.getApexClassBody(className, targetOrgAlias);
             
             // Extract test methods from the body
             const testMethods = this.extractTestMethods(classBody);
@@ -743,13 +743,16 @@ export class MetadataService {
     }
 	
 	
-	public async getTestLogId(apexId: string, showTestCoverage: boolean = true): Promise<string> {
+	public async getTestLogId(apexId: string, showTestCoverage: boolean = true, targetOrgAlias?: string): Promise<string> {
         try {
             OrgUtils.logDebug('[VisbalExt.MetadataService] getTestLogId -- apexId:', apexId);
 
 
             // Get test run details to get the start time
             let testRunDetailsCommand = `sf apex get test --test-run-id ${apexId} --json`;
+            if (targetOrgAlias) {
+                testRunDetailsCommand += ` --target-org ${targetOrgAlias}`;
+            }
             if (showTestCoverage) {
                 // Ensure .visbal/test directory exists
                 const coverageDir = path.join('.visbal', 'test');
@@ -774,7 +777,10 @@ export class MetadataService {
 
 
             // Get all logs and filter by timestamp
-            const logListCommand = `sf apex list log --json`;
+            let logListCommand = `sf apex list log --json`;
+            if (targetOrgAlias) {
+                logListCommand += ` --target-org ${targetOrgAlias}`;
+            }
             OrgUtils.logDebug('[VisbalExt.MetadataService] getTestLogId -- logListCommand:', logListCommand);
             const logListResult = await this._executeCommand2(logListCommand);
             //OrgUtils.logDebug(`[VisbalExt.MetadataService] getTestLogId logListResult.stdout:`, logListResult.stdout);

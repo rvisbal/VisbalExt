@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
 import { OrgUtils } from '../utils/orgUtils';
+import { ViewId } from '../types/salesforceTypes';
 
 interface TestMethod {
     methodName: string;
@@ -113,7 +114,9 @@ export class TestSummaryView implements vscode.WebviewViewProvider {
                 case 'openLogFile':
                     try {
                         OrgUtils.logDebug('[VisbalExt.TestSummaryView] openLogFile.openTheLogFromTestId -- testId:', message.testId);
-                        await OrgUtils.openTheLogFromTestId(message.testId);
+                        const selectedOrg = await OrgUtils.getSelectedOrgForView(ViewId.TEST_EXPLORER);
+                        const orgAlias = selectedOrg?.alias;
+                        await OrgUtils.openTheLogFromTestId(message.testId, orgAlias);
                     } catch (error: any) {
                         OrgUtils.logError('[VisbalExt.TestSummaryView] Error opening log file:', error);
                         vscode.window.showErrorMessage(`Error opening log file: ${error.message}`);

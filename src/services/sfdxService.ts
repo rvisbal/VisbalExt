@@ -43,12 +43,9 @@ export class SfdxService {
     private _executeCommand(command: string): Promise<ExecResult> {
         return new Promise((resolve, reject) => {
             child_process.exec(command, { maxBuffer: MAX_BUFFER_SIZE }, (error, stdout, stderr) => {
-                if (!command.includes('sf apex list log') && !command.includes('sf data query')) {
-                    OrgUtils.logDebug(`[VisbalExt.SfdxService] _executeCommand command:${command} -- stdout:`, stdout);
-                }
-                else {
-                    OrgUtils.logDebug(`[VisbalExt.SfdxService] _executeCommand command:${command} `);
-                }
+                OrgUtils.logDebug(`[VisbalExt.SfdxService] _executeCommand command:${command} `);
+                console.log(`[VisbalExt.SfdxService] _executeCommand command:${command} -- stdout:`, OrgUtils.parseResultJson(stdout));
+                
                 if (error) {
                     // If we have stdout even with an error, we might want to use it
                     if (stdout) {
@@ -1016,7 +1013,7 @@ export class SfdxService {
     /**
      * Runs Apex tests
      */
-    public async runTests(testClass: string, testMethod?: string, useDefaultOrg: boolean = false, showTestCoverage: boolean = true, signal?: AbortSignal): Promise<any> {
+    public async runTests(testClass: string, testMethod?: string, useDefaultOrg: boolean = false, showTestCoverage: boolean = true, signal?: AbortSignal, targetOrgAlias?: string): Promise<any> {
         const startTime = Date.now();
         try {
             OrgUtils.logDebug(`[VisbalExt.SfdxService] runTests -- START at ${new Date(startTime).toISOString()}`);
@@ -1030,10 +1027,18 @@ export class SfdxService {
                 command += ' --code-coverage ';
             }
             
-            const selectedOrg = await OrgUtils.getSelectedOrg();
-            OrgUtils.logDebug(`[VisbalExt.SfdxService] runTests -- Selected org:`, selectedOrg);
-            if (!useDefaultOrg && selectedOrg && selectedOrg?.alias) {
-                command += ` --target-org ${selectedOrg.alias}`;
+            // Use provided targetOrgAlias or fall back to selected org
+            if (!useDefaultOrg) {
+                if (targetOrgAlias) {
+                    command += ` --target-org ${targetOrgAlias}`;
+                    OrgUtils.logDebug(`[VisbalExt.SfdxService] runTests -- Using provided org alias:`, targetOrgAlias);
+                } else {
+                    const selectedOrg = await OrgUtils.getSelectedOrg();
+                    OrgUtils.logDebug(`[VisbalExt.SfdxService] runTests -- Selected org:`, selectedOrg);
+                    if (selectedOrg && selectedOrg?.alias) {
+                        command += ` --target-org ${selectedOrg.alias}`;
+                    }
+                }
             }
             OrgUtils.logDebug(`[VisbalExt.SfdxService] runTests -- _executeCommand: ${command}`);
             const output = await this._executeCommandWithSignal(command, signal);
@@ -1065,7 +1070,7 @@ export class SfdxService {
         classes: string[], 
         methods: { className: string, methodName: string }[],
         runMode: 'sequential' | 'parallel'
-    }, useDefaultOrg: boolean = false, showTestCoverage: boolean = true): Promise<any> {
+    }, useDefaultOrg: boolean = false, showTestCoverage: boolean = true, targetOrgAlias?: string): Promise<any> {
         const startTime = Date.now();
         try {
             OrgUtils.logDebug(`[VisbalExt.SfdxService] runManyTests -- START at ${new Date(startTime).toISOString()}`);
@@ -1073,11 +1078,20 @@ export class SfdxService {
             
             let command = `sf apex run test --tests ${tests.methods.map(m => `${m.className}.${m.methodName}`).join(' --tests ')}`;
             OrgUtils.logDebug(`[VisbalExt.SfdxService] runManyTests -- command: ${command}`);
-            const selectedOrg = await OrgUtils.getSelectedOrg();
-            OrgUtils.logDebug(`[VisbalExt.SfdxService] runManyTests -- selectedOrg.alias:${selectedOrg?.alias} -- Selected org:`, selectedOrg);
-            if (!useDefaultOrg && selectedOrg && selectedOrg?.alias) {
-                command += ` --target-org ${selectedOrg.alias}`;
-                OrgUtils.logDebug(`[VisbalExt.SfdxService] runManyTests -- command: ${command}`);
+            
+            // Use provided targetOrgAlias or fall back to selected org
+            if (!useDefaultOrg) {
+                if (targetOrgAlias) {
+                    command += ` --target-org ${targetOrgAlias}`;
+                    OrgUtils.logDebug(`[VisbalExt.SfdxService] runManyTests -- Using provided org alias: ${targetOrgAlias}`);
+                } else {
+                    const selectedOrg = await OrgUtils.getSelectedOrg();
+                    OrgUtils.logDebug(`[VisbalExt.SfdxService] runManyTests -- selectedOrg.alias:${selectedOrg?.alias} -- Selected org:`, selectedOrg);
+                    if (selectedOrg && selectedOrg?.alias) {
+                        command += ` --target-org ${selectedOrg.alias}`;
+                    }
+                }
+                OrgUtils.logDebug(`[VisbalExt.SfdxService] runManyTests -- Final command: ${command}`);
             }
             if (tests.runMode === 'sequential') {
                 command += ' --synchronous';
@@ -1223,7 +1237,7 @@ export class SfdxService {
      * @param testRunId The ID of the test run
      * @returns Promise containing the test run result
      */
-    public async getTestRunResult(testRunId: string, showTestCoverage: boolean = true): Promise<any> {
+    public async getTestRunResult(testRunId: string, showTestCoverage: boolean = true, targetOrgAlias?: string): Promise<any> {
         const startTime = Date.now();
         try {
             OrgUtils.logDebug(`[VisbalExt.SfdxService] getTestRunResult Getting test run result at ${new Date(startTime).toISOString()}`);
@@ -1231,9 +1245,17 @@ export class SfdxService {
             
             // Get the test run details
             let command = `sf apex get test --test-run-id ${testRunId}`;
-            const selectedOrg = await OrgUtils.getSelectedOrg();
-            if (selectedOrg?.alias) {
-                command += ` --target-org ${selectedOrg.alias}`;
+            
+            // Use provided targetOrgAlias or fall back to selected org
+            if (targetOrgAlias) {
+                command += ` --target-org ${targetOrgAlias}`;
+                OrgUtils.logDebug(`[VisbalExt.SfdxService] getTestRunResult -- Using provided org alias: ${targetOrgAlias}`);
+            } else {
+                const selectedOrg = await OrgUtils.getSelectedOrg();
+                if (selectedOrg?.alias) {
+                    command += ` --target-org ${selectedOrg.alias}`;
+                    OrgUtils.logDebug(`[VisbalExt.SfdxService] getTestRunResult -- Using selected org: ${selectedOrg.alias}`);
+                }
             }
             if (showTestCoverage) {
                 // Ensure .visbal/test directory exists
@@ -1303,12 +1325,24 @@ export class SfdxService {
      * @param apexId The ID of the Apex test
      * @returns Promise<string> The log ID
      */
-    public async getTestLogId(apexId: string): Promise<string> {
+    public async getTestLogId(apexId: string, targetOrgAlias?: string): Promise<string> {
         try {
             OrgUtils.logDebug('[VisbalExt.SfdxService] getTestLogId -- apexId:', apexId);
 
             // Get all logs and filter by timestamp
-            const logListCommand = `sf apex list log --json`;
+            let logListCommand = `sf apex list log --json`;
+            
+            // Use provided targetOrgAlias or fall back to selected org
+            if (targetOrgAlias) {
+                logListCommand = `sf apex list log --target-org ${targetOrgAlias} --json`;
+                OrgUtils.logDebug(`[VisbalExt.SfdxService] getTestLogId -- Using provided org alias: ${targetOrgAlias}`);
+            } else {
+                const selectedOrg = await OrgUtils.getSelectedOrg();
+                if (selectedOrg?.alias) {
+                    logListCommand = `sf apex list log --target-org ${selectedOrg.alias} --json`;
+                    OrgUtils.logDebug(`[VisbalExt.SfdxService] getTestLogId -- Using selected org: ${selectedOrg.alias}`);
+                }
+            }
             OrgUtils.logDebug('[VisbalExt.SfdxService] getTestLogId -- logListCommand:', logListCommand);
             const logListResult = await this._executeCommand(logListCommand);
             const logList = JSON.parse(logListResult.stdout);
@@ -1335,7 +1369,7 @@ export class SfdxService {
      * @param useDefaultOrg Whether to use the default org
      * @returns Promise with cancellation result
      */
-    public async cancelTestRun(testRunId?: string, useDefaultOrg: boolean = false): Promise<any> {
+    public async cancelTestRun(testRunId?: string, useDefaultOrg: boolean = false, targetOrgAlias?: string): Promise<any> {
         try {
             OrgUtils.logDebug(`[VisbalExt.SfdxService] cancelTestRun -- Canceling test run${testRunId ? ` with ID: ${testRunId}` : 's'}`);
             
@@ -1403,7 +1437,7 @@ if (!items.isEmpty()) {
 `;
             }
             
-            const result = await this.executeAnonymousApex(apexCode);
+            const result = await this.executeAnonymousApex(apexCode, targetOrgAlias);
             OrgUtils.logDebug(`[VisbalExt.SfdxService] cancelTestRun -- Cancellation result:`, result);
             
             return result;
