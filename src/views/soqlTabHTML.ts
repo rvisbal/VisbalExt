@@ -351,6 +351,10 @@ export function getHtmlForWebview(): string {
                         <input type="checkbox" id="useToolingApi" title="Use Tooling API for metadata queries">
                         <label for="useToolingApi">Tooling API</label>
                     </div>
+                    <div class="record-count-display" id="record-count-display">
+                        <span class="record-count" id="record-count">0 rows</span>
+                        <span class="selection-info" id="selection-info"></span>
+                    </div>
                     <select id="org-selector" class="org-selector" title="Select Salesforce Org">
                         <option value="">Loading orgs...</option>
                     </select>
@@ -629,6 +633,31 @@ export function getHtmlForWebview(): string {
                     soqlStatus.textContent = '';
                 }
 
+                function updateRecordCount() {
+                    const recordCountDisplay = document.getElementById('record-count-display');
+                    const recordCountSpan = document.getElementById('record-count');
+                    const selectionInfoSpan = document.getElementById('selection-info');
+                    
+                    if (!recordCountDisplay || !recordCountSpan) return;
+                    
+                    // Get table rows (excluding header)
+                    const tableRows = soqlResultsBody ? soqlResultsBody.querySelectorAll('tr') : [];
+                    const totalCount = tableRows.length;
+                    
+                    // Update record count
+                    recordCountSpan.textContent = totalCount + ' rows';
+                    
+                    // Clear selection info for SOQL tab (no selection functionality)
+                    selectionInfoSpan.textContent = '';
+                    
+                    // Show/hide the record count display
+                    if (totalCount > 0) {
+                        recordCountDisplay.classList.add('visible');
+                    } else {
+                        recordCountDisplay.classList.remove('visible');
+                    }
+                }
+
                 function handleSoqlResults(results) {
                     if (!results || !results.records || results.records.length === 0) {
                         soqlStatus.textContent = '0 rows';
@@ -638,6 +667,7 @@ export function getHtmlForWebview(): string {
                         noResultsContainer.classList.add('show');
                         copyAsCsvButton.disabled = true;
                         copyAsExcelButton.disabled = true;
+                        updateRecordCount();
                         return;
                     }
                     noResultsContainer.classList.remove('show');
@@ -695,6 +725,7 @@ export function getHtmlForWebview(): string {
                     soqlStatus.textContent = results.records.length + ' rows';
                     copyAsCsvButton.disabled = false;
                     copyAsExcelButton.disabled = false;
+                    updateRecordCount();
                 }
 
                 //#region CACHE

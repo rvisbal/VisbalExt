@@ -62,6 +62,34 @@ export const styles = `
         cursor: pointer;
     }
 
+    /* ===== RECORD COUNT DISPLAY ===== */
+    .record-count-display {
+        display: none;
+        align-items: center;
+        gap: 6px;
+        font-size: 11px;
+        color: var(--vscode-descriptionForeground);
+        margin-left: 8px;
+        padding: 4px 8px;
+        background-color: var(--vscode-badge-background);
+        border-radius: 4px;
+        border: 1px solid var(--vscode-contrastBorder, transparent);
+        height: 28px;
+        box-sizing: border-box;
+        min-height: 28px;
+    }
+    .record-count-display.visible {
+        display: flex;
+    }
+    .record-count {
+        font-weight: 500;
+        color: var(--vscode-badge-foreground);
+    }
+    .selection-info {
+        color: var(--vscode-badge-foreground);
+        font-size: 10px;
+    }
+
     .clear-filter-button {
         background: none;
         border: none;

@@ -184,6 +184,32 @@ export function getHtmlForWebview(
           background-color: var(--vscode-editorWarning-foreground, #cca700);
           opacity: 0.8;
         }
+        .record-count-display {
+          display: none;
+          align-items: center;
+          gap: 6px;
+          font-size: 11px;
+          color: var(--vscode-descriptionForeground);
+          margin-left: 8px;
+          padding: 4px 8px;
+          background-color: var(--vscode-badge-background);
+          border-radius: 4px;
+          border: 1px solid var(--vscode-contrastBorder, transparent);
+          height: 28px;
+          box-sizing: border-box;
+          min-height: 28px;
+        }
+        .record-count-display.visible {
+          display: flex;
+        }
+        .record-count {
+          font-weight: 500;
+          color: var(--vscode-badge-foreground);
+        }
+        .selection-info {
+          color: var(--vscode-badge-foreground);
+          font-size: 10px;
+        }
         .logs-container {
           flex: 1;
           overflow: auto;
@@ -740,6 +766,10 @@ export function getHtmlForWebview(
                 <button class="clear-filter-button" id="clear-filter-button">✕</button>
             </div>
             <div class="actions-section">
+                <div class="record-count-display" id="record-count-display">
+                    <span class="record-count" id="record-count">0 logs</span>
+                    <span class="selection-info" id="selection-info"></span>
+                </div>
                 <div class="org-selector-container">
                     <select id="org-selector" class="org-selector" title="Select Salesforce Org">
                         <option value="">Loading orgs...</option>
@@ -1011,6 +1041,8 @@ export function getHtmlForWebview(
               logs = message.logs || [];
               // Sort logs with current sort settings
               sortLogs(currentSort.column, currentSort.direction);
+              // Update record count after logs are loaded
+              updateRecordCount();
               // Hide loading state after logs are updated and rendered
               hideLoading();
               break;
@@ -1176,6 +1208,9 @@ export function getHtmlForWebview(
             deleteSelectedButton.classList.add('visible');
             deleteSelectedButton.disabled = false;
           }
+          
+          // Update record count to show selection info
+          updateRecordCount();
         }
         
         // Format file size
@@ -1331,6 +1366,9 @@ export function getHtmlForWebview(
           
           // Update select all checkbox state based on visible rows
           updateSelectAllCheckboxState();
+          
+          // Update record count after filtering
+          updateRecordCount();
         });
         
         // Clear filter
@@ -1482,6 +1520,40 @@ export function getHtmlForWebview(
                 showLoading('Deleting logs using REST API...');
               }
             );
+          }
+        }
+        
+        function updateRecordCount() {
+          const recordCountElement = document.getElementById('record-count');
+          const recordCountDisplay = document.getElementById('record-count-display');
+          const selectionInfoElement = document.getElementById('selection-info');
+          
+          if (!recordCountElement || !recordCountDisplay) return;
+          
+          const totalLogs = logs ? logs.length : 0;
+          const visibleRows = logsTableBody.querySelectorAll('tr[style*="display: none"]').length;
+          const visibleLogs = totalLogs - visibleRows;
+          const selectedCount = selectedLogIds.size;
+          
+          // Show the record count display if there are logs
+          if (totalLogs > 0) {
+            recordCountDisplay.classList.add('visible');
+            
+            // Update record count with filtering status
+            if (visibleLogs === totalLogs) {
+              recordCountElement.textContent = \`\${totalLogs} log\${totalLogs === 1 ? '' : 's'}\`;
+            } else {
+              recordCountElement.textContent = \`\${visibleLogs}/\${totalLogs} logs\`;
+            }
+            
+            // Update selection info
+            if (selectedCount > 0) {
+              selectionInfoElement.textContent = \`(\${selectedCount} selected)\`;
+            } else {
+              selectionInfoElement.textContent = '';
+            }
+          } else {
+            recordCountDisplay.classList.remove('visible');
           }
         }
         
@@ -1637,6 +1709,9 @@ export function getHtmlForWebview(
           
           // Update select all checkbox state
           updateSelectAllCheckboxState();
+          
+          // Update record count display
+          updateRecordCount();
         }
         
         // Add event listeners to table headers for sorting

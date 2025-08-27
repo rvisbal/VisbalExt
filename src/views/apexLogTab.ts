@@ -890,56 +890,78 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
     private async _clearLocalLogs(): Promise<void> {
         try {
             OrgUtils.logDebug('[VisbalExt.apexLogTab.VisbalLogView] _clearLocalLogs -- Clearing local logs');
-            statusBarService.showProgress('Clearing local logs...');
+            statusBarService.showProgress('Clearing local files...');
 
             this._isLoading = true;
-            this._view?.webview.postMessage({ command: 'loading', isLoading: true, message: 'Clearing local log files...' });
+            this._view?.webview.postMessage({ command: 'loading', isLoading: true, message: 'Clearing local log and temp files...' });
 
-            OrgUtils.logDebug('[VisbalExt.apexLogTab.VisbalLogView] Clearing local log files');
+            OrgUtils.logDebug('[VisbalExt.apexLogTab.VisbalLogView] Clearing local log files and temp files');
 
-            // Get the logs directory - prioritize workspace folder if available
-            let logsDir: string;
+            // Get the base .visbal directory - prioritize workspace folder if available
+            let visbalBaseDir: string;
             if (vscode.workspace.workspaceFolders && vscode.workspace.workspaceFolders.length > 0) {
                 // Use workspace folder if available
                 const workspaceFolder = vscode.workspace.workspaceFolders[0].uri.fsPath;
-                logsDir = path.join(workspaceFolder, '.visbal', 'logs');
-                OrgUtils.logDebug(`[VisbalExt.apexLogTab.VisbalLogView] Using workspace logs directory: ${logsDir}`);
+                visbalBaseDir = path.join(workspaceFolder, '.visbal');
+                OrgUtils.logDebug(`[VisbalExt.apexLogTab.VisbalLogView] Using workspace .visbal directory: ${visbalBaseDir}`);
             } else {
                 // Fall back to home directory
-                const visbalDir = path.join(os.homedir(), '.visbal');
-                logsDir = path.join(visbalDir, 'logs');
-                OrgUtils.logDebug(`[VisbalExt.apexLogTab.VisbalLogView] Using home logs directory: ${logsDir}`);
+                visbalBaseDir = path.join(os.homedir(), '.visbal');
+                OrgUtils.logDebug(`[VisbalExt.apexLogTab.VisbalLogView] Using home .visbal directory: ${visbalBaseDir}`);
             }
             
-            if (!fs.existsSync(logsDir)) {
-                OrgUtils.logDebug(`[VisbalExt.apexLogTab.VisbalLogView] Logs directory does not exist: ${logsDir}`);
-                throw new Error(`Logs directory not found: ${logsDir}`);
-            }
+            const logsDir = path.join(visbalBaseDir, 'logs');
+            const tempDir = path.join(visbalBaseDir, 'temp');
+            
+            let totalDeletedCount = 0;
+            
+            // Function to clean up a directory
+            const cleanupDirectory = async (dirPath: string, dirName: string): Promise<number> => {
+                let deletedCount = 0;
+                
+                if (!fs.existsSync(dirPath)) {
+                    OrgUtils.logDebug(`[VisbalExt.apexLogTab.VisbalLogView] ${dirName} directory does not exist: ${dirPath}`);
+                    return 0;
+                }
 
-            // Read all files in the logs directory
-            const files = await fs.promises.readdir(logsDir);
-            OrgUtils.logDebug(`[VisbalExt.apexLogTab.VisbalLogView] Found ${files.length} files in logs directory`);
-
-            // Delete each file
-            let deletedCount = 0;
-            for (const file of files) {
                 try {
-                    const filePath = path.join(logsDir, file);
-                    const stats = await fs.promises.stat(filePath);
-                    
-                    // Only delete files, not directories
-                    if (stats.isFile()) {
-                        await fs.promises.unlink(filePath);
-                        deletedCount++;
-                        OrgUtils.logDebug(`[VisbalExt.apexLogTab.VisbalLogView] Deleted file: ${filePath}`);
-                    } else {
-                        OrgUtils.logDebug(`[VisbalExt.apexLogTab.VisbalLogView] Skipping directory: ${filePath}`);
+                    const files = await fs.promises.readdir(dirPath);
+                    OrgUtils.logDebug(`[VisbalExt.apexLogTab.VisbalLogView] Found ${files.length} files in ${dirName} directory`);
+
+                    for (const file of files) {
+                        try {
+                            const filePath = path.join(dirPath, file);
+                            const stats = await fs.promises.stat(filePath);
+                            
+                            // Only delete files, not directories
+                            if (stats.isFile()) {
+                                await fs.promises.unlink(filePath);
+                                deletedCount++;
+                                OrgUtils.logDebug(`[VisbalExt.apexLogTab.VisbalLogView] Deleted ${dirName} file: ${filePath}`);
+                            } else {
+                                OrgUtils.logDebug(`[VisbalExt.apexLogTab.VisbalLogView] Skipping directory in ${dirName}: ${filePath}`);
+                            }
+                        } catch (error: any) {
+                            OrgUtils.logError(`[VisbalExt.apexLogTab.VisbalLogView] Error deleting ${dirName} file ${file}:`, error);
+                            // Continue with other files
+                        }
                     }
                 } catch (error: any) {
-                    OrgUtils.logError(`[VisbalExt.apexLogTab.VisbalLogView] Error deleting file ${file}:`, error);
-                    // Continue with other files
+                    OrgUtils.logError(`[VisbalExt.apexLogTab.VisbalLogView] Error reading ${dirName} directory:`, error);
                 }
-            }
+                
+                return deletedCount;
+            };
+
+            // Clean up logs directory
+            const logsDeleted = await cleanupDirectory(logsDir, 'logs');
+            totalDeletedCount += logsDeleted;
+            
+            // Clean up temp directory
+            const tempDeleted = await cleanupDirectory(tempDir, 'temp');
+            totalDeletedCount += tempDeleted;
+            
+            OrgUtils.logDebug(`[VisbalExt.apexLogTab.VisbalLogView] Cleanup summary: ${logsDeleted} log files, ${tempDeleted} temp files, ${totalDeletedCount} total`);
 
             // Clear the downloaded logs tracking
             this._downloadedLogs.clear();
@@ -949,19 +971,31 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
             // Update the UI
             this._updateWebviewContent();
 
-            OrgUtils.logDebug(`[VisbalExt.apexLogTab.VisbalLogView] Successfully deleted ${deletedCount} log files`);
+            OrgUtils.logDebug(`[VisbalExt.apexLogTab.VisbalLogView] Successfully deleted ${totalDeletedCount} files total`);
+
+            // Create detailed message
+            let successMessage: string;
+            if (logsDeleted > 0 && tempDeleted > 0) {
+                successMessage = `Successfully cleared ${logsDeleted} log files and ${tempDeleted} temp files (${totalDeletedCount} total)`;
+            } else if (logsDeleted > 0) {
+                successMessage = `Successfully cleared ${logsDeleted} log files`;
+            } else if (tempDeleted > 0) {
+                successMessage = `Successfully cleared ${tempDeleted} temp files`;
+            } else {
+                successMessage = 'No files to clear (directories are empty)';
+            }
 
             // Notify the webview
             this._view?.webview.postMessage({ 
                 command: 'clearLocalStatus', 
                 success: true,
-                message: `Successfully cleared ${deletedCount} log files`
+                message: successMessage
             });
 
             // Show a notification
-            vscode.window.showInformationMessage(`Successfully cleared ${deletedCount} log files`);
+            vscode.window.showInformationMessage(successMessage);
 
-            statusBarService.showSuccess('Local logs cleared');
+            statusBarService.showSuccess(totalDeletedCount > 0 ? 'Local files cleared' : 'No files to clear');
 
         } catch (error: any) {
             OrgUtils.logError('[VisbalExt.apexLogTab.VisbalLogView] _clearLocalLogs -- Error:', error);
