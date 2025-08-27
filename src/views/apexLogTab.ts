@@ -1071,7 +1071,7 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
                 // Note: Org authentication validation is skipped here to avoid extra delay.
                 // Authentication errors will be caught during the actual bulk delete operation.
 
-                const bulkDeleteCmd = `sf data delete bulk --sobject ApexLog --file "${tempCsvPath}" --target-org ${selectedOrg?.alias} --json --wait 10`;
+                const bulkDeleteCmd = `sf data delete bulk --sobject ApexLog --file "${tempCsvPath}" --target-org ${selectedOrg?.alias} --json --wait 10 --line-ending LF`;
                 OrgUtils.logDebug(`[VisbalExt.apexLogTab.VisbalLogView] _deleteServerLogs -- Executing bulk delete: ${bulkDeleteCmd}`);
                 
                 const result = await this._executeCommand(bulkDeleteCmd);
@@ -1240,7 +1240,7 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
                     throw new Error(`Failed to authenticate with org ${selectedOrg?.alias}. Please re-authenticate.`);
                 }
 
-                const bulkDeleteCmd = `sf data delete bulk --sobject ApexLog --file "${tempCsvPath}" --target-org ${selectedOrg?.alias} --json --wait 10`;
+                const bulkDeleteCmd = `sf data delete bulk --sobject ApexLog --file "${tempCsvPath}" --target-org ${selectedOrg?.alias} --json --wait 10 --line-ending LF`;
                 OrgUtils.logDebug(`[VisbalExt.apexLogTab.VisbalLogView] _deleteSelectedLogs -- Executing bulk delete for selected logs: ${bulkDeleteCmd}`);
                 
                 const result = await this._executeCommand(bulkDeleteCmd);
