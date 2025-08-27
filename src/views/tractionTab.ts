@@ -144,9 +144,22 @@ export class TractionTab implements vscode.WebviewViewProvider {
     }
 
     private async _openOrg(alias: string) {
+        // If no alias provided, try to get from view selection or default
         if (!alias) {
-            this._updateStatus('No org selected', 'error');
-            return;
+            const selectedOrg = await OrgUtils.getSelectedOrgForView(ViewId.TRACTION);
+            if (selectedOrg?.alias) {
+                alias = selectedOrg.alias;
+            } else {
+                // Try default org as fallback
+                const defaultOrgAlias = await OrgUtils.getCurrentOrgAlias();
+                if (defaultOrgAlias) {
+                    alias = defaultOrgAlias;
+                    await OrgUtils.setSelectedOrgForView(ViewId.TRACTION, defaultOrgAlias);
+                } else {
+                    this._updateStatus('No org selected', 'error');
+                    return;
+                }
+            }
         }
 
         try {
@@ -162,9 +175,22 @@ export class TractionTab implements vscode.WebviewViewProvider {
     }
 
     private async _deploy(alias: string) {
+        // If no alias provided, try to get from view selection or default
         if (!alias) {
-            this._updateStatus('No org selected', 'error');
-            return;
+            const selectedOrg = await OrgUtils.getSelectedOrgForView(ViewId.TRACTION);
+            if (selectedOrg?.alias) {
+                alias = selectedOrg.alias;
+            } else {
+                // Try default org as fallback
+                const defaultOrgAlias = await OrgUtils.getCurrentOrgAlias();
+                if (defaultOrgAlias) {
+                    alias = defaultOrgAlias;
+                    await OrgUtils.setSelectedOrgForView(ViewId.TRACTION, defaultOrgAlias);
+                } else {
+                    this._updateStatus('No org selected', 'error');
+                    return;
+                }
+            }
         }
 
         try {

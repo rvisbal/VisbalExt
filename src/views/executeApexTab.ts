@@ -212,7 +212,21 @@ export class ExecuteApexTab implements vscode.WebviewViewProvider {
 
     private async executeApex(code: string) {
         try {
-            const selectedOrg = await OrgUtils.getSelectedOrgForView(ViewId.EXECUTE_APEX);
+            let selectedOrg = await OrgUtils.getSelectedOrgForView(ViewId.EXECUTE_APEX);
+            
+            // If no view-specific org is selected, try to use the default org
+            if (!selectedOrg?.alias) {
+                OrgUtils.logDebug('[VisbalExt.ExecuteApexTab] executeApex -- No view-specific org, trying default org');
+                const defaultOrgAlias = await OrgUtils.getCurrentOrgAlias();
+                if (defaultOrgAlias) {
+                    selectedOrg = { alias: defaultOrgAlias, timestamp: new Date().toISOString() };
+                    OrgUtils.logDebug(`[VisbalExt.ExecuteApexTab] executeApex -- Using default org: ${defaultOrgAlias}`);
+                    
+                    // Set this as the selected org for the view
+                    await OrgUtils.setSelectedOrgForView(ViewId.EXECUTE_APEX, defaultOrgAlias);
+                }
+            }
+            
             this._view?.webview.postMessage({
                 command: 'startLoading',
                 message: `Executing Apex on ${selectedOrg?.alias}...`
@@ -321,6 +335,9 @@ export class ExecuteApexTab implements vscode.WebviewViewProvider {
         try {
             OrgUtils.logDebug('[VisbalExt.ExecuteApexTab] _downloadExecutionResults -- Starting download');
             
+            // Get the selected org for this view
+            const selectedOrg = await OrgUtils.getSelectedOrgForView(ViewId.EXECUTE_APEX);
+            
             // Determine target directory
             const logsDir = vscode.workspace.workspaceFolders?.[0]
                 ? path.join(vscode.workspace.workspaceFolders[0].uri.fsPath, '.visbal', 'logs', 'apex-execution')
@@ -340,7 +357,7 @@ export class ExecuteApexTab implements vscode.WebviewViewProvider {
             logContent += `=== APEX EXECUTION RESULTS ===\n`;
             logContent += `Timestamp: ${executionData.timestamp}\n`;
             logContent += `Status: ${status}\n`;
-            logContent += `Org: ${await OrgUtils.getCurrentOrgAlias()}\n`;
+            logContent += `Org: ${selectedOrg?.alias || 'Unknown'}\n`;
             logContent += `\n=== APEX CODE ===\n`;
             logContent += executionData.apexCode || 'No code available';
             logContent += `\n\n=== EXECUTION RESULTS ===\n`;

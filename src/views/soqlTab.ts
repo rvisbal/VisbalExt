@@ -76,7 +76,21 @@ export class SoqlTab implements vscode.WebviewViewProvider {
         }
 
         try {
-            const selectedOrg = await OrgUtils.getSelectedOrgForView(ViewId.SOQL);
+            let selectedOrg = await OrgUtils.getSelectedOrgForView(ViewId.SOQL);
+            
+            // If no view-specific org is selected, try to use the default org
+            if (!selectedOrg?.alias) {
+                OrgUtils.logDebug('[VisbalExt.soqlPanel] executeSOQL -- No view-specific org, trying default org');
+                const defaultOrgAlias = await OrgUtils.getCurrentOrgAlias();
+                if (defaultOrgAlias) {
+                    selectedOrg = { alias: defaultOrgAlias, timestamp: new Date().toISOString() };
+                    OrgUtils.logDebug(`[VisbalExt.soqlPanel] executeSOQL -- Using default org: ${defaultOrgAlias}`);
+                    
+                    // Set this as the selected org for the view
+                    await OrgUtils.setSelectedOrgForView(ViewId.SOQL, defaultOrgAlias);
+                }
+            }
+            
             this._view?.webview.postMessage({
                 command: 'startLoading',
                 message: `Executing SOQL ${selectedOrg?.alias}...`

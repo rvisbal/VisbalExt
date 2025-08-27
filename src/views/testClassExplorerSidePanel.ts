@@ -907,7 +907,7 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
             }
             else {
                 OrgUtils.logDebug('[VisbalExt.TestClassExplorerSidePanel] _runSelectedTests -- Check if debug trace flag exists');
-                const hasDebugTrace = await OrgUtils.hasExistingDebugTraceFlag();
+                const hasDebugTrace = await OrgUtils.hasExistingDebugTraceFlag(currentOrgAlias || '');
                 OrgUtils.logDebug('[VisbalExt.TestClassExplorerSidePanel] _runSelectedTests -- hasDebugTrace', hasDebugTrace);
             
                     
@@ -2215,7 +2215,7 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                             }
                         }
         
-                        const jobResults = await this._sfdxService.executeSoqlQuery(`SELECT Id, CreatedDate,  AsyncApexJobId, UserId, JobName, IsAllTests, Source, StartTime, EndTime, TestTime, Status, ClassesEnqueued, ClassesCompleted, MethodsEnqueued, MethodsCompleted, MethodsFailed  FROM ApexTestRunResult WHERE AsyncApexJobId='${testRunId}' `);
+                        const jobResults = await this._sfdxService.executeSoqlQuery(`SELECT Id, CreatedDate,  AsyncApexJobId, UserId, JobName, IsAllTests, Source, StartTime, EndTime, TestTime, Status, ClassesEnqueued, ClassesCompleted, MethodsEnqueued, MethodsCompleted, MethodsFailed  FROM ApexTestRunResult WHERE AsyncApexJobId='${testRunId}' `, false, false, currentOrgAlias);
                         OrgUtils.logDebug('[VisbalExt.TestClassExplorerSidePanel] _runManyTest -- countIteration: ${countIteration} -- jobResults:', jobResults);
                         if (jobResults.length > 0) {
                             if (jobResults[0].Status === 'Completed') {
@@ -2570,7 +2570,7 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                     }
                 }
 
-                const jobResults = await this._sfdxService.executeSoqlQuery(`SELECT Id, CreatedDate,  AsyncApexJobId, UserId, JobName, IsAllTests, Source, StartTime, EndTime, TestTime, Status, ClassesEnqueued, ClassesCompleted, MethodsEnqueued, MethodsCompleted, MethodsFailed  FROM ApexTestRunResult WHERE AsyncApexJobId='${runTest.testRunId}' `);
+                const jobResults = await this._sfdxService.executeSoqlQuery(`SELECT Id, CreatedDate,  AsyncApexJobId, UserId, JobName, IsAllTests, Source, StartTime, EndTime, TestTime, Status, ClassesEnqueued, ClassesCompleted, MethodsEnqueued, MethodsCompleted, MethodsFailed  FROM ApexTestRunResult WHERE AsyncApexJobId='${runTest.testRunId}' `, false, false, currentOrgAlias);
                 if (jobResults.length > 0) {
                     if (jobResults[0].Status === 'Completed') {
                         allTestCompleted = true;
@@ -5510,9 +5510,10 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
             // 1. First, ensure orgs are loaded and current selected org is set
             await this._loadOrgList();
 
-            // 2. Get the current org alias to check if we have test classes cached for this org
-            const currentOrgAlias = await OrgUtils.getCurrentOrgAlias();
-            OrgUtils.logDebug(`[VisbalExt.TestClassExplorerSidePanel] _handleTabVisible -- Current org alias: ${currentOrgAlias}`);
+            // 2. Get the selected org alias for this view to check if we have test classes cached for this org
+            const selectedOrg = await OrgUtils.getSelectedOrgForView(ViewId.TEST_EXPLORER);
+            const currentOrgAlias = selectedOrg?.alias || 'none';
+            OrgUtils.logDebug(`[VisbalExt.TestClassExplorerSidePanel] _handleTabVisible -- Selected org alias: ${currentOrgAlias}`);
 
             // 3. Load cached test classes only (no auto-fetch)
             await this._loadCachedTestClasses();

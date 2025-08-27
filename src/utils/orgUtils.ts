@@ -10,6 +10,7 @@ import { SfdxService } from '../services/sfdxService';
 import { OrgListCacheService } from '../services/orgListCacheService';
 import { ViewId } from '../types/salesforceTypes';
 import * as cp from 'child_process';
+import { DEFAULT_LOG_TYPE } from '../constants/salesforceConstants';
 
 export interface SalesforceOrg {
     username: string;
@@ -31,6 +32,7 @@ export interface SalesforceOrg {
     isDevHub?: boolean;
     lastUsed?: string;
     namespacePrefix?: string;
+    userId?: string;
 }
 
 export interface OrgGroups {
@@ -545,7 +547,7 @@ export class OrgUtils {
     }
 
     /**
-     * Gets the user ID from a dedicated user ID cache file
+     * Gets the user ID from the user-ids.json cache file
      * @returns Promise<string | null> The user ID if found in cache, null otherwise
      */
     private static async getUserIdFromOrgCache(): Promise<string | null> {
@@ -594,7 +596,7 @@ export class OrgUtils {
     }
 
     /**
-     * Caches the user ID for the current org
+     * Caches the user ID in the user-ids.json file for the specified org
      * @param orgAlias The org alias
      * @param userId The user ID to cache
      */
@@ -620,7 +622,7 @@ export class OrgUtils {
                     const cacheContent = fs.readFileSync(userIdCacheFile, 'utf8');
                     userIdCache = JSON.parse(cacheContent);
                 } catch (parseError) {
-                    OrgUtils.logDebug('[VisbalExt.OrgUtils] cacheUserId -- Error parsing existing cache, creating new one');
+                    OrgUtils.logDebug('[VisbalExt.OrgUtils] cacheUserId -- Error parsing existing cache, creating new one:', parseError);
                 }
             }
 
@@ -629,15 +631,91 @@ export class OrgUtils {
 
             // Write back to file
             fs.writeFileSync(userIdCacheFile, JSON.stringify(userIdCache, null, 2));
-            OrgUtils.logDebug(`[VisbalExt.OrgUtils] cacheUserId -- Cached user ID for ${orgAlias}: ${userId}`);
+            OrgUtils.logDebug(`[VisbalExt.OrgUtils] cacheUserId -- Successfully cached user ID for ${orgAlias}: ${userId}`);
 
         } catch (error: any) {
             OrgUtils.logError('[VisbalExt.OrgUtils] cacheUserId -- Error:', error);
         }
     }
 
-    public static async getCurrentUserId(): Promise<string> {
+    /**
+     * Gets user ID for a specific org alias
+     * @param orgAlias The org alias to get user ID for
+     * @returns Promise<string> The user ID for the specified org
+     */
+    public static async getUserIdForOrg(orgAlias: string): Promise<string> {
         try {
+            OrgUtils.logDebug(`[VisbalExt.OrgUtils] getUserIdForOrg -- Getting user ID for org: ${orgAlias}`);
+            
+            // First try to get from cache
+            try {
+                const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
+                if (workspaceFolder) {
+                    const userIdCacheFile = path.join(workspaceFolder.uri.fsPath, '.visbal', 'cache', 'user-ids.json');
+                    
+                    if (fs.existsSync(userIdCacheFile)) {
+                        const cacheContent = fs.readFileSync(userIdCacheFile, 'utf8');
+                        const userIdCache = JSON.parse(cacheContent);
+                        
+                        if (userIdCache[orgAlias]) {
+                            const cachedUserId = userIdCache[orgAlias];
+                            OrgUtils.logDebug(`[VisbalExt.OrgUtils] getUserIdForOrg -- Found cached user ID for ${orgAlias}: ${cachedUserId}`);
+                            return cachedUserId;
+                        }
+                    }
+                }
+            } catch (cacheError) {
+                OrgUtils.logDebug(`[VisbalExt.OrgUtils] getUserIdForOrg -- Cache read failed for ${orgAlias}:`, cacheError);
+            }
+
+            // If not in cache, fetch from SF CLI
+            let userId = '';
+            try {
+                OrgUtils.logDebug(`[VisbalExt.OrgUtils] getUserIdForOrg -- Fetching user ID from CLI for org: ${orgAlias}`);
+                const { stdout: userResult } = await execAsync(`sf org display user --target-org ${orgAlias} --json`);
+                const userJson = JSON.parse(userResult);
+                userId = userJson.result.id;
+                OrgUtils.logDebug(`[VisbalExt.OrgUtils] getUserIdForOrg -- Got user ID from CLI for ${orgAlias}: ${userId}`);
+            } catch (error: any) {
+                OrgUtils.logError(`[VisbalExt.OrgUtils] getUserIdForOrg -- Error getting user ID with new CLI format for ${orgAlias}:`, error);
+                
+                // Try with old CLI format
+                try {
+                    const { stdout: userResult } = await execAsync(`sfdx force:user:display --target-org ${orgAlias} --json`);
+                    const userJson = JSON.parse(userResult);
+                    userId = userJson.result.id;
+                    OrgUtils.logDebug(`[VisbalExt.OrgUtils] getUserIdForOrg -- Got user ID from old CLI format for ${orgAlias}: ${userId}`);
+                } catch (oldError: any) {
+                    OrgUtils.logError(`[VisbalExt.OrgUtils] getUserIdForOrg -- Error getting user ID with old CLI format for ${orgAlias}:`, oldError);
+                    throw new Error(`Failed to get user ID for org ${orgAlias}. Make sure you are authenticated.`);
+                }
+            }
+
+            if (userId) {
+                // Cache the user ID for future use
+                try {
+                    await this.cacheUserId(orgAlias, userId);
+                    OrgUtils.logDebug(`[VisbalExt.OrgUtils] getUserIdForOrg -- Successfully cached user ID for ${orgAlias}: ${userId}`);
+                } catch (cacheError) {
+                    OrgUtils.logDebug(`[VisbalExt.OrgUtils] getUserIdForOrg -- Warning: Could not cache user ID for ${orgAlias}:`, cacheError);
+                }
+            }
+
+            return userId;
+        } catch (error: any) {
+            OrgUtils.logError(`[VisbalExt.OrgUtils] getUserIdForOrg -- Error getting user ID for ${orgAlias}:`, error);
+            throw error;
+        }
+    }
+
+    public static async getCurrentUserId(alias?: string): Promise<string> {
+        try {
+            // If alias is provided, use the getUserIdForOrg method which is more targeted
+            if (alias) {
+                OrgUtils.logDebug(`[VisbalExt.OrgUtils] getCurrentUserId -- Using alias: ${alias}, delegating to getUserIdForOrg`);
+                return await this.getUserIdForOrg(alias);
+            }
+            
             //here lets see how can we skip this
             if (this._currentUserIdCache && (Date.now() - this._currentUserIdCache.timestamp) < this.CACHE_EXPIRATION) {
                 return this._currentUserIdCache.userId;
@@ -658,17 +736,29 @@ export class OrgUtils {
             // If not found in cache, call SFDX
             if (!userId) {
                 OrgUtils.logDebug(`[VisbalExt.OrgUtils] getCurrentUserId -- No cache found, falling back to SFDX call...`);
-                //sf org display
-                userId = await this.sfdxService.getCurrentUserId();
-                
-                // Cache the user ID for future use
                 try {
-                    const currentOrgAlias = await this.getCurrentOrgAlias();
-                    if (currentOrgAlias && userId) {
-                        await this.cacheUserId(currentOrgAlias, userId);
+                    userId = await this.sfdxService.getCurrentUserId(alias);
+                    OrgUtils.logDebug(`[VisbalExt.OrgUtils] getCurrentUserId -- SFDX returned user ID: ${userId}`);
+                    
+                    // Validate the user ID before caching
+                    if (!userId || userId === 'unknown' || userId.trim() === '') {
+                        OrgUtils.logError('[VisbalExt.OrgUtils] getCurrentUserId -- Invalid user ID returned from SFDX:', userId);
+                        throw new Error(`Invalid user ID returned from SFDX: ${userId}`);
                     }
-                } catch (cacheError) {
-                    OrgUtils.logDebug('[VisbalExt.OrgUtils] getCurrentUserId -- Error caching user ID:', cacheError);
+                    
+                    // Cache the user ID for future use
+                    try {
+                        const currentOrgAlias = alias || await this.getCurrentOrgAlias();
+                        if (currentOrgAlias && userId) {
+                            await this.cacheUserId(currentOrgAlias, userId);
+                            OrgUtils.logDebug(`[VisbalExt.OrgUtils] getCurrentUserId -- Successfully cached user ID for ${currentOrgAlias}: ${userId}`);
+                        }
+                    } catch (cacheError) {
+                        OrgUtils.logDebug('[VisbalExt.OrgUtils] getCurrentUserId -- Error caching user ID:', cacheError);
+                    }
+                } catch (sfdxError) {
+                    OrgUtils.logError('[VisbalExt.OrgUtils] getCurrentUserId -- SFDX call failed:', sfdxError);
+                    throw new Error(`Failed to get user ID from SFDX: ${sfdxError}`);
                 }
             }
             
@@ -943,20 +1033,22 @@ export class OrgUtils {
     }
 
 
-    public static async getExistingDebugTraceFlag(userId: string): Promise<{ existingTraceFlag: TraceFlag | null, existingDebugLevelId: string | null }> {
+    public static async getExistingDebugTraceFlag(userId: string, currentOrgAlias?: string): Promise<{ existingTraceFlag: TraceFlag | null, existingDebugLevelId: string | null }> {
         let result = {
             existingTraceFlag: null as TraceFlag | null,
             existingDebugLevelId: null as string | null
         };
         
-        const selectedOrg = await OrgUtils.getSelectedOrg();
         try {
-            OrgUtils.logDebug('[VisbalExt.OrgUtils] getExistingDebugTraceFlag -7 -- Checking for existing trace flags');
-            const query = `SELECT Id, LogType, StartDate, ExpirationDate, DebugLevelId FROM TraceFlag WHERE LogType='DEVELOPER_LOG' AND TracedEntityId='${userId}'`;
-            
+            OrgUtils.logDebug(`[VisbalExt.OrgUtils] getExistingDebugTraceFlag -7 -- userId: ${userId} -- currentOrgAlias: ${currentOrgAlias} -- Checking for existing trace flags`);
+            let query = `SELECT Id, LogType, StartDate, ExpirationDate, DebugLevelId FROM TraceFlag WHERE LogType='${DEFAULT_LOG_TYPE}'`;
+            if (userId && userId != 'unknown') {
+                query += ` AND TracedEntityId='${userId}'`;
+            }
             try {
-                const records =  await this.sfdxService.executeSoqlQuery(query, false, true);
-                //const traceFlagResult = await this._executeCommand(`sf data query --query "${query}" --use-tooling-api --target-org ${selectedOrg?.alias} --json`);
+                OrgUtils.logDebug(`[VisbalExt.OrgUtils] getExistingDebugTraceFlag -- userId: ${userId} -- currentOrgAlias: ${currentOrgAlias} -- query: ${query}`);
+                const records =  await this.sfdxService.executeSoqlQuery(query, false, true, currentOrgAlias);
+                //const traceFlagResult = await this._executeCommand(`sf data query --query "${query}" --use-tooling-api --target-org $currentOrgAlias} --json`);
                 //OrgUtils.logDebug(`[VisbalExt.OrgUtils] getExistingDebugTraceFlag -8 -- Trace flag query result: ${traceFlagResult}`);
                 //const traceFlagJson = JSON.parse(traceFlagResult);
                 
@@ -975,7 +1067,7 @@ export class OrgUtils {
                 }
                 
                 try {
-                    const traceFlagResult = await this._executeCommand(`sfdx force:data:soql:query --query "${query}" --usetoolingapi --target-org ${selectedOrg?.alias} --json`);
+                    const traceFlagResult = await this._executeCommand(`sfdx force:data:soql:query --query "${query}" --usetoolingapi --target-org ${currentOrgAlias} --json`);
                     OrgUtils.logDebug(`[VisbalExt.OrgUtils] getExistingDebugTraceFlag -11 -- Trace flag query result (old format): ${traceFlagResult}`);
                     const traceFlagJson = JSON.parse(traceFlagResult);
                     
@@ -1004,11 +1096,11 @@ export class OrgUtils {
         return result;
     }
 
-    public static async hasExistingDebugTraceFlag(): Promise<boolean> {
+    public static async hasExistingDebugTraceFlag(currentOrgAlias: string): Promise<boolean> {
         const userId = await this.getCurrentUserId();
-        OrgUtils.logDebug('[VisbalExt.OrgUtils] hasExistingDebugTraceFlag -- userId:', userId);
-        const traceResult = await OrgUtils.getExistingDebugTraceFlag(userId);
-        OrgUtils.logDebug('[VisbalExt.OrgUtils] hasExistingDebugTraceFlag -- traceResult:', traceResult);
+        OrgUtils.logDebug(`[VisbalExt.OrgUtils] hasExistingDebugTraceFlag -- userId: ${userId} -- currentOrgAlias: ${currentOrgAlias}`);
+        const traceResult = await OrgUtils.getExistingDebugTraceFlag(userId, currentOrgAlias);
+        OrgUtils.logDebug(`[VisbalExt.OrgUtils] hasExistingDebugTraceFlag -- traceResult: ${traceResult}`);
         
         if (!traceResult.existingTraceFlag) {
             return false;

@@ -7,6 +7,7 @@ import * as path from 'path';
 import * as os from 'os';
 import * as vscode from 'vscode';
 import * as child_process from 'child_process';
+import { DEFAULT_LOG_TYPE } from '../constants/salesforceConstants';
 
 // Maximum buffer size for CLI commands (100MB)
 const MAX_BUFFER_SIZE = 100 * 1024 * 1024;
@@ -133,43 +134,77 @@ export class SfdxService {
      * @returns Promise<string> The user ID
      * @throws Error if unable to get user ID
      */
-    public async getCurrentUserId(): Promise<string> {
+    public async getCurrentUserId(alias?: string): Promise<string> {
         let userId = '';
         try {
-            OrgUtils.logDebug('[VisbalExt.SfdxService] getCurrentUserId from SFDX CLI', 'BEGIN');
+            OrgUtils.logDebug('[VisbalExt.SfdxService] getCurrentUserId from SFDX CLI', `BEGIN with alias: ${alias}`);
             try {
+                // Try new SF CLI format first
                 let command = 'sf org display user';
                 
-                const selectedOrg = await OrgUtils.getSelectedOrg();
-                if (selectedOrg?.alias) {
-                    command += ` --target-org ${selectedOrg.alias}`;
+                // Prioritize the provided alias, then fall back to selected org
+                let targetOrg = alias;
+                if (!targetOrg) {
+                    const selectedOrg = await OrgUtils.getSelectedOrg();
+                    targetOrg = selectedOrg?.alias;
+                }
+                
+                if (targetOrg) {
+                    command += ` --target-org ${targetOrg}`;
                 }
                 command += ' --json';
                 
                 OrgUtils.logDebug('[VisbalExt.SfdxService] getCurrentUserId', `command: ${command}`);
                 const userIdResult = await this._executeCommand(command);
+                OrgUtils.logDebug('[VisbalExt.SfdxService] getCurrentUserId', `New format result: ${userIdResult.stdout}`);
+                
                 const userIdJson = JSON.parse(userIdResult.stdout);
-                userId = userIdJson.result.id;
+                if (userIdJson.status === 0 && userIdJson.result && userIdJson.result.id) {
+                    userId = userIdJson.result.id;
+                    OrgUtils.logDebug('[VisbalExt.SfdxService] getCurrentUserId', `New format user ID: ${userId}`);
+                } else {
+                    throw new Error(`Invalid response from new SF CLI: ${JSON.stringify(userIdJson)}`);
+                }
             } catch (error: any) {
-                OrgUtils.logError('[VisbalExt.SfdxService] getCurrentUserId', error);
+                OrgUtils.logError('[VisbalExt.SfdxService] getCurrentUserId -- New format failed, trying old format:', error);
+                
+                // Try old SFDX CLI format as fallback
                 let command = 'sfdx force:user:display';
                 
-                const selectedOrg = await OrgUtils.getSelectedOrg();
-                if (selectedOrg?.alias) {
-                    command += ` --target-org ${selectedOrg.alias}`;
+                // Prioritize the provided alias, then fall back to selected org
+                let targetOrg = alias;
+                if (!targetOrg) {
+                    const selectedOrg = await OrgUtils.getSelectedOrg();
+                    targetOrg = selectedOrg?.alias;
+                }
+                
+                if (targetOrg) {
+                    command += ` --target-org ${targetOrg}`;
                 }
                 command += ' --json';
                 
+                OrgUtils.logDebug('[VisbalExt.SfdxService] getCurrentUserId', `Fallback command: ${command}`);
                 const userIdResult = await this._executeCommand(command);
-                OrgUtils.logDebug('[VisbalExt.SfdxService] getCurrentUserId', `User ID result (old format): ${userIdResult.stdout}`);
+                OrgUtils.logDebug('[VisbalExt.SfdxService] getCurrentUserId', `Old format result: ${userIdResult.stdout}`);
+                
                 const userIdJson = JSON.parse(userIdResult.stdout);
-                userId = userIdJson.result.id;
-                OrgUtils.logDebug('[VisbalExt.SfdxService] getCurrentUserId', `Current user ID (old format): ${userId}`);
+                if (userIdJson.status === 0 && userIdJson.result && userIdJson.result.id) {
+                    userId = userIdJson.result.id;
+                    OrgUtils.logDebug('[VisbalExt.SfdxService] getCurrentUserId', `Old format user ID: ${userId}`);
+                } else {
+                    throw new Error(`Invalid response from old SFDX CLI: ${JSON.stringify(userIdJson)}`);
+                }
             }
 
+            // Validate the user ID
+            if (!userId || userId.trim() === '' || userId === 'unknown') {
+                throw new Error(`Invalid user ID received: ${userId}`);
+            }
+
+            OrgUtils.logDebug('[VisbalExt.SfdxService] getCurrentUserId', `Final user ID: ${userId}`);
             return userId;
         } catch (error: any) {
-            OrgUtils.logError('[VisbalExt.SfdxService] getCurrentUserId', error);
+            OrgUtils.logError('[VisbalExt.SfdxService] getCurrentUserId -- Final error:', error);
             throw error;
         }
     }
@@ -367,8 +402,8 @@ export class SfdxService {
      */
     public async getTraceFlag(userId: string): Promise<any> {
         try {
-            let query = `SELECT Id, DebugLevelId FROM TraceFlag WHERE LogType = 'DEVELOPER_LOG'`;
-            if (userId != undefined) {
+            let query = `SELECT Id, DebugLevelId FROM TraceFlag WHERE LogType = '${DEFAULT_LOG_TYPE}'`;
+            if (userId && userId != 'unknown') {
                 query += ` AND TracedEntityId = '${userId}'`;
             }
             OrgUtils.logDebug(`[VisbalExt.SfdxService] getTraceFlag -- userId:${userId} -- query: ${query}`);
@@ -1457,7 +1492,7 @@ if (!items.isEmpty()) {
      */
     public async executeSoqlQuery(query: string, useDefaultOrg: boolean = false, useToolingApi: boolean = false, targetOrgAlias?: string): Promise<any[]> {
         try {
-            OrgUtils.logDebug(`[VisbalExt.SfdxService] executeSoqlQuery -- Executing SOQL query: ${query} useDefaultOrg: ${useDefaultOrg} useToolingApi: ${useToolingApi} targetOrgAlias: ${targetOrgAlias}`);
+            OrgUtils.logDebug(`[VisbalExt.SfdxService] executeSoqlQuery -- Executing SOQL query: ${query} -- useDefaultOrg: ${useDefaultOrg} -- useToolingApi: ${useToolingApi} -- targetOrgAlias: ${targetOrgAlias}`);
             
             // Execute the query using the Salesforce CLI
             let command = `sf data query  `;

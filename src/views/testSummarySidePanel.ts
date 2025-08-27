@@ -114,7 +114,21 @@ export class TestSummaryView implements vscode.WebviewViewProvider {
                 case 'openLogFile':
                     try {
                         OrgUtils.logDebug('[VisbalExt.TestSummaryView] openLogFile.openTheLogFromTestId -- testId:', message.testId);
-                        const selectedOrg = await OrgUtils.getSelectedOrgForView(ViewId.TEST_EXPLORER);
+                        let selectedOrg = await OrgUtils.getSelectedOrgForView(ViewId.TEST_EXPLORER);
+                        
+                        // If no view-specific org is selected, try to use the default org
+                        if (!selectedOrg?.alias) {
+                            OrgUtils.logDebug('[VisbalExt.TestSummaryView] openLogFile -- No view-specific org, trying default org');
+                            const defaultOrgAlias = await OrgUtils.getCurrentOrgAlias();
+                            if (defaultOrgAlias) {
+                                selectedOrg = { alias: defaultOrgAlias, timestamp: new Date().toISOString() };
+                                OrgUtils.logDebug(`[VisbalExt.TestSummaryView] openLogFile -- Using default org: ${defaultOrgAlias}`);
+                                
+                                // Set this as the selected org for the view
+                                await OrgUtils.setSelectedOrgForView(ViewId.TEST_EXPLORER, defaultOrgAlias);
+                            }
+                        }
+                        
                         const orgAlias = selectedOrg?.alias;
                         await OrgUtils.openTheLogFromTestId(message.testId, orgAlias);
                     } catch (error: any) {

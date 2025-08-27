@@ -8,12 +8,13 @@ import { promisify } from 'util';
 import { statusBarService } from '../services/statusBarService';
 import { readFile, unlink } from 'fs/promises';
 import { MetadataService } from '../services/metadataService';
-import { OrgUtils } from '../utils/orgUtils';
+import { OrgUtils, SelectedOrg } from '../utils/orgUtils';
 import { CacheService } from '../services/cacheService';
 import { SalesforceLog } from '../types/salesforceLog';
 import { ViewId } from '../types/salesforceTypes';
 import { SfdxService } from '../services/sfdxService';
 import { OrgListCacheService } from '../services/orgListCacheService';
+import { DEFAULT_LOG_TYPE } from '../constants/salesforceConstants';
 
 const execAsync = promisify(exec);
 
@@ -548,7 +549,7 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
             OrgUtils.logDebug(`[VisbalExt.apexLogTab.VisbalLogView] _fetchSalesforceLogsSoql -- SOQL query: ${soqlQuery}`);
             
             // Try to execute SOQL query using the new command format first
-            const records =  await this._sfdxService.executeSoqlQuery(soqlQuery, false, false);
+            const records =  await this._sfdxService.executeSoqlQuery(soqlQuery, false, false, selectedOrg?.alias);
             
             
 
@@ -648,6 +649,7 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
      */
     private async _turnOnDebugLog(): Promise<void> {
         try {
+            const selectedOrg = await OrgUtils.getSelectedOrgForView(ViewId.APEX_LOG);
             OrgUtils.logDebug('[VisbalExt.apexLogTab.VisbalLogView] _turnOnDebugLog -1 -- Turning on debug log');
             statusBarService.showProgress('Turning on debug log...');
 
@@ -662,7 +664,7 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
                 // Try with new CLI format first
                 try {
                     OrgUtils.logDebug('[VisbalExt.apexLogTab.VisbalLogView] _turnOnDebugLog -3 -- Getting user ID with new CLI format');
-                    const userIdResult = await this._executeCommand('sf org display user --target-org ${selectedOrg?.alias} --json');
+                    const userIdResult = await this._executeCommand(`sf org display user --target-org ${selectedOrg?.alias} --json`);
                     OrgUtils.logDebug(`[VisbalExt.apexLogTab.VisbalLogView] _turnOnDebugLog -4 -- User ID result: ${userIdResult}`);
                     const userIdJson = JSON.parse(userIdResult);
                     userId = userIdJson.result.id;
@@ -672,7 +674,7 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
                     
                     // Try with old CLI format
                     OrgUtils.logDebug('[VisbalExt.apexLogTab.VisbalLogView] _turnOnDebugLog -7 -- Trying with old CLI format');
-                    const userIdResult = await this._executeCommand('sfdx force:user:display --target-org ${selectedOrg?.alias} --json');
+                    const userIdResult = await this._executeCommand(`sfdx force:user:display --target-org ${selectedOrg?.alias} --json`);
                     OrgUtils.logDebug(`[VisbalExt.apexLogTab.VisbalLogView] _turnOnDebugLog -8 -- User ID result (old format): ${userIdResult}`);
                     const userIdJson = JSON.parse(userIdResult);
                     userId = userIdJson.result.id;
@@ -691,7 +693,7 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
             let existingTraceFlag = null;
             let existingDebugLevelId = null;
             
-            const traceResult = await OrgUtils.getExistingDebugTraceFlag(userId);
+            const traceResult = await OrgUtils.getExistingDebugTraceFlag(userId, selectedOrg?.alias);
             existingTraceFlag = traceResult.existingTraceFlag;
             existingDebugLevelId = traceResult.existingDebugLevelId;
 
@@ -782,7 +784,7 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
                 try {
 
 
-					const debugvalues = `TracedEntityId=${userId} LogType=DEVELOPER_LOG DebugLevelId=${debugLevelId} StartDate=${formattedStartDate} ExpirationDate=${formattedExpirationDate}`;
+					const debugvalues = `TracedEntityId=${userId} LogType=${DEFAULT_LOG_TYPE} DebugLevelId=${debugLevelId} StartDate=${formattedStartDate} ExpirationDate=${formattedExpirationDate}`;
                          OrgUtils.logDebug(`[VisbalExt.apexLogTab.VisbalLogView] _turnOnDebugLog -33 Creating debug level with command: ${debugvalues}`);
 
                         debugLevelId = await this._sfdxService.createTraceFlag(debugvalues);
@@ -794,7 +796,7 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
                     OrgUtils.logError('[VisbalExt.apexLogTab.VisbalLogView] _turnOnDebugLog -35 Error creating trace flag with new CLI format:', error);
                     
                     // Try with old CLI format
-                    const traceFlagCmd = `sfdx force:data:record:create --sobjecttype TraceFlag --values "TracedEntityId=${userId} LogType=DEVELOPER_LOG DebugLevelId=${debugLevelId} StartDate=${formattedStartDate} ExpirationDate=${formattedExpirationDate}" --usetoolingapi --json`;
+                    const traceFlagCmd = `sfdx force:data:record:create --sobjecttype TraceFlag --values "TracedEntityId=${userId} LogType=${DEFAULT_LOG_TYPE} DebugLevelId=${debugLevelId} StartDate=${formattedStartDate} ExpirationDate=${formattedExpirationDate}" --usetoolingapi --json`;
                     OrgUtils.logDebug(`[VisbalExt.apexLogTab.VisbalLogView] _turnOnDebugLog -36 Creating trace flag with command (old format): ${traceFlagCmd}`);
                     const traceFlagResult = await this._executeCommand(traceFlagCmd);
                     OrgUtils.logDebug(`[VisbalExt.apexLogTab.VisbalLogView] _turnOnDebugLog -37 Trace flag creation result (old format): ${traceFlagResult}`);
@@ -1157,14 +1159,39 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
       private async _applyDebugConfig(config: any, turnOnDebug: boolean): Promise<void> {
         try {
             OrgUtils.logDebug('[VisbalExt.apexLogTab.VisbalLogView] _applyDebugConfig -1 -- Applying debug configuration:', config);
-            const selectedOrg = await OrgUtils.getSelectedOrgForView(ViewId.APEX_LOG);
-            OrgUtils.logDebug('[VisbalExt.apexLogTab.VisbalLogView] _applyDebugConfig -2 -- Selected org:', selectedOrg);
+            let selectedOrg = await OrgUtils.getSelectedOrgForView(ViewId.APEX_LOG);
+            OrgUtils.logDebug('[VisbalExt.apexLogTab.VisbalLogView] _applyDebugConfig -2 -- View-specific selected org:', selectedOrg);
+            
+            // If no view-specific org is selected, try to fall back to the global selected org or default org
+            if (!selectedOrg || !selectedOrg.alias) {
+                OrgUtils.logDebug('[VisbalExt.apexLogTab.VisbalLogView] _applyDebugConfig -2.1 -- No view-specific org, trying global selected org');
+                selectedOrg = await OrgUtils.getSelectedOrg();
+                OrgUtils.logDebug('[VisbalExt.apexLogTab.VisbalLogView] _applyDebugConfig -2.2 -- Global selected org:', selectedOrg);
+                
+                // If still no org, try to get the current org from CLI/config
+                if (!selectedOrg || !selectedOrg.alias) {
+                    OrgUtils.logDebug('[VisbalExt.apexLogTab.VisbalLogView] _applyDebugConfig -2.3 -- No global selected org, trying current org alias');
+                    const currentOrgAlias = await OrgUtils.getCurrentOrgAlias();
+                    if (currentOrgAlias) {
+                        selectedOrg = { alias: currentOrgAlias, timestamp: new Date().toISOString() };
+                        OrgUtils.logDebug('[VisbalExt.apexLogTab.VisbalLogView] _applyDebugConfig -2.4 -- Using current org alias as fallback:', currentOrgAlias);
+                    }
+                }
+            }
+            
+            // Validate selectedOrg early
+            if (!selectedOrg || !selectedOrg.alias) {
+                throw new Error('No valid org selected. Please select an org before applying debug configuration.');
+            }
+            
+            OrgUtils.logDebug('[VisbalExt.apexLogTab.VisbalLogView] _applyDebugConfig -2.5 -- Final selected org:', selectedOrg);
+            
             // Set loading state
             this._isLoading = true;
             this._view?.webview.postMessage({
                 command: 'loading',
                 isLoading: true,
-                message: turnOnDebug ? `Applying debug configuration on ${selectedOrg?.alias} and turning on debug...` : 'Applying debug configuration...'
+                message: turnOnDebug ? `Applying debug configuration on ${selectedOrg.alias} and turning on debug...` : 'Applying debug configuration...'
             });
             
 
@@ -1219,7 +1246,7 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
                     dataAccess: 'NONE',
                     database: 'NONE',
                     nba: 'NONE',
-                    system: 'DEBUG',
+                    system: 'NONE',
                     validation: 'NONE',
                     visualforce: 'NONE',
                     wave: 'NONE',
@@ -1244,22 +1271,15 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
             // Generate a unique debug level name with timestamp
             const debugLevelName = `VisbalExt_${presetName}`;
             
-            // Get the current user ID - needed for both applying config and turning on debug
+            // Get the user ID for the selected org - needed for both applying config and turning on debug
             let userId = '';
             try {
-                // Try with new CLI format first
-                try {
-                      //#region ALTERNATIVA                        
-                    OrgUtils.logDebug('[VisbalExt.apexLogTab.VisbalLogView] _applyDebugConfig -3 -- ALTERNATIVA Getting user ID with new CLI format');
-                    userId = await OrgUtils.getCurrentUserId();
-                    OrgUtils.logDebug(`[VisbalExt.apexLogTab.VisbalLogView] _applyDebugConfig -4 -- ALTERNATIVA Current user ID: ${userId}`);
-                    //#endregion  ALTERNATIVA
-                } catch (error: any) {
-                    OrgUtils.logError('[VisbalExt.apexLogTab.VisbalLogView] _applyDebugConfig -5 -- Error getting user ID with new CLI format:', error);
-                }
+                OrgUtils.logDebug(`[VisbalExt.apexLogTab.VisbalLogView] _applyDebugConfig -3 -- Getting user ID for selected org: ${selectedOrg.alias}`);
+                userId = await OrgUtils.getCurrentUserId(selectedOrg.alias);
+                OrgUtils.logDebug(`[VisbalExt.apexLogTab.VisbalLogView] _applyDebugConfig -4 -- Got user ID for ${selectedOrg.alias}: ${userId}`);
             } catch (error: any) {
-                OrgUtils.logError('[VisbalExt.apexLogTab.VisbalLogView] _applyDebugConfig -6 -- Error getting user ID:', error);
-                throw new Error('Failed to get current user ID. Make sure you are authenticated with a Salesforce org.');
+                OrgUtils.logError(`[VisbalExt.apexLogTab.VisbalLogView] _applyDebugConfig -5 -- Error getting user ID for org ${selectedOrg.alias}:`, error);
+                throw new Error(`Failed to get user ID for org ${selectedOrg.alias}. Make sure you are authenticated with this org.`);
             }
 
             if (!userId) {
@@ -1272,10 +1292,14 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
             
             try {
                 OrgUtils.logDebug('[VisbalExt.apexLogTab.VisbalLogView] _applyDebugConfig -7 -- Checking for existing trace flags');
-                const query = `SELECT Id, LogType, StartDate, ExpirationDate, DebugLevelId FROM TraceFlag WHERE LogType='DEVELOPER_LOG' AND TracedEntityId='${userId}'`;
                 
+                let query = `SELECT Id, LogType, StartDate, ExpirationDate, DebugLevelId FROM TraceFlag WHERE LogType='${DEFAULT_LOG_TYPE}'`;
+                if (userId && userId != 'unknown') {
+                    query += ` AND TracedEntityId='${userId}'`;
+                }
                 try {
-                    const traceFlagResult = await this._executeCommand(`sf data query --query "${query}" --use-tooling-api --target-org ${selectedOrg?.alias} --json`);
+                    OrgUtils.logDebug(`[VisbalExt.apexLogTab.VisbalLogView] _applyDebugConfig --userId: ${userId} -- Trace flag query: ${query}`);
+                    const traceFlagResult = await this._executeCommand(`sf data query --query "${query}" --use-tooling-api --target-org ${selectedOrg.alias} --json`);
                     OrgUtils.logDebug(`[VisbalExt.apexLogTab.VisbalLogView] _applyDebugConfig -8 -- Trace flag query result: ${traceFlagResult}`);
                     const traceFlagJson = JSON.parse(traceFlagResult);
                     
@@ -1288,7 +1312,7 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
                     OrgUtils.logError('[VisbalExt.apexLogTab.VisbalLogView] _applyDebugConfig -10 -- Error checking trace flags with new CLI format:', error);
                     
                     try {
-                        const traceFlagResult = await this._executeCommand(`sfdx force:data:soql:query --query "${query}" --usetoolingapi --target-org ${selectedOrg?.alias} --json`);
+                        const traceFlagResult = await this._executeCommand(`sfdx force:data:soql:query --query "${query}" --usetoolingapi --target-org ${selectedOrg.alias} --json`);
                         OrgUtils.logDebug(`[VisbalExt.apexLogTab.VisbalLogView] _applyDebugConfig -11 -- Trace flag query result (old format): ${traceFlagResult}`);
                         const traceFlagJson = JSON.parse(traceFlagResult);
                         
@@ -1340,7 +1364,7 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
                 
                 try {
                     try {
-                        const updateDebugLevelCommand = `sf data update record --sobject DebugLevel --record-id ${existingDebugLevelId} --values "${debugLevelFields}" --use-tooling-api --target-org ${selectedOrg?.alias} --json`;
+                        const updateDebugLevelCommand = `sf data update record --sobject DebugLevel --record-id ${existingDebugLevelId} --values "${debugLevelFields}" --use-tooling-api --target-org ${selectedOrg.alias} --json`;
                         OrgUtils.logDebug(`[VisbalExt.apexLogTab.VisbalLogView] _applyDebugConfig -16 -- Updating debug level with command: ${updateDebugLevelCommand}`);
                         
                         const updateDebugLevelResult = await this._executeCommand(updateDebugLevelCommand);
@@ -1349,7 +1373,7 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
                         OrgUtils.logError('[VisbalExt.apexLogTab.VisbalLogView] _applyDebugConfig -18 -- Error updating debug level with new CLI format:', error);
                         
                         try {
-                            const updateDebugLevelCommand = `sfdx force:data:record:update --sobjecttype DebugLevel --sobjectid ${existingDebugLevelId} --values "${debugLevelFields}" --usetoolingapi --target-org ${selectedOrg?.alias} --json`;
+                            const updateDebugLevelCommand = `sfdx force:data:record:update --sobjecttype DebugLevel --sobjectid ${existingDebugLevelId} --values "${debugLevelFields}" --usetoolingapi --target-org ${selectedOrg.alias} --json`;
                             OrgUtils.logDebug(`[VisbalExt.apexLogTab.VisbalLogView] _applyDebugConfig -19 -- Updating debug level with command (old format): ${updateDebugLevelCommand}`);
                             
                             const updateDebugLevelResult = await this._executeCommand(updateDebugLevelCommand);
@@ -1393,7 +1417,7 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
                 
                 try {
                     try {
-                        const deleteTraceFlagCommand = `sf data delete record --sobject TraceFlag --record-id ${existingTraceFlag.Id} --use-tooling-api --target-org ${selectedOrg?.alias} --json`;
+                        const deleteTraceFlagCommand = `sf data delete record --sobject TraceFlag --record-id ${existingTraceFlag.Id} --use-tooling-api --target-org ${selectedOrg.alias} --json`;
                         OrgUtils.logDebug(`[VisbalExt.apexLogTab.VisbalLogView] _applyDebugConfig -36 -- Deleting trace flag with command: ${deleteTraceFlagCommand}`);
                         
                         const deleteTraceFlagResult = await this._executeCommand(deleteTraceFlagCommand);
@@ -1416,9 +1440,9 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
                 const formattedStartDate = now.toISOString();
                 const formattedExpirationDate = expirationDate.toISOString();
                 
-                try {
+                                try {
                     try {
-                        const createTraceFlagCommand = `sf data create record --sobject TraceFlag --values "DebugLevelId=${debugLevelId} LogType=DEVELOPER_LOG TracedEntityId=${userId} StartDate=${formattedStartDate} ExpirationDate=${formattedExpirationDate}" --use-tooling-api --target-org ${selectedOrg?.alias} --json`;
+                        const createTraceFlagCommand = `sf data create record --sobject TraceFlag --values "DebugLevelId=${debugLevelId} LogType=${DEFAULT_LOG_TYPE} TracedEntityId=${userId} StartDate=${formattedStartDate} ExpirationDate=${formattedExpirationDate}" --use-tooling-api --target-org ${selectedOrg.alias} --json`;
                         OrgUtils.logDebug(`[VisbalExt.apexLogTab.VisbalLogView] _applyDebugConfig -44 -- Creating trace flag with command: ${createTraceFlagCommand}`);
                         
                         const createTraceFlagResult = await this._executeCommand(createTraceFlagCommand);
@@ -1428,13 +1452,30 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
                         OrgUtils.logDebug(`[VisbalExt.apexLogTab.VisbalLogView] _applyDebugConfig -46 -- Created trace flag with ID: ${createTraceFlagJson.result.id}`);
                     } catch (error: any) {
                         OrgUtils.logError('[VisbalExt.apexLogTab.VisbalLogView] _applyDebugConfig -47 -- Error creating trace flag with new CLI format:', error);
- 
+
                     }
                 } catch (error: any) {
                     OrgUtils.logError('[VisbalExt.apexLogTab.VisbalLogView] _applyDebugConfig -52 -- Error creating trace flag:', error);
                     throw new Error('Failed to create trace flag');
                 }
             }
+
+            // If we reach here, the configuration was applied successfully
+            OrgUtils.logDebug('[VisbalExt.apexLogTab.VisbalLogView] _applyDebugConfig -99 -- Configuration applied successfully');
+            
+            const successMessage = turnOnDebug 
+                ? `Debug configuration applied and debug logging enabled on ${selectedOrg.alias} for 24 hours`
+                : `Debug configuration applied successfully on ${selectedOrg.alias}`;
+            
+            this._view?.webview.postMessage({
+                command: turnOnDebug ? 'debugStatus' : 'applyConfigStatus',
+                success: true,
+                message: successMessage
+            });
+            
+            // Show a notification
+            vscode.window.showInformationMessage(successMessage);
+            
         } catch (error: any) {
             OrgUtils.logError('[VisbalExt.apexLogTab.VisbalLogView] _applyDebugConfig -53 -- Error in _applyDebugConfig:', error);
             
@@ -1515,10 +1556,15 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
             this._isLoading = true;
             this._view?.webview.postMessage({ command: 'loading', isLoading: true, message: 'Deleting all logs via SOQL...' });
 
+            const selectedOrg = await OrgUtils.getSelectedOrgForView(ViewId.APEX_LOG);
+            if (!selectedOrg) {
+                throw new Error('No org selected');
+            }
+
             // Query all ApexLog IDs using SOQL
             OrgUtils.logDebug('[VisbalExt.apexLogTab.VisbalLogView] _deleteServerLogsViaSoql -- Querying all ApexLog IDs');
             const query = 'SELECT Id FROM ApexLog';
-            const records: any[] = await this._sfdxService.executeSoqlQuery(query, false, true);
+            const records: any[] = await this._sfdxService.executeSoqlQuery(query, false, true, selectedOrg.alias);
           
             if (!records || !Array.isArray(records) || records.length === 0) {
                 OrgUtils.logDebug('[VisbalExt.apexLogTab.VisbalLogView] _deleteServerLogsViaSoql -- No logs found to delete');

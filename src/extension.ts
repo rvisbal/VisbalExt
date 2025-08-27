@@ -46,7 +46,7 @@ export async function activate(context: vscode.ExtensionContext) {
   // Check if there's a default org set for the project first
   try {
     const alias = await OrgUtils.getCurrentOrgAlias();
-    const userId = await OrgUtils.getCurrentUserId();
+    const userId = await OrgUtils.getCurrentUserId(alias);
     OrgUtils.logDebug(`[VisbalExt.Extension] activate Org found - alias: ${alias}, userId: ${userId}`);
     outputChannel.appendLine(`[VisbalExt.Extension] activate Connected to org: ${alias}`);
   } catch (error: any) {
