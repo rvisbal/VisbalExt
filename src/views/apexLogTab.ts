@@ -636,11 +636,11 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
                 
                 if (error) {
                     // Enhanced error logging
-                    OrgUtils.logError(`[VisbalExt.apexLogTab.VisbalLogView] _executeCommand Error executing command: ${command}`);
+                    OrgUtils.logError(`[VisbalExt.apexLogTab.VisbalLogView] _executeCommand Error executing command: ${command}`, error);
                     OrgUtils.logError(`[VisbalExt.apexLogTab.VisbalLogView] _executeCommand Error details:`, {
                         message: error.message,
-                        code: error.code,
-                        signal: error.signal,
+                        code: (error as any).code,
+                        signal: (error as any).signal,
                         stdout: stdout,
                         stderr: stderr
                     });
@@ -659,9 +659,9 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
                         }
                     }
                     
-                    const enhancedError = new Error(errorMessage);
-                    enhancedError.code = error.code;
-                    enhancedError.signal = error.signal;
+                    const enhancedError = new Error(errorMessage) as any;
+                    enhancedError.code = (error as any).code;
+                    enhancedError.signal = (error as any).signal;
                     reject(enhancedError);
                     return;
                 }
@@ -682,7 +682,7 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
                         !line.includes('update available')
                     );
                     if (errors.length > 0) {
-                        OrgUtils.logError(`[VisbalExt.apexLogTab.VisbalLogView] _executeCommand stderr errors: ${errors.join('\n')}`);
+                        OrgUtils.logError(`[VisbalExt.apexLogTab.VisbalLogView] _executeCommand stderr errors: ${errors.join('\n')}`, new Error(errors.join('\n')));
                         reject(new Error(errors.join('\n')));
                         return;
                     }
@@ -1052,6 +1052,8 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
                 OrgUtils.logDebug(`[VisbalExt.apexLogTab.VisbalLogView] _deleteServerLogs -- CSV verification - Lines: ${lineCount}, Has CR: ${hasCarriageReturns}, Size: ${fileContent.length} chars`);
                 
                 // Validate org authentication before executing bulk delete
+                /*
+                //lets avoid this as put extra time to the operation
                 const orgCheckCmd = `sf org display --target-org ${selectedOrg?.alias} --json`;
                 try {
                     OrgUtils.logDebug(`[VisbalExt.apexLogTab.VisbalLogView] _deleteServerLogs -- Checking org authentication: ${orgCheckCmd}`);
@@ -1065,6 +1067,7 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
                     OrgUtils.logError(`[VisbalExt.apexLogTab.VisbalLogView] _deleteServerLogs -- Org authentication check failed:`, orgError);
                     throw new Error(`Failed to authenticate with org ${selectedOrg?.alias}. Please re-authenticate.`);
                 }
+                */
 
                 const bulkDeleteCmd = `sf data delete bulk --sobject ApexLog --file "${tempCsvPath}" --target-org ${selectedOrg?.alias} --json --wait 10`;
                 OrgUtils.logDebug(`[VisbalExt.apexLogTab.VisbalLogView] _deleteServerLogs -- Executing bulk delete: ${bulkDeleteCmd}`);
@@ -1142,7 +1145,8 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
             
             if (error.message?.includes('not authenticated') || error.message?.includes('session has expired')) {
                 userMessage = 'Authentication Error';
-                detailedMessage = `Please re-authenticate with org ${this._selectedOrgAlias}. Your session may have expired.`;
+                const selectedOrg = await OrgUtils.getSelectedOrgForView(ViewId.APEX_LOG);
+                detailedMessage = `Please re-authenticate with org ${selectedOrg?.alias || 'unknown'}. Your session may have expired.`;
             } else if (error.message?.includes('No such file or directory') || error.message?.includes('CSV file does not exist')) {
                 userMessage = 'File Error';
                 detailedMessage = 'Failed to create temporary CSV file for bulk delete operation.';
@@ -1284,14 +1288,37 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
         } catch (error: any) {
             OrgUtils.logError('[VisbalExt.apexLogTab.VisbalLogView] Error in _deleteSelectedLogs:', error);
             
+            // Provide more specific error messages based on the error type
+            let userMessage = 'Failed to delete selected logs';
+            let detailedMessage = error.message || 'Unknown error';
+            
+            if (error.message?.includes('not authenticated') || error.message?.includes('session has expired')) {
+                userMessage = 'Authentication Error';
+                const selectedOrg = await OrgUtils.getSelectedOrgForView(ViewId.APEX_LOG);
+                detailedMessage = `Please re-authenticate with org ${selectedOrg?.alias || 'unknown'}. Your session may have expired.`;
+            } else if (error.message?.includes('No such file or directory') || error.message?.includes('CSV file does not exist')) {
+                userMessage = 'File Error';
+                detailedMessage = 'Failed to create temporary CSV file for bulk delete operation.';
+            } else if (error.message?.includes('INVALID_OPERATION') || error.message?.includes('INVALID_TYPE')) {
+                userMessage = 'Salesforce API Error';
+                detailedMessage = 'The bulk delete operation failed. This might be due to permissions or data constraints.';
+            } else if (error.message?.includes('sf: command not found') || error.message?.includes('sf is not recognized')) {
+                userMessage = 'CLI Error';
+                detailedMessage = 'Salesforce CLI is not installed or not in your PATH. Please install the Salesforce CLI.';
+            } else if (error.code === 'ENOENT') {
+                userMessage = 'Command Not Found';
+                detailedMessage = 'Salesforce CLI command not found. Please ensure the Salesforce CLI is properly installed.';
+            }
+            
             // Notify the webview
             this._view?.webview.postMessage({ 
                 command: 'deleteSelectedStatus', 
                 success: false,
-                error: error.message || 'Unknown error'
+                error: detailedMessage
             });
             
-            vscode.window.showErrorMessage(`Failed to delete selected logs: ${error.message}`);
+            vscode.window.showErrorMessage(`${userMessage}: ${detailedMessage}`);
+            statusBarService.showError(`${userMessage}: ${detailedMessage}`);
         } finally {
             this._isLoading = false;
             this._view?.webview.postMessage({ command: 'loading', isLoading: false });
