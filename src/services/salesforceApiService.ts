@@ -18,14 +18,15 @@ export class SalesforceApiService {
 
     /**
      * Initialize the Salesforce API service
+     * @param orgAlias Optional org alias to use. If not provided, uses the default org.
      */
-    public async initialize(): Promise<boolean> {
+    public async initialize(orgAlias?: string): Promise<boolean> {
         try {
             OrgUtils.logDebug('[VisbalExt.SalesforceApiService] initialize -- Initializing Salesforce API service');
             statusBarService.showProgress('Initializing Salesforce API...');
             
             // Get authentication details from Salesforce CLI
-            const authDetails = await this._getAuthDetailsFromCli();
+            const authDetails = await this._getAuthDetailsFromCli(orgAlias);
             
             if (!authDetails) {
                 OrgUtils.logDebug('[VisbalExt.SalesforceApiService] initialize -- Failed to get auth details from CLI');
@@ -279,13 +280,15 @@ export class SalesforceApiService {
     /**
      * Get authentication details from Salesforce CLI
      */
-    private async _getAuthDetailsFromCli(): Promise<{ accessToken: string, instanceUrl: string } | null> {
+    private async _getAuthDetailsFromCli(orgAlias?: string): Promise<{ accessToken: string, instanceUrl: string } | null> {
         try {
             OrgUtils.logDebug('[VisbalExt.SalesforceApiService] _getAuthDetailsFromCli -- Getting auth details from CLI');
             
             // Try with new CLI format first
             try {
-                const { stdout: orgInfo } = await execAsync('sf org display --json');
+                const command = orgAlias ? `sf org display --target-org ${orgAlias} --json` : 'sf org display --json';
+                OrgUtils.logDebug(`[VisbalExt.SalesforceApiService] _getAuthDetailsFromCli -- Executing: ${command}`);
+                const { stdout: orgInfo } = await execAsync(command);
                 OrgUtils.logDebug('[VisbalExt.SalesforceApiService] _getAuthDetailsFromCli -- Successfully got org info with new CLI format');
                 
                 const orgData = JSON.parse(orgInfo);
@@ -303,7 +306,9 @@ export class SalesforceApiService {
                 OrgUtils.logDebug('[VisbalExt.SalesforceApiService] _getAuthDetailsFromCli -- Failed with new CLI format, trying old format', error);
                 
                 // If the new command fails, try the old format
-                const { stdout: orgInfo } = await execAsync('sfdx force:org:display --json');
+                const fallbackCommand = orgAlias ? `sfdx force:org:display --targetusername ${orgAlias} --json` : 'sfdx force:org:display --json';
+                OrgUtils.logDebug(`[VisbalExt.SalesforceApiService] _getAuthDetailsFromCli -- Executing fallback: ${fallbackCommand}`);
+                const { stdout: orgInfo } = await execAsync(fallbackCommand);
                 OrgUtils.logDebug('[VisbalExt.SalesforceApiService] _getAuthDetailsFromCli -- Successfully got org info with old CLI format');
                 
                 const orgData = JSON.parse(orgInfo);

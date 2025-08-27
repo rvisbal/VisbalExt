@@ -25,6 +25,8 @@ import { ExecuteApexTab } from './views/executeApexTab';
 import { TractionTab } from './views/tractionTab';
 import { LogFilterView } from './views/logFilterView';
 import { LogFilterService, logFilterService } from './services/logFilterService';
+import { JsonViewerTab } from './views/jsonViewerTab';
+import { JsonViewerService } from './services/jsonViewerService';
 
 let outputChannel: vscode.OutputChannel;
 
@@ -89,6 +91,7 @@ export async function activate(context: vscode.ExtensionContext) {
   let samplePanel: ExecuteApexTab | undefined;
   let orgTabViewProvider: OrgTabView | undefined;
   let tractionTab: TractionTab | undefined;
+  let jsonViewerTab: JsonViewerTab | undefined;
 
   // Watch for configuration changes
   context.subscriptions.push(
@@ -291,6 +294,26 @@ export async function activate(context: vscode.ExtensionContext) {
     );
   }
 
+  if (isModuleEnabled('jsonViewer')) {
+    // Create and register JSON Viewer Tab
+    jsonViewerTab = new JsonViewerTab(context);
+    context.subscriptions.push(
+      vscode.window.registerWebviewViewProvider(
+        'visbal-json-viewer',
+        jsonViewerTab,
+        {
+          webviewOptions: {
+            retainContextWhenHidden: true
+          }
+        }
+      )
+    );
+
+    // Initialize JSON Viewer Service
+    const jsonViewerService = JsonViewerService.getInstance(context);
+    jsonViewerService.initialize(jsonViewerTab);
+  }
+
   // Register commands for panel activation (only if respective modules are enabled)
   if (isModuleEnabled('logAnalyzer')) {
     context.subscriptions.push(
@@ -400,6 +423,56 @@ export async function activate(context: vscode.ExtensionContext) {
     context.subscriptions.push(
       vscode.commands.registerCommand('visbal-ext.showVisbalTraction', () => {
         vscode.commands.executeCommand('workbench.view.extension.visbal-traction-container');
+      })
+    );
+  }
+
+  if (isModuleEnabled('jsonViewer')) {
+    context.subscriptions.push(
+      vscode.commands.registerCommand('visbal-ext.showJsonViewer', () => {
+        vscode.commands.executeCommand('workbench.view.extension.visbal-json-container');
+      })
+    );
+
+    context.subscriptions.push(
+      vscode.commands.registerCommand('visbal-ext.openJsonInViewer', async () => {
+        const jsonViewerService = JsonViewerService.getInstance(context);
+        await jsonViewerService.openJsonFromActiveEditor();
+      })
+    );
+
+    context.subscriptions.push(
+      vscode.commands.registerCommand('visbal-ext.validateJson', async () => {
+        const jsonViewerService = JsonViewerService.getInstance(context);
+        await jsonViewerService.validateCurrentJson();
+      })
+    );
+
+    context.subscriptions.push(
+      vscode.commands.registerCommand('visbal-ext.formatJson', async () => {
+        const jsonViewerService = JsonViewerService.getInstance(context);
+        await jsonViewerService.formatCurrentJson();
+      })
+    );
+
+    context.subscriptions.push(
+      vscode.commands.registerCommand('visbal-ext.minifyJson', async () => {
+        const jsonViewerService = JsonViewerService.getInstance(context);
+        await jsonViewerService.minifyCurrentJson();
+      })
+    );
+
+    context.subscriptions.push(
+      vscode.commands.registerCommand('visbal-ext.convertJsonToYaml', async () => {
+        const jsonViewerService = JsonViewerService.getInstance(context);
+        await jsonViewerService.convertJsonToYaml();
+      })
+    );
+
+    context.subscriptions.push(
+      vscode.commands.registerCommand('visbal-ext.generateJsonSchema', async () => {
+        const jsonViewerService = JsonViewerService.getInstance(context);
+        await jsonViewerService.createJsonSchema();
       })
     );
   }

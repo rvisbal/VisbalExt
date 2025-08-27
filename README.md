@@ -28,6 +28,16 @@ A Visual Studio Code extension that enhances Salesforce development with improve
 - View execution results and debug logs
 - REST API integration for Apex endpoints
 
+### JSON Viewer
+- Interactive tree view for JSON files with collapsible nodes
+- Syntax highlighting for JSON elements (strings, numbers, booleans, etc.)
+- Search functionality with highlighted results
+- Format, validate, and minify JSON content
+- Convert JSON to YAML format
+- Generate JSON schemas from existing JSON
+- Export JSON to new files
+- Statistics display showing object/array counts
+
 ## Requirements
 
 - Visual Studio Code 1.63.0 or higher
@@ -73,12 +83,46 @@ A Visual Studio Code extension that enhances Salesforce development with improve
 3. Click execute to run the code
 4. View execution results and logs
 
+### JSON Viewer
+
+1. Open a JSON file in VS Code
+2. Right-click and select "Open in JSON Viewer" or use Command Palette → "Visbal: Show JSON Viewer"
+3. Use the interactive tree view to explore JSON structure
+4. Search through JSON content using the search box
+5. Use toolbar buttons to:
+   - Format or minify JSON
+   - Validate JSON syntax
+   - Convert to YAML
+   - Generate JSON schema
+   - Export to new files
+6. Expand/collapse nodes to navigate large JSON structures
+
 ## Extension Settings
 
 This extension contributes the following settings:
 
+### Core Settings
 * `visbal.logDirectory`: Directory to store downloaded logs (default: `.sfdx/tools/debug/logs`)
 * `visbal.cacheTimeout`: Duration to cache test methods in minutes (default: 5)
+
+### Module Settings
+* `visbal.modules.testExplorer.enabled`: Enable/disable the Test Explorer module (default: true)
+* `visbal.modules.logAnalyzer.enabled`: Enable/disable the Log Analyzer module (default: true)
+* `visbal.modules.soqlQuery.enabled`: Enable/disable the SOQL Query module (default: true)
+* `visbal.modules.samplePanel.enabled`: Enable/disable the Sample Panel module (default: true)
+* `visbal.modules.orgs.enabled`: Enable/disable the Orgs module (default: true)
+* `visbal.modules.traction.enabled`: Enable/disable the Traction module (default: true)
+* `visbal.modules.jsonViewer.enabled`: Enable/disable the JSON Viewer module (default: true)
+
+### JSON Viewer Settings
+* `visbal.jsonViewer.autoOpen`: Automatically open JSON files in the JSON viewer when selected (default: true)
+* `visbal.jsonViewer.collapseLevel`: Default collapse level for JSON objects (0 = fully expanded) (default: 2)
+* `visbal.jsonViewer.showObjectStats`: Show statistics about JSON objects (object count, array count, etc.) (default: true)
+
+### Log Filter Settings
+* `visbal.logFilter.autoApplyBuiltInFilters`: Automatically apply built-in filters when opening log files (default: false)
+* `visbal.logFilter.maxFilterExecutionTime`: Maximum execution time for filters in milliseconds (default: 5000)
+* `visbal.logFilter.showFilterPanelByDefault`: Show the filter panel by default in log views (default: true)
 
 ## Known Issues
 
@@ -89,10 +133,14 @@ See [GitHub issues](https://github.com/yourusername/visbal-ext/issues) for known
 ### 0.1.0
 
 Initial release of Visbal Extension with:
-- Test Class Explorer
-- Log Analysis
-- SOQL Query Panel
-- Apex Execution Panel
+- Test Class Explorer with multi-select and batch test execution
+- Advanced Log Analysis with filtering capabilities
+- SOQL Query Panel for database queries
+- Apex Execution Panel for anonymous code execution
+- JSON Viewer with interactive tree view and advanced operations
+- Comprehensive configuration options for all modules
+- Git History integration for code analysis
+- Modular architecture with enable/disable options
 
 ## Contributing
 

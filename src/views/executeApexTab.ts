@@ -67,7 +67,7 @@ export class ExecuteApexTab implements vscode.WebviewViewProvider {
 
     private async _updateTemplates() {
         try {
-            OrgUtils.logDebug('[VisbalExt.ExecuteApexTab] Updating template files');
+            OrgUtils.logDebug('[VisbalExt.ExecuteApexTab] _updateTemplates -- Updating template files');
             await this._copyTemplateFiles();
             await this._loadApexFiles();
             if (this._view) {
@@ -77,7 +77,7 @@ export class ExecuteApexTab implements vscode.WebviewViewProvider {
                 });
             }
         } catch (error: any) {
-            OrgUtils.logError('[VisbalExt.ExecuteApexTab] Error updating templates:', error);
+            OrgUtils.logError('[VisbalExt.ExecuteApexTab] _updateTemplates -- Error updating templates:', error);
             if (this._view) {
                 this._view.webview.postMessage({
                     command: 'error',
@@ -92,7 +92,7 @@ export class ExecuteApexTab implements vscode.WebviewViewProvider {
             const content = await vscode.workspace.fs.readFile(vscode.Uri.file(filePath));
             return content.toString();
         } catch (error: any) {
-            OrgUtils.logError('[VisbalExt.ExecuteApexTab] Error reading file:', error);
+            OrgUtils.logError('[VisbalExt.ExecuteApexTab] _loadApexFileContent -- Error reading file:', error);
             throw error;
         }
     }
@@ -111,7 +111,7 @@ export class ExecuteApexTab implements vscode.WebviewViewProvider {
                 });
             }
         } catch (error: any) {
-            OrgUtils.logError('[VisbalExt.ExecuteApexTab] Error saving file:', error);
+            OrgUtils.logError('[VisbalExt.ExecuteApexTab] _saveApexFileContent -- Error saving file:', error);
             if (this._view) {
                 this._view.webview.postMessage({
                     command: 'error',
@@ -238,9 +238,9 @@ export class ExecuteApexTab implements vscode.WebviewViewProvider {
                 });
                 return;
             }
-            OrgUtils.logDebug(`[VisbalExt.ExecuteApexTab] executeAnonymousApex -- Executing on ${selectedOrg?.alias} org code:`, code);
+            OrgUtils.logDebug(`[VisbalExt.ExecuteApexTab] executeApex -- Executing on ${selectedOrg?.alias} org code:`, code);
             const result = await this._sfdxService.executeAnonymousApex(code, selectedOrg?.alias);
-            OrgUtils.logDebug('[VisbalExt.ExecuteApexTab] Execution result:', result);
+            OrgUtils.logDebug('[VisbalExt.ExecuteApexTab] executeApex -- Execution result:', result);
             if (result.success) {
                 this._view?.webview.postMessage({
                     command: 'executionResult',

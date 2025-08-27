@@ -66,6 +66,11 @@
           "id": "visbal-traction-container",
           "title": "Traction",
           "icon": "$(rocket)"
+        },
+        {
+          "id": "visbal-json-container",
+          "title": "JSON Viewer",
+          "icon": "$(json)"
         }
       ],
       "activitybar": [
@@ -138,6 +143,13 @@
           "type": "webview",
           "id": "visbal-traction",
           "name": "Traction Panel"
+        }
+      ],
+      "visbal-json-container": [
+        {
+          "type": "webview",
+          "id": "visbal-json-viewer",
+          "name": "JSON Viewer"
         }
       ]
     },
@@ -264,6 +276,48 @@
         "title": "Apply Log Filter to Current Log",
         "category": "Visbal",
         "icon": "$(filter-filled)"
+      },
+      {
+        "command": "visbal-ext.showJsonViewer",
+        "title": "Show JSON Viewer",
+        "category": "Visbal",
+        "icon": "$(json)"
+      },
+      {
+        "command": "visbal-ext.openJsonInViewer",
+        "title": "Open in JSON Viewer",
+        "category": "Visbal",
+        "icon": "$(open-preview)"
+      },
+      {
+        "command": "visbal-ext.validateJson",
+        "title": "Validate JSON",
+        "category": "Visbal",
+        "icon": "$(check)"
+      },
+      {
+        "command": "visbal-ext.formatJson",
+        "title": "Format JSON",
+        "category": "Visbal",
+        "icon": "$(code)"
+      },
+      {
+        "command": "visbal-ext.minifyJson",
+        "title": "Minify JSON",
+        "category": "Visbal",
+        "icon": "$(collapse-all)"
+      },
+      {
+        "command": "visbal-ext.convertJsonToYaml",
+        "title": "Convert JSON to YAML",
+        "category": "Visbal",
+        "icon": "$(symbol-method)"
+      },
+      {
+        "command": "visbal-ext.generateJsonSchema",
+        "title": "Generate JSON Schema",
+        "category": "Visbal",
+        "icon": "$(type-hierarchy)"
       }
     ],
     "menus": {
@@ -288,6 +342,21 @@
           "command": "visbal-ext.applyLogFilter",
           "when": "resourceExtname == .log",
           "group": "navigation"
+        },
+        {
+          "command": "visbal-ext.openJsonInViewer",
+          "when": "resourceExtname == .json",
+          "group": "navigation"
+        },
+        {
+          "command": "visbal-ext.validateJson",
+          "when": "resourceExtname == .json",
+          "group": "navigation"
+        },
+        {
+          "command": "visbal-ext.formatJson",
+          "when": "resourceExtname == .json",
+          "group": "navigation"
         }
       ],
       "editor/context": [
@@ -310,12 +379,47 @@
           "command": "visbal-ext.navigateToSelectedDefinition",
           "when": "editorTextFocus",
           "group": "1_visbal"
+        },
+        {
+          "command": "visbal-ext.openJsonInViewer",
+          "when": "resourceExtname == .json",
+          "group": "2_json"
+        },
+        {
+          "command": "visbal-ext.validateJson",
+          "when": "resourceExtname == .json",
+          "group": "2_json"
+        },
+        {
+          "command": "visbal-ext.formatJson",
+          "when": "resourceExtname == .json",
+          "group": "2_json"
+        },
+        {
+          "command": "visbal-ext.minifyJson",
+          "when": "resourceExtname == .json",
+          "group": "2_json"
+        },
+        {
+          "command": "visbal-ext.convertJsonToYaml",
+          "when": "resourceExtname == .json",
+          "group": "2_json"
+        },
+        {
+          "command": "visbal-ext.generateJsonSchema",
+          "when": "resourceExtname == .json",
+          "group": "2_json"
         }
       ],
       "explorer/context": [
         {
           "command": "visbal-ext.showGitHistoryForFile",
           "group": "1_visbal"
+        },
+        {
+          "command": "visbal-ext.openJsonInViewer",
+          "when": "resourceExtname == .json",
+          "group": "2_json"
         }
       ],
       "tab/context": [
@@ -425,6 +529,26 @@
           "type": "boolean",
           "default": true,
           "description": "Show the filter panel by default in log views"
+        },
+        "visbal.jsonViewer.autoOpen": {
+          "type": "boolean",
+          "default": true,
+          "description": "Automatically open JSON files in the JSON viewer when selected"
+        },
+        "visbal.jsonViewer.collapseLevel": {
+          "type": "number",
+          "default": 2,
+          "description": "Default collapse level for JSON objects (0 = fully expanded)"
+        },
+        "visbal.jsonViewer.showObjectStats": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show statistics about JSON objects (object count, array count, etc.)"
+        },
+        "visbal.modules.jsonViewer.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable/disable the JSON Viewer module"
         }
       }
     }

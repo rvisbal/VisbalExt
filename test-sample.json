@@ -1,0 +1,55 @@
+{
+  "name": "JSON Viewer Test",
+  "version": "1.0.0",
+  "description": "A sample JSON file to test the JSON viewer functionality",
+  "author": {
+    "name": "Visbal Extension",
+    "email": "test@example.com"
+  },
+  "features": [
+    "JSON Syntax Highlighting",
+    "Collapsible Tree View",
+    "Search Functionality",
+    "Format & Minify",
+    "YAML Conversion",
+    "Schema Generation"
+  ],
+  "settings": {
+    "theme": "dark",
+    "autoSave": true,
+    "collapseLevel": 2,
+    "showStats": true
+  },
+  "data": {
+    "users": [
+      {
+        "id": 1,
+        "name": "John Doe",
+        "email": "john@example.com",
+        "active": true,
+        "roles": ["admin", "user"]
+      },
+      {
+        "id": 2,
+        "name": "Jane Smith",
+        "email": "jane@example.com",
+        "active": false,
+        "roles": ["user"]
+      }
+    ],
+    "products": [
+      {
+        "id": "p001",
+        "name": "Sample Product",
+        "price": 29.99,
+        "inStock": true,
+        "tags": ["electronics", "gadget"]
+      }
+    ]
+  },
+  "metadata": {
+    "created": "2024-01-01T00:00:00Z",
+    "modified": "2024-01-15T12:30:00Z",
+    "size": 1024
+  }
+}

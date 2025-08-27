@@ -433,18 +433,9 @@ export class SfdxService {
             }
             command += ' --json';
 
-            // Try with new CLI format first
-            try {
-                OrgUtils.logDebug(`[VisbalExt.SfdxService] Deleting trace flag with command: ${command}`);
-                await this._executeCommand(command);
-            } catch (error: any) {
-                OrgUtils.logError('[VisbalExt.SfdxService] Error deleting trace flag with new CLI format:', error);
-                
-                // Try with old CLI format
-                command = `sfdx force:data:record:delete --sobjecttype TraceFlag --sobjectid ${traceFlagId} --usetoolingapi --json`;
-                OrgUtils.logDebug(`[VisbalExt.SfdxService] Deleting trace flag with command (old format): ${command}`);
-                await this._executeCommand(command);
-            }
+            // Use new CLI format only
+            OrgUtils.logDebug(`[VisbalExt.SfdxService] Deleting trace flag with command: ${command}`);
+            await this._executeCommand(command);
         } catch (error: any) {
             OrgUtils.logError('[VisbalExt.SfdxService] Error deleting trace flag:', error);
             throw new Error('Failed to delete trace flag');
@@ -525,7 +516,7 @@ export class SfdxService {
                 await unlink(tempFile);
                 return content;
             } catch (directError) {
-                OrgUtils.logDebug('[VisbalExt.SfdxService] Direct file output failed, trying JSON format', directError);
+                OrgUtils.logDebug('[VisbalExt.SfdxService] getLogContentAndSave -- Direct file output failed, trying JSON format', directError);
                 
                 // Try JSON format
                 try {
@@ -540,7 +531,7 @@ export class SfdxService {
                         return parsedResult.result.log;
                     }
                 } catch (jsonError) {
-                    OrgUtils.logDebug('[VisbalExt.SfdxService] JSON format failed, trying direct output', jsonError);
+                    OrgUtils.logDebug('[VisbalExt.SfdxService] getLogContentAndSave -- JSON format failed, trying direct output', jsonError);
                     
                     // Try direct output as last resort
                     const selectedOrg = await OrgUtils.getSelectedOrg();
@@ -566,7 +557,7 @@ export class SfdxService {
      */
     public async listApexLogs(): Promise<string> {
         try {
-            OrgUtils.logDebug('[VisbalExt.SfdxService] Listing Apex logs...');
+            OrgUtils.logDebug('[VisbalExt.SfdxService] listApexLogs -- Listing Apex logs...');
             let command = 'sf apex list log';
             
             const selectedOrg = await OrgUtils.getSelectedOrg();
@@ -578,7 +569,7 @@ export class SfdxService {
             const result = await this._executeCommand(command);
             return result.stdout;
         } catch (error: any) {
-            OrgUtils.logError('[VisbalExt.SfdxService] Failed to list Apex logs:', error);
+            OrgUtils.logError('[VisbalExt.SfdxService] listApexLogs -- Failed to list Apex logs:', error);
             throw error;
         }
     }
@@ -670,18 +661,18 @@ export class SfdxService {
                             return logContent;
                         }
                     } catch (oldDirectOutputError) {
-                        OrgUtils.logDebug('[VisbalExt.SfdxService] Direct output with old CLI format failed', oldDirectOutputError);
+                        OrgUtils.logDebug('[VisbalExt.SfdxService] getLogContent -- Direct output with old CLI format failed', oldDirectOutputError);
                     }
                 }
             } catch (error: any) {
-                OrgUtils.logDebug('[VisbalExt.SfdxService] Direct file output approach failed, falling back to standard methods', error);
+                OrgUtils.logDebug('[VisbalExt.SfdxService] getLogContent -- Direct file output approach failed, falling back to standard methods', error);
             }
             
             // If direct file output failed, try the standard methods with increased buffer size
             
             // Try to fetch the log using the new command format first
             let log;
-            OrgUtils.logDebug('[VisbalExt.SfdxService] Trying to fetch log content with new CLI format');
+            OrgUtils.logDebug('[VisbalExt.SfdxService] getLogContent -- Trying to fetch log content with new CLI format');
             try {
                 const selectedOrg = await OrgUtils.getSelectedOrg();
                 let command = `sf apex get log -i ${logId}`;
@@ -691,7 +682,7 @@ export class SfdxService {
                 command += ' --json';
                 OrgUtils.logDebug(`[VisbalExt.SfdxService] Executing: ${command}`);
                 const result = await this._executeCommand(command);
-                OrgUtils.logDebug('[VisbalExt.SfdxService] Successfully fetched log content with new CLI format');
+                OrgUtils.logDebug('[VisbalExt.SfdxService] getLogContent -- Successfully fetched log content with new CLI format');
                 log = JSON.parse(result.stdout);
                 
                 // Debug the response structure
@@ -707,11 +698,11 @@ export class SfdxService {
                 if (log.result) {
                     if (typeof log.result === 'string') {
                         // Direct log content as string
-                        OrgUtils.logDebug('[VisbalExt.SfdxService] Found log content as string in result');
+                        OrgUtils.logDebug('[VisbalExt.SfdxService] getLogContent -- Found log content as string in result');
                         return log.result;
                     } else if (typeof log.result.log === 'string') {
                         // Log content in result.log
-                        OrgUtils.logDebug('[VisbalExt.SfdxService] Found log content in result.log');
+                        OrgUtils.logDebug('[VisbalExt.SfdxService] getLogContent -- Found log content in result.log');
                         return log.result.log;
                     } else if (Array.isArray(log.result) && log.result.length > 0) {
                         // Array result format
@@ -719,30 +710,30 @@ export class SfdxService {
                         
                         // Check for common properties that might contain the log
                         if (firstResult.log) {
-                            OrgUtils.logDebug('[VisbalExt.SfdxService] Found log content in result[0].log');
+                            OrgUtils.logDebug('[VisbalExt.SfdxService] getLogContent -- Found log content in result[0].log');
                             return firstResult.log;
                         } else if (firstResult.body) {
-                            OrgUtils.logDebug('[VisbalExt.SfdxService] Found log content in result[0].body');
+                            OrgUtils.logDebug('[VisbalExt.SfdxService] getLogContent -- Found log content in result[0].body');
                             return firstResult.body;
                         } else if (firstResult.content) {
-                            OrgUtils.logDebug('[VisbalExt.SfdxService] Found log content in result[0].content');
+                            OrgUtils.logDebug('[VisbalExt.SfdxService] getLogContent -- Found log content in result[0].content');
                             return firstResult.content;
                         } else if (firstResult.text) {
-                            OrgUtils.logDebug('[VisbalExt.SfdxService] Found log content in result[0].text');
+                            OrgUtils.logDebug('[VisbalExt.SfdxService] getLogContent -- Found log content in result[0].text');
                             return firstResult.text;
                         } else {
                             // If we can't find a specific property, try to stringify the first result
-                            OrgUtils.logDebug('[VisbalExt.SfdxService] No specific log property found, using entire result object');
+                            OrgUtils.logDebug('[VisbalExt.SfdxService] getLogContent -- No specific log property found, using entire result object');
                             return JSON.stringify(firstResult, null, 2);
                         }
                     }
                 }
                 
                 // If we couldn't find the log content in the expected places, try direct CLI output
-                OrgUtils.logDebug('[VisbalExt.SfdxService] Could not find log content in JSON response, trying direct CLI output');
+                OrgUtils.logDebug('[VisbalExt.SfdxService] getLogContent -- Could not find log content in JSON response, trying direct CLI output');
                 throw new Error('Log content not found in expected format');
             } catch (error: any) {
-                OrgUtils.logDebug('[VisbalExt.SfdxService] Failed with new CLI format or parsing, trying old format', error);
+                OrgUtils.logDebug('[VisbalExt.SfdxService] getLogContent -- Failed with new CLI format or parsing, trying old format', error);
                 // If the new command fails, try the old format
                 try {
                     const command = `sfdx force:apex:log:get --logid ${logId} --json`;
@@ -786,7 +777,7 @@ export class SfdxService {
                                 throw new Error('Empty log content from direct CLI output (old format)');
                             }
                         } catch (oldDirectError) {
-                            OrgUtils.logError('[VisbalExt.SfdxService] All attempts to fetch log content failed', oldDirectError instanceof Error ? oldDirectError : new Error(String(oldDirectError)));
+                            OrgUtils.logError('[VisbalExt.SfdxService] getLogContent -- All attempts to fetch log content failed', oldDirectError instanceof Error ? oldDirectError : new Error(String(oldDirectError)));
                             throw new Error('Failed to fetch log content. The log may be too large to download. Please try using the Salesforce CLI directly.');
                         }
                     }
@@ -795,7 +786,7 @@ export class SfdxService {
             
             // This should not be reached due to the throws above, but just in case
         } catch (error: any) {
-            OrgUtils.logError(`[VisbalExt.SfdxService] Error fetching log with ID ${logId}:`, error );
+            OrgUtils.logError(`[VisbalExt.SfdxService] getLogContent -- Error fetching log with ID ${logId}:`, error );
             throw error;
         }
     }
@@ -851,7 +842,7 @@ export class SfdxService {
      * @throws Error if unable to fetch logs
      */
     public async fetchSalesforceLogsSoql(): Promise<SalesforceLog[]> {
-        OrgUtils.logDebug('[VisbalExt.SfdxService] Starting to fetch Salesforce logs via SOQL');
+        OrgUtils.logDebug('[VisbalExt.SfdxService] fetchSalesforceLogsSoql -- Starting to fetch Salesforce logs via SOQL');
         try {
             const selectedOrg = await OrgUtils.getSelectedOrg();
             if (!selectedOrg) {
@@ -862,12 +853,12 @@ export class SfdxService {
             // Check if SF CLI is installed
             let sfInstalled = false;
             try {
-                OrgUtils.logDebug('[VisbalExt.SfdxService] Checking if SF CLI is installed');
+                OrgUtils.logDebug('[VisbalExt.SfdxService] fetchSalesforceLogsSoql -- Checking if SF CLI is installed');
                 const result = await this._executeCommand('sf version');
                 OrgUtils.logDebug(`[VisbalExt.SfdxService] SF CLI version: ${result.stdout}`);
                 sfInstalled = true;
             } catch (err) {
-                OrgUtils.logDebug('[VisbalExt.SfdxService] SF CLI not installed');
+                OrgUtils.logDebug('[VisbalExt.SfdxService] fetchSalesforceLogsSoql -- SF CLI not installed');
             }
 
             if (!sfInstalled) {
@@ -880,7 +871,7 @@ export class SfdxService {
             
             // Try to execute SOQL query using the new command format first
             let queryResult;
-            OrgUtils.logDebug('[VisbalExt.SfdxService] Trying to execute SOQL query with new CLI format');
+            OrgUtils.logDebug('[VisbalExt.SfdxService] fetchSalesforceLogsSoql -- Trying to execute SOQL query with new CLI format');
             try {
                 const command = `sf data query --query "${soqlQuery}" --target-org ${selectedOrg.alias} --json`;
                 OrgUtils.logDebug(`[VisbalExt.SfdxService] Executing: ${command}`);
@@ -888,13 +879,13 @@ export class SfdxService {
                 OrgUtils.logDebug('[VisbalExt.SfdxService] Successfully executed SOQL query with new CLI format');
                 queryResult = JSON.parse(queryData.stdout);
             } catch (error: any) {
-                OrgUtils.logDebug('[VisbalExt.SfdxService] Failed with new CLI format, trying old format', error);
+                OrgUtils.logDebug('[VisbalExt.SfdxService] fetchSalesforceLogsSoql -- Failed with new CLI format, trying old format', error);
                 // If the new command fails, try the old format
                 try {
                     const command = `sfdx force:data:soql:query -q "${soqlQuery}" --target-org ${selectedOrg.alias} --json`;
                     OrgUtils.logDebug(`[VisbalExt.SfdxService] Executing: ${command}`);
                     const queryData = await this._executeCommand(command);
-                    OrgUtils.logDebug('[VisbalExt.SfdxService] Successfully executed SOQL query with old CLI format');
+                    OrgUtils.logDebug('[VisbalExt.SfdxService] fetchSalesforceLogsSoql -- Successfully executed SOQL query with old CLI format');
                     queryResult = JSON.parse(queryData.stdout);
                 } catch (innerError) {
                     OrgUtils.logError('[VisbalExt.SfdxService] Failed to execute SOQL query with both formats:', innerError instanceof Error ? innerError : new Error(String(innerError)));
@@ -903,14 +894,14 @@ export class SfdxService {
             }
             
             if (!queryResult.result || !queryResult.result.records || !Array.isArray(queryResult.result.records)) {
-                OrgUtils.logDebug('[VisbalExt.SfdxService] No logs found in query result:', queryResult);
+                OrgUtils.logDebug('[VisbalExt.SfdxService] fetchSalesforceLogsSoql -- No logs found in query result:', queryResult);
                 return [];
             }
             
             OrgUtils.logDebug(`[VisbalExt.SfdxService] Found ${queryResult.result.records.length} debug logs via SOQL`);
             
             // Format the logs
-            OrgUtils.logDebug('[VisbalExt.SfdxService] Formatting logs from SOQL query');
+            OrgUtils.logDebug('[VisbalExt.SfdxService] fetchSalesforceLogsSoql -- Formatting logs from SOQL query');
             const formattedLogs: SalesforceLog[] = queryResult.result.records.map((log: any) => ({
                 id: log.Id,
                 logUser: log.LogUser?.Name || 'Unknown User',
@@ -938,67 +929,118 @@ export class SfdxService {
      */
     public async deleteServerLogs(logIds: string[]): Promise<void> {
         if (logIds.length === 0) {
-            OrgUtils.logDebug('[VisbalExt.SfdxService] No logs to delete');
+            OrgUtils.logDebug('[VisbalExt.SfdxService] deleteServerLogs -- No logs to delete');
             throw new Error('No logs to delete');
         }
 
-        OrgUtils.logDebug(`[VisbalExt.SfdxService] Found ${logIds.length} logs to delete`);
+        OrgUtils.logDebug(`[VisbalExt.SfdxService] deleteServerLogs -- Found ${logIds.length} logs to delete`);
 
-        // Delete logs in batches to avoid command line length limitations
-        const batchSize = 10;
+        // Use Bulk API for efficient deletion
+        const selectedOrg = await OrgUtils.getSelectedOrg();
         let deletedCount = 0;
         
-        for (let i = 0; i < logIds.length; i += batchSize) {
-            const batch = logIds.slice(i, i + batchSize);
-            try {
-                // Create a comma-separated list of IDs
-                const idList = batch.join(',');
-                
-                // Try with new CLI format first
-                try {
-                    const selectedOrg = await OrgUtils.getSelectedOrg();
-                    const deleteCmd = `sf data delete record --sobject ApexLog --record-ids ${idList} --use-tooling-api --target-org ${selectedOrg?.alias} --json`;
-                    OrgUtils.logDebug(`[VisbalExt.SfdxService] Deleting batch of logs with new CLI format: ${deleteCmd}`);
-                    await this._executeCommand(deleteCmd);
-                    
-                    deletedCount += batch.length;
-                    OrgUtils.logDebug(`[VisbalExt.SfdxService] Deleted batch of ${batch.length} logs with new CLI format, total: ${deletedCount}`);
-                } catch (error: any) {
-                    OrgUtils.logError(`[VisbalExt.SfdxService] Error deleting batch of logs with new CLI format:`, error);
-                    
-                    // Try with old CLI format
-                    try {
-                        // For old CLI format, we need to delete one by one
-                        OrgUtils.logDebug('[VisbalExt.SfdxService] Trying to delete logs with old CLI format');
-                        let batchDeletedCount = 0;
-                        
-                        for (const logId of batch) {
-                            try {
-                                const oldDeleteCmd = `sfdx force:data:record:delete --sobjecttype ApexLog --sobjectid ${logId} --json`;
-                                OrgUtils.logDebug(`[VisbalExt.SfdxService] Deleting log with old CLI format: ${oldDeleteCmd}`);
-                                await this._executeCommand(oldDeleteCmd);
-                                batchDeletedCount++;
-                                OrgUtils.logDebug(`[VisbalExt.SfdxService] Deleted log ${logId} with old CLI format`);
-                            } catch (singleError) {
-                                OrgUtils.logError(`[VisbalExt.SfdxService] Error deleting log ${logId} with old CLI format:`, singleError instanceof Error ? singleError : new Error(String(singleError)));
-                                // Continue with other logs in the batch
-                            }
-                        }
-                        
-                        deletedCount += batchDeletedCount;
-                        OrgUtils.logDebug(`[VisbalExt.SfdxService] Deleted ${batchDeletedCount} logs with old CLI format, total: ${deletedCount}`);
-                    } catch (oldFormatError) {
-                        OrgUtils.logError(`[VisbalExt.SfdxService] Error deleting batch of logs with old CLI format:`, oldFormatError instanceof Error ? oldFormatError : new Error(String(oldFormatError)));
-                        // Continue with other batches
-                    }
+        // Create a temporary CSV file with the log IDs in .visbal/temp folder
+        let workspaceRoot = '';
+        
+        // Try to get the workspace root, with fallbacks
+        if (vscode.workspace.workspaceFolders && vscode.workspace.workspaceFolders.length > 0) {
+            // Look for a workspace folder that contains a .visbal directory
+            for (const folder of vscode.workspace.workspaceFolders) {
+                const possibleVisbalPath = path.join(folder.uri.fsPath, '.visbal');
+                if (fs.existsSync(possibleVisbalPath)) {
+                    workspaceRoot = folder.uri.fsPath;
+                    break;
                 }
-            } catch (error: any) {
-                OrgUtils.logError(`[VisbalExt.SfdxService] Error deleting batch of logs:`, error);
-                // Continue with other batches
+            }
+            // If no .visbal folder found, use the first workspace folder
+            if (!workspaceRoot) {
+                workspaceRoot = vscode.workspace.workspaceFolders[0].uri.fsPath;
+            }
+        } else {
+            // Fallback: use current working directory if no workspace is available
+            workspaceRoot = process.cwd();
+        }
+        
+        const tempDir = path.join(workspaceRoot, '.visbal', 'temp');
+        
+        OrgUtils.logDebug(`[VisbalExt.SfdxService] deleteServerLogs -- Using workspace root: ${workspaceRoot}`);
+        OrgUtils.logDebug(`[VisbalExt.SfdxService] deleteServerLogs -- Using temp directory: ${tempDir}`);
+        
+        // Ensure temp directory exists
+        if (!fs.existsSync(tempDir)) {
+            fs.mkdirSync(tempDir, { recursive: true });
+            OrgUtils.logDebug(`[VisbalExt.SfdxService] deleteServerLogs -- Created temp directory: ${tempDir}`);
+        }
+        
+        const tempCsvPath = path.join(tempDir, `sfdx_apex_logs_${Date.now()}.csv`);
+        const csvContent = 'Id\n' + logIds.join('\n');
+        // Ensure Unix line endings (LF) for Salesforce bulk API compatibility
+        const csvContentLF = csvContent.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+        // Use Buffer to ensure complete control over line endings
+        const csvBuffer = Buffer.from(csvContentLF, 'utf8');
+        fs.writeFileSync(tempCsvPath, csvBuffer);
+        
+        // Verify the file was created successfully
+        if (!fs.existsSync(tempCsvPath)) {
+            throw new Error(`Failed to create CSV file at ${tempCsvPath}`);
+        }
+        
+        OrgUtils.logDebug(`[VisbalExt.SfdxService] deleteServerLogs -- Created CSV file: ${tempCsvPath}`);
+        OrgUtils.logDebug(`[VisbalExt.SfdxService] deleteServerLogs -- CSV file size: ${fs.statSync(tempCsvPath).size} bytes`);
+        
+        let operationSuccessful = false;
+        try {
+            // Double-check file exists before executing command
+            if (!fs.existsSync(tempCsvPath)) {
+                throw new Error(`CSV file does not exist at ${tempCsvPath} before executing command`);
+            }
+            
+            const bulkDeleteCmd = `sf data delete bulk --sobject ApexLog --file "${tempCsvPath}" --target-org ${selectedOrg?.alias} --json --wait 10`;
+            OrgUtils.logDebug(`[VisbalExt.SfdxService] deleteServerLogs -- Executing bulk delete: ${bulkDeleteCmd}`);
+            
+            const result = await this._executeCommand(bulkDeleteCmd);
+            OrgUtils.logDebug(`[VisbalExt.SfdxService] deleteServerLogs -- Bulk delete result:`, result);
+            
+            // Parse the result to get the actual number of deleted records
+            if (result && result.stdout) {
+                try {
+                    const jsonResult = JSON.parse(result.stdout);
+                    if (jsonResult.result && jsonResult.result.numberRecordsProcessed) {
+                        deletedCount = jsonResult.result.numberRecordsProcessed;
+                    } else {
+                        deletedCount = logIds.length; // Assume all deleted if no specific count
+                    }
+                    operationSuccessful = true;
+                } catch (parseError) {
+                    OrgUtils.logError('[VisbalExt.SfdxService] Error parsing bulk delete result:', parseError instanceof Error ? parseError : new Error(String(parseError)));
+                    deletedCount = logIds.length; // Assume all deleted if parsing fails
+                    operationSuccessful = true; // Still consider successful if command ran without error
+                }
+            } else {
+                deletedCount = logIds.length; // Assume all deleted if no result
+                operationSuccessful = true;
+            }
+            
+            OrgUtils.logDebug(`[VisbalExt.SfdxService] deleteServerLogs -- Successfully bulk deleted ${deletedCount} logs`);
+        } catch (error) {
+            OrgUtils.logError('[VisbalExt.SfdxService] deleteServerLogs -- Bulk delete operation failed:', error instanceof Error ? error : new Error(String(error)));
+            operationSuccessful = false;
+            throw error;
+        } finally {
+            // Only clean up the temporary CSV file if the operation was successful
+            if (operationSuccessful) {
+                try {
+                    fs.unlinkSync(tempCsvPath);
+                    OrgUtils.logDebug(`[VisbalExt.SfdxService] deleteServerLogs -- Cleaned up temporary CSV file: ${tempCsvPath}`);
+                } catch (cleanupError) {
+                    OrgUtils.logError('[VisbalExt.SfdxService] deleteServerLogs -- Error cleaning up temp CSV file:', cleanupError instanceof Error ? cleanupError : new Error(String(cleanupError)));
+                }
+            } else {
+                OrgUtils.logDebug(`[VisbalExt.SfdxService] deleteServerLogs -- Preserving CSV file for debugging: ${tempCsvPath}`);
             }
         }
 
-        OrgUtils.logDebug(`[VisbalExt.SfdxService] Successfully deleted ${deletedCount} logs from server`);
+        OrgUtils.logDebug(`[VisbalExt.SfdxService] deleteServerLogs -- Successfully deleted ${deletedCount} logs from server`);
     }
 
     

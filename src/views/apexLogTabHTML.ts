@@ -939,7 +939,7 @@ export function getHtmlForWebview(
             dataAccess: 'FINEST',
             database: 'INFO',
             nba: 'ERROR',
-            system: 'INFO',
+            system: 'NONE',
             validation: 'INFO',
             visualforce: 'INFO',
             wave: 'ERROR',

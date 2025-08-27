@@ -65,7 +65,7 @@ export class StorageService {
     private writeCache(cache: TestClassesCache): void {
         try {
             fs.writeFileSync(this.testClassesFile, JSON.stringify(cache, null, 2));
-            OrgUtils.logDebug('[VisbalExt.StorageService] Cache saved to:', this.testClassesFile);
+            OrgUtils.logDebug('[VisbalExt.StorageService] writeCache -- Cache saved to:', this.testClassesFile);
         } catch (error: any) {
             OrgUtils.logError('[VisbalExt.StorageService] Error writing cache:', error);
             throw error;
