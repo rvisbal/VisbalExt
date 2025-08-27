@@ -645,8 +645,22 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
                         stderr: stderr
                     });
                     
-                    // Try to parse stderr for better error messages
+                    // Try to parse stdout for JSON error response first
                     let errorMessage = error.message;
+                    if (stdout && stdout.trim()) {
+                        try {
+                            const jsonResponse = JSON.parse(stdout);
+                            if (jsonResponse.message) {
+                                errorMessage = jsonResponse.message;
+                                OrgUtils.logDebug(`[VisbalExt.apexLogTab.VisbalLogView] _executeCommand Parsed JSON error: ${errorMessage}`);
+                            }
+                        } catch (jsonError) {
+                            // If JSON parsing fails, continue with other error parsing
+                            OrgUtils.logDebug(`[VisbalExt.apexLogTab.VisbalLogView] _executeCommand Could not parse stdout as JSON: ${jsonError}`);
+                        }
+                    }
+                    
+                    // Try to parse stderr for better error messages
                     if (stderr && stderr.trim()) {
                         // Extract meaningful error from stderr
                         const stderrLines = stderr.split('\n').filter(line => 
@@ -1026,9 +1040,9 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
             const csvContent = 'Id\n' + logIds.join('\n');
             // Ensure Unix line endings (LF) for Salesforce bulk API compatibility
             const csvContentLF = csvContent.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
-            // Use Buffer to ensure complete control over line endings
-            const csvBuffer = Buffer.from(csvContentLF, 'utf8');
-            fs.writeFileSync(tempCsvPath, csvBuffer);
+            // Use Buffer to ensure complete control over line endings and add final newline
+            const csvBuffer = Buffer.from(csvContentLF + '\n', 'utf8');
+            fs.writeFileSync(tempCsvPath, csvBuffer, { flag: 'w' });
             
             // Verify the file was created successfully
             if (!fs.existsSync(tempCsvPath)) {
@@ -1049,25 +1063,13 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
                 const fileContent = fs.readFileSync(tempCsvPath, 'utf8');
                 const lineCount = fileContent.split('\n').length;
                 const hasCarriageReturns = fileContent.includes('\r');
-                OrgUtils.logDebug(`[VisbalExt.apexLogTab.VisbalLogView] _deleteServerLogs -- CSV verification - Lines: ${lineCount}, Has CR: ${hasCarriageReturns}, Size: ${fileContent.length} chars`);
+                const hasWindowsLineEndings = fileContent.includes('\r\n');
+                const endsWithNewline = fileContent.endsWith('\n');
+                OrgUtils.logDebug(`[VisbalExt.apexLogTab.VisbalLogView] _deleteServerLogs -- CSV verification - Lines: ${lineCount}, Has CR: ${hasCarriageReturns}, Has CRLF: ${hasWindowsLineEndings}, Ends with LF: ${endsWithNewline}, Size: ${fileContent.length} chars`);
+                OrgUtils.logDebug(`[VisbalExt.apexLogTab.VisbalLogView] _deleteServerLogs -- CSV content preview: ${JSON.stringify(fileContent.substring(0, 100))}`);
                 
-                // Validate org authentication before executing bulk delete
-                /*
-                //lets avoid this as put extra time to the operation
-                const orgCheckCmd = `sf org display --target-org ${selectedOrg?.alias} --json`;
-                try {
-                    OrgUtils.logDebug(`[VisbalExt.apexLogTab.VisbalLogView] _deleteServerLogs -- Checking org authentication: ${orgCheckCmd}`);
-                    const orgResult = await this._executeCommand(orgCheckCmd);
-                    const orgData = JSON.parse(orgResult);
-                    if (!orgData.result || !orgData.result.accessToken) {
-                        throw new Error(`Org ${selectedOrg?.alias} is not authenticated or session has expired`);
-                    }
-                    OrgUtils.logDebug(`[VisbalExt.apexLogTab.VisbalLogView] _deleteServerLogs -- Org ${selectedOrg?.alias} is authenticated`);
-                } catch (orgError) {
-                    OrgUtils.logError(`[VisbalExt.apexLogTab.VisbalLogView] _deleteServerLogs -- Org authentication check failed:`, orgError);
-                    throw new Error(`Failed to authenticate with org ${selectedOrg?.alias}. Please re-authenticate.`);
-                }
-                */
+                // Note: Org authentication validation is skipped here to avoid extra delay.
+                // Authentication errors will be caught during the actual bulk delete operation.
 
                 const bulkDeleteCmd = `sf data delete bulk --sobject ApexLog --file "${tempCsvPath}" --target-org ${selectedOrg?.alias} --json --wait 10`;
                 OrgUtils.logDebug(`[VisbalExt.apexLogTab.VisbalLogView] _deleteServerLogs -- Executing bulk delete: ${bulkDeleteCmd}`);
@@ -1150,6 +1152,9 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
             } else if (error.message?.includes('No such file or directory') || error.message?.includes('CSV file does not exist')) {
                 userMessage = 'File Error';
                 detailedMessage = 'Failed to create temporary CSV file for bulk delete operation.';
+            } else if (error.message?.includes('LineEnding is invalid') || error.message?.includes('Current LineEnding setting is CRLF')) {
+                userMessage = 'File Format Error';
+                detailedMessage = 'CSV file has incorrect line endings. The Salesforce Bulk API requires LF line endings, but CRLF was detected.';
             } else if (error.message?.includes('INVALID_OPERATION') || error.message?.includes('INVALID_TYPE')) {
                 userMessage = 'Salesforce API Error';
                 detailedMessage = 'The bulk delete operation failed. This might be due to permissions or data constraints.';
@@ -1213,7 +1218,11 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
             // Create a temporary CSV file with the selected log IDs
             const tempCsvPath = require('path').join(require('os').tmpdir(), `apex_selected_logs_${Date.now()}.csv`);
             const csvContent = 'Id\n' + logIds.join('\n');
-            require('fs').writeFileSync(tempCsvPath, csvContent, 'utf8');
+            // Ensure Unix line endings (LF) for Salesforce bulk API compatibility
+            const csvContentLF = csvContent.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+            // Use Buffer to ensure complete control over line endings and add final newline
+            const csvBuffer = Buffer.from(csvContentLF + '\n', 'utf8');
+            require('fs').writeFileSync(tempCsvPath, csvBuffer, { flag: 'w' });
             
             try {
                 // Validate org authentication before executing bulk delete
@@ -1299,6 +1308,9 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
             } else if (error.message?.includes('No such file or directory') || error.message?.includes('CSV file does not exist')) {
                 userMessage = 'File Error';
                 detailedMessage = 'Failed to create temporary CSV file for bulk delete operation.';
+            } else if (error.message?.includes('LineEnding is invalid') || error.message?.includes('Current LineEnding setting is CRLF')) {
+                userMessage = 'File Format Error';
+                detailedMessage = 'CSV file has incorrect line endings. The Salesforce Bulk API requires LF line endings, but CRLF was detected.';
             } else if (error.message?.includes('INVALID_OPERATION') || error.message?.includes('INVALID_TYPE')) {
                 userMessage = 'Salesforce API Error';
                 detailedMessage = 'The bulk delete operation failed. This might be due to permissions or data constraints.';
