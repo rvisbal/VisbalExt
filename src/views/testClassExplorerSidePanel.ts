@@ -5222,7 +5222,7 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
 
     /**
      * Gets the selected org alias for storage operations  
-     * @returns Selected org alias or null if none selected (falls back to current org)
+     * @returns Selected org alias or null if none selected (falls back to project default org)
      */
     private async _getOrgAliasForStorage(): Promise<string | undefined> {
         try {
@@ -5231,8 +5231,24 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                 OrgUtils.logDebug(`[VisbalExt.TestClassExplorerSidePanel] _getOrgAliasForStorage -- Using selected org: ${selectedOrg.alias}`);
                 return selectedOrg.alias;
             }
-            // If no selected org, let StorageService use current org alias as fallback
-            OrgUtils.logDebug('[VisbalExt.TestClassExplorerSidePanel] _getOrgAliasForStorage -- No selected org, using fallback');
+            
+            // If no view-specific org is selected, try to use the project default org
+            OrgUtils.logDebug('[VisbalExt.TestClassExplorerSidePanel] _getOrgAliasForStorage -- No selected org, trying project default');
+            const defaultOrgAlias = OrgUtils.getDefaultTargetOrgFromConfig(true); // preferProject = true
+            if (defaultOrgAlias) {
+                OrgUtils.logDebug(`[VisbalExt.TestClassExplorerSidePanel] _getOrgAliasForStorage -- Using project default org: ${defaultOrgAlias}`);
+                return defaultOrgAlias;
+            }
+            
+            // If no project default, try global default
+            const globalDefaultAlias = OrgUtils.getDefaultTargetOrgFromConfig(false); // preferProject = false
+            if (globalDefaultAlias) {
+                OrgUtils.logDebug(`[VisbalExt.TestClassExplorerSidePanel] _getOrgAliasForStorage -- Using global default org: ${globalDefaultAlias}`);
+                return globalDefaultAlias;
+            }
+            
+            // Final fallback to current org
+            OrgUtils.logDebug('[VisbalExt.TestClassExplorerSidePanel] _getOrgAliasForStorage -- No default org configured, falling back to current org');
             return undefined;
         } catch (error: any) {
             OrgUtils.logError('[VisbalExt.TestClassExplorerSidePanel] _getOrgAliasForStorage -- Error getting selected org:', error);

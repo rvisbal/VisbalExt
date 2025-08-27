@@ -450,7 +450,7 @@ export class OrgUtils {
      * @param preferProject If true, checks project config first, then global
      * @returns The target org alias/username or null
      */
-    private static getDefaultTargetOrgFromConfig(preferProject: boolean = true): string | null {
+    public static getDefaultTargetOrgFromConfig(preferProject: boolean = true): string | null {
         try {
             if (preferProject) {
                 // First check VS Code workspace directory
