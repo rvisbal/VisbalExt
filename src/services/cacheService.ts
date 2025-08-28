@@ -5,6 +5,7 @@ import { SalesforceLog } from '../types/salesforceLog';
 import { execAsync } from '../utils/execUtils';
 import { SfdxService } from './sfdxService';
 import { OrgUtils } from '../utils/orgUtils';
+import { OrgListCacheService } from './orgListCacheService';
 
 interface LogCache {
     [orgAlias: string]: {
@@ -21,9 +22,14 @@ export class CacheService {
     private logCacheFile: string;
     private currentOrgAlias: string | undefined;
     private _sfdxService: SfdxService;
+    private _orgListCacheService: OrgListCacheService;
 
     constructor(context: vscode.ExtensionContext) {
         this._sfdxService = new SfdxService();
+        
+        // Initialize org list cache service for validation
+        this._orgListCacheService = new OrgListCacheService(context);
+        
         // Get the workspace folder path
         const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
         if (!workspaceFolder) {
@@ -229,6 +235,52 @@ export class CacheService {
         } catch (error: any) {
             OrgUtils.logError('[VisbalExt.CacheService] Error clearing all cache:', error);
             throw error;
+        }
+    }
+
+    /**
+     * Validates if the cached org ID matches the current org ID from org-list.json
+     * This method can be used globally across services to validate cached org data
+     */
+    public async validateCachedOrgId(alias: string, cachedOrgId: string): Promise<boolean> {
+        try {
+            if (!this._orgListCacheService) {
+                return false;
+            }
+
+            const cachedOrgList = await this._orgListCacheService.getCachedOrgList();
+            if (!cachedOrgList || !cachedOrgList.orgs) {
+                OrgUtils.logDebug('[VisbalExt.CacheService] validateCachedOrgId', 'No cached org list available');
+                return false;
+            }
+
+            // Search through all org categories
+            const allOrgs = [
+                ...(cachedOrgList.orgs.devHubs || []),
+                ...(cachedOrgList.orgs.nonScratchOrgs || []),
+                ...(cachedOrgList.orgs.sandboxes || []),
+                ...(cachedOrgList.orgs.scratchOrgs || []),
+                ...(cachedOrgList.orgs.other || [])
+            ];
+
+            const currentOrg = allOrgs.find(org => org.alias === alias);
+            if (!currentOrg) {
+                OrgUtils.logDebug('[VisbalExt.CacheService] validateCachedOrgId', `Org with alias ${alias} not found in cached list`);
+                return false;
+            }
+
+            const currentOrgId = currentOrg.orgId;
+            if (!currentOrgId) {
+                OrgUtils.logDebug('[VisbalExt.CacheService] validateCachedOrgId', `No orgId found for alias ${alias}`);
+                return false;
+            }
+
+            const isValid = currentOrgId === cachedOrgId;
+            OrgUtils.logDebug('[VisbalExt.CacheService] validateCachedOrgId', `Validation result for ${alias}: cached=${cachedOrgId}, current=${currentOrgId}, valid=${isValid}`);
+            return isValid;
+        } catch (error: any) {
+            OrgUtils.logError('[VisbalExt.CacheService] validateCachedOrgId -- Error validating org ID:', error);
+            return false;
         }
     }
 } 

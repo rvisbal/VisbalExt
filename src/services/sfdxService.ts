@@ -9,7 +9,7 @@ import * as vscode from 'vscode';
 import * as child_process from 'child_process';
 import { DEFAULT_LOG_TYPE } from '../constants/salesforceConstants';
 import { UserIdCacheService } from './userIdCacheService';
-import { OrgListCacheService } from './orgListCacheService';
+import { CacheService } from './cacheService';
 
 // Maximum buffer size for CLI commands (100MB)
 const MAX_BUFFER_SIZE = 100 * 1024 * 1024;
@@ -42,7 +42,7 @@ export class SfdxService {
     private readonly LONG_TIMEOUT = 30 * 60 * 1000; // 30 minutes for long operations
     private _currentOrgCache: { alias: string; timestamp: number } | null = null;
     private _userIdCacheService: UserIdCacheService | null = null;
-    private _orgListCacheService: OrgListCacheService | null = null;
+    private _cacheService: CacheService | null = null;
 
     constructor() {}
 
@@ -142,8 +142,8 @@ export class SfdxService {
         if (!this._userIdCacheService && context) {
             this._userIdCacheService = new UserIdCacheService(context);
         }
-        if (!this._orgListCacheService && context) {
-            this._orgListCacheService = new OrgListCacheService(context);
+        if (!this._cacheService && context) {
+            this._cacheService = new CacheService(context);
         }
     }
 
@@ -170,30 +170,7 @@ export class SfdxService {
                 targetOrg = selectedOrg?.alias;
             }
 
-            // Check cache if we have an alias and cache service
-            if (targetOrg && this._userIdCacheService) {
-                const cachedEntry = this._userIdCacheService.getCachedUserIdEntry(targetOrg);
-                if (cachedEntry) {
-                    OrgUtils.logDebug('[VisbalExt.SfdxService] getCurrentUserId', `Found cached entry for ${targetOrg}: userId=${cachedEntry.userId}, orgId=${cachedEntry.orgId}`);
-                    
-                    // Validate org ID against current org-list.json
-                    if (this._orgListCacheService) {
-                        const isOrgIdValid = await this._validateCachedOrgId(targetOrg, cachedEntry.orgId);
-                        if (isOrgIdValid) {
-                            OrgUtils.logDebug('[VisbalExt.SfdxService] getCurrentUserId', `Using cached user ID for ${targetOrg}: ${cachedEntry.userId}`);
-                            return cachedEntry.userId;
-                        } else {
-                            OrgUtils.logDebug('[VisbalExt.SfdxService] getCurrentUserId', `Org ID mismatch for ${targetOrg}, refreshing from CLI`);
-                            // Remove invalid cache entry
-                            this._userIdCacheService.removeCachedUserIdEntry(targetOrg);
-                        }
-                    } else {
-                        // No org list cache service, use cached entry as-is
-                        OrgUtils.logDebug('[VisbalExt.SfdxService] getCurrentUserId', `Using cached user ID for ${targetOrg} (no org validation): ${cachedEntry.userId}`);
-                        return cachedEntry.userId;
-                    }
-                }
-            }
+            
 
             // Fetch fresh user ID from CLI
             try {
@@ -268,50 +245,7 @@ export class SfdxService {
         }
     }
 
-    /**
-     * Validates if the cached org ID matches the current org ID from org-list.json
-     */
-    private async _validateCachedOrgId(alias: string, cachedOrgId: string): Promise<boolean> {
-        try {
-            if (!this._orgListCacheService) {
-                return false;
-            }
-
-            const cachedOrgList = await this._orgListCacheService.getCachedOrgList();
-            if (!cachedOrgList || !cachedOrgList.orgs) {
-                OrgUtils.logDebug('[VisbalExt.SfdxService] _validateCachedOrgId', 'No cached org list available');
-                return false;
-            }
-
-            // Search through all org categories
-            const allOrgs = [
-                ...(cachedOrgList.orgs.devHubs || []),
-                ...(cachedOrgList.orgs.nonScratchOrgs || []),
-                ...(cachedOrgList.orgs.sandboxes || []),
-                ...(cachedOrgList.orgs.scratchOrgs || []),
-                ...(cachedOrgList.orgs.other || [])
-            ];
-
-            const currentOrg = allOrgs.find(org => org.alias === alias);
-            if (!currentOrg) {
-                OrgUtils.logDebug('[VisbalExt.SfdxService] _validateCachedOrgId', `Org with alias ${alias} not found in cached list`);
-                return false;
-            }
-
-            const currentOrgId = currentOrg.orgId;
-            if (!currentOrgId) {
-                OrgUtils.logDebug('[VisbalExt.SfdxService] _validateCachedOrgId', `No orgId found for alias ${alias}`);
-                return false;
-            }
-
-            const isValid = currentOrgId === cachedOrgId;
-            OrgUtils.logDebug('[VisbalExt.SfdxService] _validateCachedOrgId', `Validation result for ${alias}: cached=${cachedOrgId}, current=${currentOrgId}, valid=${isValid}`);
-            return isValid;
-        } catch (error: any) {
-            OrgUtils.logError('[VisbalExt.SfdxService] _validateCachedOrgId -- Error validating org ID:', error);
-            return false;
-        }
-    }
+ 
 
     /**
      * Gets the current org ID for a given alias from CLI
