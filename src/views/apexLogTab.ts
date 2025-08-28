@@ -1266,6 +1266,7 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
             
             try {
                 // Validate org authentication before executing bulk delete
+                /*
                 const orgCheckCmd = `sf org display --target-org ${selectedOrg?.alias} --json`;
                 try {
                     OrgUtils.logDebug(`[VisbalExt.apexLogTab.VisbalLogView] _deleteSelectedLogs -- Checking org authentication: ${orgCheckCmd}`);
@@ -1279,6 +1280,7 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
                     OrgUtils.logError(`[VisbalExt.apexLogTab.VisbalLogView] _deleteSelectedLogs -- Org authentication check failed:`, orgError);
                     throw new Error(`Failed to authenticate with org ${selectedOrg?.alias}. Please re-authenticate.`);
                 }
+                */
 
                 const bulkDeleteCmd = `sf data delete bulk --sobject ApexLog --file "${tempCsvPath}" --target-org ${selectedOrg?.alias} --json --wait 10 --line-ending LF`;
                 OrgUtils.logDebug(`[VisbalExt.apexLogTab.VisbalLogView] _deleteSelectedLogs -- Executing bulk delete for selected logs: ${bulkDeleteCmd}`);
@@ -1331,8 +1333,8 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
             // Show a notification
             vscode.window.showInformationMessage(`Successfully deleted ${deletedCount} selected logs from server`);
 
-            // Refresh the logs list
-            await this._fetchLogs(true);
+            // Note: Webview will trigger refresh via 'fetchLogs' command, so no need to auto-refresh here
+            // await this._fetchLogs(true);
 
         } catch (error: any) {
             OrgUtils.logError('[VisbalExt.apexLogTab.VisbalLogView] Error in _deleteSelectedLogs:', error);

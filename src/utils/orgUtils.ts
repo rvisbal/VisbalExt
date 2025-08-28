@@ -219,10 +219,10 @@ export class OrgUtils {
             const cacheService = new CacheService(this._context);
             const selectedOrg: SelectedOrg = { alias, timestamp: new Date().toISOString() };
             await cacheService.saveCachedOrg(selectedOrg);
-            OrgUtils.logDebug('[VisbalExt.OrgUtils] setSelectedOrg -- Successfully set selected org');
+            OrgUtils.logDebug('[VisbalExt.OrgUtils] setSelectedOrg -- Successfully set selected org ${alias}');
         }
         catch (error: any) {
-            OrgUtils.logError('[VisbalExt.OrgUtils] setSelectedOrg -- Error setting selected org:', error as Error);
+            OrgUtils.logError('[VisbalExt.OrgUtils] setSelectedOrg -- Error setting selected org:${alias} ', error as Error);
             throw new Error(`Failed to set selected org: ${error.message}`);
         }
     }
