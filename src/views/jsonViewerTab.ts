@@ -861,3 +861,4 @@ export class JsonViewerTab implements vscode.WebviewViewProvider {
         return text;
     }
 }
+

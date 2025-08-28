@@ -2121,7 +2121,9 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                     throw new Error('Invalid test results format: testRunId is missing');
                 }
 
-                OrgUtils.logDebug('[VisbalExt.TestClassExplorerSidePanel] _runManyTest -- testRunId:', testRunId);  
+                // Store the testRunId for potential cancellation
+                this._currentTestRunId = testRunId;
+                OrgUtils.logDebug('[VisbalExt.TestClassExplorerSidePanel] _runManyTest -- testRunId stored:', testRunId);  
                 if (tests.methods.length > 3) {
                     //#region COLLECT_TEST_RESULTS_ALL_RUNN
                     let countIteration = 0;
@@ -2161,6 +2163,12 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                             
                         }
         
+                        // Check for abort signal before processing results
+                        if (this._abortController?.signal.aborted) {
+                            OrgUtils.logDebug('[VisbalExt.TestClassExplorerSidePanel] _runManyTest -- Test run aborted, stopping result processing');
+                            return;
+                        }
+
                         // Use selected org instead of default org determination
                         // Note: currentOrgAlias already retrieved above in the same method
                         const resultItems = await this._sfdxService.executeSoqlQuery(`SELECT ApexClassId, ApexClass.Name, MethodName, Outcome, ApexLogId, Message, StackTrace, QueueItemId  FROM ApexTestResult WHERE AsyncApexJobId='${testRunId}' `, false, false, currentOrgAlias);
@@ -2222,7 +2230,10 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                                 allTestCompleted = true;
                             }
                         }
-                        this._testSummaryView.showProgress(queueItemsStatus, jobResults);
+                        // Check for abort signal before updating progress
+                        if (!this._abortController?.signal.aborted) {
+                            this._testSummaryView.showProgress(queueItemsStatus, jobResults);
+                        }
         
         
                         if (countIteration > 10) {
@@ -2262,6 +2273,12 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                         this._testRunResultsView.updateMethodStatus(t.ApexClass.Name, t.MethodName, testStatus, '' );
                     }
 
+                    // Check for abort signal before updating UI
+                    if (this._abortController?.signal.aborted) {
+                        OrgUtils.logDebug('[VisbalExt.TestClassExplorerSidePanel] _runManyTest -- Test run aborted, skipping summary update');
+                        return;
+                    }
+
                     this._testSummaryView.clearView();
 
                     this._testSummaryView.updateSummary(testRunResult.summary, testRunResult.tests);
@@ -2294,6 +2311,12 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                         }
                         testIds.push(t.Id);
                         this._testRunResultsView.updateMethodStatus(t.ApexClass.Name, t.MethodName, testStatus, '' );
+                    }
+
+                    // Check for abort signal before updating UI
+                    if (this._abortController?.signal.aborted) {
+                        OrgUtils.logDebug('[VisbalExt.TestClassExplorerSidePanel] _runManyTest -- Test run aborted, skipping summary update');
+                        return;
                     }
 
                     //const logIds = await this._sfdxService.getTestLogId(testRunId);
@@ -2576,7 +2599,10 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                         allTestCompleted = true;
                     }
                 }
-                this._testSummaryView.showProgress(queueItemsStatus, jobResults);
+                // Check for abort signal before updating progress
+                if (!this._abortController?.signal.aborted) {
+                    this._testSummaryView.showProgress(queueItemsStatus, jobResults);
+                }
 
 
                 if (countIteration > 10) {

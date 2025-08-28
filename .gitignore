@@ -10,5 +10,7 @@ temp/
 .bak/
 .visbal/
 .visbal/cache/logs.json
+# User ID cache contains sensitive data
+.visbal/cache/user-ids.json
 temp1/
 .sf/

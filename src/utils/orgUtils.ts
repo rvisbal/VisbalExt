@@ -11,6 +11,7 @@ import { OrgListCacheService } from '../services/orgListCacheService';
 import { ViewId } from '../types/salesforceTypes';
 import * as cp from 'child_process';
 import { DEFAULT_LOG_TYPE } from '../constants/salesforceConstants';
+import { ConfigUserIdService } from '../services/configUserIdService';
 
 export interface SalesforceOrg {
     username: string;
@@ -710,6 +711,15 @@ export class OrgUtils {
 
     public static async getCurrentUserId(alias?: string): Promise<string> {
         try {
+            // First try to get from config
+            if (alias) {
+                const configUserId = await ConfigUserIdService.getUserIdFromConfig(alias);
+                if (configUserId) {
+                    OrgUtils.logDebug(`[VisbalExt.OrgUtils] getCurrentUserId -- Got from config: ${configUserId}`);
+                    return configUserId;
+                }
+            }
+
             // If alias is provided, use the getUserIdForOrg method which is more targeted
             if (alias) {
                 OrgUtils.logDebug(`[VisbalExt.OrgUtils] getCurrentUserId -- Using alias: ${alias}, delegating to getUserIdForOrg`);
@@ -737,7 +747,7 @@ export class OrgUtils {
             if (!userId) {
                 OrgUtils.logDebug(`[VisbalExt.OrgUtils] getCurrentUserId -- No cache found, falling back to SFDX call...`);
                 try {
-                    userId = await this.sfdxService.getCurrentUserId(alias);
+                    userId = await this.sfdxService.getCurrentUserId(alias, this._context);
                     OrgUtils.logDebug(`[VisbalExt.OrgUtils] getCurrentUserId -- SFDX returned user ID: ${userId}`);
                     
                     // Validate the user ID before caching

@@ -90,3 +90,4 @@ input::placeholder,
 textarea::placeholder {
   color: var(--vscode-input-placeholderForeground);
 }
+
