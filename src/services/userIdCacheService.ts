@@ -33,27 +33,27 @@ export class UserIdCacheService {
 
         // Ensure .visbal/cache directory exists
         if (!fs.existsSync(this.cachePath)) {
-            OrgUtils.logDebug('[VisbalExt.UserIdCacheService] Creating .visbal/cache directory');
+            OrgUtils.logDebug('[VisbalExt.UserIdCacheService] constructor -- Creating .visbal/cache directory');
             fs.mkdirSync(this.cachePath, { recursive: true });
         }
 
         // Initialize cache file if it doesn't exist
         if (!fs.existsSync(this.userIdCacheFile)) {
-            OrgUtils.logDebug('[VisbalExt.UserIdCacheService] Initializing user-ids.json');
+            OrgUtils.logDebug('[VisbalExt.UserIdCacheService] constructor -- Initializing user-ids.json');
             this.writeCache({});
         }
     }
 
     private readCache(): UserIdCache {
         try {
-            OrgUtils.logDebug('[VisbalExt.UserIdCacheService] readCache userIdCacheFile:', this.userIdCacheFile);
+            OrgUtils.logDebug('[VisbalExt.UserIdCacheService] readCache -- userIdCacheFile:', this.userIdCacheFile);
             if (fs.existsSync(this.userIdCacheFile)) {
                 const data = fs.readFileSync(this.userIdCacheFile, 'utf8');
                 return JSON.parse(data);
             }
             return {};
         } catch (error: any) {
-            OrgUtils.logError('[VisbalExt.UserIdCacheService] Error reading cache:', error);
+            OrgUtils.logError('[VisbalExt.UserIdCacheService] readCache -- Error reading cache:', error);
             return {};
         }
     }
@@ -63,7 +63,7 @@ export class UserIdCacheService {
             fs.writeFileSync(this.userIdCacheFile, JSON.stringify(cache, null, 2));
             OrgUtils.logDebug('[VisbalExt.UserIdCacheService] writeCache -- Cache saved to:', this.userIdCacheFile);
         } catch (error: any) {
-            OrgUtils.logError('[VisbalExt.UserIdCacheService] Error writing cache:', error);
+            OrgUtils.logError('[VisbalExt.UserIdCacheService] writeCache -- Error writing cache:', error);
             throw error;
         }
     }
@@ -94,7 +94,7 @@ export class UserIdCacheService {
             this.writeCache(cache);
             OrgUtils.logDebug('[VisbalExt.UserIdCacheService] setCachedUserIdEntry', `Cached user ID for alias: ${alias}, userId: ${userId}, orgId: ${orgId}`);
         } catch (error: any) {
-            OrgUtils.logError('[VisbalExt.UserIdCacheService] Error caching user ID entry:', error);
+            OrgUtils.logError('[VisbalExt.UserIdCacheService] setCachedUserIdEntry -- Error caching user ID entry:', error);
             throw error;
         }
     }
@@ -124,7 +124,7 @@ export class UserIdCacheService {
             this.writeCache({});
             OrgUtils.logDebug('[VisbalExt.UserIdCacheService] clearCache -- All cached user IDs cleared');
         } catch (error: any) {
-            OrgUtils.logError('[VisbalExt.UserIdCacheService] Error clearing cache:', error);
+            OrgUtils.logError('[VisbalExt.UserIdCacheService] clearCache -- Error clearing cache:', error);
             throw error;
         }
     }

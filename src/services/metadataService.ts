@@ -40,24 +40,24 @@ export class MetadataService {
 
     private async executeCliCommandAnonymous(command: string): Promise<string> {
         try {
-            OrgUtils.logDebug(`[VisbalExt.MetadataService] executeCliCommandAnonymous Executing CLI command: ${command}`);
+            OrgUtils.logDebug(`[VisbalExt.MetadataService] executeCliCommandAnonymous -- Executing CLI command: ${command}`);
             
             // Execute the command directly without bash -c wrapper
-            //OrgUtils.logDebug(`[VisbalExt.MetadataService] executeCliCommandAnonymous Executing final command: ${command}`);
+            //OrgUtils.logDebug(`[VisbalExt.MetadataService] executeCliCommandAnonymous -- Executing final command: ${command}`);
             const { stdout, stderr } = await execAsync(command);
             
             if (stderr) {
-                OrgUtils.logDebug(`[VisbalExt.MetadataService] executeCliCommandAnonymous Command produced stderr: ${stderr}`);
+                OrgUtils.logDebug(`[VisbalExt.MetadataService] executeCliCommandAnonymous -- Command produced stderr: ${stderr}`);
                 // Only throw if it seems like a real error, as some commands output warnings to stderr
                 if (stderr.includes('Error:') || stderr.includes('error:')) {
                     throw new Error(stderr);
                 }
             }
             
-            OrgUtils.logDebug(`[VisbalExt.MetadataService] executeCliCommandAnonymous Command executed successfully`);
+            OrgUtils.logDebug(`[VisbalExt.MetadataService] executeCliCommandAnonymous -- Command executed successfully`);
             return stdout;
         } catch (error: any) {
-            OrgUtils.logError(`[VisbalExt.MetadataService] executeCliCommandAnonymous Command execution failed:`,  error);
+            OrgUtils.logError(`[VisbalExt.MetadataService] executeCliCommandAnonymous -- Command execution failed:`,  error);
             throw error;
         }
     }
@@ -66,26 +66,26 @@ export class MetadataService {
      */
     private async executeCliCommand(command: string): Promise<string> {
         try {
-            OrgUtils.logDebug(`[VisbalExt.MetadataService] executeCliCommand Executing CLI command: ${command}`);
+            OrgUtils.logDebug(`[VisbalExt.MetadataService] executeCliCommand -- Executing CLI command: ${command}`);
             
             // Get the default org username - don't use bash on Windows
             try {
                 //const sfCommand = 'sf config get target-org --json';
-                //OrgUtils.logDebug(`[VisbalExt.MetadataService] executeCliCommand execAsync 1 command: ${command}`);
+                //OrgUtils.logDebug(`[VisbalExt.MetadataService] executeCliCommand -- execAsync 1 command: ${command}`);
                 
                 const { stdout: result, stderr } = await execAsync(command);
-                OrgUtils.logDebug(`[VisbalExt.MetadataService] executeCliCommand execAsync 1 result: `, result);result
+                OrgUtils.logDebug(`[VisbalExt.MetadataService] executeCliCommand -- execAsync 1 result: `, result);result
                 if (stderr) {
-                    OrgUtils.logDebug(`[VisbalExt.MetadataService] executeCliCommand execAsync 1 stderr: `, stderr);
+                    OrgUtils.logDebug(`[VisbalExt.MetadataService] executeCliCommand -- execAsync 1 stderr: `, stderr);
                 }
                 
                 if (result && result.trim()) {
                     try {
                         return result;                   
                     } catch (parseError: any) {
-                        OrgUtils.logError('[VisbalExt.MetadataService] executeCliCommand execAsync 1 parseError:', parseError);
-                        OrgUtils.logDebug('[VisbalExt.MetadataService] executeCliCommand execAsync 1 parseError.message:', parseError.message);
-                        OrgUtils.logDebug('[VisbalExt.MetadataService] executeCliCommand execAsync 1 parseError.stack:', parseError.stack);     
+                        OrgUtils.logError('[VisbalExt.MetadataService] executeCliCommand -- execAsync 1 parseError:', parseError);
+                        OrgUtils.logDebug('[VisbalExt.MetadataService] executeCliCommand -- execAsync 1 parseError.message:', parseError.message);
+                        OrgUtils.logDebug('[VisbalExt.MetadataService] executeCliCommand -- execAsync 1 parseError.stack:', parseError.stack);     
                       
                         throw new Error(parseError.message);
                         //const parseError1 = JSON.parse(parseError);
@@ -96,11 +96,11 @@ export class MetadataService {
                     throw new Error('Executing executeCliCommand failed');
                 }
             } catch (orgError : any) {
-                //OrgUtils.logDebug('[VisbalExt.MetadataService] executeCliCommand execAsync 1 Failed to get target org:', orgError);
+                //OrgUtils.logDebug('[VisbalExt.MetadataService] executeCliCommand -- execAsync 1 Failed to get target org:', orgError);
                 //const orgError1 = JSON.parse(orgError);
-                //OrgUtils.logDebug('[VisbalExt.MetadataService] executeCliCommand execAsync 1 Failed orgError1:', orgError1);
-                //OrgUtils.logDebug('[VisbalExt.MetadataService] executeCliCommand execAsync 1 Failed orgError1.message:', orgError1.message);
-                //OrgUtils.logDebug('[VisbalExt.MetadataService] executeCliCommand execAsync 1 Failed orgError1.stack:', orgError1.stack);
+                //OrgUtils.logDebug('[VisbalExt.MetadataService] executeCliCommand -- execAsync 1 Failed orgError1:', orgError1);
+                //OrgUtils.logDebug('[VisbalExt.MetadataService] executeCliCommand -- execAsync 1 Failed orgError1.message:', orgError1.message);
+                //OrgUtils.logDebug('[VisbalExt.MetadataService] executeCliCommand -- execAsync 1 Failed orgError1.stack:', orgError1.stack);
                 // Check if Salesforce CLI is installed
                 try {
                     await execAsync('sf --version');
@@ -149,12 +149,12 @@ export class MetadataService {
 
     private async executeCliCommandTargetOrg(command: string, targetOrg: string): Promise<string> {
         try {
-            OrgUtils.logDebug(`[VisbalExt.MetadataService] executeCliCommandTargetOrg Executing CLI command: ${command}`);
+            OrgUtils.logDebug(`[VisbalExt.MetadataService] executeCliCommandTargetOrg -- Executing CLI command: ${command}`);
             
             // Get the default org username - don't use bash on Windows
             try {
                 const sfCommand = 'sf config get target-org --json';
-                OrgUtils.logDebug(`[VisbalExt.MetadataService] executeCliCommandTargetOrg Checking target org with: ${sfCommand}`);
+                OrgUtils.logDebug(`[VisbalExt.MetadataService] executeCliCommandTargetOrg -- Checking target org with: ${sfCommand}`);
                 
                 const { stdout: orgInfo } = await execAsync(sfCommand);
                 
@@ -162,7 +162,7 @@ export class MetadataService {
                     try {
 
                         if (targetOrg) {
-                            OrgUtils.logDebug(`[VisbalExt.MetadataService] executeCliCommandTargetOrg Using target org: ${targetOrg}`);
+                            OrgUtils.logDebug(`[VisbalExt.MetadataService] executeCliCommandTargetOrg -- Using target org: ${targetOrg}`);
                             
                             // Add the target org to the command if it doesn't already have one
                             if (!command.includes('-o') && !command.includes('--target-org')) {
@@ -179,7 +179,7 @@ export class MetadataService {
                     throw new Error('No default org set. Please use "sf org set default" to set a default org.');
                 }
             } catch (orgError) {
-                OrgUtils.logDebug('[VisbalExt.MetadataService] executeCliCommandTargetOrg Failed to get target org:', orgError);
+                OrgUtils.logDebug('[VisbalExt.MetadataService] executeCliCommandTargetOrg -- Failed to get target org:', orgError);
                 
                 // Check if Salesforce CLI is installed
                 try {
@@ -192,21 +192,21 @@ export class MetadataService {
             }
             
             // Execute the command directly without bash -c wrapper
-            OrgUtils.logDebug(`[VisbalExt.MetadataService] Executing final command: ${command}`);
+            OrgUtils.logDebug(`[VisbalExt.MetadataService] executeCliCommandTargetOrg -- Executing final command: ${command}`);
             const { stdout, stderr } = await execAsync(command);
             
             if (stderr) {
-                OrgUtils.logDebug(`[MetadataService] executeCliCommandTargetOrg Command produced stderr: ${stderr}`);
+                OrgUtils.logDebug(`[VisbalExt.MetadataService] executeCliCommandTargetOrg -- Command produced stderr: ${stderr}`);
                 // Only throw if it seems like a real error, as some commands output warnings to stderr
                 if (stderr.includes('Error:') || stderr.includes('error:')) {
                     throw new Error(stderr);
                 }
             }
             
-            OrgUtils.logDebug(`[VisbalExt.MetadataService] executeCliCommandTargetOrg Command executed successfully`);
+            OrgUtils.logDebug(`[VisbalExt.MetadataService] executeCliCommandTargetOrg -- Command executed successfully`);
             return stdout;
         } catch (error: any) {
-            OrgUtils.logError(`[VisbalExt.MetadataService] executeCliCommandTargetOrg Command execution failed:`, error);
+            OrgUtils.logError(`[VisbalExt.MetadataService] executeCliCommandTargetOrg -- Command execution failed:`, error);
             throw error;
         }
     }
@@ -246,7 +246,7 @@ export class MetadataService {
             // Use SOQL query to get Apex classes with TracHier namespace
             const soqlQuery = "SELECT Id, Name, NamespacePrefix FROM ApexClass WHERE BodyCrc >0 ORDER BY Name";
             const records =  await this._sfdxService.executeSoqlQuery(soqlQuery, false, false, targetOrgAlias);
-            OrgUtils.logDebug(`[VisbalExt.MetadataService] Found ${records.length} classes in TracHier, TracRTC  namespace`);
+            OrgUtils.logDebug(`[VisbalExt.MetadataService] listApexClasses -- Found ${records.length} classes in TracHier, TracRTC  namespace`);
             
             return records.map((cls: any) => ({
                 id: cls.Id,
@@ -256,7 +256,7 @@ export class MetadataService {
                 status: 'Active'
             }));
         } catch (error: any) {
-            OrgUtils.logError('[VisbalExt.MetadataService] Failed to list Apex classes:', error);
+            OrgUtils.logError('[VisbalExt.MetadataService] listApexClasses -- Failed to list Apex classes:', error);
             throw new Error(`Failed to list Apex classes: ${error.message}`);
         }
     }
@@ -399,7 +399,7 @@ export class MetadataService {
      * Checks if a class is a test class based on its body
      */
     public isTestClass(classBody: string): boolean {
-        OrgUtils.logDebug('[VisbalExt.MetadataService] Checking if class is a test class...');
+        OrgUtils.logDebug('[VisbalExt.MetadataService] isTestClass -- Checking if class is a test class...');
         const classBodyLower = classBody.toLowerCase();
         const isTest = classBodyLower.includes('@istest') || 
                       classBodyLower.includes('testmethod') || 
@@ -424,10 +424,10 @@ export class MetadataService {
                 cls.name.toLowerCase().endsWith('tests')
             );
             
-            OrgUtils.logDebug(`[VisbalExt.MetadataService] Found ${testClasses.length} test classes by name`);
+            OrgUtils.logDebug(`[VisbalExt.MetadataService] getTestClasses -- Found ${testClasses.length} test classes by name`);
             return testClasses;
         } catch (error: any) {
-            OrgUtils.logError('[VisbalExt.MetadataService] Failed to get test classes:', error);
+            OrgUtils.logError('[VisbalExt.MetadataService] getTestClasses -- Failed to get test classes:', error);
             throw new Error(`Failed to get test classes: ${error.message}`);
         }
     }
@@ -469,7 +469,7 @@ export class MetadataService {
      */
     public async getApexLog(logId: string): Promise<any> {
         try {
-            OrgUtils.logDebug(`[VisbalExt.MetadataService] Getting Apex log with ID: ${logId}`);
+            OrgUtils.logDebug(`[VisbalExt.MetadataService] getApexLog -- Getting Apex log with ID: ${logId}`);
             const output = await this.executeCliCommand(`sf apex get log --log-id ${logId} --json`);
             const result = JSON.parse(output).result;
             OrgUtils.logDebug('[VisbalExt.MetadataService] getApexLog -- Successfully retrieved Apex log');
@@ -732,7 +732,7 @@ export class MetadataService {
 
             // Read the log content from the file
             const logContent = readFileSync(logFilePath, 'utf8');
-            OrgUtils.logDebug('[VisbalExt.MetadataService] getLogContent open  file:',  logFilePath);
+            OrgUtils.logDebug('[VisbalExt.MetadataService] getLogContent -- open  file:',  logFilePath);
             // Open the file logFilePath
             const document = await vscode.workspace.openTextDocument(logFilePath);
             return logContent;
@@ -781,7 +781,7 @@ export class MetadataService {
             OrgUtils.logDebug('[VisbalExt.MetadataService] getTestLogId -- testRunDetailsCommand:', testRunDetailsCommand);
             const testRunDetailsResult = await this._executeCommand2(testRunDetailsCommand);
 
-            //OrgUtils.logDebug(`[VisbalExt.MetadataService] getTestLogId testRunDetailsResult.stdout`, testRunDetailsResult.stdout);    
+            //OrgUtils.logDebug(`[VisbalExt.MetadataService] getTestLogId -- testRunDetailsResult.stdout`, testRunDetailsResult.stdout);    
             const testRunDetails = JSON.parse(testRunDetailsResult.stdout);
             OrgUtils.logDebug('[VisbalExt.MetadataService] getTestLogId -- testRunDetails:', testRunDetails);
             if (!testRunDetails?.result?.summary?.testStartTime) {
@@ -800,15 +800,15 @@ export class MetadataService {
             }
             OrgUtils.logDebug('[VisbalExt.MetadataService] getTestLogId -- logListCommand:', logListCommand);
             const logListResult = await this._executeCommand2(logListCommand);
-            //OrgUtils.logDebug(`[VisbalExt.MetadataService] getTestLogId logListResult.stdout:`, logListResult.stdout);
+            //OrgUtils.logDebug(`[VisbalExt.MetadataService] getTestLogId -- logListResult.stdout:`, logListResult.stdout);
             const logList = JSON.parse(logListResult.stdout);
             if (!logList?.result || logList.result.length === 0) {
                 OrgUtils.logDebug('[VisbalExt.MetadataService] getTestLogId -- No logs found');
                 return '';
             }
-            OrgUtils.logDebug(`[VisbalExt.MetadataService] getTestLogId logList:`,logList);    
-            OrgUtils.logDebug(`[VisbalExt.MetadataService] getTestLogId logList.result:`,logList.result);  
-            OrgUtils.logDebug(`[VisbalExt.MetadataService] getTestLogId logList.result[0].Id:`,logList.result[0].Id);  
+            OrgUtils.logDebug(`[VisbalExt.MetadataService] getTestLogId -- logList:`,logList);    
+            OrgUtils.logDebug(`[VisbalExt.MetadataService] getTestLogId -- logList.result:`,logList.result);  
+            OrgUtils.logDebug(`[VisbalExt.MetadataService] getTestLogId -- logList.result[0].Id:`,logList.result[0].Id);  
             
             //return logList.result[0].Id;
           
@@ -828,7 +828,7 @@ export class MetadataService {
                     }
                 });
 
-            OrgUtils.logDebug(`[VisbalExt.MetadataService] getTestLogId relevantLogs:`, relevantLogs);          
+            OrgUtils.logDebug(`[VisbalExt.MetadataService] getTestLogId -- relevantLogs:`, relevantLogs);          
             const logIds = relevantLogs.map((log: any) => log.Id);
             OrgUtils.logDebug('[VisbalExt.MetadataService] getTestLogId -- logIds:', logIds);
             // Get the latest log (first element after sorting)
@@ -872,7 +872,7 @@ export class MetadataService {
             const soqlQuery = `DELETE FROM ApexLog WHERE Id = '${logId}'`;
             const command = `sf data delete record --sobject ApexLog --record-id ${logId} --json`;
             
-            OrgUtils.logDebug(`[VisbalExt.MetadataService] Executing delete command: ${command}`);
+            OrgUtils.logDebug(`[VisbalExt.MetadataService] deleteViaSoql -- Executing delete command: ${command}`);
             const output = await this.executeCliCommand(command);
             const result = JSON.parse(output);
             

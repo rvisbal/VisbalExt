@@ -105,7 +105,7 @@ export class SoqlTab implements vscode.WebviewViewProvider {
                 return;
             }
 
-            OrgUtils.logDebug(`[VisbalExt.soqlPanel] executeSOQL Executing on ${selectedOrg?.alias} org SOQL:`, soql);
+            OrgUtils.logDebug(`[VisbalExt.soqlPanel] executeSOQL -- Executing on ${selectedOrg?.alias} org SOQL:`, soql);
             const m = `SOQL started on : ${selectedOrg.alias}`
             // Show loading state
             this._view?.webview.postMessage({
@@ -113,7 +113,7 @@ export class SoqlTab implements vscode.WebviewViewProvider {
             });
 
             const result = await this._sfdxService.executeSoqlQuery(soql, false, useToolingApi, selectedOrg?.alias);
-            OrgUtils.logDebug('[VisbalExt.soqlPanel] executeSOQL Execution result:', result);
+            OrgUtils.logDebug('[VisbalExt.soqlPanel] executeSOQL -- Execution result:', result);
 
             if (!result || result.length === 0) {
                 this._view?.webview.postMessage({

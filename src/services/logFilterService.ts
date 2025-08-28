@@ -72,7 +72,7 @@ export class LogFilterService {
         this.updateStats();
         this.saveFiltersToStorage();
 
-        OrgUtils.logDebug(`[LogFilterService] Created new filter: ${filter.name} (${filter.id})`);
+        OrgUtils.logDebug(`[VisbalExt.LogFilterService] _createFilter -- Created new filter: ${filter.name} (${filter.id})`);
         return filter;
     }
 
@@ -82,12 +82,12 @@ export class LogFilterService {
     public updateFilter(filterId: string, updates: Partial<LogFilter>): boolean {
         const filter = this.filters.get(filterId);
         if (!filter) {
-            OrgUtils.logError(`[LogFilterService] Filter not found: ${filterId}`, new Error('Filter not found'));
+            OrgUtils.logError(`[VisbalExt.LogFilterService] _updateFilter -- Filter not found: ${filterId}`, new Error('Filter not found'));
             return false;
         }
 
         if (filter.isBuiltIn && updates.conditions) {
-            OrgUtils.logError(`[LogFilterService] Cannot modify built-in filter conditions: ${filterId}`, new Error('Cannot modify built-in filter'));
+            OrgUtils.logError(`[VisbalExt.LogFilterService] _updateFilter -- Cannot modify built-in filter conditions: ${filterId}`, new Error('Cannot modify built-in filter'));
             return false;
         }
 
@@ -96,7 +96,7 @@ export class LogFilterService {
         this.updateStats();
         this.saveFiltersToStorage();
 
-        OrgUtils.logDebug(`[LogFilterService] Updated filter: ${filter.name} (${filterId})`);
+        OrgUtils.logDebug(`[VisbalExt.LogFilterService] _updateFilter -- Updated filter: ${filter.name} (${filterId})`);
         return true;
     }
 
@@ -104,36 +104,36 @@ export class LogFilterService {
      * Deletes a filter
      */
     public deleteFilter(filterId: string): boolean {
-        console.log('[LogFilterService] deleteFilter ENTRY - filterId:', filterId);
-        console.log('[LogFilterService] deleteFilter ENTRY - typeof filterId:', typeof filterId);
-        console.log('[LogFilterService] deleteFilter ENTRY - filters map size:', this.filters.size);
-        console.log('[LogFilterService] deleteFilter ENTRY - filters map keys:', Array.from(this.filters.keys()));
+        console.log('[VisbalExt.LogFilterService] _deleteFilter ENTRY - filterId:', filterId);
+        console.log('[VisbalExt.LogFilterService] _deleteFilter ENTRY - typeof filterId:', typeof filterId);
+        console.log('[VisbalExt.LogFilterService] _deleteFilter ENTRY - filters map size:', this.filters.size);
+        console.log('[VisbalExt.LogFilterService] _deleteFilter ENTRY - filters map keys:', Array.from(this.filters.keys()));
         
         const filter = this.filters.get(filterId);
-        console.log('[LogFilterService] deleteFilter - found filter:', filter);
+        console.log('[VisbalExt.LogFilterService] _deleteFilter - found filter:', filter);
         
         if (!filter) {
-            console.log('[LogFilterService] deleteFilter - filter not found, returning false');
+            console.log('[VisbalExt.LogFilterService] _deleteFilter - filter not found, returning false');
             return false;
         }
 
         if (filter.isBuiltIn) {
-            console.log('[LogFilterService] deleteFilter - cannot delete built-in filter');
-            OrgUtils.logError(`[LogFilterService] Cannot delete built-in filter: ${filterId}`, new Error('Cannot delete built-in filter'));
+            console.log('[VisbalExt.LogFilterService] _deleteFilter - cannot delete built-in filter');
+            OrgUtils.logError(`[VisbalExt.LogFilterService] _deleteFilter -- Cannot delete built-in filter: ${filterId}`, new Error('Cannot delete built-in filter'));
             return false;
         }
 
-        console.log('[LogFilterService] deleteFilter - deleting filter from map');
+        console.log('[VisbalExt.LogFilterService] _deleteFilter - deleting filter from map');
         this.filters.delete(filterId);
         
-        console.log('[LogFilterService] deleteFilter - updating stats');
+        console.log('[VisbalExt.LogFilterService] _deleteFilter - updating stats');
         this.updateStats();
         
-        console.log('[LogFilterService] deleteFilter - saving to storage');
+        console.log('[VisbalExt.LogFilterService] _deleteFilter - saving to storage');
         this.saveFiltersToStorage();
 
-        console.log('[LogFilterService] deleteFilter - operation successful');
-        OrgUtils.logDebug(`[LogFilterService] Deleted filter: ${filter.name} (${filterId})`);
+        console.log('[VisbalExt.LogFilterService] _deleteFilter - operation successful');
+        OrgUtils.logDebug(`[VisbalExt.LogFilterService] _deleteFilter -- Deleted filter: ${filter.name} (${filterId})`);
         return true;
     }
 
@@ -173,7 +173,7 @@ export class LogFilterService {
         this.updateStats();
         this.saveFiltersToStorage();
 
-        OrgUtils.logDebug(`[LogFilterService] Toggled filter: ${filter.name} (${filterId}) - Active: ${filter.isActive}`);
+        OrgUtils.logDebug(`[VisbalExt.LogFilterService] _toggleFilter -- Toggled filter: ${filter.name} (${filterId}) - Active: ${filter.isActive}`);
         return true;
     }
 
@@ -222,7 +222,7 @@ export class LogFilterService {
         const executionTime = performance.now() - startTime;
         this.updateExecutionTimeStats(executionTime);
 
-        OrgUtils.logDebug(`[LogFilterService] Applied ${filtersToApply.length} filters, found ${filteredLines.length} matches in ${executionTime.toFixed(2)}ms`);
+        OrgUtils.logDebug(`[VisbalExt.LogFilterService] _applyFilters -- Applied ${filtersToApply.length} filters, found ${filteredLines.length} matches in ${executionTime.toFixed(2)}ms`);
 
         return {
             filteredLines,
@@ -354,7 +354,7 @@ export class LogFilterService {
                     const regex = new RegExp(value, flags);
                     result = regex.test(fieldValue);
                 } catch (e) {
-                    OrgUtils.logError(`[LogFilterService] Invalid regex in condition ${condition.id}: ${value}`, e);
+                    OrgUtils.logError(`[VisbalExt.LogFilterService] _evaluateCondition -- Invalid regex in condition ${condition.id}: ${value}`, e);
                     result = false;
                 }
                 break;
@@ -567,7 +567,7 @@ export class LogFilterService {
                 }
             }
         } catch (error) {
-            OrgUtils.logError('[LogFilterService] Error loading filters from storage:', error);
+            OrgUtils.logError('[VisbalExt.LogFilterService] _loadFiltersFromStorage -- Error loading filters from storage:', error);
         }
     }
 
@@ -584,7 +584,7 @@ export class LogFilterService {
             this.context.globalState.update(this.STORAGE_KEY_FILTERS, JSON.stringify(filters));
             this.context.globalState.update(this.STORAGE_KEY_STATS, JSON.stringify(this.stats));
         } catch (error) {
-            OrgUtils.logError('[LogFilterService] Error saving filters to storage:', error);
+            OrgUtils.logError('[VisbalExt.LogFilterService] _saveFiltersToStorage -- Error saving filters to storage:', error);
         }
     }
 

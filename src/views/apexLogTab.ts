@@ -65,18 +65,18 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
             // Initialize OrgUtils with downloaded logs data
             OrgUtils.setDownloadedLogsData(this._downloadedLogs, this._downloadedLogPaths);
 
-            OrgUtils.logDebug(`[VisbalExt.apexLogTab.VisbalLogView] _initializeFromCache Initialized from cache: ${this._logs.length} logs, ${this._downloadedLogs.size} downloaded`);
+            OrgUtils.logDebug(`[VisbalExt.apexLogTab.VisbalLogView] _initializeFromCache -- Initialized from cache: ${this._logs.length} logs, ${this._downloadedLogs.size} downloaded`);
         } catch (error: any) {
             OrgUtils.logError('[VisbalExt.apexLogTab.VisbalLogView] _initializeFromCache Error initializing from cache:', error);
         }
     }
 
     public init() {
-        OrgUtils.logDebug('[VisbalExt.apexLogTab.VisbalLogView] constructor -- init');
+        OrgUtils.logDebug('[VisbalExt.apexLogTab.VisbalLogView] init -- init');
         if (!this._hasIntitialized) {
             this._hasIntitialized = true;
             this._checkDownloadedLogs();
-            OrgUtils.logDebug('[VisbalExt.apexLogTab.VisbalLogView] constructor -- _refreshOrgList');
+            OrgUtils.logDebug('[VisbalExt.apexLogTab.VisbalLogView] init -- _refreshOrgList');
             this._metadataService = new MetadataService();
             this._loadOrgList();
         }
@@ -187,7 +187,7 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
                     break;
                 case 'executeScript':
                     try {
-                        OrgUtils.logDebug('[VisbalExt.apexLogTab.VisbalLogView]  Executing script from extension');
+                        OrgUtils.logDebug('[VisbalExt.apexLogTab.VisbalLogView] resolveWebviewView -- Executing script from extension');
                         // Execute the script
                         eval(message.script);
                     } catch (error: any) {
@@ -199,7 +199,7 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
                     await this._deployOrg();
                     break;
                 case 'runGulp': 
-                    OrgUtils.logDebug('[VisbalExt.apexLogTab.VisbalLogView] runGulp -- Running gulp');
+                    OrgUtils.logDebug('[VisbalExt.apexLogTab.VisbalLogView] resolveWebviewView -- Running gulp');
                     // Open a new terminal and run 'npm run gulp' in the build folder if it exists
                     const wsFolders = vscode.workspace.workspaceFolders;
                     let cwd = vscode.workspace.rootPath;
@@ -257,7 +257,7 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
                                     });
                                 });
                                 
-                                OrgUtils.logDebug('[VisbalExt.apexLogTab.VisbalLogView] Added "Delete via SOQL" button');
+                                OrgUtils.logDebug('[VisbalExt.apexLogTab.VisbalLogView] resolveWebviewView -- Added "Delete via SOQL" button');
                             }
                         }
                         
@@ -302,7 +302,7 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
             
             this._view?.webview.postMessage({ command: 'loading', isLoading: true });
 
-            OrgUtils.logDebug('[VisbalExt.apexLogTab.VisbalLogView] _fetchLogs Fetching logs with new CLI format...');
+            OrgUtils.logDebug('[VisbalExt.apexLogTab.VisbalLogView] _fetchLogs -- Fetching logs with new CLI format...');
             try {
                 // Get the view-specific selected org for Apex Log view
                 const selectedOrg = await OrgUtils.getSelectedOrgForView(ViewId.APEX_LOG);
@@ -312,12 +312,12 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
                 const jsonResult = JSON.parse(result);
                 
                 if (jsonResult && jsonResult.result && Array.isArray(jsonResult.result)) {
-                    OrgUtils.logDebug(`[VisbalExt.apexLogTab.VisbalLogView] Found ${jsonResult.result.length} logs`);
+                    OrgUtils.logDebug(`[VisbalExt.apexLogTab.VisbalLogView] _fetchLogs -- Found ${jsonResult.result.length} logs`);
                     
                     // Transform logs to the expected format
                     const transformedLogs = jsonResult.result.map((log: any) => {
                         // Log the raw log entry for debugging
-                        OrgUtils.logDebug(`[VisbalExt.apexLogTab.VisbalLogView] Raw log entry: ${JSON.stringify(log)}`);
+                        OrgUtils.logDebug(`[VisbalExt.apexLogTab.VisbalLogView] _fetchLogs -- Raw log entry: ${JSON.stringify(log)}`);
                         
                         return {
                             id: log.Id || log.id,
@@ -348,13 +348,13 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
                     // Validate logs
                     const validatedLogs = transformedLogs.filter((log: any) => {
                         if (!log || typeof log !== 'object' || !log.id) {
-                            OrgUtils.logError('[VisbalExt.apexLogTab.VisbalLogView] Invalid log entry after transformation:', log);
+                            OrgUtils.logError('[VisbalExt.apexLogTab.VisbalLogView] _fetchLogs -- Invalid log entry after transformation:', log);
                             return false;
                         }
                         return true;
                     });
                     
-                    OrgUtils.logDebug(`[VisbalExt.apexLogTab.VisbalLogView] Validated ${validatedLogs.length} of ${transformedLogs.length} logs`);
+                    OrgUtils.logDebug(`[VisbalExt.apexLogTab.VisbalLogView] _fetchLogs -- Validated ${validatedLogs.length} of ${transformedLogs.length} logs`);
                     
                     // Send logs to webview with downloaded status
                     this._sendLogsToWebview(validatedLogs);
@@ -362,12 +362,12 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
                     // Show success message in status bar
                     statusBarService.showSuccess(`Fetched ${validatedLogs.length} logs`);
                 } else {
-                    OrgUtils.logError('[VisbalExt.apexLogTab.VisbalLogView] Invalid response format:', jsonResult);
+                    OrgUtils.logError('[VisbalExt.apexLogTab.VisbalLogView] _fetchLogs -- Invalid response format:', jsonResult);
                     throw new Error('Invalid response format');
                 }
             } catch (error: any) {
-                OrgUtils.logError('[VisbalExt.apexLogTab.VisbalLogView] Error fetching logs with new CLI format:', error);
-                OrgUtils.logDebug('[VisbalExt.apexLogTab.VisbalLogView] Falling back to old CLI format...');
+                OrgUtils.logError('[VisbalExt.apexLogTab.VisbalLogView] _fetchLogs -- Error fetching logs with new CLI format:', error);
+                OrgUtils.logDebug('[VisbalExt.apexLogTab.VisbalLogView] _fetchLogs -- Falling back to old CLI format...');
                 
 			}
         } catch (error: any) {
@@ -397,6 +397,9 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
             OrgUtils.logDebug('[VisbalExt.apexLogTab.VisbalLogView] _fetchLogsSoql -- View not available or already loading, skipping fetch');
             return;
         }
+
+        //const selectedOrg = await OrgUtils.getSelectedOrgForView(ViewId.APEX_LOG);
+        //OrgUtils.logDebug(`[VisbalExt.apexLogTab.VisbalLogView] _fetchLogsSoql -- Using selected org: ${selectedOrg?.alias}`);
 
         // Set loading flag
         this._isLoading = true;
@@ -579,7 +582,7 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
     }
 
     private _toggleDownloaded(logId: string, downloaded: boolean): void {
-        OrgUtils.logDebug(`[VisbalExt.apexLogTab.VisbalLogView] Toggling downloaded status for log ${logId} to ${downloaded}`);
+        OrgUtils.logDebug(`[VisbalExt.apexLogTab.VisbalLogView] _toggleDownloaded -- Toggling downloaded status for log ${logId} to ${downloaded}`);
         if (downloaded) {
             this._downloadedLogs.add(logId);
         } else {
@@ -614,11 +617,11 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
                 downloaded: this._downloadedLogs.has(log.id) || this._downloadedLogPaths.has(log.id)
             }));
             
-            OrgUtils.logDebug(`[VisbalExt.apexLogTab.VisbalLogView] Sending ${logsWithDownloadStatus.length} logs to webview`);
+            OrgUtils.logDebug(`[VisbalExt.apexLogTab.VisbalLogView] _sendLogsToWebview -- Sending ${logsWithDownloadStatus.length} logs to webview`);
             
             // Log a sample of the logs being sent
             if (logsWithDownloadStatus.length > 0) {
-                OrgUtils.logDebug(`[VisbalExt.apexLogTab.VisbalLogView] Sample log: ${JSON.stringify(logsWithDownloadStatus[0])}`);
+                OrgUtils.logDebug(`[VisbalExt.apexLogTab.VisbalLogView] _sendLogsToWebview -- Sample log: ${JSON.stringify(logsWithDownloadStatus[0])}`);
             }
             
             this._view.webview.postMessage({
@@ -898,7 +901,7 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
             this._isLoading = true;
             this._view?.webview.postMessage({ command: 'loading', isLoading: true, message: 'Clearing local log and temp files...' });
 
-            OrgUtils.logDebug('[VisbalExt.apexLogTab.VisbalLogView] Clearing local log files and temp files');
+            OrgUtils.logDebug('[VisbalExt.apexLogTab.VisbalLogView] _clearLocalLogs -- Clearing local log files and temp files');
 
             // Get the base .visbal directory - prioritize workspace folder if available
             let visbalBaseDir: string;
@@ -906,11 +909,11 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
                 // Use workspace folder if available
                 const workspaceFolder = vscode.workspace.workspaceFolders[0].uri.fsPath;
                 visbalBaseDir = path.join(workspaceFolder, '.visbal');
-                OrgUtils.logDebug(`[VisbalExt.apexLogTab.VisbalLogView] Using workspace .visbal directory: ${visbalBaseDir}`);
+                OrgUtils.logDebug(`[VisbalExt.apexLogTab.VisbalLogView] _clearLocalLogs -- Using workspace .visbal directory: ${visbalBaseDir}`);
             } else {
                 // Fall back to home directory
                 visbalBaseDir = path.join(os.homedir(), '.visbal');
-                OrgUtils.logDebug(`[VisbalExt.apexLogTab.VisbalLogView] Using home .visbal directory: ${visbalBaseDir}`);
+                OrgUtils.logDebug(`[VisbalExt.apexLogTab.VisbalLogView] _clearLocalLogs -- Using home .visbal directory: ${visbalBaseDir}`);
             }
             
             const logsDir = path.join(visbalBaseDir, 'logs');
@@ -923,13 +926,13 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
                 let deletedCount = 0;
                 
                 if (!fs.existsSync(dirPath)) {
-                    OrgUtils.logDebug(`[VisbalExt.apexLogTab.VisbalLogView] ${dirName} directory does not exist: ${dirPath}`);
+                    OrgUtils.logDebug(`[VisbalExt.apexLogTab.VisbalLogView] _clearLocalLogs -- ${dirName} directory does not exist: ${dirPath}`);
                     return 0;
                 }
 
                 try {
                     const files = await fs.promises.readdir(dirPath);
-                    OrgUtils.logDebug(`[VisbalExt.apexLogTab.VisbalLogView] Found ${files.length} files in ${dirName} directory`);
+                    OrgUtils.logDebug(`[VisbalExt.apexLogTab.VisbalLogView] _clearLocalLogs -- Found ${files.length} files in ${dirName} directory`);
 
                     for (const file of files) {
                         try {
@@ -964,7 +967,7 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
             const tempDeleted = await cleanupDirectory(tempDir, 'temp');
             totalDeletedCount += tempDeleted;
             
-            OrgUtils.logDebug(`[VisbalExt.apexLogTab.VisbalLogView] Cleanup summary: ${logsDeleted} log files, ${tempDeleted} temp files, ${totalDeletedCount} total`);
+            OrgUtils.logDebug(`[VisbalExt.apexLogTab.VisbalLogView] _clearLocalLogs -- Cleanup summary: ${logsDeleted} log files, ${tempDeleted} temp files, ${totalDeletedCount} total`);
 
             // Clear the downloaded logs tracking
             this._downloadedLogs.clear();
@@ -974,7 +977,7 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
             // Update the UI
             this._updateWebviewContent();
 
-            OrgUtils.logDebug(`[VisbalExt.apexLogTab.VisbalLogView] Successfully deleted ${totalDeletedCount} files total`);
+            OrgUtils.logDebug(`[VisbalExt.apexLogTab.VisbalLogView] _clearLocalLogs -- Successfully deleted ${totalDeletedCount} files total`);
 
             // Create detailed message
             let successMessage: string;
@@ -1027,7 +1030,7 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
             const logIds = this._logs.map((log: any) => log.id).filter(Boolean);
             
             if (logIds.length === 0) {
-                OrgUtils.logDebug('[VisbalExt.apexLogTab.VisbalLogView] No logs to delete');
+                OrgUtils.logDebug('[VisbalExt.apexLogTab.VisbalLogView] _deleteServerLogs -- No logs to delete');
                 throw new Error('No logs to delete');
             }
 
@@ -1722,7 +1725,7 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
      */
     private async _getCurrentDebugConfig(): Promise<void> {
         try {
-            OrgUtils.logDebug('[VisbalExt.apexLogTab.VisbalLogView] Getting current debug configuration');
+            OrgUtils.logDebug('[VisbalExt.apexLogTab.VisbalLogView] _getCurrentDebugConfig -- Getting current debug configuration');
             
             // Send a default configuration to the webview
             // This avoids making API calls when we don't have a valid connection
@@ -2178,7 +2181,7 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
     private async _saveDownloadedLogs(): Promise<void> {
         try {
             await this._cacheService.saveDownloadedLogs(this._downloadedLogs, this._downloadedLogPaths);
-            OrgUtils.logDebug(`[VisbalExt.apexLogTab.VisbalLogView] Saved ${this._downloadedLogs.size} downloaded logs to cache`);
+            OrgUtils.logDebug(`[VisbalExt.apexLogTab.VisbalLogView] _saveDownloadedLogs -- Saved ${this._downloadedLogs.size} downloaded logs to cache`);
         } catch (error: any) {
             OrgUtils.logError('[VisbalExt.apexLogTab.VisbalLogView] Error saving downloaded logs:', error);
         }
@@ -2305,7 +2308,7 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
     private async _createDebugLevel(debugLevelName: string): Promise<string> {
         try {
 			const debugvalues = `DeveloperName=${debugLevelName} MasterLabel=${debugLevelName} ApexCode=FINEST ApexProfiling=FINEST Callout=FINEST Database=FINEST System=FINEST Validation=FINEST Visualforce=FINEST Workflow=FINEST`;
-            OrgUtils.logDebug(`[VisbalExt.apexLogTab.VisbalLogView] Creating debug level with command: ${debugvalues}`);
+            OrgUtils.logDebug(`[VisbalExt.apexLogTab.VisbalLogView] _createDebugLevel -- Creating debug level with command: ${debugvalues}`);
 
             const debugLevelId = await this._sfdxService.createDebugLevel(debugvalues);
 			

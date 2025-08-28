@@ -43,18 +43,18 @@ export async function activate(context: vscode.ExtensionContext) {
   outputChannel = vscode.window.createOutputChannel('Visbal Extension');
   context.subscriptions.push(outputChannel);
 
-  OrgUtils.logDebug('[VisbalExt.Extension] activate Activating extension');
-  outputChannel.appendLine('[VisbalExt.Extension] activateActivating extension');
+  OrgUtils.logDebug('[VisbalExt.Extension] activate -- Activating extension');
+  outputChannel.appendLine('[VisbalExt.Extension] activate -- Activating extension');
 
   // Check if there's a default org set for the project first
   try {
     const alias = await OrgUtils.getCurrentOrgAlias();
     const userId = await OrgUtils.getCurrentUserId(alias);
-    OrgUtils.logDebug(`[VisbalExt.Extension] activate Org found - alias: ${alias}, userId: ${userId}`);
-    outputChannel.appendLine(`[VisbalExt.Extension] activate Connected to org: ${alias}`);
+    OrgUtils.logDebug(`[VisbalExt.Extension] activate -- Org found - alias: ${alias}, userId: ${userId}`);
+    outputChannel.appendLine(`[VisbalExt.Extension] activate -- Connected to org: ${alias}`);
   } catch (error: any) {
-    OrgUtils.logDebug('[VisbalExt.Extension] activate No default org set or connection failed');
-    outputChannel.appendLine('[VisbalExt.Extension] activate No default org configured - some features may be limited');
+    OrgUtils.logDebug('[VisbalExt.Extension] activate -- No default org set or connection failed');
+    outputChannel.appendLine('[VisbalExt.Extension] activate -- No default org configured - some features may be limited');
     statusBarService.showMessage('No Salesforce org configured', 'warning');
   }
   
@@ -74,8 +74,8 @@ export async function activate(context: vscode.ExtensionContext) {
   context.subscriptions.push(statusBarService);
 
   // Initialize debug console view
-  OrgUtils.logDebug('[VisbalExt.Extension] activate Initializing DebugConsoleView: Initialize debug console view');
-  outputChannel.appendLine('[VisbalExt.Extension] activate Initializing DebugConsoleView');
+  OrgUtils.logDebug('[VisbalExt.Extension] activate -- Initializing DebugConsoleView: Initialize debug console view');
+  outputChannel.appendLine('[VisbalExt.Extension] activate -- Initializing DebugConsoleView');
   const debugConsoleView = new DebugConsoleView(context.extensionUri);
 
   // Register the clear console command
@@ -106,18 +106,18 @@ export async function activate(context: vscode.ExtensionContext) {
   // Initialize views based on configuration
   if (isModuleEnabled('testExplorer')) {
     // Initialize test run results view first
-    OrgUtils.logDebug('[VisbalExt.Extension] activate Initializing TestRunningTaskView: Initialize test run results view first');
-    outputChannel.appendLine('[VisbalExt.Extension] activate Initializing TestRunningTaskView');
+    OrgUtils.logDebug('[VisbalExt.Extension] activate -- Initializing TestRunningTaskView: Initialize test run results view first');
+    outputChannel.appendLine('[VisbalExt.Extension] activate -- Initializing TestRunningTaskView');
     testRunningTaskView = new TestRunningTaskView(context);
 
     // Initialize test results view
-    OrgUtils.logDebug('[VisbalExt.Extension] activate Initializing TestSummaryView: Initialize test results view');
-    outputChannel.appendLine('[VisbalExt.Extension] activate Initializing TestSummaryView');
+    OrgUtils.logDebug('[VisbalExt.Extension] activate -- Initializing TestSummaryView: Initialize test results view');
+    outputChannel.appendLine('[VisbalExt.Extension] activate -- Initializing TestSummaryView');
     const testSummaryView = new TestSummaryView(context.extensionUri);
 
     // Initialize test class explorer view with test results view
-    OrgUtils.logDebug('[VisbalExt.Extension] activate Initializing TestClassExplorerView: Initialize test class explorer view with test results view');
-    outputChannel.appendLine('[VisbalExt.Extension] activate Initializing TestClassExplorerView');
+    OrgUtils.logDebug('[VisbalExt.Extension] activate -- Initializing TestClassExplorerView: Initialize test class explorer view with test results view');
+    outputChannel.appendLine('[VisbalExt.Extension] activate -- Initializing TestClassExplorerView');
     const testClassExplorerView = new TestClassExplorerView(
         context.extensionUri,
         statusBarService,
@@ -149,7 +149,7 @@ export async function activate(context: vscode.ExtensionContext) {
     );
 
     // Register test class explorer view
-    OrgUtils.logDebug('[VisbalExt.Extension] activate Register TestClassExplorerView: Register test class explorer view');
+    OrgUtils.logDebug('[VisbalExt.Extension] activate -- Register TestClassExplorerView: Register test class explorer view');
     context.subscriptions.push(
         vscode.window.registerWebviewViewProvider(
             TestClassExplorerView.viewType,
@@ -182,10 +182,10 @@ export async function activate(context: vscode.ExtensionContext) {
     context.subscriptions.push(
       vscode.commands.registerCommand('visbal-ext.openTestFile', async (className: string, methodName: string) => {
         try {
-          OrgUtils.logDebug('[VisbalExt.Extension] activate Opening test file:', { className, methodName });
+          OrgUtils.logDebug('[VisbalExt.Extension] activate -- Opening test file:', { className, methodName });
           await OrgUtils.openTestFile(className, methodName);
         } catch (error: any) {
-          OrgUtils.logError(`[VisbalExt.Extension] activate Error opening test file for ${className}.${methodName}:`, error);
+          OrgUtils.logError(`[VisbalExt.Extension] activate -- Error opening test file for ${className}.${methodName}:`, error);
           vscode.window.showErrorMessage(`Could not open test file for ${className}.${methodName}: ${error.message}`);
         }
       })
@@ -195,7 +195,7 @@ export async function activate(context: vscode.ExtensionContext) {
     context.subscriptions.push(
       vscode.commands.registerCommand('visbal-ext.viewTestLog', async (logId: string, testName: string) => {
         try {
-          OrgUtils.logDebug('[VisbalExt.Extension] activate Viewing test log:', { logId, testName });
+          OrgUtils.logDebug('[VisbalExt.Extension] activate -- Viewing test log:', { logId, testName });
           
           // Use the test explorer's selected org instead of the project default org
           let selectedOrg = await OrgUtils.getSelectedOrgForView(ViewId.TEST_EXPLORER);
@@ -610,7 +610,7 @@ export async function activate(context: vscode.ExtensionContext) {
 
   // Update debug event handlers
   vscode.debug.onDidStartDebugSession(() => {
-    OrgUtils.logDebug('[VisbalExt.Extension] Debug session started');
+    OrgUtils.logDebug('[VisbalExt.Extension] onDebugSessionStarted -- Debug session started');
     outputChannel.appendLine('[Debug] Debug session started');
     debugConsoleView.clear();
     debugConsoleView.addOutput('Debug session started', 'info');
@@ -741,7 +741,7 @@ context.subscriptions.push(
   context.subscriptions.push(
     vscode.commands.registerCommand('visbal-ext.navigateToSelectedDefinition', async () => {
       try {
-        OrgUtils.logDebug('[VisbalExt.Extension] Navigating to selected definition');
+        OrgUtils.logDebug('[VisbalExt.Extension] _navigateToSelectedDefinition -- Navigating to selected definition');
         await OrgUtils.navigateToSelectedDefinition();
       } catch (error: any) {
         OrgUtils.logError('[VisbalExt.Extension] Error navigating to selected definition:', error);

@@ -45,13 +45,13 @@ export class SalesforceConfigReader {
                     for (const dir of projectConfigDirs) {
                         const projectConfigDir = path.join(workspaceRoot, dir);
                         if (fs.existsSync(projectConfigDir)) {
-                            OrgUtils.logDebug(`[SalesforceConfigReader] Using VS Code workspace config: ${projectConfigDir}`);
+                            OrgUtils.logDebug(`[VisbalExt.SalesforceConfigReader] getConfigDir -- Using VS Code workspace config: ${projectConfigDir}`);
                             return projectConfigDir;
                         }
                     }
                 }
             } catch (error) {
-                OrgUtils.logDebug('[SalesforceConfigReader] VS Code not available, trying process.cwd()');
+                OrgUtils.logDebug('[VisbalExt.SalesforceConfigReader] getConfigDir -- VS Code not available, trying process.cwd()');
             }
             
             // Fall back to current working directory
@@ -59,7 +59,7 @@ export class SalesforceConfigReader {
             for (const dir of projectConfigDirs) {
                 const projectConfigDir = path.resolve(process.cwd(), dir);
                 if (fs.existsSync(projectConfigDir)) {
-                    OrgUtils.logDebug(`[SalesforceConfigReader] Using process.cwd() config: ${projectConfigDir}`);
+                    OrgUtils.logDebug(`[VisbalExt.SalesforceConfigReader] getConfigDir -- Using process.cwd() config: ${projectConfigDir}`);
                     return projectConfigDir;
                 }
             }
@@ -73,7 +73,7 @@ export class SalesforceConfigReader {
                         for (const dir of projectConfigDirs) {
                             const workspaceConfigDir = path.join(workspaceRoot, dir);
                             if (fs.existsSync(workspaceConfigDir)) {
-                                OrgUtils.logDebug(`[SalesforceConfigReader] Using workspace config: ${workspaceConfigDir}`);
+                                OrgUtils.logDebug(`[VisbalExt.SalesforceConfigReader] getConfigDir -- Using workspace config: ${workspaceConfigDir}`);
                                 return workspaceConfigDir;
                             }
                         }
@@ -91,10 +91,10 @@ export class SalesforceConfigReader {
         const sfdxDir = path.join(homeDir, '.sfdx');
         
         if (fs.existsSync(sfDir)) {
-            OrgUtils.logDebug(`[SalesforceConfigReader] Using global config: ${sfDir}`);
+            OrgUtils.logDebug(`[VisbalExt.SalesforceConfigReader] getConfigDir -- Using global config: ${sfDir}`);
             return sfDir;
         } else if (fs.existsSync(sfdxDir)) {
-            OrgUtils.logDebug(`[SalesforceConfigReader] Using global legacy config: ${sfdxDir}`);
+            OrgUtils.logDebug(`[VisbalExt.SalesforceConfigReader] getConfigDir -- Using global legacy config: ${sfdxDir}`);
             return sfdxDir;
         }
         
@@ -111,11 +111,11 @@ export class SalesforceConfigReader {
             const configFile = path.join(configDir, 'config.json');
             
             if (!fs.existsSync(configFile)) {
-                OrgUtils.logDebug(`[SalesforceConfigReader] No config.json found in ${configDir}`);
+                OrgUtils.logDebug(`[VisbalExt.SalesforceConfigReader] readMainConfig -- No config.json found in ${configDir}`);
                 
                 // If we tried project config and failed, try global config
                 if (preferProject) {
-                    OrgUtils.logDebug('[SalesforceConfigReader] Trying global config as fallback');
+                    OrgUtils.logDebug('[VisbalExt.SalesforceConfigReader] readMainConfig -- Trying global config as fallback');
                     return this.readMainConfig(false);
                 }
                 return null;
@@ -124,14 +124,14 @@ export class SalesforceConfigReader {
             const configContent = fs.readFileSync(configFile, 'utf8');
             const config = JSON.parse(configContent) as SalesforceConfig;
             
-            OrgUtils.logDebug(`[SalesforceConfigReader] Config read from ${configFile}:`, config);
+            OrgUtils.logDebug(`[VisbalExt.SalesforceConfigReader] readMainConfig -- Config read from ${configFile}:`, config);
             return config;
         } catch (error: any) {
-            OrgUtils.logError('[SalesforceConfigReader] Error reading config:', error);
+            OrgUtils.logError('[VisbalExt.SalesforceConfigReader] readMainConfig -- Error reading config:', error);
             
             // If we tried project config and failed, try global config
             if (preferProject) {
-                OrgUtils.logDebug('[SalesforceConfigReader] Project config failed, trying global config');
+                OrgUtils.logDebug('[VisbalExt.SalesforceConfigReader] readMainConfig -- Project config failed, trying global config');
                 return this.readMainConfig(false);
             }
             return null;
@@ -154,10 +154,10 @@ export class SalesforceConfigReader {
                 targetOrg = config?.defaultusername || config?.['defaultusername'];
             }
             
-            OrgUtils.logDebug(`[SalesforceConfigReader] getDefaultTargetOrg (preferProject: ${preferProject}): ${targetOrg}`);
+            OrgUtils.logDebug(`[VisbalExt.SalesforceConfigReader] getDefaultTargetOrg -- (preferProject: ${preferProject}): ${targetOrg}`);
             return targetOrg || null;
         } catch (error: any) {
-            OrgUtils.logError('[SalesforceConfigReader] Error getting default target org:', error);
+            OrgUtils.logError('[VisbalExt.SalesforceConfigReader] getDefaultTargetOrg -- Error getting default target org:', error);
             return null;
         }
     }
@@ -170,10 +170,10 @@ export class SalesforceConfigReader {
         try {
             const config = this.readMainConfig(preferProject);
             const devHub = config?.targetDevHub || config?.['target-dev-hub'] || null;
-            OrgUtils.logDebug(`[SalesforceConfigReader] getDefaultDevHub (preferProject: ${preferProject}): ${devHub}`);
+            OrgUtils.logDebug(`[VisbalExt.SalesforceConfigReader] getDefaultDevHub -- (preferProject: ${preferProject}): ${devHub}`);
             return devHub;
         } catch (error: any) {
-            OrgUtils.logError('[SalesforceConfigReader] Error getting default dev hub:', error);
+            OrgUtils.logError('[VisbalExt.SalesforceConfigReader] getDefaultDevHub -- Error getting default dev hub:', error);
             return null;
         }
     }
@@ -208,7 +208,7 @@ export class SalesforceConfigReader {
             );
             
             if (authFiles.length === 0) {
-                OrgUtils.logDebug(`[SalesforceConfigReader] No auth file found for: ${usernameOrAlias}`);
+                OrgUtils.logDebug(`[VisbalExt.SalesforceConfigReader] readOrgAuthInfo -- No auth file found for: ${usernameOrAlias}`);
                 return null;
             }
             
@@ -217,7 +217,7 @@ export class SalesforceConfigReader {
             const authContent = fs.readFileSync(authFile, 'utf8');
             const authInfo = JSON.parse(authContent) as OrgAuthInfo;
             
-            OrgUtils.logDebug(`[SalesforceConfigReader] Auth info read for ${usernameOrAlias}:`, {
+            OrgUtils.logDebug(`[VisbalExt.SalesforceConfigReader] readOrgAuthInfo -- Auth info read for ${usernameOrAlias}:`, {
                 username: authInfo.username,
                 alias: authInfo.alias,
                 orgId: authInfo.orgId,
@@ -226,7 +226,7 @@ export class SalesforceConfigReader {
             
             return authInfo;
         } catch (error: any) {
-            OrgUtils.logError(`[SalesforceConfigReader] Error reading auth info for ${usernameOrAlias}:`, error);
+            OrgUtils.logError(`[VisbalExt.SalesforceConfigReader] readOrgAuthInfo -- Error reading auth info for ${usernameOrAlias}:`, error);
             return null;
         }
     }
@@ -244,7 +244,7 @@ export class SalesforceConfigReader {
             const authInfo = this.readOrgAuthInfo(defaultOrg);
             return { alias: defaultOrg, authInfo };
         } catch (error: any) {
-            OrgUtils.logError('[SalesforceConfigReader] Error getting default org info:', error);
+            OrgUtils.logError('[VisbalExt.SalesforceConfigReader] getDefaultOrgInfo -- Error getting default org info:', error);
             return { alias: null, authInfo: null };
         }
     }
@@ -276,7 +276,7 @@ export class SalesforceConfigReader {
             const aliasContent = fs.readFileSync(aliasFile, 'utf8');
             return JSON.parse(aliasContent);
         } catch (error: any) {
-            OrgUtils.logError('[SalesforceConfigReader] Error reading aliases:', error);
+            OrgUtils.logError('[VisbalExt.SalesforceConfigReader] getAllAliases -- Error reading aliases:', error);
             return {};
         }
     }

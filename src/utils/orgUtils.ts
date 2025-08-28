@@ -1437,7 +1437,7 @@ export class OrgUtils {
         const classPrefixMatch = beforeWord.match(/\b([A-Z][a-zA-Z0-9_]*)\.\s*$/);
         if (classPrefixMatch) {
             className = classPrefixMatch[1];
-            OrgUtils.logDebug(`[VisbalExt.OrgUtils] Detected class-prefixed call: ${className}.${word}`);
+            OrgUtils.logDebug(`[VisbalExt.OrgUtils] extractSymbolFromCursor -- Detected class-prefixed call: ${className}.${word}`);
         }
         
         // Determine symbol type based on context and file type
@@ -1615,7 +1615,7 @@ export class OrgUtils {
             const match = searchPattern.exec(text);
             if (match) {
                 const position = document.positionAt(match.index);
-                OrgUtils.logDebug(`[VisbalExt.OrgUtils] Found ${symbol} in current file using pattern: ${searchPattern.source} at line ${position.line + 1}`);
+                OrgUtils.logDebug(`[VisbalExt.OrgUtils] searchInCurrentFile -- Found ${symbol} in current file using pattern: ${searchPattern.source} at line ${position.line + 1}`);
                 return { filePath: document.uri, position };
             }
         }
@@ -1660,12 +1660,12 @@ export class OrgUtils {
                     }
                 }
                 
-                OrgUtils.logDebug(`[VisbalExt.OrgUtils] Symbol ${symbol} not found in ${className}.cls`);
+                OrgUtils.logDebug(`[VisbalExt.OrgUtils] searchInSpecificClass -- Symbol ${symbol} not found in ${className}.cls`);
             } catch (error) {
-                OrgUtils.logError(`[VisbalExt.OrgUtils] Could not read class file: ${classFile.fsPath}`, error as Error);
+                OrgUtils.logError(`[VisbalExt.OrgUtils] searchInSpecificClass -- Could not read class file: ${classFile.fsPath}`, error as Error);
             }
         } catch (error) {
-            OrgUtils.logError(`[VisbalExt.OrgUtils] Error searching in specific class ${className}:`, error as Error);
+            OrgUtils.logError(`[VisbalExt.OrgUtils] searchInSpecificClass -- Error searching in specific class ${className}:`, error as Error);
         }
         
         return null;
@@ -1678,22 +1678,22 @@ export class OrgUtils {
         
         // For class-prefixed calls (e.g., ClassName.methodName), search the specific class first
         if (className && sourceFileExtension === 'cls') {
-            OrgUtils.logDebug(`[VisbalExt.OrgUtils] Searching for '${className}.${symbol}' in ${className}.cls first`);
+            OrgUtils.logDebug(`[VisbalExt.OrgUtils] findSymbolDefinition -- Searching for '${className}.${symbol}' in ${className}.cls first`);
             const classResult = await this.searchInSpecificClass(className, symbol, symbolType);
             if (classResult) {
                 return classResult;
             }
-            OrgUtils.logDebug(`[VisbalExt.OrgUtils] '${className}.${symbol}' not found in ${className}.cls, expanding search`);
+            OrgUtils.logDebug(`[VisbalExt.OrgUtils] findSymbolDefinition -- '${className}.${symbol}' not found in ${className}.cls, expanding search`);
         }
         
         // For "this." references, search current file first
         if (isThisReference && currentDocument) {
-            OrgUtils.logDebug(`[VisbalExt.OrgUtils] Searching for 'this.${symbol}' in current file first`);
+            OrgUtils.logDebug(`[VisbalExt.OrgUtils] findSymbolDefinition -- Searching for 'this.${symbol}' in current file first`);
             const currentFileResult = this.searchInCurrentFile(currentDocument, symbol, symbolType);
             if (currentFileResult) {
                 return currentFileResult;
             }
-            OrgUtils.logDebug(`[VisbalExt.OrgUtils] 'this.${symbol}' not found in current file, expanding search`);
+            OrgUtils.logDebug(`[VisbalExt.OrgUtils] findSymbolDefinition -- 'this.${symbol}' not found in current file, expanding search`);
         }
 
         if (!vscode.workspace.workspaceFolders) {
@@ -1736,13 +1736,13 @@ export class OrgUtils {
                             const match = searchPattern.exec(text);
                             if (match) {
                                 const position = document.positionAt(match.index);
-                                OrgUtils.logDebug(`[VisbalExt.OrgUtils] Found ${symbol} using pattern: ${searchPattern.source} at line ${position.line + 1}`);
+                                OrgUtils.logDebug(`[VisbalExt.OrgUtils] findSymbolDefinition -- Found ${symbol} using pattern: ${searchPattern.source} at line ${position.line + 1}`);
                                 return { filePath: file, position };
                             }
                         }
                     } catch (error) {
                         // Skip files that can't be opened
-                        OrgUtils.logDebug(`[VisbalExt.OrgUtils] Could not read file: ${file.fsPath}`, error);
+                        OrgUtils.logDebug(`[VisbalExt.OrgUtils] findSymbolDefinition -- Could not read file: ${file.fsPath}`, error);
                         continue;
                     }
                 }
@@ -1773,7 +1773,7 @@ export class OrgUtils {
 
         const { symbol, type, isThisReference, className } = symbolInfo;
         const searchContext = className ? `${className}.${symbol}` : isThisReference ? `this.${symbol}` : symbol;
-        OrgUtils.logDebug(`[VisbalExt.OrgUtils] Searching for ${type} definition: ${searchContext}`);
+        OrgUtils.logDebug(`[VisbalExt.OrgUtils] navigateToSelectedDefinition -- Searching for ${type} definition: ${searchContext}`);
         
         // Search for symbol definition
         const symbolLocation = await this.findSymbolDefinition(symbol, type, sourceFileExtension, editor.document, isThisReference, className);
@@ -1812,7 +1812,7 @@ export class OrgUtils {
                 successMessage = `Navigated to ${type} '${searchContext}' in ${location}`;
             }
             
-            OrgUtils.logDebug(`[VisbalExt.OrgUtils] Successfully navigated to ${type} '${searchContext}' in ${location}`);
+            OrgUtils.logDebug(`[VisbalExt.OrgUtils] navigateToSelectedDefinition -- Successfully navigated to ${type} '${searchContext}' in ${location}`);
             vscode.window.showInformationMessage(successMessage);
             
         } catch (error: any) {

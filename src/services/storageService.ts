@@ -35,13 +35,13 @@ export class StorageService {
 
         // Ensure .visbal/cache directory exists
         if (!fs.existsSync(this.storagePath)) {
-            OrgUtils.logDebug('[VisbalExt.StorageService] Creating .visbal/cache directory');
+            OrgUtils.logDebug('[VisbalExt.StorageService] constructor -- Creating .visbal/cache directory');
             fs.mkdirSync(this.storagePath, { recursive: true });
         }
 
         // Initialize storage file if it doesn't exist
         if (!fs.existsSync(this.testClassesFile)) {
-            OrgUtils.logDebug('[VisbalExt.StorageService] Initializing testClasses.json');
+            OrgUtils.logDebug('[VisbalExt.StorageService] constructor -- Initializing testClasses.json');
             this.saveTestClasses([]);
         }
     }
@@ -49,10 +49,10 @@ export class StorageService {
 
     private readCache(): TestClassesCache {
         try {
-            OrgUtils.logDebug('[VisbalExt.StorageService] readCache testClassesFile:', this.testClassesFile);
+            OrgUtils.logDebug('[VisbalExt.StorageService] readCache -- testClassesFile:', this.testClassesFile);
             if (fs.existsSync(this.testClassesFile)) {
                 const data = fs.readFileSync(this.testClassesFile, 'utf8');
-                //OrgUtils.logDebug('[VisbalExt.StorageService] readCache data:', data);
+                //OrgUtils.logDebug('[VisbalExt.StorageService] readCache -- data:', data);
                 return JSON.parse(data);
             }
             return {};
@@ -67,7 +67,7 @@ export class StorageService {
             fs.writeFileSync(this.testClassesFile, JSON.stringify(cache, null, 2));
             OrgUtils.logDebug('[VisbalExt.StorageService] writeCache -- Cache saved to:', this.testClassesFile);
         } catch (error: any) {
-            OrgUtils.logError('[VisbalExt.StorageService] Error writing cache:', error);
+            OrgUtils.logError('[VisbalExt.StorageService] writeCache -- Error writing cache:', error);
             throw error;
         }
     }
@@ -77,10 +77,10 @@ export class StorageService {
             OrgUtils.logDebug('[VisbalExt.StorageService] getTestClasses -- BEGIN');
             const targetOrgAlias = orgAlias || await OrgUtils.getCurrentOrgAlias();
             const cache = this.readCache();
-            OrgUtils.logDebug(`[VisbalExt.StorageService] Getting test classes for org: ${targetOrgAlias}`);
+            OrgUtils.logDebug(`[VisbalExt.StorageService] getTestClasses -- Getting test classes for org: ${targetOrgAlias}`);
             return cache[targetOrgAlias]?.testClasses || [];
         } catch (error: any) {
-            OrgUtils.logError('[VisbalExt.StorageService] Error reading test classes:', error);
+            OrgUtils.logError('[VisbalExt.StorageService] getTestClasses -- Error reading test classes:', error);
             return [];
         }
     }
@@ -96,9 +96,9 @@ export class StorageService {
             };
 
             this.writeCache(cache);
-            OrgUtils.logDebug(`[VisbalExt.StorageService] Test classes saved for org ${targetOrgAlias}`);
+            OrgUtils.logDebug(`[VisbalExt.StorageService] saveTestClasses -- Test classes saved for org ${targetOrgAlias}`);
         } catch (error: any) {
-            OrgUtils.logError('[VisbalExt.StorageService] Error saving test classes:', error);
+            OrgUtils.logError('[VisbalExt.StorageService] saveTestClasses -- Error saving test classes:', error);
             throw error;
         }
     }
@@ -141,10 +141,10 @@ export class StorageService {
             if (testClass) {
                 testClass.methods = [];
                 await this.saveTestClasses(testClasses, orgAlias);
-                OrgUtils.logDebug(`[VisbalExt.StorageService] Test methods cleared for class ${className}`);
+                OrgUtils.logDebug(`[VisbalExt.StorageService] clearTestMethodsForClass -- Test methods cleared for class ${className}`);
             }
         } catch (error: any) {
-            OrgUtils.logError(`[VisbalExt.StorageService] Error clearing test methods for class ${className}:`, error);
+            OrgUtils.logError(`[VisbalExt.StorageService] clearTestMethodsForClass -- Error clearing test methods for class ${className}:`, error);
             throw error;
         }
     }
@@ -156,9 +156,9 @@ export class StorageService {
             const cache = this.readCache();
             delete cache[orgAlias];
             this.writeCache(cache);
-            OrgUtils.logDebug(`[VisbalExt.StorageService] Storage cleared for org ${orgAlias}`);
+            OrgUtils.logDebug(`[VisbalExt.StorageService] clearStorage -- Storage cleared for org ${orgAlias}`);
         } catch (error: any) {
-            OrgUtils.logError('[VisbalExt.StorageService] Error clearing storage:', error);
+            OrgUtils.logError('[VisbalExt.StorageService] clearStorage -- Error clearing storage:', error);
             throw error;
         }
     }
@@ -166,9 +166,9 @@ export class StorageService {
     public async clearAllStorage(): Promise<void> {
         try {
             this.writeCache({});
-            OrgUtils.logDebug('[VisbalExt.StorageService] All storage cleared');
+            OrgUtils.logDebug('[VisbalExt.StorageService] clearAllStorage -- All storage cleared');
         } catch (error: any) {
-            OrgUtils.logError('[VisbalExt.StorageService] Error clearing all storage:', error);
+            OrgUtils.logError('[VisbalExt.StorageService] clearAllStorage -- Error clearing all storage:', error);
             throw error;
         }
     }
