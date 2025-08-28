@@ -9,6 +9,7 @@ import { statusBarService } from './services/statusBarService';
 import { SoqlTab } from './views/soqlTab';
 import { MetadataService } from './services/metadataService';
 import { OrgUtils } from './utils/orgUtils';
+import { ViewId } from './types/salesforceTypes';
 import { OrgTabView } from './views/orgTab';    
 
 import { DebugConsoleView } from './views/debugConsoleView';
@@ -195,7 +196,15 @@ export async function activate(context: vscode.ExtensionContext) {
       vscode.commands.registerCommand('visbal-ext.viewTestLog', async (logId: string, testName: string) => {
         try {
           OrgUtils.logDebug('[VisbalExt.Extension] activate Viewing test log:', { logId, testName });
-          OrgUtils.openLog(logId, context.extensionUri, true);
+          
+          // Use the test explorer's selected org instead of the project default org
+          let selectedOrg = await OrgUtils.getSelectedOrgForView(ViewId.TEST_EXPLORER);
+          if (!selectedOrg?.alias) {
+            // Fallback to default org if no test explorer org is selected
+            selectedOrg = { alias: await OrgUtils.getCurrentOrgAlias(), timestamp: new Date().toISOString() };
+          }
+          
+          OrgUtils.openLog(logId, context.extensionUri, selectedOrg.alias);
           
         } catch (error: any) {
           TestItem.setDownloading(logId, false);

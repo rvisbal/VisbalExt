@@ -304,8 +304,11 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
 
             OrgUtils.logDebug('[VisbalExt.apexLogTab.VisbalLogView] _fetchLogs Fetching logs with new CLI format...');
             try {
-
-                const result = await this._sfdxService.listApexLogs();
+                // Get the view-specific selected org for Apex Log view
+                const selectedOrg = await OrgUtils.getSelectedOrgForView(ViewId.APEX_LOG);
+                OrgUtils.logDebug(`[VisbalExt.apexLogTab.VisbalLogView] _fetchLogs -- Using view-specific org: ${selectedOrg?.alias}`);
+                
+                const result = await this._sfdxService.listApexLogs(selectedOrg?.alias);
                 const jsonResult = JSON.parse(result);
                 
                 if (jsonResult && jsonResult.result && Array.isArray(jsonResult.result)) {
@@ -2469,7 +2472,9 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
             });
            
         
-            await OrgUtils.openLog(logId, this._extensionUri);
+            const selectedOrg = await OrgUtils.getSelectedOrgForView(ViewId.APEX_LOG);
+            const currentOrgAlias = selectedOrg?.alias || await OrgUtils.getCurrentOrgAlias();
+            await OrgUtils.openLog(logId, this._extensionUri, currentOrgAlias);
 
             // Show success in status bar
             statusBarService.showSuccess(`Log ${logId} opened successfully`);
@@ -2500,7 +2505,9 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
             statusBarService.showProgress(`Opening log ${logId} in editor...`);
             
             // Use OrgUtils.openLog to open the log in editor (raw text mode)
-            await OrgUtils.openLog(logId, this._extensionUri, false);
+            const selectedOrg = await OrgUtils.getSelectedOrgForView(ViewId.APEX_LOG);
+            const currentOrgAlias = selectedOrg?.alias || await OrgUtils.getCurrentOrgAlias();
+            await OrgUtils.openLog(logId, this._extensionUri, currentOrgAlias);
             
             // Show success in status bar
             statusBarService.showSuccess(`Log ${logId} opened in editor`);
@@ -2542,7 +2549,11 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
 
             // Update OrgUtils with current logs data
             OrgUtils.initialize(this._logs, this._context);
-            await OrgUtils.downloadLog(logId);
+            
+            // Get current org alias for download
+            const selectedOrg = await OrgUtils.getSelectedOrgForView(ViewId.APEX_LOG);
+            const currentOrgAlias = selectedOrg?.alias || await OrgUtils.getCurrentOrgAlias();
+            await OrgUtils.downloadLog(logId, currentOrgAlias);
             
             // Show success in status bar
             statusBarService.showSuccess(`Log ${logId} downloaded successfully`);

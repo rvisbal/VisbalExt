@@ -839,12 +839,12 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                         if (isFirstTest) {
                             // Download and open log for the first test only to avoid multiple windows
                             OrgUtils.logDebug('[VisbalExt.TestClassExplorerSidePanel] _processTestLogAsync -- Downloading and opening log', logId);
-                            await this._orgUtils.downloadLog(logId);
-                            await this._orgUtils.openLog(logId, this._extensionUri);
+                            await this._orgUtils.downloadLog(logId, currentOrgAlias);
+                            await this._orgUtils.openLog(logId, this._extensionUri, currentOrgAlias);
                         } else {
                             // For subsequent tests, just download in background
                             OrgUtils.logDebug('[VisbalExt.TestClassExplorerSidePanel] _processTestLogAsync -- Downloading additional log', logId);
-                            await this._orgUtils.downloadLog(logId);
+                            await this._orgUtils.downloadLog(logId, currentOrgAlias);
                         }
                     } catch (error) {
                         OrgUtils.logError('[VisbalExt.TestClassExplorerSidePanel] _processTestLogAsync -- Error downloading log', error as Error);
@@ -1001,9 +1001,12 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                                                             this._testRunResultsView.updateMethodStatus(testClassName, test.MethodName, 'downloading', logId);
                                                             
                                                             // Download log in background
-                                                            this._orgUtils.downloadLog(logId).catch(error => {
-                                                                OrgUtils.logError('[VisbalExt.TestClassExplorerSidePanel] Error downloading log', error);
-                                                            });
+                                                            const currentOrgAlias = await this._getOrgAliasForStorage();
+                                                            if (currentOrgAlias) {
+                                                                this._orgUtils.downloadLog(logId, currentOrgAlias).catch(error => {
+                                                                    OrgUtils.logError('[VisbalExt.TestClassExplorerSidePanel] Error downloading log', error);
+                                                                });
+                                                            }
                                                         }
 
                                                         // Initialize class status if not already set
@@ -1123,9 +1126,12 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                                                             this._testRunResultsView.updateMethodStatus(className, t.MethodName, 'downloading', logId);
                                                             
                                                             // Download log in background
-                                                            this._orgUtils.downloadLog(logId).catch(error => {
-                                                                OrgUtils.logDebug('[VisbalExt.TestClassExplorerSidePanel] _runSelectedTests.sequentially  Error downloading log', error, logId);
-                                                            });
+                                                            const currentOrgAlias = await this._getOrgAliasForStorage();
+                                                            if (currentOrgAlias) {
+                                                                this._orgUtils.downloadLog(logId, currentOrgAlias).catch(error => {
+                                                                    OrgUtils.logDebug('[VisbalExt.TestClassExplorerSidePanel] _runSelectedTests.sequentially  Error downloading log', error, logId);
+                                                                });
+                                                            }
                                                         }
 
                                                         if (!mainClassMap.has(t.ApexClass.Name)) {
@@ -1375,7 +1381,10 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                             if (progress.downloadLog) {
                                 progress.initiateDownloadingLog = true;
                                 this._testRunResultsView.updateMethodStatus(progress.className, progress.methodName, TestStatus.downloading, logId);
-                                await this._orgUtils.downloadLog(logId);
+                                const currentOrgAlias = await this._getOrgAliasForStorage();
+                                if (currentOrgAlias) {
+                                    await this._orgUtils.downloadLog(logId, currentOrgAlias);
+                                }
                                 progress.finishDownloadingLog = true;
                             }
 
@@ -1875,7 +1884,10 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                                             this._testRunResultsView.updateMethodStatus(progress.className, progress.methodName, TestStatus.downloading, progress.logId);
                                             OrgUtils.logDebug(`[VisbalExt.TestClassExplorerSidePanel] _runTestSelectedSequentially -- downloadLog -- A -- ${className}.${methodName} -- iteration:${countIteration} logId:`, progress.logId);
                                             // Download log in background
-                                            await this._orgUtils.downloadLog(progress.logId);
+                                            const currentOrgAlias = await this._getOrgAliasForStorage();
+                                            if (currentOrgAlias) {
+                                                await this._orgUtils.downloadLog(progress.logId, currentOrgAlias);
+                                            }
                                             progress.finishDownloadingLog = true;
                                             OrgUtils.logDebug(`[VisbalExt.TestClassExplorerSidePanel] _runTestSelectedSequentially -- downloadLog -- B -- ${className}.${methodName} -- iteration:${countIteration} logId:`, progress.logId);
                                         }
@@ -1950,13 +1962,16 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                         progress.initiateDownloadingLog = true;
                         this._testRunResultsView.updateMethodStatus(progress.className, progress.methodName, TestStatus.downloading, progress.logId);
                         // Download log in background
-                        this._orgUtils.downloadLog(progress.logId)
+                        const currentOrgAlias = await this._getOrgAliasForStorage();
+                        if (currentOrgAlias) {
+                            this._orgUtils.downloadLog(progress.logId, currentOrgAlias)
                             .then(() => {
                                 progress.finishDownloadingLog = true;
                                 OrgUtils.logDebug(`[VisbalExt.TestClassExplorerSidePanel] _runTestSelectedSequentially -- downloadLog -- iteration:${countIteration} logId:`, progress.logId);
                             }).catch(error => {
                                 OrgUtils.logError(`[VisbalExt.TestClassExplorerSidePanel] _runTestSelectedSequentially -- downloadLog -- iteration:${countIteration} ERROR:`, error);
                             });
+                        }
 
                     }
                 }
@@ -2492,7 +2507,7 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
 
             // Execute all tests
             // Use selected org instead of default org determination  
-            const runTest  = await this._sfdxService.runAllTests(false, false, true, this._abortController?.signal);
+            const runTest  = await this._sfdxService.runAllTests(orgAliasForRun, false, true, this._abortController?.signal);
             
             // Store the testRunId for potential cancellation
             this._currentTestRunId = runTest.testRunId;
@@ -2692,12 +2707,14 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
 
                 if (logId) {
                     OrgUtils.logDebug(`[VisbalExt.TestClassExplorerSidePanel] Processing log for test: ${className}.${methodName}`);
-                    this._testRunResultsView.updateMethodStatus(className, methodName, 'downloading');
+                    this._testRunResultsView.updateMethodStatus(className, methodName, 'downloading', logId);
                     
                     // Download log in background
-                    this._orgUtils.downloadLog(logId).catch(error => {
-                        OrgUtils.logError(`[VisbalExt.TestClassExplorerSidePanel] Error downloading log: `, error);
-                    });
+                    if (currentOrgAlias) {
+                        this._orgUtils.downloadLog(logId, currentOrgAlias).catch(error => {
+                            OrgUtils.logError(`[VisbalExt.TestClassExplorerSidePanel] Error downloading log: `, error);
+                        });
+                    }
                 }
 
                 const test = testRunResult.tests.find((t: { MethodName: string, Outcome: string }) => t.MethodName === methodName);
@@ -5027,7 +5044,10 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
             //
             //const logContent = await this._sfdxService.getLogContent(logId);
 
-            OrgUtils.openLog(logId, this._extensionUri, true);
+            const currentOrgAlias = await this._getOrgAliasForStorage();
+            if (currentOrgAlias) {
+                OrgUtils.openLog(logId, this._extensionUri, currentOrgAlias);
+            }
           
         } catch (error: any) {
             OrgUtils.logError(`VisbalExt.TestClassExplorerSidePanel] _viewTestLog -- testName:${testName} logId:${logId}   Error viewing test log:`, error);

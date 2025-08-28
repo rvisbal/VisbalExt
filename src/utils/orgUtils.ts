@@ -939,9 +939,9 @@ export class OrgUtils {
      * @param logId ID of the log to fetch
      * @returns Promise<string> Log content
      */
-    private static async _fetchLogContent(logId: string, useDefaultOrg: boolean = false): Promise<string> {
+    private static async _fetchLogContent(logId: string, targetOrgAlias: string): Promise<string> {
         try {
-            const result = await this.sfdxService.getLogContent(logId, useDefaultOrg);
+            const result = await this.sfdxService.getLogContent(logId, targetOrgAlias);
             return result;
         } catch (error: any) {
             if (error instanceof Error) {
@@ -983,7 +983,8 @@ export class OrgUtils {
     public static async openTheLogFromTestId(testId: string, targetOrgAlias?: string) {
         const logId = await this.getLogId(testId, targetOrgAlias);
         if (logId) {
-            await this.openLog(logId, vscode.Uri.file(logId));
+            const currentOrgAlias = targetOrgAlias || await this.getCurrentOrgAlias();
+            await this.openLog(logId, vscode.Uri.file(logId), currentOrgAlias);
         }
 
     }
@@ -1016,7 +1017,7 @@ export class OrgUtils {
      * @param extensionUri The extension's URI for creating the detail view
      * @param tab The tab to open initially (e.g., 'overview', 'timeline', 'execution', etc.)
      */
-    public static async openLog(logId: string, extensionUri: vscode.Uri, useDefaultOrg: boolean = false): Promise<void> {
+    public static async openLog(logId: string, extensionUri: vscode.Uri, targetOrgAlias: string): Promise<void> {
         try {
        
 
@@ -1033,7 +1034,7 @@ export class OrgUtils {
             }
 
             // Fetch and save the log content
-            const logContent = await this._fetchLogContent(logId, useDefaultOrg);
+            const logContent = await this._fetchLogContent(logId, targetOrgAlias);
             const sanitizedLogId = logId.replace(/[\/\\:*?"<>|]/g, '_');
             const timestamp = new Date().toISOString().replace(/:/g, '-');
             const tempFile = path.join(os.tmpdir(), `sf_${sanitizedLogId}_${timestamp}.log`);
@@ -1058,7 +1059,7 @@ export class OrgUtils {
      * Downloads a log
      * @param logId The ID of the log to download
      */
-    public static async downloadLog(logId: string): Promise<void> {
+    public static async downloadLog(logId: string, targetOrgAlias: string): Promise<void> {
         try {
             statusBarService.showProgress(`Downloading log: ${logId}...`);
 
@@ -1087,7 +1088,7 @@ export class OrgUtils {
             OrgUtils.logDebug('[VisbalExt.OrgUtils] downloadLog -- targetFilePath:', targetFilePath);
 
             // Fetch and save log content
-            const logContent = await this._fetchLogContent(logId);
+            const logContent = await this._fetchLogContent(logId, targetOrgAlias);
             OrgUtils.logDebug('[VisbalExt.OrgUtils] downloadLog -- finish fetch:');
             await fs.promises.writeFile(targetFilePath, logContent);
             OrgUtils.logDebug('[VisbalExt.OrgUtils] downloadLog -- finish writing file:');
