@@ -6,14 +6,13 @@ import { TestMethod } from './metadataService';
 import { execAsync } from '../utils/execUtils';
 import { SfdxService } from './sfdxService';
 import { OrgUtils } from '../utils/orgUtils';
+import { getExtensionVersion } from '../utils/extensionUtils';
 
 interface OrgTestClasses {
     testClasses: TestClass[];
 }
 
-interface TestClassesCache {
-    [orgAlias: string]: OrgTestClasses;
-}
+export type TestClassesCache = Record<string, OrgTestClasses> & { versionId?: string };
 
 export class StorageService {
     private storagePath: string;
@@ -53,7 +52,7 @@ export class StorageService {
             if (fs.existsSync(this.testClassesFile)) {
                 const data = fs.readFileSync(this.testClassesFile, 'utf8');
                 //OrgUtils.logDebug('[VisbalExt.StorageService] readCache -- data:', data);
-                return JSON.parse(data);
+                return JSON.parse(data) as TestClassesCache;
             }
             return {};
         } catch (error: any) {
@@ -64,6 +63,7 @@ export class StorageService {
 
     private writeCache(cache: TestClassesCache): void {
         try {
+            cache.versionId = getExtensionVersion();
             fs.writeFileSync(this.testClassesFile, JSON.stringify(cache, null, 2));
             OrgUtils.logDebug('[VisbalExt.StorageService] writeCache -- Cache saved to:', this.testClassesFile);
         } catch (error: any) {
@@ -154,6 +154,7 @@ export class StorageService {
             OrgUtils.logDebug('[VisbalExt.StorageService] clearStorage -- BEGIN');
             const orgAlias = await OrgUtils.getCurrentOrgAlias();
             const cache = this.readCache();
+            // Clear specific org's data, but retain versionId
             delete cache[orgAlias];
             this.writeCache(cache);
             OrgUtils.logDebug(`[VisbalExt.StorageService] clearStorage -- Storage cleared for org ${orgAlias}`);
@@ -165,7 +166,7 @@ export class StorageService {
 
     public async clearAllStorage(): Promise<void> {
         try {
-            this.writeCache({});
+            this.writeCache({}); // Clears all org-specific data but writeCache will re-add versionId
             OrgUtils.logDebug('[VisbalExt.StorageService] clearAllStorage -- All storage cleared');
         } catch (error: any) {
             OrgUtils.logError('[VisbalExt.StorageService] clearAllStorage -- Error clearing all storage:', error);

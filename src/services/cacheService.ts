@@ -6,16 +6,17 @@ import { execAsync } from '../utils/execUtils';
 import { SfdxService } from './sfdxService';
 import { OrgUtils } from '../utils/orgUtils';
 import { OrgListCacheService } from './orgListCacheService';
+import { getExtensionVersion } from '../utils/extensionUtils';
 
-interface LogCache {
-    [orgAlias: string]: {
-        logs: SalesforceLog[];
-        lastFetchTime: number;
-        downloadedLogs: string[];
-        downloadedLogPaths: { [logId: string]: string };
-        selectedOrg?: { alias: string; timestamp: string };
-    };
+interface OrgLogData {
+    logs: SalesforceLog[];
+    lastFetchTime: number;
+    downloadedLogs: string[];
+    downloadedLogPaths: { [logId: string]: string };
+    selectedOrg?: { alias: string; timestamp: string };
 }
+
+export type LogCache = Record<string, OrgLogData> & { versionId?: string };
 
 export class CacheService {
     private cachePath: string;
@@ -57,7 +58,7 @@ export class CacheService {
         try {
             if (fs.existsSync(this.logCacheFile)) {
                 const data = fs.readFileSync(this.logCacheFile, 'utf8');
-                return JSON.parse(data);
+                return JSON.parse(data) as LogCache;
             }
             return {};
         } catch (error: any) {
@@ -68,6 +69,7 @@ export class CacheService {
 
     private writeCache(cache: LogCache): void {
         try {
+            cache.versionId = getExtensionVersion();
             fs.writeFileSync(this.logCacheFile, JSON.stringify(cache, null, 2));
             OrgUtils.logDebug('[VisbalExt.CacheService] Cache saved to:', this.logCacheFile);
         } catch (error: any) {

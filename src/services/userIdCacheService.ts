@@ -2,15 +2,14 @@ import * as vscode from 'vscode';
 import * as fs from 'fs';
 import * as path from 'path';
 import { OrgUtils } from '../utils/orgUtils';
+import { getExtensionVersion } from '../utils/extensionUtils';
 
 export interface UserIdCacheEntry {
     userId: string;
     orgId: string;
 }
 
-export interface UserIdCache {
-    [alias: string]: UserIdCacheEntry;
-}
+export type UserIdCache = Record<string, UserIdCacheEntry> & { versionId?: string };
 
 /**
  * Service to manage user ID cache in .visbal/cache/user-ids.json
@@ -49,7 +48,7 @@ export class UserIdCacheService {
             OrgUtils.logDebug('[VisbalExt.UserIdCacheService] readCache -- userIdCacheFile:', this.userIdCacheFile);
             if (fs.existsSync(this.userIdCacheFile)) {
                 const data = fs.readFileSync(this.userIdCacheFile, 'utf8');
-                return JSON.parse(data);
+                return JSON.parse(data) as UserIdCache;
             }
             return {};
         } catch (error: any) {
@@ -60,6 +59,7 @@ export class UserIdCacheService {
 
     private writeCache(cache: UserIdCache): void {
         try {
+            cache.versionId = getExtensionVersion();
             fs.writeFileSync(this.userIdCacheFile, JSON.stringify(cache, null, 2));
             OrgUtils.logDebug('[VisbalExt.UserIdCacheService] writeCache -- Cache saved to:', this.userIdCacheFile);
         } catch (error: any) {

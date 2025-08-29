@@ -1,12 +1,13 @@
 import * as vscode from 'vscode';
 import * as fs from 'fs';
 import * as path from 'path';
-import { OrgGroups } from '../utils/orgUtils';
-import { OrgUtils } from '../utils/orgUtils';
+import { OrgGroups, OrgUtils } from '../utils/orgUtils';
+import { getExtensionVersion } from '../utils/extensionUtils';
 
 interface OrgListCache {
     orgs: OrgGroups;
     timestamp: number;
+    versionId?: string;
 }
 
 export class OrgListCacheService {
@@ -88,7 +89,8 @@ export class OrgListCacheService {
             OrgUtils.logDebug('[VisbalExt.OrgListCacheService] saveOrgList -- Saving org list to cache');
             const cache: OrgListCache = {
                 orgs,
-                timestamp: Date.now()
+                timestamp: Date.now(),
+                versionId: getExtensionVersion()
             };
             this.writeCache(cache);
             OrgUtils.logDebug('[VisbalExt.OrgListCacheService] saveOrgList -- Org list saved to cache');

@@ -44,7 +44,6 @@ export async function activate(context: vscode.ExtensionContext) {
   context.subscriptions.push(outputChannel);
 
   OrgUtils.logDebug('[VisbalExt.Extension] activate -- Activating extension');
-  outputChannel.appendLine('[VisbalExt.Extension] activate -- Activating extension');
 
   // Check if there's a default org set for the project first
   try {

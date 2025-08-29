@@ -14,6 +14,7 @@ import { DEFAULT_LOG_TYPE } from '../constants/salesforceConstants';
 import { ConfigUserIdService } from '../services/configUserIdService';
 import { UserIdCacheService } from '../services/userIdCacheService';
 import { OrgListCacheService } from '../services/orgListCacheService';
+import { getExtensionVersion } from './extensionUtils';
 
 export interface SalesforceOrg {
     username: string;
@@ -50,6 +51,10 @@ export interface SelectedOrg {
     alias: string;
     timestamp: string;
 }
+
+export type ViewOrgSelectionsCache = { versionId?: string } & {
+    [key in ViewId]?: SelectedOrg;
+};
 
 interface LogResult {
     log: string;
@@ -249,19 +254,22 @@ export class OrgUtils {
                     
                     if (fs.existsSync(viewOrgCacheFile)) {
                         const cacheContent = fs.readFileSync(viewOrgCacheFile, 'utf8');
-                        const viewOrgCache = JSON.parse(cacheContent);
+                        const viewOrgCache = JSON.parse(cacheContent) as ViewOrgSelectionsCache;
                         
                         // Find the most recently selected org across all views
                         let mostRecentOrg: SelectedOrg | null = null;
                         let mostRecentTime = 0;
                         
                         for (const viewId in viewOrgCache) {
-                            const viewOrg = viewOrgCache[viewId];
-                            const timestamp = new Date(viewOrg.timestamp).getTime();
-                            
-                            if (timestamp > mostRecentTime) {
-                                mostRecentTime = timestamp;
-                                mostRecentOrg = viewOrg;
+                            if (viewId === 'versionId') { continue; }
+                            const viewOrg = viewOrgCache[viewId as ViewId];
+                            if (viewOrg) {
+                                const timestamp = new Date(viewOrg.timestamp).getTime();
+                                
+                                if (timestamp > mostRecentTime) {
+                                    mostRecentTime = timestamp;
+                                    mostRecentOrg = viewOrg;
+                                }
                             }
                         }
                         
@@ -304,11 +312,11 @@ export class OrgUtils {
             }
 
             // Read existing cache or create new one
-            let viewOrgCache: { [viewId: string]: SelectedOrg } = {};
+            let viewOrgCache: ViewOrgSelectionsCache = { versionId: getExtensionVersion() };
             if (fs.existsSync(viewOrgCacheFile)) {
                 try {
                     const cacheContent = fs.readFileSync(viewOrgCacheFile, 'utf8');
-                    viewOrgCache = JSON.parse(cacheContent);
+                    viewOrgCache = JSON.parse(cacheContent) as ViewOrgSelectionsCache;
                 } catch (parseError) {
                     OrgUtils.logDebug('[VisbalExt.OrgUtils] setSelectedOrgForView -- Error parsing existing cache, creating new one');
                 }
@@ -316,6 +324,7 @@ export class OrgUtils {
 
             // Update cache for this view
             viewOrgCache[viewId] = { alias, timestamp: new Date().toISOString() };
+            viewOrgCache.versionId = getExtensionVersion();
 
             // Write back to file
             fs.writeFileSync(viewOrgCacheFile, JSON.stringify(viewOrgCache, null, 2));
