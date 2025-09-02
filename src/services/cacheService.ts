@@ -21,27 +21,22 @@ export type LogCache = Record<string, OrgLogData> & { versionId?: string };
 export class CacheService {
     private cachePath: string;
     private logCacheFile: string;
-    private currentOrgAlias: string | undefined;
-    private _sfdxService: SfdxService;
-    private _orgListCacheService: OrgListCacheService;
+    private currentOrgAlias: { alias: string; timestamp: number } | undefined;
+    private readonly CACHE_EXPIRATION = 15 * 60 * 1000; // 15 minutes in milliseconds
+    private _sfdxService: SfdxService; // No longer private as it's passed in constructor
+    private _orgListCacheService: OrgListCacheService; // No longer private as it's passed in constructor
 
-    constructor(cachePath: string) {
-        this._sfdxService = new SfdxService();
-        
-        // Assign cachePath before using it to initialize other services
+    constructor(cachePath: string, sfdxService: SfdxService, orgListCacheService: OrgListCacheService) {
         this.cachePath = cachePath;
         this.logCacheFile = path.join(this.cachePath, 'logs.json');
-
-        // Initialize org list cache service for validation
-        this._orgListCacheService = new OrgListCacheService(this.cachePath);
-
-        // Ensure .visbal/cache directory exists
+        this._sfdxService = sfdxService;
+        this._orgListCacheService = orgListCacheService;
+ 
         if (!fs.existsSync(this.cachePath)) {
             OrgUtils.logDebug('[VisbalExt.CacheService] constructor -- Creating .visbal/cache directory');
             fs.mkdirSync(this.cachePath, { recursive: true });
         }
-
-        // Initialize cache file if it doesn't exist
+ 
         if (!fs.existsSync(this.logCacheFile)) {
             OrgUtils.logDebug('[VisbalExt.CacheService] constructor -- Initializing logs.json');
             this.writeCache({});
@@ -75,7 +70,7 @@ export class CacheService {
     public async getCachedLogs(): Promise<SalesforceLog[]> {
         try {
             OrgUtils.logDebug('[VisbalExt.CacheService] getCachedLogs -- BEGIN');
-            const orgAlias = (await OrgUtils.getSelectedOrg())?.alias || (await OrgUtils.getCurrentOrgAlias());
+            const orgAlias = await this.getCurrentOrgAliasSafe();
             const cache = this.readCache();
             return cache[orgAlias]?.logs || [];
         } catch (error: any) {
@@ -87,7 +82,7 @@ export class CacheService {
     public async saveCachedLogs(logs: SalesforceLog[]): Promise<void> {
         try {
             OrgUtils.logDebug('[VisbalExt.CacheService] saveCachedLogs -- BEGIN');
-            const orgAlias = (await OrgUtils.getSelectedOrg())?.alias || (await OrgUtils.getCurrentOrgAlias());
+            const orgAlias = await this.getCurrentOrgAliasSafe();
             const cache = this.readCache();
             
             if (!cache[orgAlias]) {
@@ -112,7 +107,7 @@ export class CacheService {
 
     public async getCachedOrg(): Promise<{ alias: string; timestamp: string } | null> {
         try {
-            const orgAlias = (await OrgUtils.getSelectedOrg())?.alias || (await OrgUtils.getCurrentOrgAlias());
+            const orgAlias = await this.getCurrentOrgAliasSafe();
             OrgUtils.logDebug('[VisbalExt.CacheService] getCachedOrg -- orgAlias:', orgAlias);
             const cache = this.readCache();
             return cache[orgAlias]?.selectedOrg || null;
@@ -151,7 +146,7 @@ export class CacheService {
     public async getLastFetchTime(): Promise<number> {
         try {
             OrgUtils.logDebug('[VisbalExt.CacheService] getLastFetchTime -- BEGIN');
-            const orgAlias = (await OrgUtils.getSelectedOrg())?.alias || (await OrgUtils.getCurrentOrgAlias());
+            const orgAlias = await this.getCurrentOrgAliasSafe();
             const cache = this.readCache();
             return cache[orgAlias]?.lastFetchTime || 0;
         } catch (error: any) {
@@ -163,7 +158,7 @@ export class CacheService {
     public async getDownloadedLogs(): Promise<Set<string>> {
         try {
             OrgUtils.logDebug('[VisbalExt.CacheService] getDownloadedLogs -- BEGIN');
-            const orgAlias = (await OrgUtils.getSelectedOrg())?.alias || (await OrgUtils.getCurrentOrgAlias());
+            const orgAlias = await this.getCurrentOrgAliasSafe();
             const cache = this.readCache();
             return new Set(cache[orgAlias]?.downloadedLogs || []);
         } catch (error: any) {
@@ -175,7 +170,7 @@ export class CacheService {
     public async getDownloadedLogPaths(): Promise<Map<string, string>> {
         try {
             OrgUtils.logDebug('[VisbalExt.CacheService] getDownloadedLogPaths -- BEGIN');
-            const orgAlias = (await OrgUtils.getSelectedOrg())?.alias || (await OrgUtils.getCurrentOrgAlias());
+            const orgAlias = await this.getCurrentOrgAliasSafe();
             const cache = this.readCache();
             return new Map(Object.entries(cache[orgAlias]?.downloadedLogPaths || {}));
         } catch (error: any) {
@@ -187,7 +182,7 @@ export class CacheService {
     public async saveDownloadedLogs(downloadedLogs: Set<string>, downloadedLogPaths: Map<string, string>): Promise<void> {
         try {
             OrgUtils.logDebug('[VisbalExt.CacheService] saveDownloadedLogs -- BEGIN');
-            const orgAlias = (await OrgUtils.getSelectedOrg())?.alias || (await OrgUtils.getCurrentOrgAlias());
+            const orgAlias = await this.getCurrentOrgAliasSafe();
             const cache = this.readCache();
             
             if (!cache[orgAlias]) {
@@ -213,7 +208,7 @@ export class CacheService {
     public async clearCache(): Promise<void> {
         try {
             OrgUtils.logDebug('[VisbalExt.CacheService] clearCache -- BEGIN');
-            const orgAlias = (await OrgUtils.getSelectedOrg())?.alias || (await OrgUtils.getCurrentOrgAlias());
+            const orgAlias = await this.getCurrentOrgAliasSafe();
             const cache = this.readCache();
             delete cache[orgAlias];
             this.writeCache(cache);
@@ -314,5 +309,21 @@ export class CacheService {
         }
     }
 
+    private async getCurrentOrgAliasSafe(): Promise<string> {
+        if (this.currentOrgAlias && (Date.now() - this.currentOrgAlias.timestamp) < this.CACHE_EXPIRATION) {
+            OrgUtils.logDebug(`[VisbalExt.CacheService] getCurrentOrgAliasSafe -- Using cached alias: ${this.currentOrgAlias.alias}`);
+            return this.currentOrgAlias.alias;
+        }
+ 
+        try {
+            OrgUtils.logDebug('[VisbalExt.CacheService] getCurrentOrgAliasSafe -- Fetching current org alias via SFDX service');
+            const alias = await this._sfdxService.getCurrentOrgAlias();
+            this.currentOrgAlias = { alias, timestamp: Date.now() };
+            return alias;
+        } catch (error: any) {
+            OrgUtils.logError('[VisbalExt.CacheService] getCurrentOrgAliasSafe -- Error getting current org alias via SFDX, falling back to empty string:', error);
+            return '';
+        }
+    }
 
 } 

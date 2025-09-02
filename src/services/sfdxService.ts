@@ -10,6 +10,7 @@ import * as child_process from 'child_process';
 import { DEFAULT_LOG_TYPE } from '../constants/salesforceConstants';
 import { UserIdCacheService } from './userIdCacheService';
 import { CacheService } from './cacheService';
+import { OrgListCacheService } from './orgListCacheService';
 
 // Maximum buffer size for CLI commands (100MB)
 const MAX_BUFFER_SIZE = 100 * 1024 * 1024;
@@ -43,6 +44,7 @@ export class SfdxService {
     private _currentOrgCache: { alias: string; timestamp: number } | null = null;
     private _userIdCacheService: UserIdCacheService | null = null;
     private _cacheService: CacheService | null = null;
+    private _orgListCacheService: OrgListCacheService | null = null;
 
     constructor() {}
 
@@ -146,7 +148,12 @@ export class SfdxService {
             OrgUtils.logDebug('[VisbalExt.SfdxService] _initializeCacheServices -- Initialized UserIdCacheService');
         }
         if (!this._cacheService) {
-            this._cacheService = new CacheService(cachePath);
+            // Ensure OrgListCacheService is initialized before CacheService
+            if (!this._orgListCacheService) {
+                this._orgListCacheService = new OrgListCacheService(cachePath);
+                OrgUtils.logDebug('[VisbalExt.SfdxService] _initializeCacheServices -- Initialized OrgListCacheService');
+            }
+            this._cacheService = new CacheService(cachePath, this, this._orgListCacheService);
             OrgUtils.logDebug('[VisbalExt.SfdxService] _initializeCacheServices -- Initialized CacheService');
         }
     }

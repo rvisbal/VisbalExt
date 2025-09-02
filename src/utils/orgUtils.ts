@@ -91,14 +91,19 @@ export class OrgUtils {
      * Initialize the OrgUtils class with necessary data
      * @param logs Array of log objects
      * @param context VSCode extension context
+     * @param sfdxService An instance of SfdxService
+     * @param orgListCacheService An instance of OrgListCacheService
      */
-    public static initialize(logs: any[], context: vscode.ExtensionContext): void {
+    public static initialize(logs: any[], context: vscode.ExtensionContext, sfdxService: SfdxService, orgListCacheService: OrgListCacheService): void {
         this._logs = logs;
         this._context = context;
-        // Initialize sfdxService if needed
-        this.sfdxService;
-        this.cacheService; // Initialize cacheService
-        this.userIdCacheService; // Initialize userIdCacheService
+        // Initialize sfdxService
+        this._sfdxService = sfdxService;
+        // Initialize cacheService
+        const cachePath = OrgUtils.getCachePath();
+        OrgUtils._cacheService = new CacheService(cachePath, sfdxService, orgListCacheService);
+        // Initialize userIdCacheService
+        OrgUtils._userIdCacheService = new UserIdCacheService(cachePath);
     }
 
     /**
@@ -241,11 +246,12 @@ export class OrgUtils {
         try {
             OrgUtils.logDebug(`[VisbalExt.OrgUtils] setSelectedOrg -- Setting selected org: ${alias}`);
 
-            const cachePath = OrgUtils.getCachePath()
-            const cacheService = new CacheService(cachePath);
+            if (!OrgUtils._cacheService) {
+                throw new Error('CacheService not initialized in OrgUtils');
+            }
             const selectedOrg: SelectedOrg = { alias, timestamp: new Date().toISOString() };
-            await cacheService.saveCachedOrg(selectedOrg);
-            OrgUtils.logDebug('[VisbalExt.OrgUtils] setSelectedOrg -- Successfully set selected org ${alias}');
+            await OrgUtils._cacheService.saveCachedOrg(selectedOrg);
+            OrgUtils.logDebug(`[VisbalExt.OrgUtils] setSelectedOrg -- Successfully set selected org ${alias}`);
         }
         catch (error: any) {
             OrgUtils.logError('[VisbalExt.OrgUtils] setSelectedOrg -- Error setting selected org:${alias} ', error as Error);
@@ -257,8 +263,7 @@ export class OrgUtils {
         try {
             OrgUtils.logDebug('[VisbalExt.OrgUtils] getSelectedOrg -- Fetching selected org');
             
-            // First, try to find any view-specific selection as the most recently selected org
-            // This helps when switching to a new org that doesn't have global cache yet, or a specific view has a selection
+            // Priority 1: Check for any view-specific selection as the most recently selected org
             try {
                 const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
                 if (workspaceFolder) {
@@ -268,7 +273,6 @@ export class OrgUtils {
                         const cacheContent = fs.readFileSync(viewOrgCacheFile, 'utf8');
                         const viewOrgCache = JSON.parse(cacheContent) as ViewOrgSelectionsCache;
                         
-                        // Find the most recently selected org across all views
                         let mostRecentOrg: SelectedOrg | null = null;
                         let mostRecentTime = 0;
                         
@@ -292,20 +296,19 @@ export class OrgUtils {
                     }
                 }
             } catch (fallbackError) {
-                OrgUtils.logDebug('[VisbalExt.OrgUtils] getSelectedOrg -- Fallback lookup failed:', fallbackError);
+                OrgUtils.logDebug('[VisbalExt.OrgUtils] getSelectedOrg -- Fallback lookup for view-specific orgs failed:', fallbackError);
             }
 
-
-            const cachePath = OrgUtils.getCachePath()
-            const cacheService = new CacheService(cachePath);
-            const selectedOrg = await cacheService.getCachedOrg();
-            
-            if (selectedOrg) {
-                OrgUtils.logDebug('[VisbalExt.OrgUtils] getSelectedOrg -- Retrieved org from cache:', selectedOrg);
-                return selectedOrg;
+            // Priority 2: Check global org cache (if CacheService is initialized)
+            if (OrgUtils._cacheService) {
+                const cachedSelectedOrg = await OrgUtils._cacheService.getCachedOrg();
+                if (cachedSelectedOrg) {
+                    OrgUtils.logDebug('[VisbalExt.OrgUtils] getSelectedOrg -- Retrieved org from global cache:', cachedSelectedOrg);
+                    return cachedSelectedOrg;
+                }
             }
-            
-            // Fallback: Get the default org from CLI
+
+            // Priority 3: Fallback to CLI default org
             OrgUtils.logDebug('[VisbalExt.OrgUtils] getSelectedOrg -- Falling back to CLI default org');
             const defaultOrgAlias = await OrgUtils.getCurrentOrgAlias();
             if (defaultOrgAlias) {
@@ -361,7 +364,7 @@ export class OrgUtils {
             // This ensures that when switching to a new org, the SfdxService methods will use the selected org
             try {
                 OrgUtils.logDebug(`[VisbalExt.OrgUtils] setSelectedOrgForView -- Also updating global cache for org: ${alias}`);
-                await OrgUtils.setSelectedOrg(alias);
+                await OrgUtils._cacheService.saveCachedOrg({ alias, timestamp: new Date().toISOString() });
                 
               
             } catch (globalUpdateError) {
@@ -462,11 +465,12 @@ export class OrgUtils {
                     OrgUtils.logDebug(`[VisbalExt.OrgUtils] getCurrentOrgAlias -- Config read failed:`, configError);
                 }
 
-                // If not found, use the CLI as fallback
+                // If not found, use the CLI as fallback via sfdxService
                 if (!alias) {
-                    OrgUtils.logDebug(`[VisbalExt.OrgUtils] getCurrentOrgAlias -- No config found, falling back to CLI...`);
+                    OrgUtils.logDebug(`[VisbalExt.OrgUtils] getCurrentOrgAlias -- No config found, falling back to SFDX CLI...`);
                     alias = await this.sfdxService.getCurrentOrgAlias();
                 }
+
                 this._orgAliasCache = {
                     alias,
                     timestamp: Date.now()
@@ -758,27 +762,29 @@ export class OrgUtils {
         }
 
         // Try to read from cache first
-        if (OrgUtils._userIdCacheService && await OrgUtils._userIdCacheService.exists(targetAlias)) {
-            try {
-                const cachedEntry = await OrgUtils._userIdCacheService.getCachedUserIdEntry(targetAlias);
-                if (cachedEntry) {
-                    OrgUtils.logDebug(`[VisbalExt.OrgUtils] getCurrentUserId -- Found in cache for ${targetAlias}: userId=${cachedEntry.userId}, orgId=${cachedEntry.orgId}`);
+        if (OrgUtils._userIdCacheService) { // Check if _userIdCacheService is not null
+            if (await OrgUtils._userIdCacheService.exists(targetAlias)) {
+                try {
+                    const cachedEntry = await OrgUtils._userIdCacheService.getCachedUserIdEntry(targetAlias);
+                    if (cachedEntry) {
+                        OrgUtils.logDebug(`[VisbalExt.OrgUtils] getCurrentUserId -- Found in cache for ${targetAlias}: userId=${cachedEntry.userId}, orgId=${cachedEntry.orgId}`);
 
-                    // Validate cache against current org info
-                    const currentOrgInfo = await OrgUtils.getOrgInfo(targetAlias);
-                    if (currentOrgInfo && cachedEntry.orgId === currentOrgInfo.orgId) { // Add null check for cachedEntry
-                        OrgUtils.logDebug('[VisbalExt.OrgUtils] getCurrentUserId -- Cache is valid, returning cached userId');
-                        return cachedEntry.userId;
-                    } else {
-                        OrgUtils.logDebug(`[VisbalExt.OrgUtils] getCurrentUserId -- Cached orgId (${cachedEntry.orgId}) does not match current orgId (${currentOrgInfo?.orgId}) for alias ${targetAlias}. Refreshing cache.`);
-                        await OrgUtils._userIdCacheService.removeCachedUserIdEntry(targetAlias); // Invalidate cache
+                        // Validate cache against current org info
+                        const currentOrgInfo = await OrgUtils.getOrgInfo(targetAlias);
+                        if (currentOrgInfo && cachedEntry.orgId === currentOrgInfo.orgId) { // Add null check for cachedEntry
+                            OrgUtils.logDebug('[VisbalExt.OrgUtils] getCurrentUserId -- Cache is valid, returning cached userId');
+                            return cachedEntry.userId;
+                        } else {
+                            OrgUtils.logDebug(`[VisbalExt.OrgUtils] getCurrentUserId -- Cached orgId (${cachedEntry.orgId}) does not match current orgId (${currentOrgInfo?.orgId}) for alias ${targetAlias}. Refreshing cache.`);
+                            await OrgUtils._userIdCacheService.removeCachedUserIdEntry(targetAlias); // Invalidate cache
+                        }
                     }
-                }
-            } catch (error: any) {
-                OrgUtils.logError('[VisbalExt.OrgUtils] getCurrentUserId -- Error reading or parsing userId cache, re-fetching:', error);
-                // Invalidate cache on error
-                if (targetAlias) {
-                    await OrgUtils._userIdCacheService.removeCachedUserIdEntry(targetAlias);
+                } catch (error: any) {
+                    OrgUtils.logError('[VisbalExt.OrgUtils] getCurrentUserId -- Error reading or parsing userId cache, re-fetching:', error);
+                    // Invalidate cache on error
+                    if (targetAlias) {
+                        await OrgUtils._userIdCacheService.removeCachedUserIdEntry(targetAlias);
+                    }
                 }
             }
         }
@@ -1212,18 +1218,14 @@ export class OrgUtils {
 
     private static get sfdxService(): SfdxService {
         if (!this._sfdxService) {
-            this._sfdxService = new SfdxService();
+            throw new Error('SfdxService not initialized in OrgUtils');
         }
         return this._sfdxService;
     }
 
     private static get cacheService(): CacheService {
         if (!this._cacheService) {
-            if (!this._context) {
-                throw new Error('OrgUtils not initialized with a context');
-            }
-            const cachePath = OrgUtils.getCachePath();
-            this._cacheService = new CacheService(cachePath);
+            throw new Error('CacheService not initialized in OrgUtils');
         }
         return this._cacheService;
     }

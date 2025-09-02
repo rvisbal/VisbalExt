@@ -30,6 +30,7 @@ import { LogFilterService, logFilterService } from './services/logFilterService'
 import { JsonViewerTab } from './views/jsonViewerTab';
 import { JsonViewerService } from './services/jsonViewerService';
 import { StorageService } from './services/storageService';
+import { OrgListCacheService } from './services/orgListCacheService';
 
 let outputChannel: vscode.OutputChannel;
 
@@ -45,8 +46,11 @@ export async function activate(context: vscode.ExtensionContext) {
   outputChannel = vscode.window.createOutputChannel('Visbal Extension');
   context.subscriptions.push(outputChannel);
 
-  // Initialize OrgUtils with the extension context
-  OrgUtils.initialize([], context);
+  // Initialize core services
+  const sfdxService = new SfdxService();
+  const cachePath = OrgUtils.getCachePath();
+  const orgListCacheService = new OrgListCacheService(cachePath);
+  OrgUtils.initialize([], context, sfdxService, orgListCacheService);
 
   OrgUtils.logDebug('[VisbalExt.Extension] activate -- Activating extension');
 
@@ -74,7 +78,6 @@ export async function activate(context: vscode.ExtensionContext) {
   }});
 
   // Initialize services
-  const sfdxService = new SfdxService();
   const metadataService = new MetadataService(sfdxService);
   const storageService = new StorageService(context); // Instantiate StorageService
   context.subscriptions.push(statusBarService);

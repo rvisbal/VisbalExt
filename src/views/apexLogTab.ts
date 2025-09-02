@@ -49,12 +49,12 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
         this._sfdxService = new SfdxService(); // Instantiate SfdxService here
         this._metadataService = new MetadataService(this._sfdxService); // Pass the instantiated sfdxService
         const cachePath = OrgUtils.getCachePath();
-        this._cacheService = new CacheService(cachePath);
-        this._orgListCacheService = new OrgListCacheService(cachePath);
+        this._orgListCacheService = new OrgListCacheService(cachePath); // Instantiate OrgListCacheService before CacheService
+        this._cacheService = new CacheService(cachePath, this._sfdxService, this._orgListCacheService);
         this._logViewerService = new LogViewerService(_context);
         
         // Initialize OrgUtils with context and logs
-        OrgUtils.initialize(this._logs, _context);
+        OrgUtils.initialize(this._logs, _context, this._sfdxService, this._orgListCacheService);
         
         // Initialize from cache
         this._initializeFromCache();
@@ -361,7 +361,7 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
                     
                     // Store the transformed logs
                     this._logs = transformedLogs;
-                    OrgUtils.initialize(this._logs, this._context);
+                    OrgUtils.initialize(this._logs, this._context, this._sfdxService, this._orgListCacheService);
                     
                     // Update the last fetch time
                     this._lastFetchTime = Date.now();
@@ -469,7 +469,7 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
             
             // Store the logs
             this._logs = logs;
-            OrgUtils.initialize(this._logs, this._context);
+            OrgUtils.initialize(this._logs, this._context, this._sfdxService, this._orgListCacheService);
             
             // Update the last fetch time
             this._lastFetchTime = Date.now();
@@ -2608,7 +2608,7 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
             this._view?.webview.postMessage({ command: 'downloading', logId, isDownloading: true });
 
             // Update OrgUtils with current logs data
-            OrgUtils.initialize(this._logs, this._context);
+            OrgUtils.initialize(this._logs, this._context, this._sfdxService, this._orgListCacheService);
             
             // Get current org alias for download
             const selectedOrg = await OrgUtils.getSelectedOrgForView(ViewId.APEX_LOG);
