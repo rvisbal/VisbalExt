@@ -15,6 +15,7 @@ import { ViewId } from '../types/salesforceTypes';
 import { SfdxService } from '../services/sfdxService';
 import { OrgListCacheService } from '../services/orgListCacheService';
 import { DEFAULT_LOG_TYPE } from '../constants/salesforceConstants';
+import { LogViewerService } from '../services/logViewerService';
 
 const execAsync = promisify(exec);
 
@@ -40,14 +41,20 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
     private _sfdxService: SfdxService;
     private _orgListCacheService: OrgListCacheService;
     private _isRefreshing: boolean = false;
+    private _logViewerService: LogViewerService;
     
 
     constructor(private readonly _context: vscode.ExtensionContext) {
         this._extensionUri = _context.extensionUri;
-        this._metadataService = new MetadataService();
-        this._cacheService = new CacheService(_context);
-        this._sfdxService = new SfdxService();
-        this._orgListCacheService = new OrgListCacheService(_context);
+        this._sfdxService = new SfdxService(); // Instantiate SfdxService here
+        this._metadataService = new MetadataService(this._sfdxService); // Pass the instantiated sfdxService
+        const cachePath = OrgUtils.getCachePath();
+        this._cacheService = new CacheService(cachePath);
+        this._orgListCacheService = new OrgListCacheService(cachePath);
+        this._logViewerService = new LogViewerService(_context);
+        
+        // Initialize OrgUtils with context and logs
+        OrgUtils.initialize(this._logs, _context);
         
         // Initialize from cache
         this._initializeFromCache();
@@ -77,7 +84,7 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
             this._hasIntitialized = true;
             this._checkDownloadedLogs();
             OrgUtils.logDebug('[VisbalExt.apexLogTab.VisbalLogView] init -- _refreshOrgList');
-            this._metadataService = new MetadataService();
+            this._metadataService = new MetadataService(this._sfdxService);
             this._loadOrgList();
         }
     }
@@ -305,10 +312,27 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
             OrgUtils.logDebug('[VisbalExt.apexLogTab.VisbalLogView] _fetchLogs -- Fetching logs with new CLI format...');
             try {
                 // Get the view-specific selected org for Apex Log view
-                const selectedOrg = await OrgUtils.getSelectedOrgForView(ViewId.APEX_LOG);
+                let selectedOrg = await OrgUtils.getSelectedOrgForView(ViewId.APEX_LOG);
                 OrgUtils.logDebug(`[VisbalExt.apexLogTab.VisbalLogView] _fetchLogs -- Using view-specific org: ${selectedOrg?.alias}`);
-                
-                const result = await this._sfdxService.listApexLogs(selectedOrg?.alias);
+
+                // If no view-specific org is found, try to get the global selected org or default
+                if (!selectedOrg) {
+                    OrgUtils.logDebug('[VisbalExt.apexLogTab.VisbalLogView] _fetchLogs -- No view-specific org, trying global selected org or default.');
+                    // Corrected logic: Use getDefaultTargetOrgFromConfig and save it as view-specific
+                    const defaultOrgAlias = OrgUtils.getDefaultTargetOrgFromConfig(true); // preferProject = true
+                    if (defaultOrgAlias) {
+                        selectedOrg = { alias: defaultOrgAlias, timestamp: new Date().toISOString() };
+                        OrgUtils.logDebug(`[VisbalExt.apexLogTab.VisbalLogView] _fetchLogs -- Using CLI default org: ${selectedOrg.alias}. Saving as view-specific.`);
+                        await OrgUtils.setSelectedOrgForView(ViewId.APEX_LOG, selectedOrg.alias);
+                    }
+                }
+
+                // If no org is selected even after fallbacks, throw an error
+                if (!selectedOrg || !selectedOrg.alias) {
+                    throw new Error('No Salesforce org selected for Apex Log view. Please select an org.');
+                }
+
+                const result = await this._sfdxService.listApexLogs(selectedOrg.alias);
                 const jsonResult = JSON.parse(result);
                 
                 if (jsonResult && jsonResult.result && Array.isArray(jsonResult.result)) {
@@ -410,6 +434,34 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
         this._view.webview.postMessage({ command: 'loading', loading: true });
 
         try {
+            // Get the view-specific selected org for Apex Log view
+            let selectedOrg = await OrgUtils.getSelectedOrgForView(ViewId.APEX_LOG);
+            OrgUtils.logDebug(`[VisbalExt.apexLogTab.VisbalLogView] _fetchLogsSoql -- Using view-specific org: ${selectedOrg?.alias}`);
+
+            // If no view-specific org is found, try to get the global selected org or default
+            if (!selectedOrg) {
+                OrgUtils.logDebug('[VisbalExt.apexLogTab.VisbalLogView] _fetchLogsSoql -- No view-specific org, trying global selected org or default.');
+                const globalSelectedOrg = await OrgUtils.getSelectedOrg();
+                if (globalSelectedOrg) {
+                    selectedOrg = globalSelectedOrg;
+                    OrgUtils.logDebug(`[VisbalExt.apexLogTab.VisbalLogView] _fetchLogsSoql -- Using global selected org: ${selectedOrg.alias}. Saving as view-specific.`);
+                    await OrgUtils.setSelectedOrgForView(ViewId.APEX_LOG, selectedOrg.alias);
+                } else {
+                    OrgUtils.logDebug('[VisbalExt.apexLogTab.VisbalLogView] _fetchLogsSoql -- No global selected org, trying current CLI default.');
+                    const currentCliAlias = await OrgUtils.getCurrentOrgAlias();
+                    if (currentCliAlias) {
+                        selectedOrg = { alias: currentCliAlias, timestamp: new Date().toISOString() };
+                        OrgUtils.logDebug(`[VisbalExt.apexLogTab.VisbalLogView] _fetchLogsSoql -- Using CLI default org: ${selectedOrg.alias}. Saving as view-specific.`);
+                        await OrgUtils.setSelectedOrgForView(ViewId.APEX_LOG, selectedOrg.alias);
+                    }
+                }
+            }
+
+            // If no org is selected even after fallbacks, throw an error
+            if (!selectedOrg || !selectedOrg.alias) {
+                throw new Error('No Salesforce org selected for Apex Log view. Please select an org.');
+            }
+
             // Fetch logs from Salesforce using SOQL
             OrgUtils.logDebug('[VisbalExt.apexLogTab.VisbalLogView] _fetchLogsSoql -- Calling _fetchSalesforceLogsSoql');
             const logs = await this._fetchSalesforceLogsSoql();
@@ -1394,16 +1446,18 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
             // If no view-specific org is selected, try to fall back to the global selected org or default org
             if (!selectedOrg || !selectedOrg.alias) {
                 OrgUtils.logDebug('[VisbalExt.apexLogTab.VisbalLogView] _applyDebugConfig -2.1 -- No view-specific org, trying global selected org');
-                selectedOrg = await OrgUtils.getSelectedOrg();
-                OrgUtils.logDebug('[VisbalExt.apexLogTab.VisbalLogView] _applyDebugConfig -2.2 -- Global selected org:', selectedOrg);
-                
-                // If still no org, try to get the current org from CLI/config
-                if (!selectedOrg || !selectedOrg.alias) {
-                    OrgUtils.logDebug('[VisbalExt.apexLogTab.VisbalLogView] _applyDebugConfig -2.3 -- No global selected org, trying current org alias');
+                const defaultOrgAlias = OrgUtils.getDefaultTargetOrgFromConfig(true); // preferProject = true
+                if (defaultOrgAlias) {
+                    selectedOrg = { alias: defaultOrgAlias, timestamp: new Date().toISOString() };
+                    OrgUtils.logDebug(`[VisbalExt.apexLogTab.VisbalLogView] _applyDebugConfig -2.2 -- Using CLI default org: ${selectedOrg.alias}. Saving as view-specific.`);
+                    await OrgUtils.setSelectedOrgForView(ViewId.APEX_LOG, selectedOrg.alias);
+                } else {
+                    OrgUtils.logDebug('[VisbalExt.apexLogTab.VisbalLogView] _applyDebugConfig -2.3 -- No default org found, falling back to current org alias');
                     const currentOrgAlias = await OrgUtils.getCurrentOrgAlias();
                     if (currentOrgAlias) {
                         selectedOrg = { alias: currentOrgAlias, timestamp: new Date().toISOString() };
-                        OrgUtils.logDebug('[VisbalExt.apexLogTab.VisbalLogView] _applyDebugConfig -2.4 -- Using current org alias as fallback:', currentOrgAlias);
+                        OrgUtils.logDebug(`[VisbalExt.apexLogTab.VisbalLogView] _applyDebugConfig -2.4 -- Using current org alias as fallback: ${currentOrgAlias}`);
+                        await OrgUtils.setSelectedOrgForView(ViewId.APEX_LOG, selectedOrg.alias);
                     }
                 }
             }
@@ -1501,7 +1555,7 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
             const debugLevelName = `VisbalExt_${presetName}`;
             
             // Get the user ID for the selected org - needed for both applying config and turning on debug
-            let userId = '';
+            let userId: string | null = null; // Changed type to allow null and initialized to null
             try {
                 OrgUtils.logDebug(`[VisbalExt.apexLogTab.VisbalLogView] _applyDebugConfig -3 -- Getting user ID for selected org: ${selectedOrg.alias}`);
                 userId = await OrgUtils.getCurrentUserId(selectedOrg.alias);
@@ -1511,8 +1565,9 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
                 throw new Error(`Failed to get user ID for org ${selectedOrg.alias}. Make sure you are authenticated with this org.`);
             }
 
-            if (!userId) {
-                throw new Error('Could not determine current user ID');
+            if (userId === null) {
+                OrgUtils.logError('[VisbalExt.apexLogTab.VisbalLogView] _applyDebugConfig -6 -- User ID is null after fetching.', null); // Added null as the second argument
+                throw new Error(`Failed to get user ID for org ${selectedOrg.alias}. User ID was null.`);
             }
 
             // Check if there's an existing trace flag

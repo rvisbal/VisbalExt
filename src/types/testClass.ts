@@ -8,4 +8,12 @@ export interface TestClass {
         fileName: string;
         fullName: string;
     };
+}
+
+export interface OrgTestClasses {
+    testClasses: TestClass[];
+}
+
+export interface TestClassesCache {
+    [alias: string]: OrgTestClasses | undefined;
 } 

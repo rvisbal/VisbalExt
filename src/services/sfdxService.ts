@@ -138,12 +138,16 @@ export class SfdxService {
     /**
      * Initialize cache services if not already initialized
      */
-    private _initializeCacheServices(context?: vscode.ExtensionContext): void {
-        if (!this._userIdCacheService && context) {
-            this._userIdCacheService = new UserIdCacheService(context);
+    private async _initializeCacheServices(): Promise<void> {
+        const cachePath = OrgUtils.getCachePath()
+        
+        if (!this._userIdCacheService) {
+            this._userIdCacheService = new UserIdCacheService(cachePath);
+            OrgUtils.logDebug('[VisbalExt.SfdxService] _initializeCacheServices -- Initialized UserIdCacheService');
         }
-        if (!this._cacheService && context) {
-            this._cacheService = new CacheService(context);
+        if (!this._cacheService) {
+            this._cacheService = new CacheService(cachePath);
+            OrgUtils.logDebug('[VisbalExt.SfdxService] _initializeCacheServices -- Initialized CacheService');
         }
     }
 
@@ -153,15 +157,13 @@ export class SfdxService {
      * @returns Promise<string> The user ID
      * @throws Error if unable to get user ID
      */
-    public async getCurrentUserId(alias?: string, context?: vscode.ExtensionContext): Promise<string> {
+    public async getCurrentUserId(alias?: string): Promise<string> {
         let userId = '';
         try {
             OrgUtils.logDebug('[VisbalExt.SfdxService] getCurrentUserId -- from SFDX CLI', `BEGIN with alias: ${alias}`);
             
             // Initialize cache services if context is provided
-            if (context) {
-                this._initializeCacheServices(context);
-            }
+            await this._initializeCacheServices();
 
             // Determine target org
             let targetOrg = alias;
@@ -225,7 +227,7 @@ export class SfdxService {
             OrgUtils.logDebug('[VisbalExt.SfdxService] getCurrentUserId', `Final user ID: ${userId}`);
             
             // Cache the user ID with org ID if we have cache service and target org
-            if (targetOrg && this._userIdCacheService && context) {
+            if (targetOrg && this._userIdCacheService) {
                 try {
                     const orgId = await this._getCurrentOrgId(targetOrg);
                     if (orgId) {

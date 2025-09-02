@@ -8,12 +8,6 @@ import { SfdxService } from './sfdxService';
 import { OrgUtils } from '../utils/orgUtils';
 import { getExtensionVersion } from '../utils/extensionUtils';
 
-interface OrgTestClasses {
-    testClasses: TestClass[];
-}
-
-export type TestClassesCache = Record<string, OrgTestClasses> & { versionId?: string };
-
 export class StorageService {
     private storagePath: string;
     private testClassesFile: string;
@@ -23,13 +17,10 @@ export class StorageService {
     constructor(context: vscode.ExtensionContext) {
         this._sfdxService = new SfdxService();
         // Get the workspace folder path
-        const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
-        if (!workspaceFolder) {
-            throw new Error('No workspace folder found');
-        }
+        
 
         // Set up storage in .visbal folder within the project
-        this.storagePath = path.join(workspaceFolder.uri.fsPath, '.visbal', 'cache');
+        this.storagePath = OrgUtils.getCachePath();
         this.testClassesFile = path.join(this.storagePath, 'testClasses.json');
 
         // Ensure .visbal/cache directory exists
@@ -45,26 +36,24 @@ export class StorageService {
         }
     }
 
-
-    private readCache(): TestClassesCache {
+    public readCache<T>(): T & { versionId?: string } {
         try {
             OrgUtils.logDebug('[VisbalExt.StorageService] readCache -- testClassesFile:', this.testClassesFile);
             if (fs.existsSync(this.testClassesFile)) {
                 const data = fs.readFileSync(this.testClassesFile, 'utf8');
-                //OrgUtils.logDebug('[VisbalExt.StorageService] readCache -- data:', data);
-                return JSON.parse(data) as TestClassesCache;
+                return JSON.parse(data) as T & { versionId?: string };
             }
-            return {};
+            return {} as T & { versionId?: string };
         } catch (error: any) {
             OrgUtils.logError('[VisbalExt.StorageService] Error reading cache:', error);
-            return {};
+            return {} as T & { versionId?: string };
         }
     }
 
-    private writeCache(cache: TestClassesCache): void {
+    public writeCache<T>(cacheData: T): void {
         try {
-            cache.versionId = getExtensionVersion();
-            fs.writeFileSync(this.testClassesFile, JSON.stringify(cache, null, 2));
+            const cacheToWrite = { ...cacheData, versionId: getExtensionVersion() };
+            fs.writeFileSync(this.testClassesFile, JSON.stringify(cacheToWrite, null, 2));
             OrgUtils.logDebug('[VisbalExt.StorageService] writeCache -- Cache saved to:', this.testClassesFile);
         } catch (error: any) {
             OrgUtils.logError('[VisbalExt.StorageService] writeCache -- Error writing cache:', error);
@@ -76,7 +65,7 @@ export class StorageService {
         try {
             OrgUtils.logDebug('[VisbalExt.StorageService] getTestClasses -- BEGIN');
             const targetOrgAlias = orgAlias || await OrgUtils.getCurrentOrgAlias();
-            const cache = this.readCache();
+            const cache = this.readCache<Record<string, { testClasses: TestClass[] }>>();
             OrgUtils.logDebug(`[VisbalExt.StorageService] getTestClasses -- Getting test classes for org: ${targetOrgAlias}`);
             return cache[targetOrgAlias]?.testClasses || [];
         } catch (error: any) {
@@ -89,7 +78,7 @@ export class StorageService {
         try {
             OrgUtils.logDebug('[VisbalExt.StorageService] saveTestClasses -- BEGIN');
             const targetOrgAlias = orgAlias || await OrgUtils.getCurrentOrgAlias();
-            const cache = this.readCache();
+            const cache = this.readCache<Record<string, { testClasses: TestClass[] }>>();
             
             cache[targetOrgAlias] = {
                 testClasses: testClasses
@@ -153,7 +142,7 @@ export class StorageService {
         try {
             OrgUtils.logDebug('[VisbalExt.StorageService] clearStorage -- BEGIN');
             const orgAlias = await OrgUtils.getCurrentOrgAlias();
-            const cache = this.readCache();
+            const cache = this.readCache<Record<string, { testClasses: TestClass[] }>>();
             // Clear specific org's data, but retain versionId
             delete cache[orgAlias];
             this.writeCache(cache);

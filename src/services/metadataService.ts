@@ -34,8 +34,8 @@ interface JsoResult {
 export class MetadataService {
     private _sfdxService: SfdxService;
 	  
-    constructor() {
-		this._sfdxService = new SfdxService();
+    constructor(sfdxService: SfdxService) {
+		this._sfdxService = sfdxService;
 	}
 
     private async executeCliCommandAnonymous(command: string): Promise<string> {

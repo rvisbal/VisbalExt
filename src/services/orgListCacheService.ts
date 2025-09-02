@@ -14,15 +14,9 @@ export class OrgListCacheService {
     private cachePath: string;
     private orgListCacheFile: string;
 
-    constructor(context: vscode.ExtensionContext) {
+    constructor(cachePath: string) {
         // Get the workspace folder path
-        const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
-        if (!workspaceFolder) {
-            throw new Error('No workspace folder found');
-        }
-
-        // Set up cache in .visbal folder within the project
-        this.cachePath = path.join(workspaceFolder.uri.fsPath, '.visbal', 'cache');
+        this.cachePath = cachePath;
         this.orgListCacheFile = path.join(this.cachePath, 'org-list.json');
 
         // Ensure .visbal/cache directory exists

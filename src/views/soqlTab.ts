@@ -5,6 +5,7 @@ import { OrgUtils } from '../utils/orgUtils';
 import { ViewId } from '../types/salesforceTypes';
 import { SfdxService } from '../services/sfdxService';
 import { getHtmlForWebview } from './soqlTabHTML';
+import * as path from 'path';
 
 export class SoqlTab implements vscode.WebviewViewProvider {
     public static readonly viewType = 'visbalSoql';
@@ -14,11 +15,14 @@ export class SoqlTab implements vscode.WebviewViewProvider {
     private _orgListCacheService: OrgListCacheService;
     private _currentOrg?: string;
      private _isRefreshing: boolean = false;
+    private _extensionUri: vscode.Uri; // Declare _extensionUri
 
     constructor(private readonly _context: vscode.ExtensionContext) {
-        this._metadataService = new MetadataService();
-        this._orgListCacheService = new OrgListCacheService(_context);
-		 this._sfdxService = new SfdxService();
+        this._extensionUri = _context.extensionUri; // Moved here to ensure cachePath is defined.
+        const cachePath = OrgUtils.getCachePath();
+        this._sfdxService = new SfdxService(); // Instantiate SfdxService first
+        this._metadataService = new MetadataService(this._sfdxService); // Pass the instantiated sfdxService
+        this._orgListCacheService = new OrgListCacheService(cachePath);
     }
 
     public resolveWebviewView(
@@ -64,8 +68,8 @@ export class SoqlTab implements vscode.WebviewViewProvider {
             }
         });
     }
-	
-	private async executeSOQL(soql: string, useToolingApi: boolean) {
+
+    private async executeSOQL(soql: string, useToolingApi: boolean) {
         if (!soql.trim()) {
             this._view?.webview.postMessage({
                 command: 'executionResult',

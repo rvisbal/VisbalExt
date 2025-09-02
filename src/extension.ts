@@ -8,6 +8,7 @@ import { salesforceApi } from './services/salesforceApiService';
 import { statusBarService } from './services/statusBarService';
 import { SoqlTab } from './views/soqlTab';
 import { MetadataService } from './services/metadataService';
+import { SfdxService } from './services/sfdxService';
 import { OrgUtils } from './utils/orgUtils';
 import { ViewId } from './types/salesforceTypes';
 import { OrgTabView } from './views/orgTab';    
@@ -28,6 +29,7 @@ import { LogFilterView } from './views/logFilterView';
 import { LogFilterService, logFilterService } from './services/logFilterService';
 import { JsonViewerTab } from './views/jsonViewerTab';
 import { JsonViewerService } from './services/jsonViewerService';
+import { StorageService } from './services/storageService';
 
 let outputChannel: vscode.OutputChannel;
 
@@ -42,6 +44,9 @@ export async function activate(context: vscode.ExtensionContext) {
   // Create output channel
   outputChannel = vscode.window.createOutputChannel('Visbal Extension');
   context.subscriptions.push(outputChannel);
+
+  // Initialize OrgUtils with the extension context
+  OrgUtils.initialize([], context);
 
   OrgUtils.logDebug('[VisbalExt.Extension] activate -- Activating extension');
 
@@ -69,7 +74,9 @@ export async function activate(context: vscode.ExtensionContext) {
   }});
 
   // Initialize services
-  const metadataService = new MetadataService();
+  const sfdxService = new SfdxService();
+  const metadataService = new MetadataService(sfdxService);
+  const storageService = new StorageService(context); // Instantiate StorageService
   context.subscriptions.push(statusBarService);
 
   // Initialize debug console view
@@ -123,7 +130,9 @@ export async function activate(context: vscode.ExtensionContext) {
         context,
         testRunningTaskView,
         testSummaryView,
-        salesforceApi
+        salesforceApi,
+        sfdxService,
+        storageService
     );
 
     // Register test class explorer view commands

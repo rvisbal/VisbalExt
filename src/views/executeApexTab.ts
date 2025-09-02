@@ -21,9 +21,11 @@ export class ExecuteApexTab implements vscode.WebviewViewProvider {
 
     constructor(private readonly _context: vscode.ExtensionContext) {
         OrgUtils.logDebug('[VisbalExt.ExecuteApexTab] Initializing ExecuteApexTab');
-        this._metadataService = new MetadataService();
-        this._orgListCacheService = new OrgListCacheService(_context);
         this._sfdxService = new SfdxService();
+        this._metadataService = new MetadataService(this._sfdxService);
+        
+        const cachePath = OrgUtils.getCachePath();
+        this._orgListCacheService = new OrgListCacheService(cachePath);
         this._loadApexFiles();
     }
 

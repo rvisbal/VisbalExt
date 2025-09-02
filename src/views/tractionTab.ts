@@ -3,6 +3,7 @@ import { OrgListCacheService } from '../services/orgListCacheService';
 import { OrgUtils, SalesforceOrg } from '../utils/orgUtils';
 import { ViewId } from '../types/salesforceTypes';
 import { getTractionHtml } from './tractionTabHTML';
+import * as path from 'path';
 
 export class TractionTab implements vscode.WebviewViewProvider {
     public static readonly viewType = 'visbal-traction';
@@ -14,7 +15,8 @@ export class TractionTab implements vscode.WebviewViewProvider {
     private _selectedOrg: string = '';
 
     constructor(private readonly _context: vscode.ExtensionContext) {
-        this._orgListCacheService = new OrgListCacheService(_context);
+        const cachePath = OrgUtils.getCachePath();
+        this._orgListCacheService = new OrgListCacheService(cachePath);
     }
 
     public resolveWebviewView(

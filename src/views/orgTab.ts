@@ -4,6 +4,7 @@ import { OrgUtils, OrgGroups, SalesforceOrg } from '../utils/orgUtils';
 import { getOrgTabHtml } from './orgTabHtml';
 import { OrgTable } from '../components/OrgTable';
 import { statusBarService } from '../services/statusBarService';
+import * as path from 'path';
 
 export class OrgTabView implements vscode.WebviewViewProvider {
   public static readonly viewType = 'visbal-orgs';
@@ -14,7 +15,8 @@ export class OrgTabView implements vscode.WebviewViewProvider {
   private _orgs: SalesforceOrg[] = [];
 
   constructor(private readonly _context: vscode.ExtensionContext) {
-    this._orgListCacheService = new OrgListCacheService(_context);
+    const cachePath = OrgUtils.getCachePath();
+    this._orgListCacheService = new OrgListCacheService(cachePath);
   }
 
   public resolveWebviewView(

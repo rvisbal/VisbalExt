@@ -15,6 +15,8 @@ import { OrgListCacheService } from '../services/orgListCacheService';
 import { TestRunningTaskView } from './testRunningTaskSidePanel';
 import { TestSummaryView } from './testSummarySidePanel';
 import { SalesforceApiService } from '../services/salesforceApiService';
+import { TestRunnerService } from '../services/testRunnerService';
+import { TestClassesCacheService } from '../services/testClassesCacheService';
 
 enum TestStatus {
     pending = 'pending',
@@ -108,6 +110,8 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
     private _testCaseListManager: TestCaseListManager;
     private _orgListCacheService: OrgListCacheService;
     private _isRefreshing: boolean = false;
+    private _testRunnerService: TestRunnerService;
+    private _testClassesCacheService: TestClassesCacheService;
 
     constructor(
         extensionUri: vscode.Uri,
@@ -115,22 +119,31 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
         private readonly _context: vscode.ExtensionContext,
         testRunningTaskSidePanel: TestRunningTaskView,
         testSummaryView: TestSummaryView,
-        salesforceApiService: SalesforceApiService
+        salesforceApiService: SalesforceApiService,
+        sfdxService: SfdxService,
+        storageService: StorageService
     ) {
         OrgUtils.logDebug('[VisbalExt.TestClassExplorerSidePanel] constructor -- Initializing Test Class Explorer Side Panel');
         this._extensionUri = extensionUri;
         this._statusBarService = statusBarService;
-        this._metadataService = new MetadataService();
-        this._storageService = new StorageService(_context);
-        this._testController = vscode.tests.createTestController('testClassExplorerView', 'Test Class Explorer');
-        this._testItems = new Map();
+        this._metadataService = new MetadataService(sfdxService);
+        this._sfdxService = sfdxService;
+        this._storageService = storageService;
+        this._salesforceApiService = salesforceApiService;
+        this._testRunnerService = new TestRunnerService(_context, sfdxService, salesforceApiService);
+        this._testClassesCacheService = new TestClassesCacheService(_context);
         this._testRunResultsView = testRunningTaskSidePanel;
         this._testSummaryView = testSummaryView;
-        this._sfdxService = new SfdxService();
-        this._salesforceApiService = salesforceApiService;
-        this._testCaseListManager = new TestCaseListManager(_context);
-        this._orgListCacheService = new OrgListCacheService(_context);
-        
+        this._testController = vscode.tests.createTestController(
+            'visbalTestController',
+            'Visbal Test Explorer'
+        );
+        this._testItems = new Map<string, vscode.TestItem>();
+        this._testCaseListManager = new TestCaseListManager(this._context);
+        const cachePath = OrgUtils.getCachePath();
+        this._orgListCacheService = new OrgListCacheService(cachePath);
+
+
         // Initialize Salesforce API
         this._salesforceApiService.initialize().catch(error => {
             OrgUtils.logError('[VisbalExt.TestClassExplorerSidePanel] constructor -- Failed to initialize Salesforce API', error);
