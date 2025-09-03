@@ -1466,6 +1466,16 @@ export class OrgUtils {
             OrgUtils.logDebug(`[VisbalExt.OrgUtils] extractSymbolFromCursor -- Detected class-prefixed call: ${className}.${word}`);
         }
         
+        // Check for instantiated class variable (e.g., `MyClass var = new MyClass(); var.property`)
+        // This needs to happen after classPrefixMatch to prioritize explicit class prefixes
+        if (!className) {
+            const instantiatedClassName = OrgUtils.extractInstantiatedClassName(line, word, wordRange);
+            if (instantiatedClassName) {
+                className = instantiatedClassName;
+                OrgUtils.logDebug(`[VisbalExt.OrgUtils] extractSymbolFromCursor -- Detected instantiated class variable: ${className}.${word}`);
+            }
+        }
+        
         // Determine symbol type based on context and file type
         const symbolInfo = this.determineSymbolType(word, line, wordRange, fileExtension || '');
         
@@ -1485,6 +1495,7 @@ export class OrgUtils {
         
         switch (fileExtension) {
             case 'cls':
+            case 'apex':
                 // Apex/Salesforce class file
                 if (afterWord.startsWith('(') || new RegExp(`\\b${word}\\s*\\(`).test(line)) {
                     return { symbol: word, type: this.SymbolType.METHOD };
@@ -2029,6 +2040,44 @@ export class OrgUtils {
             this._userIdCacheService = new UserIdCacheService(cachePath);
         }
         return this._userIdCacheService;
+    }
+
+    private static extractInstantiatedClassName(line: string, word: string, wordRange: vscode.Range): string | undefined {
+        // Example: MyClass myVar = new MyClass();
+        // Example: AnotherClass.staticMethod();
+        // Look for patterns like "ClassName variableName = new InstantiatedClass();" or "InstantiatedClass.staticProperty"
+        // This is a simplified regex and might need refinement for all Apex scenarios.
+
+        // Pattern for variable declaration with instantiation: `ClassName variableName = new InstantiatedClass();`
+        const instantiationRegex = new RegExp(`(?:[A-Za-z0-9_]+)\\s+${word}\\s*=\\s*new\\s+([A-Za-z0-9_]+)\\s*\\(`, 'i');
+        let match = instantiationRegex.exec(line);
+        if (match && match[1]) {
+            return match[1]; // Returns 'InstantiatedClass'
+        }
+
+        // Pattern for static method or property access: `ClassName.staticProperty` or `ClassName.staticMethod()`
+        const staticAccessRegex = new RegExp(`([A-Za-z0-9_]+)\\.${word}(?:\\s*\\()?`, 'i'); // Fixed regex
+        match = staticAccessRegex.exec(line);
+        if (match && match[1]) { // Removed !match[2] as the group is now non-capturing
+            // Check if the matched class name is not the word itself
+            if (match[1] !== word) {
+                return match[1]; // Returns 'ClassName'
+            }
+        }
+        
+        // Pattern for variable declaration: `ClassName variableName = ...;` or `ClassName variableName;`
+        // This should capture the declared type when the cursor is on the variableName
+        const declarationRegex = new RegExp(`^\\s*([A-Za-z0-9_]+)\s+${word}\b`, 'i');
+        match = declarationRegex.exec(line);
+        if (match && match[1]) {
+            // Ensure the extracted type is not a keyword or primitive type
+            const possibleType = match[1];
+            if (!/^(public|private|protected|global|static|void|string|integer|boolean|long|double|decimal|date|datetime|id|object|list|set|map)$/i.test(possibleType)) {
+                return possibleType;
+            }
+        }
+        
+        return undefined;
     }
 
 } 
