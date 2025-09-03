@@ -14,19 +14,19 @@ export class SalesforceApiService {
     private _instance: AxiosInstance | null = null;
     private _accessToken: string | null = null;
     private _instanceUrl: string | null = null;
-    private _apiVersion = 'v59.0'; // Default API version, can be updated
+    private _apiVersion = 'v60.0'; // Default API version, can be updated
 
     /**
      * Initialize the Salesforce API service
      * @param orgAlias Optional org alias to use. If not provided, uses the default org.
      */
-    public async initialize(orgAlias?: string): Promise<boolean> {
+    public async initialize(orgAlias?: string, expectedOrgId?: string): Promise<boolean> {
         try {
             OrgUtils.logDebug('[VisbalExt.SalesforceApiService] initialize -- Initializing Salesforce API service');
             statusBarService.showProgress('Initializing Salesforce API...');
             
             // Get authentication details from Salesforce CLI
-            const authDetails = await this._getAuthDetailsFromCli(orgAlias);
+            const authDetails = await this._getAuthDetailsFromCli(orgAlias, expectedOrgId);
             
             if (!authDetails) {
                 OrgUtils.logDebug('[VisbalExt.SalesforceApiService] initialize -- Failed to get auth details from CLI');
@@ -280,11 +280,24 @@ export class SalesforceApiService {
     /**
      * Get authentication details from Salesforce CLI
      */
-    private async _getAuthDetailsFromCli(orgAlias?: string): Promise<{ accessToken: string, instanceUrl: string } | null> {
+    private async _getAuthDetailsFromCli(orgAlias?: string, expectedOrgId?: string): Promise<{ accessToken: string, instanceUrl: string } | null> {
         try {
             OrgUtils.logDebug('[VisbalExt.SalesforceApiService] _getAuthDetailsFromCli -- Getting auth details from CLI');
             
-            // Try with new CLI format first
+            // Try to get org info from OrgUtils (which uses cache first)
+            const orgInfoFromUtils = await OrgUtils.getOrgInfo(orgAlias || await OrgUtils.getCurrentOrgAlias(), expectedOrgId);
+
+            if (orgInfoFromUtils && orgInfoFromUtils.accessToken && orgInfoFromUtils.instanceUrl) {
+                OrgUtils.logDebug('[VisbalExt.SalesforceApiService] _getAuthDetailsFromCli -- Successfully got org info from OrgUtils');
+                return {
+                    accessToken: orgInfoFromUtils.accessToken,
+                    instanceUrl: orgInfoFromUtils.instanceUrl
+                };
+            } else {
+                OrgUtils.logDebug('[VisbalExt.SalesforceApiService] _getAuthDetailsFromCli -- Org info not found in OrgUtils or missing token/URL, falling back to direct CLI call');
+            }
+
+            // Fallback to direct CLI calls if OrgUtils did not provide full info
             try {
                 const command = orgAlias ? `sf org display --target-org ${orgAlias} --json` : 'sf org display --json';
                 OrgUtils.logDebug(`[VisbalExt.SalesforceApiService] _getAuthDetailsFromCli -- Executing: ${command}`);

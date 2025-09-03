@@ -1924,7 +1924,8 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
             const salesforceApi = new SalesforceApiService();
             
             // Initialize the API service with the selected org
-            const initialized = await salesforceApi.initialize(selectedOrg.alias);
+            const orgId = await OrgUtils.getOrgIdForAlias(selectedOrg.alias);
+            const initialized = await salesforceApi.initialize(selectedOrg.alias, orgId || undefined);
             if (!initialized) {
                 throw new Error('Failed to initialize Salesforce API service');
             }

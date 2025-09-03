@@ -512,7 +512,9 @@ export async function activate(context: vscode.ExtensionContext) {
       try {
         statusBarService.showProgress('Fetching logs via Salesforce REST API...');
         
-        const initialized = await salesforceApi.initialize();
+        const orgAlias = await OrgUtils.getCurrentOrgAlias();
+        const orgId = orgAlias ? await OrgUtils.getOrgIdForAlias(orgAlias) : undefined;
+        const initialized = await salesforceApi.initialize(orgAlias || undefined, orgId || undefined);
         if (!initialized) {
           statusBarService.showError('Failed to initialize Salesforce API service');
           vscode.window.showErrorMessage('Failed to initialize Salesforce API service');
@@ -578,7 +580,9 @@ export async function activate(context: vscode.ExtensionContext) {
         
         statusBarService.showProgress(`Executing Apex REST: ${method} ${endpoint}...`);
         
-        const initialized = await salesforceApi.initialize();
+        const orgAlias = await OrgUtils.getCurrentOrgAlias();
+        const orgId = orgAlias ? await OrgUtils.getOrgIdForAlias(orgAlias) : undefined;
+        const initialized = await salesforceApi.initialize(orgAlias || undefined, orgId || undefined);
         if (!initialized) {
           statusBarService.showError('Failed to initialize Salesforce API service');
           vscode.window.showErrorMessage('Failed to initialize Salesforce API service');

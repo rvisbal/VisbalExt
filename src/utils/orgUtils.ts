@@ -86,6 +86,7 @@ export class OrgUtils {
     private static _currentUserIdCache: { userId: string; timestamp: number } | null = null;
     private static readonly CACHE_EXPIRATION = 15 * 60 * 1000; // 15 minutes in milliseconds
     public static DEBUG_MODE = false;
+    private static _orgListCacheService: OrgListCacheService; // Add this line
 
     /**
      * Initialize the OrgUtils class with necessary data
@@ -104,6 +105,8 @@ export class OrgUtils {
         OrgUtils._cacheService = new CacheService(cachePath, sfdxService, orgListCacheService);
         // Initialize userIdCacheService
         OrgUtils._userIdCacheService = new UserIdCacheService(cachePath);
+        // Assign the injected orgListCacheService
+        OrgUtils._orgListCacheService = orgListCacheService;
     }
 
     /**
@@ -770,12 +773,12 @@ export class OrgUtils {
                         OrgUtils.logDebug(`[VisbalExt.OrgUtils] getCurrentUserId -- Found in cache for ${targetAlias}: userId=${cachedEntry.userId}, orgId=${cachedEntry.orgId}`);
 
                         // Validate cache against current org info
-                        const currentOrgInfo = await OrgUtils.getOrgInfo(targetAlias);
+                        const currentOrgInfo = await OrgUtils.getOrgInfo(targetAlias, cachedEntry.orgId);
                         if (currentOrgInfo && cachedEntry.orgId === currentOrgInfo.orgId) { // Add null check for cachedEntry
                             OrgUtils.logDebug('[VisbalExt.OrgUtils] getCurrentUserId -- Cache is valid, returning cached userId');
                             return cachedEntry.userId;
                         } else {
-                            OrgUtils.logDebug(`[VisbalExt.OrgUtils] getCurrentUserId -- Cached orgId (${cachedEntry.orgId}) does not match current orgId (${currentOrgInfo?.orgId}) for alias ${targetAlias}. Refreshing cache.`);
+                            OrgUtils.logDebug(`[VisbalExt.OrgUtils] getCurrentUserId -- Cached orgId (${cachedEntry.orgId})) does not match current orgId (${currentOrgInfo?.orgId})) for alias ${targetAlias}. Refreshing cache.`);
                             await OrgUtils._userIdCacheService.removeCachedUserIdEntry(targetAlias); // Invalidate cache
                         }
                     }
@@ -845,9 +848,33 @@ export class OrgUtils {
      * @param alias The alias of the Salesforce org.
      * @returns A SalesforceOrg object containing the org details.
      */
-    public static async getOrgInfo(alias: string): Promise<SalesforceOrg | null> {
-        OrgUtils.logDebug(`[VisbalExt.OrgUtils] getOrgInfo -- BEGIN with alias: ${alias}`);
+    public static async getOrgInfo(alias: string, expectedOrgId?: string): Promise<SalesforceOrg | null> {
+        OrgUtils.logDebug(`[VisbalExt.OrgUtils] getOrgInfo -- BEGIN with alias: ${alias}${expectedOrgId ? `, expectedOrgId: ${expectedOrgId}` : ''}`);
         try {
+            // First, try to get from cache
+            const cachedOrgList = await OrgUtils._orgListCacheService.getCachedOrgList();
+            if (cachedOrgList && cachedOrgList.orgs) {
+                const allOrgs = [
+                    ...cachedOrgList.orgs.devHubs,
+                    ...cachedOrgList.orgs.sandboxes,
+                    ...cachedOrgList.orgs.scratchOrgs,
+                    ...cachedOrgList.orgs.nonScratchOrgs,
+                    ...cachedOrgList.orgs.other
+                ];
+                const orgInfo = allOrgs.find(org => (org.alias === alias || org.username === alias) && (!expectedOrgId || org.orgId === expectedOrgId));
+                if (orgInfo) {
+                    OrgUtils.logDebug(`[VisbalExt.OrgUtils] getOrgInfo -- Found in cache for ${alias}:`, orgInfo);
+                    // If expectedOrgId is provided and doesn't match, consider cache invalid
+                    if (expectedOrgId && orgInfo.orgId !== expectedOrgId) {
+                        OrgUtils.logDebug(`[VisbalExt.OrgUtils] getOrgInfo -- Cached orgId ${orgInfo.orgId} does not match expected orgId ${expectedOrgId}, syncing...`);
+                    } else {
+                        return orgInfo;
+                    }
+                }
+                OrgUtils.logDebug(`[VisbalExt.OrgUtils] getOrgInfo -- Not found in cache for ${alias}.` + (expectedOrgId ? ` or orgId mismatch with ${expectedOrgId}` : ''));
+            }
+
+            // If not in cache or cache is old or userId mismatch, call CLI
             const command = `sf org display --target-org ${alias} --json`;
             const { stdout } = await execAsync(command, { maxBuffer: MAX_BUFFER_SIZE });
             const result = JSON.parse(stdout);
@@ -860,8 +887,45 @@ export class OrgUtils {
                 if (result.result.id && !result.result.orgId) {
                     result.result.orgId = result.result.id;
                 }
-                OrgUtils.logDebug(`[VisbalExt.OrgUtils] getOrgInfo -- Fetched org info for ${alias}:`, result.result);
-                return result.result as SalesforceOrg;
+                const fetchedOrgInfo = result.result as SalesforceOrg;
+                OrgUtils.logDebug(`[VisbalExt.OrgUtils] getOrgInfo -- Fetched org info for ${alias}:`, fetchedOrgInfo);
+
+                // Update the org list cache after fetching from CLI
+                if (OrgUtils._orgListCacheService) {
+                    const currentOrgList = await OrgUtils._orgListCacheService.getCachedOrgList();
+                    if (currentOrgList) {
+                        let updated = false;
+                        (['devHubs', 'sandboxes', 'scratchOrgs', 'nonScratchOrgs', 'other'] as Array<keyof OrgGroups>).forEach(group => {
+                            const orgIndex = currentOrgList.orgs[group].findIndex((org: SalesforceOrg) => org.alias === fetchedOrgInfo.alias || org.username === fetchedOrgInfo.username);
+                            if (orgIndex !== -1) {
+                                currentOrgList.orgs[group][orgIndex] = fetchedOrgInfo;
+                                updated = true;
+                            }
+                        });
+                        if (!updated) {
+                            // If the org wasn't found in any existing group, add it to 'other' or a suitable default
+                            // For simplicity, adding to scratchOrgs if it has type 'scratchOrg', otherwise 'other'
+                            if (fetchedOrgInfo.type === 'scratchOrg') {
+                                currentOrgList.orgs.scratchOrgs.push(fetchedOrgInfo);
+                            } else {
+                                currentOrgList.orgs.other.push(fetchedOrgInfo);
+                            }
+                        }
+                        await OrgUtils._orgListCacheService.saveOrgList(currentOrgList.orgs);
+                    } else {
+                        // If no cache exists, create a new one with this org
+                        const newOrgGroups: OrgGroups = {
+                            devHubs: [], sandboxes: [], scratchOrgs: [], nonScratchOrgs: [], other: []
+                        };
+                        if (fetchedOrgInfo.type === 'scratchOrg') {
+                            newOrgGroups.scratchOrgs.push(fetchedOrgInfo);
+                        } else {
+                            newOrgGroups.other.push(fetchedOrgInfo);
+                        }
+                        await OrgUtils._orgListCacheService.saveOrgList(newOrgGroups);
+                    }
+                }
+                return fetchedOrgInfo;
             } else {
                 OrgUtils.logError('[VisbalExt.OrgUtils] getOrgInfo -- Unexpected CLI output:', result);
                 return null;
