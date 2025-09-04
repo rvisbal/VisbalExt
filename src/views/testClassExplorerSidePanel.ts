@@ -16,7 +16,6 @@ import { TestRunningTaskView } from './testRunningTaskSidePanel';
 import { TestSummaryView } from './testSummarySidePanel';
 import { SalesforceApiService } from '../services/salesforceApiService';
 import { TestRunnerService } from '../services/testRunnerService';
-import { TestClassesCacheService } from '../services/testClassesCacheService';
 
 enum TestStatus {
     pending = 'pending',
@@ -111,7 +110,6 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
     private _orgListCacheService: OrgListCacheService;
     private _isRefreshing: boolean = false;
     private _testRunnerService: TestRunnerService;
-    private _testClassesCacheService: TestClassesCacheService;
 
     constructor(
         extensionUri: vscode.Uri,
@@ -131,7 +129,6 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
         this._storageService = storageService;
         this._salesforceApiService = salesforceApiService;
         this._testRunnerService = new TestRunnerService(_context, sfdxService, salesforceApiService);
-        this._testClassesCacheService = new TestClassesCacheService(_context);
         this._testRunResultsView = testRunningTaskSidePanel;
         this._testSummaryView = testSummaryView;
         this._testController = vscode.tests.createTestController(
@@ -5351,8 +5348,44 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                 OrgUtils.logDebug(`[VisbalExt.TestClassExplorerSidePanel] _getOrgNamespacePrefix -- Could not get org info from cache: ${error}`);
             }
             
-            // STEP 2: If not found in cache, try to detect from existing test classes (faster than org query)
+            // STEP 2: Check cached test classes first (fastest - no SOQL needed!)
             try {
+                OrgUtils.logDebug(`[VisbalExt.TestClassExplorerSidePanel] _getOrgNamespacePrefix -- Checking cached test classes for namespace`);
+                const cachedTestClasses = await this._storageService.getTestClasses(username);
+                const namespacePrefixes = new Set<string>();
+                
+                cachedTestClasses.forEach(testClass => {
+                    if (testClass.namePrefix) {
+                        namespacePrefixes.add(testClass.namePrefix);
+                    }
+                });
+                
+                // If we found any namespaces from cache, prioritize known patterns
+                if (namespacePrefixes.size > 0) {
+                    const namespacesArray = Array.from(namespacePrefixes);
+                    
+                    // Check for known namespace patterns first
+                    const knownNamespaces = ['TracHier', 'TracRTC', 'DNBConnect', 'DNBoptimizer'];
+                    for (const knownNs of knownNamespaces) {
+                        if (namespacesArray.includes(knownNs)) {
+                            OrgUtils.logDebug(`[VisbalExt.TestClassExplorerSidePanel] _getOrgNamespacePrefix -- Found known namespace from CACHED test classes: ${knownNs}`);
+                            return knownNs;
+                        }
+                    }
+                    
+                    // Otherwise, return the first namespace found from cache
+                    OrgUtils.logDebug(`[VisbalExt.TestClassExplorerSidePanel] _getOrgNamespacePrefix -- Using first detected namespace from CACHED test classes: ${namespacesArray[0]}`);
+                    return namespacesArray[0];
+                }
+                
+                OrgUtils.logDebug(`[VisbalExt.TestClassExplorerSidePanel] _getOrgNamespacePrefix -- No namespace found in cached test classes (${cachedTestClasses.length} classes), falling back to SOQL`);
+            } catch (error) {
+                OrgUtils.logDebug(`[VisbalExt.TestClassExplorerSidePanel] _getOrgNamespacePrefix -- Could not read cached test classes: ${error}`);
+            }
+
+            // STEP 3: If not found in cache, try to detect from fresh SOQL query (slower but thorough)
+            try {
+                OrgUtils.logDebug(`[VisbalExt.TestClassExplorerSidePanel] _getOrgNamespacePrefix -- Falling back to SOQL query for namespace detection`);
                 const testClasses = await this._metadataService.listApexClasses(username);
                 const namespacePrefixes = new Set<string>();
                 
@@ -5370,20 +5403,20 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                     const knownNamespaces = ['TracHier', 'TracRTC', 'DNBConnect', 'DNBoptimizer'];
                     for (const knownNs of knownNamespaces) {
                         if (namespacesArray.includes(knownNs)) {
-                            OrgUtils.logDebug(`[VisbalExt.TestClassExplorerSidePanel] _getOrgNamespacePrefix -- Found known namespace from test classes: ${knownNs}`);
+                            OrgUtils.logDebug(`[VisbalExt.TestClassExplorerSidePanel] _getOrgNamespacePrefix -- Found known namespace from SOQL query: ${knownNs}`);
                             return knownNs;
                         }
                     }
                     
                     // Otherwise, return the first namespace found
-                    OrgUtils.logDebug(`[VisbalExt.TestClassExplorerSidePanel] _getOrgNamespacePrefix -- Using first detected namespace from test classes: ${namespacesArray[0]}`);
+                    OrgUtils.logDebug(`[VisbalExt.TestClassExplorerSidePanel] _getOrgNamespacePrefix -- Using first detected namespace from SOQL query: ${namespacesArray[0]}`);
                     return namespacesArray[0];
                 }
             } catch (error) {
-                OrgUtils.logDebug(`[VisbalExt.TestClassExplorerSidePanel] _getOrgNamespacePrefix -- Could not detect namespace from test classes: ${error}`);
+                OrgUtils.logDebug(`[VisbalExt.TestClassExplorerSidePanel] _getOrgNamespacePrefix -- Could not detect namespace from SOQL query: ${error}`);
             }
             
-            // STEP 3: Last resort - Query Organization object (slowest)
+            // STEP 4: Last resort - Query Organization object (slowest)
             try {
                 OrgUtils.logDebug(`[VisbalExt.TestClassExplorerSidePanel] _getOrgNamespacePrefix -- Falling back to Organization query for org: ${username}`);
                 const soqlQuery = "SELECT NamespacePrefix FROM Organization LIMIT 1";

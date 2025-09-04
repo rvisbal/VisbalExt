@@ -21,7 +21,6 @@ export type LogCache = Record<string, OrgLogData> & { versionId?: string };
 export class CacheService {
     private cachePath: string;
     private logCacheFile: string;
-    private currentOrgAlias: { alias: string; timestamp: number } | undefined;
     private readonly CACHE_EXPIRATION = 15 * 60 * 1000; // 15 minutes in milliseconds
     private _sfdxService: SfdxService; // No longer private as it's passed in constructor
     private _orgListCacheService: OrgListCacheService; // No longer private as it's passed in constructor
@@ -310,18 +309,12 @@ export class CacheService {
     }
 
     private async getCurrentOrgAliasSafe(): Promise<string> {
-        if (this.currentOrgAlias && (Date.now() - this.currentOrgAlias.timestamp) < this.CACHE_EXPIRATION) {
-            OrgUtils.logDebug(`[VisbalExt.CacheService] getCurrentOrgAliasSafe -- Using cached alias: ${this.currentOrgAlias.alias}`);
-            return this.currentOrgAlias.alias;
-        }
- 
         try {
-            OrgUtils.logDebug('[VisbalExt.CacheService] getCurrentOrgAliasSafe -- Fetching current org alias via SFDX service');
-            const alias = await this._sfdxService.getCurrentOrgAlias();
-            this.currentOrgAlias = { alias, timestamp: Date.now() };
-            return alias;
+            // Delegate to OrgUtils which has superior caching (project config + cache)
+            OrgUtils.logDebug('[VisbalExt.CacheService] getCurrentOrgAliasSafe -- Delegating to OrgUtils.getCurrentOrgAlias');
+            return await OrgUtils.getCurrentOrgAlias();
         } catch (error: any) {
-            OrgUtils.logError('[VisbalExt.CacheService] getCurrentOrgAliasSafe -- Error getting current org alias via SFDX, falling back to empty string:', error);
+            OrgUtils.logError('[VisbalExt.CacheService] getCurrentOrgAliasSafe -- Error getting current org alias via OrgUtils, falling back to empty string:', error);
             return '';
         }
     }

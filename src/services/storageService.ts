@@ -41,7 +41,17 @@ export class StorageService {
             OrgUtils.logDebug('[VisbalExt.StorageService] readCache -- testClassesFile:', this.testClassesFile);
             if (fs.existsSync(this.testClassesFile)) {
                 const data = fs.readFileSync(this.testClassesFile, 'utf8');
-                return JSON.parse(data) as T & { versionId?: string };
+                const cacheData = JSON.parse(data) as T & { versionId?: string };
+                
+                // Validate cache version
+                const currentVersion = getExtensionVersion();
+                if (!cacheData.versionId || cacheData.versionId !== currentVersion) {
+                    OrgUtils.logDebug(`[VisbalExt.StorageService] readCache -- Cache version mismatch (cached: ${cacheData.versionId}, current: ${currentVersion}), returning empty cache`);
+                    return {} as T & { versionId?: string };
+                }
+                
+                OrgUtils.logDebug(`[VisbalExt.StorageService] readCache -- Cache version valid (${currentVersion}), returning cached data`);
+                return cacheData;
             }
             return {} as T & { versionId?: string };
         } catch (error: any) {
