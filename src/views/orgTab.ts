@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import { OrgListCacheService } from '../services/orgListCacheService';
-import { OrgUtils, OrgGroups, SalesforceOrg } from '../utils/orgUtils';
+import { OrgUtils } from '../utils/orgUtils';
+import { OrgGroups, SalesforceOrg } from '../types/salesforceTypes';
 import { getOrgTabHtml } from './orgTabHtml';
 import { OrgTable } from '../components/OrgTable';
 import { statusBarService } from '../services/statusBarService';

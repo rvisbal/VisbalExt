@@ -1,7 +1,8 @@
 import * as vscode from 'vscode';
 import * as fs from 'fs';
 import * as path from 'path';
-import { OrgGroups, OrgUtils } from '../utils/orgUtils';
+import { OrgUtils } from '../utils/orgUtils';
+import { OrgGroups } from '../types/salesforceTypes';
 import { getExtensionVersion } from '../utils/extensionUtils';
 
 interface OrgListCache {

@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import { OrgListCacheService } from '../services/orgListCacheService';
-import { OrgUtils, SalesforceOrg } from '../utils/orgUtils';
+import { OrgUtils } from '../utils/orgUtils';
+import { SalesforceOrg } from '../types/salesforceTypes';
 import { ViewId } from '../types/salesforceTypes';
 import { getTractionHtml } from './tractionTabHTML';
 import * as path from 'path';

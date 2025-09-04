@@ -33,4 +33,69 @@ export interface SalesforceLog {
     logLength: number;
     lastModifiedDate: string;
     downloaded: boolean;
-} 
+}
+
+/**
+ * Represents a Salesforce organization
+ */
+export interface SalesforceOrg {
+    username: string;
+    alias?: string;
+    instanceUrl: string;
+    isDefault: boolean;
+    type: 'devHub' | 'sandbox' | 'scratchOrg' | 'nonScratchOrg' | 'other';
+    clientId?: string;
+    clientSecret?: string;
+    redirectUri?: string;
+    expirationDate?: string;
+    orgId?: string;
+    id?: string; // Add id property here
+    connectedStatus?: string;
+    accessToken?: string;
+    instanceApiVersion?: string;
+    instanceApiVersionLastRetrieved?: string;
+    isDefaultDevHubUsername?: boolean;
+    isDefaultUsername?: boolean;
+    isDevHub?: boolean;
+    lastUsed?: string;
+    namespacePrefix?: string;
+    userId?: string;
+}
+
+/**
+ * Groups of Salesforce organizations by type
+ */
+export interface OrgGroups {
+    devHubs: SalesforceOrg[];
+    sandboxes: SalesforceOrg[];
+    scratchOrgs: SalesforceOrg[];
+    nonScratchOrgs: SalesforceOrg[];
+    other: SalesforceOrg[];
+}
+
+/**
+ * Represents a selected organization with timestamp
+ */
+export interface SelectedOrg {
+    alias: string;
+    timestamp: string;
+}
+
+/**
+ * Cache structure for view-specific org selections
+ */
+export type ViewOrgSelectionsCache = { versionId?: string } & {
+    [key in ViewId]?: SelectedOrg;
+};
+
+
+/**
+ * Represents a trace flag in Salesforce
+ */
+export interface TraceFlag {
+    Id: string;
+    LogType: string;
+    StartDate: string;
+    ExpirationDate: string;
+    DebugLevelId: string;
+}

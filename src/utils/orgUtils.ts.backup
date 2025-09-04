@@ -8,9 +8,7 @@ import { statusBarService } from '../services/statusBarService';
 import { CacheService } from '../services/cacheService';
 import { SfdxService } from '../services/sfdxService';
 
-import { ViewId, SalesforceOrg, OrgGroups, SelectedOrg, ViewOrgSelectionsCache, TraceFlag } from '../types/salesforceTypes';
-import { UserIdService } from '../services/userIdService';
-import { SymbolNavigationService } from '../services/symbolNavigationService';
+import { ViewId } from '../types/salesforceTypes';
 import * as cp from 'child_process';
 import { DEFAULT_LOG_TYPE } from '../constants/salesforceConstants';
 import { ConfigUserIdService } from '../services/configUserIdService';
@@ -19,77 +17,76 @@ import { OrgListCacheService } from '../services/orgListCacheService';
 import { getExtensionVersion } from './extensionUtils';
 import { WorkspaceFolder } from 'vscode';
 
+export interface SalesforceOrg {
+    username: string;
+    alias?: string;
+    instanceUrl: string;
+    isDefault: boolean;
+    type: 'devHub' | 'sandbox' | 'scratchOrg' | 'nonScratchOrg' | 'other';
+    clientId?: string;
+    clientSecret?: string;
+    redirectUri?: string;
+    expirationDate?: string;
+    orgId?: string;
+    id?: string; // Add id property here
+    connectedStatus?: string;
+    accessToken?: string;
+    instanceApiVersion?: string;
+    instanceApiVersionLastRetrieved?: string;
+    isDefaultDevHubUsername?: boolean;
+    isDefaultUsername?: boolean;
+    isDevHub?: boolean;
+    lastUsed?: string;
+    namespacePrefix?: string;
+    userId?: string;
+}
 
-/**
- * OrgUtils - Organized Salesforce Organization Utility Class
- * 
- * This class has been organized into the following categories for future splitting:
- * 
- * 1. INITIALIZATION & CONFIGURATION - Core setup and workspace utilities
- *    Future class: ConfigurationManager
- * 
- * 2. ORGANIZATION MANAGEMENT - Org listing, selection, and basic operations
- *    Future class: OrganizationManager
- * 
- * 3. ORG ALIAS & DEFAULT MANAGEMENT - Alias resolution and default org handling
- *    Future class: OrgAliasService
- * 
- * 4. USER ID MANAGEMENT - User ID caching and retrieval
- *    Future class: UserIdService
- * 
- * 5. LOG MANAGEMENT - Log operations, downloading, and parsing
- *    Future class: LogManager
- * 
- * 6. DEBUG & TRACE MANAGEMENT - Debug flags and trace operations
- *    Future class: DebugTraceManager
- * 
- * 7. TEST MANAGEMENT - Test file operations and method selection
- *    Future class: TestManager
- * 
- * 8. FILE NAVIGATION & SYMBOL SEARCH - Code navigation and symbol resolution
- *    Future class: SymbolNavigationService
- * 
- * 9. SERVICE GETTERS - Lazy initialization of service dependencies
- *    Future pattern: Dependency Injection Container
- * 
- * 10. LOGGING & ERROR HANDLING - Debug logging and error management
- *     Future class: LoggingService
- * 
- * 11. UTILITY METHODS - General utility functions
- *     Future class: GeneralUtils
- * 
- * 12. WEBVIEW SUPPORT METHODS - Webview communication helpers
- *     Future class: WebviewManager
- */
+export interface OrgGroups {
+    devHubs: SalesforceOrg[];
+    sandboxes: SalesforceOrg[];
+    scratchOrgs: SalesforceOrg[];
+    nonScratchOrgs: SalesforceOrg[];
+    other: SalesforceOrg[];
+}
+
+export interface SelectedOrg {
+    alias: string;
+    timestamp: string;
+}
+
+export type ViewOrgSelectionsCache = { versionId?: string } & {
+    [key in ViewId]?: SelectedOrg;
+};
+
+interface LogResult {
+    log: string;
+}
+
+interface TraceFlag {
+    Id: string;
+    LogType: string;
+    StartDate: string;
+    ExpirationDate: string;
+    DebugLevelId: string;
+}
+
+interface SelectedTestsConfig {
+    methods: { [key: string]: boolean };
+}
+
 export class OrgUtils {
-    // ============================================================================
-    // STATIC PROPERTIES & CONSTANTS
-    // ============================================================================
-    
-    // Log Management Properties
     private static _downloadedLogs: Set<string> = new Set<string>();
     private static _downloadedLogPaths: Map<string, string> = new Map<string, string>();
     private static _logs: any[] = [];
-    
-    // Core Services
     private static _context: vscode.ExtensionContext;
     private static _sfdxService: SfdxService;
     private static _cacheService: CacheService;
     private static _userIdCacheService: UserIdCacheService | null = null;
-    private static _orgListCacheService: OrgListCacheService;
-    
-    // Cache Management
     private static _orgAliasCache: { alias: string; timestamp: number } | null = null;
     private static _currentUserIdCache: { userId: string; timestamp: number } | null = null;
     private static readonly CACHE_EXPIRATION = 15 * 60 * 1000; // 15 minutes in milliseconds
-    
-    // Configuration
     public static DEBUG_MODE = false;
-    
-
-    // ============================================================================
-    // INITIALIZATION & CONFIGURATION
-    // ============================================================================
+    private static _orgListCacheService: OrgListCacheService; // Add this line
 
     /**
      * Initialize the OrgUtils class with necessary data
@@ -110,25 +107,6 @@ export class OrgUtils {
         OrgUtils._userIdCacheService = new UserIdCacheService(cachePath);
         // Assign the injected orgListCacheService
         OrgUtils._orgListCacheService = orgListCacheService;
-        
-        // Initialize UserIdService with dependencies
-        UserIdService.initialize(
-            context,
-            OrgUtils._cacheService,
-            orgListCacheService,
-            OrgUtils.logDebug,
-            OrgUtils.logError,
-            OrgUtils.getCurrentOrgAlias,
-            OrgUtils.getCachePath,
-            OrgUtils.getSalesforceProjectFolderPath,
-            OrgUtils.getSelectedOrg
-        );
-        
-        // Initialize SymbolNavigationService with dependencies
-        SymbolNavigationService.initialize(
-            OrgUtils.logDebug,
-            OrgUtils.logError
-        );
     }
 
     /**
@@ -140,24 +118,6 @@ export class OrgUtils {
         this._downloadedLogs = downloadedLogs;
         this._downloadedLogPaths = downloadedLogPaths;
     }
-
-    public static getWorkspaceFolder(): WorkspaceFolder {
-        const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
-        if (!workspaceFolder) {
-            throw new Error('No workspace folder found');
-        }
-        
-        return workspaceFolder;
-    }
-
-    public static getCachePath(): string {
-        const workspaceFolder = OrgUtils.getWorkspaceFolder();
-        return path.join(workspaceFolder.uri.fsPath, '.visbal', 'cache');
-    }
-
-    // ============================================================================
-    // ORGANIZATION MANAGEMENT
-    // ============================================================================
 
     public static getSectionArray(orgs: Set<object>): any[] {
         if (Array.isArray(orgs)) {
@@ -269,6 +229,20 @@ export class OrgUtils {
             OrgUtils.logError('[VisbalExt.OrgUtils] setDefaultOrg -- Error setting default org:', error as Error);
             throw new Error(`Failed to set default org: ${error.message}`);
         }
+    }
+
+    public static  getWorkspaceFolder(): WorkspaceFolder {
+        const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
+        if (!workspaceFolder) {
+            throw new Error('No workspace folder found');
+        }
+        
+        return workspaceFolder;
+    }
+
+    public static  getCachePath(): string {
+        const workspaceFolder = OrgUtils.getWorkspaceFolder();
+        return path.join(workspaceFolder.uri.fsPath, '.visbal', 'cache');
     }
 
     public static async setSelectedOrg(alias: string): Promise<void> {
@@ -464,10 +438,7 @@ export class OrgUtils {
         }
     }
 
-    // ============================================================================
-    // ORG ALIAS & DEFAULT MANAGEMENT
-    // ============================================================================
-
+     //#region Organization Management
     public static async getCurrentOrgAlias(): Promise<string> {
         OrgUtils.logDebug(`[VisbalExt.OrgUtils] getCurrentOrgAlias -- BEGIN`);
         try {
@@ -621,9 +592,70 @@ export class OrgUtils {
         }
     }
 
-    // ============================================================================
-    // USER ID MANAGEMENT (Delegated to UserIdService)
-    // ============================================================================
+    /**
+     * Gets the user ID from the user-ids.json cache file
+     * @returns Promise<string | null> The user ID if found in cache, null otherwise
+     */
+    private static async getUserIdFromOrgCache(): Promise<string | null> {
+        try {
+            // Get the current org alias first
+            const currentOrgAlias = await this.getCurrentOrgAlias();
+            if (!currentOrgAlias) {
+                OrgUtils.logDebug('[VisbalExt.OrgUtils] getUserIdFromOrgCache -- No current org alias');
+                return null;
+            }
+
+            // Check if we have a workspace folder
+            const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
+            if (!workspaceFolder) {
+                OrgUtils.logDebug('[VisbalExt.OrgUtils] getUserIdFromOrgCache -- No workspace folder');
+                return null;
+            }
+
+            // Path to user ID cache file
+            const userIdCacheFile = path.join(workspaceFolder.uri.fsPath, '.visbal', 'cache', 'user-ids.json');
+            
+            // Try to read existing user ID cache
+            if (fs.existsSync(userIdCacheFile)) {
+                try {
+                    const cacheContent = fs.readFileSync(userIdCacheFile, 'utf8');
+                    const userIdCache = JSON.parse(cacheContent);
+                    
+                    if (userIdCache[currentOrgAlias]) {
+                        const cachedUserId = userIdCache[currentOrgAlias];
+                        OrgUtils.logDebug(`[VisbalExt.OrgUtils] getUserIdFromOrgCache -- Found cached user ID for ${currentOrgAlias}: ${cachedUserId}`);
+                        return cachedUserId;
+                    }
+                } catch (parseError) {
+                    OrgUtils.logDebug('[VisbalExt.OrgUtils] getUserIdFromOrgCache -- Error parsing user ID cache:', parseError);
+                }
+            }
+
+            // If no cached user ID found
+            OrgUtils.logDebug(`[VisbalExt.OrgUtils] getUserIdFromOrgCache -- No cached user ID for: ${currentOrgAlias}`);
+            return null;
+
+        } catch (error: any) {
+            OrgUtils.logError('[VisbalExt.OrgUtils] getUserIdFromOrgCache -- Error:', error);
+            return null;
+        }
+    }
+
+    /**
+     * Caches the user ID in the user-ids.json file for the specified org
+     * @param orgAlias The org alias
+     * @param userId The user ID to cache
+     */
+    private static async cacheUserId(orgAlias: string, userId: string, orgId: string): Promise<void> {
+        OrgUtils.logDebug(`[VisbalExt.OrgUtils] cacheUserId -- Caching userId: ${userId}, orgId: ${orgId} for alias: ${orgAlias}`);
+        // Ensure userIdCacheService is initialized
+        if (!this._userIdCacheService) {
+            const cachePath = OrgUtils.getCachePath();
+            this._userIdCacheService = new UserIdCacheService(cachePath);
+        }
+        await this._userIdCacheService.setCachedUserIdEntry(orgAlias, userId, orgId);
+        OrgUtils.logDebug(`[VisbalExt.OrgUtils] cacheUserId -- Successfully cached userId for ${orgAlias}`);
+    }
 
     /**
      * Gets user ID for a specific org alias
@@ -631,7 +663,71 @@ export class OrgUtils {
      * @returns Promise<string> The user ID for the specified org
      */
     public static async getUserIdForOrg(orgAlias: string): Promise<string> {
-        return UserIdService.getUserIdForOrg(orgAlias);
+        try {
+            OrgUtils.logDebug(`[VisbalExt.OrgUtils] getUserIdForOrg -- Getting user ID for org: ${orgAlias}`);
+            
+            // First try to get from cache
+            try {
+                const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
+                if (workspaceFolder) {
+                    const userIdCacheFile = path.join(workspaceFolder.uri.fsPath, '.visbal', 'cache', 'user-ids.json');
+                    
+                    if (fs.existsSync(userIdCacheFile)) {
+                        const cacheContent = fs.readFileSync(userIdCacheFile, 'utf8');
+                        const userIdCache = JSON.parse(cacheContent);
+                        
+                        if (userIdCache[orgAlias]) {
+                            const cachedUserId = userIdCache[orgAlias];
+                            OrgUtils.logDebug(`[VisbalExt.OrgUtils] getUserIdForOrg -- Found cached user ID for ${orgAlias}: ${cachedUserId}`);
+                            return cachedUserId;
+                        }
+                    }
+                }
+            } catch (cacheError) {
+                OrgUtils.logDebug(`[VisbalExt.OrgUtils] getUserIdForOrg -- Cache read failed for ${orgAlias}:`, cacheError);
+            }
+
+            // If not in cache, fetch from SF CLI
+            let userId: string = '';
+            let orgId: string = '';
+            try {
+                OrgUtils.logDebug(`[VisbalExt.OrgUtils] getUserIdForOrg -- Fetching user ID from CLI for org: ${orgAlias}`);
+                const { stdout: userResult } = await execAsync(`sf org display user --target-org ${orgAlias} --json`);
+                const userJson = JSON.parse(userResult);
+                userId = userJson.result.id;
+                orgId = userJson.result.orgId;
+                OrgUtils.logDebug(`[VisbalExt.OrgUtils] getUserIdForOrg -- Got user ID from CLI for ${orgAlias}: ${userId}`);
+            } catch (error: any) {
+                OrgUtils.logError(`[VisbalExt.OrgUtils] getUserIdForOrg -- Error getting user ID with new CLI format for ${orgAlias}:`, error);
+                
+                // Try with old CLI format
+                try {
+                    const { stdout: userResult } = await execAsync(`sfdx force:user:display --target-org ${orgAlias} --json`);
+                    const userJson = JSON.parse(userResult);
+                    userId = userJson.result.id;
+                    orgId = userJson.result.orgId;
+                    OrgUtils.logDebug(`[VisbalExt.OrgUtils] getUserIdForOrg -- Got user ID from old CLI format for ${orgAlias}: ${userId}`);
+                } catch (oldError: any) {
+                    OrgUtils.logError(`[VisbalExt.OrgUtils] getUserIdForOrg -- Error getting user ID with old CLI format for ${orgAlias}:`, oldError);
+                    throw new Error(`Failed to get user ID for org ${orgAlias}. Make sure you are authenticated.`);
+                }
+            }
+
+            if (userId) {
+                // Cache the user ID for future use
+                try {
+                    await this.cacheUserId(orgAlias, userId, orgId);
+                    OrgUtils.logDebug(`[VisbalExt.OrgUtils] getUserIdForOrg -- Successfully cached user ID for ${orgAlias}: ${userId}`);
+                } catch (cacheError) {
+                    OrgUtils.logDebug(`[VisbalExt.OrgUtils] getUserIdForOrg -- Warning: Could not cache user ID for ${orgAlias}:`, cacheError);
+                }
+            }
+
+            return userId;
+        } catch (error: any) {
+            OrgUtils.logError(`[VisbalExt.OrgUtils] getUserIdForOrg -- Error getting user ID for ${orgAlias}:`, error);
+            throw error;
+        }
     }
 
     /**
@@ -640,11 +736,111 @@ export class OrgUtils {
      * @returns Promise<string | null> The org ID if found, null otherwise.
      */
     public static async getOrgIdForAlias(alias: string): Promise<string | null> {
-        return UserIdService.getOrgIdForAlias(alias);
+        return this.cacheService.getOrgIdForAlias(alias);
     }
 
     public static async getCurrentUserId(alias?: string): Promise<string | null> {
-        return UserIdService.getCurrentUserId(alias);
+        OrgUtils.logDebug(`[VisbalExt.OrgUtils] getCurrentUserId -- BEGIN with alias: ${alias}`);
+
+        if (!OrgUtils._context) {
+            throw new Error('OrgUtils not initialized with a context');
+        }
+
+        if (!OrgUtils._userIdCacheService) {
+            // Use the workspace folder from the active Salesforce project, not the extension's workspace
+            const projectPath = await OrgUtils.getSalesforceProjectFolderPath();
+            if (projectPath) {
+                const cachePath = path.join(projectPath, '.visbal', 'cache');
+                OrgUtils._userIdCacheService = new UserIdCacheService(cachePath);
+                OrgUtils.logDebug(`[VisbalExt.OrgUtils] getCurrentUserId -- Set userIdCacheService: ${OrgUtils._userIdCacheService}`);
+            } else {
+                OrgUtils.logDebug('[VisbalExt.OrgUtils] getCurrentUserId -- No Salesforce project folder found. userIdCacheService will remain null.');
+                OrgUtils._userIdCacheService = null; // Explicitly set to null if projectPath is not found
+            }
+        }
+
+        const targetAlias = alias || await OrgUtils.getCurrentOrgAlias();
+        if (!targetAlias) {
+            throw new Error('No default Salesforce org found and no alias provided.');
+        }
+
+        // Try to read from cache first
+        if (OrgUtils._userIdCacheService) { // Check if _userIdCacheService is not null
+            if (await OrgUtils._userIdCacheService.exists(targetAlias)) {
+                try {
+                    const cachedEntry = await OrgUtils._userIdCacheService.getCachedUserIdEntry(targetAlias);
+                    if (cachedEntry) {
+                        OrgUtils.logDebug(`[VisbalExt.OrgUtils] getCurrentUserId -- Found in cache for ${targetAlias}: userId=${cachedEntry.userId}, orgId=${cachedEntry.orgId}`);
+
+                        // Validate cache against current org info
+                        const currentOrgInfo = await OrgUtils.getOrgInfo(targetAlias, cachedEntry.orgId);
+                        if (currentOrgInfo && cachedEntry.orgId === currentOrgInfo.orgId) { // Add null check for cachedEntry
+                            OrgUtils.logDebug('[VisbalExt.OrgUtils] getCurrentUserId -- Cache is valid, returning cached userId');
+                            return cachedEntry.userId;
+                        } else {
+                            OrgUtils.logDebug(`[VisbalExt.OrgUtils] getCurrentUserId -- Cached orgId (${cachedEntry.orgId})) does not match current orgId (${currentOrgInfo?.orgId})) for alias ${targetAlias}. Refreshing cache.`);
+                            await OrgUtils._userIdCacheService.removeCachedUserIdEntry(targetAlias); // Invalidate cache
+                        }
+                    }
+                } catch (error: any) {
+                    OrgUtils.logError('[VisbalExt.OrgUtils] getCurrentUserId -- Error reading or parsing userId cache, re-fetching:', error);
+                    // Invalidate cache on error
+                    if (targetAlias) {
+                        await OrgUtils._userIdCacheService.removeCachedUserIdEntry(targetAlias);
+                    }
+                }
+            }
+        }
+
+        // If not in cache or cache is invalid, fetch from Salesforce
+        try {
+            OrgUtils.logDebug(`[VisbalExt.OrgUtils] getCurrentUserId -- Fetching user ID for alias: ${targetAlias}`);
+
+            // Use the new SF CLI command 'sf org display user'
+            const command = `sf org display user --target-org ${targetAlias} --json`;
+            const { stdout } = await execAsync(command, { maxBuffer: MAX_BUFFER_SIZE });
+            const result = JSON.parse(stdout);
+
+            if (result.status === 0 && result.result && result.result.id && result.result.orgId) {
+                OrgUtils.logDebug(`[VisbalExt.OrgUtils] getCurrentUserId -- Fetched userId=${result.result.id}, orgId=${result.result.orgId} for alias=${targetAlias}`);
+
+                // Update cache
+                if (OrgUtils._userIdCacheService) { // Add null check
+                    await OrgUtils._userIdCacheService.setCachedUserIdEntry(targetAlias, result.result.id, result.result.orgId);
+                }
+
+                return result.result.id;
+            } else {
+                OrgUtils.logError('[VisbalExt.OrgUtils] getCurrentUserId -- Unexpected CLI output:', result);
+                throw new Error('Failed to get user ID: Unexpected CLI output.');
+            }
+        } catch (error: any) {
+            OrgUtils.logError('[VisbalExt.OrgUtils] getCurrentUserId -- Error fetching user ID with sf org display user:', error);
+            // Attempt to fall back to sfdx force:user:display
+            try {
+                OrgUtils.logDebug(`[VisbalExt.OrgUtils] getCurrentUserId -- Falling back to sfdx force:user:display for alias: ${targetAlias}`);
+                const command = `sfdx force:user:display --target-org ${targetAlias} --json`;
+                const { stdout } = await execAsync(command, { maxBuffer: MAX_BUFFER_SIZE });
+                const result = JSON.parse(stdout);
+
+                if (result.status === 0 && result.result && result.result.id && result.result.orgId) {
+                    OrgUtils.logDebug(`[VisbalExt.OrgUtils] getCurrentUserId -- Fetched userId=${result.result.id}, orgId=${result.result.orgId} (sfdx fallback) for alias=${targetAlias}`);
+
+                    // Update cache
+                    if (OrgUtils._userIdCacheService) { // Add null check
+                        await OrgUtils._userIdCacheService.setCachedUserIdEntry(targetAlias, result.result.id, result.result.orgId);
+                    }
+
+                    return result.result.id;
+                } else {
+                    OrgUtils.logError('[VisbalExt.OrgUtils] getCurrentUserId -- Unexpected CLI output (sfdx fallback):', result);
+                    throw new Error('Failed to get user ID with sfdx fallback: Unexpected CLI output.');
+                }
+            } catch (sfdxError: any) {
+                OrgUtils.logError('[VisbalExt.OrgUtils] getCurrentUserId -- Error fetching user ID with sfdx fallback:', sfdxError);
+                throw new Error(`Failed to get current user ID for alias "${targetAlias}". Make sure you are authenticated with this org. Details: ${sfdxError.message}`);
+            }
+        }
     }
 
     /**
@@ -653,27 +849,145 @@ export class OrgUtils {
      * @returns A SalesforceOrg object containing the org details.
      */
     public static async getOrgInfo(alias: string, expectedOrgId?: string): Promise<SalesforceOrg | null> {
-        return UserIdService.getOrgInfo(alias, expectedOrgId);
+        OrgUtils.logDebug(`[VisbalExt.OrgUtils] getOrgInfo -- BEGIN with alias: ${alias}${expectedOrgId ? `, expectedOrgId: ${expectedOrgId}` : ''}`);
+        try {
+            // First, try to get from cache
+            const cachedOrgList = await OrgUtils._orgListCacheService.getCachedOrgList();
+            if (cachedOrgList && cachedOrgList.orgs) {
+                const allOrgs = [
+                    ...cachedOrgList.orgs.devHubs,
+                    ...cachedOrgList.orgs.sandboxes,
+                    ...cachedOrgList.orgs.scratchOrgs,
+                    ...cachedOrgList.orgs.nonScratchOrgs,
+                    ...cachedOrgList.orgs.other
+                ];
+                const orgInfo = allOrgs.find(org => (org.alias === alias || org.username === alias) && (!expectedOrgId || org.orgId === expectedOrgId));
+                if (orgInfo) {
+                    OrgUtils.logDebug(`[VisbalExt.OrgUtils] getOrgInfo -- Found in cache for ${alias}:`, orgInfo);
+                    // If expectedOrgId is provided and doesn't match, consider cache invalid
+                    if (expectedOrgId && orgInfo.orgId !== expectedOrgId) {
+                        OrgUtils.logDebug(`[VisbalExt.OrgUtils] getOrgInfo -- Cached orgId ${orgInfo.orgId} does not match expected orgId ${expectedOrgId}, syncing...`);
+                    } else {
+                        return orgInfo;
+                    }
+                }
+                OrgUtils.logDebug(`[VisbalExt.OrgUtils] getOrgInfo -- Not found in cache for ${alias}.` + (expectedOrgId ? ` or orgId mismatch with ${expectedOrgId}` : ''));
+            }
+
+            // If not in cache or cache is old or userId mismatch, call CLI
+            const command = `sf org display --target-org ${alias} --json`;
+            const { stdout } = await execAsync(command, { maxBuffer: MAX_BUFFER_SIZE });
+            const result = JSON.parse(stdout);
+
+            OrgUtils.logDebug(`[VisbalExt.OrgUtils] getOrgInfo -- Raw CLI output for ${alias}:`, stdout); // Added log
+            OrgUtils.logDebug(`[VisbalExt.OrgUtils] getOrgInfo -- Parsed CLI result for ${alias}:`, result); // Added log
+
+            if (result.status === 0 && result.result) {
+                // Ensure orgId is populated from id if orgId is missing in CLI output
+                if (result.result.id && !result.result.orgId) {
+                    result.result.orgId = result.result.id;
+                }
+                const fetchedOrgInfo = result.result as SalesforceOrg;
+                OrgUtils.logDebug(`[VisbalExt.OrgUtils] getOrgInfo -- Fetched org info for ${alias}:`, fetchedOrgInfo);
+
+                // Update the org list cache after fetching from CLI
+                if (OrgUtils._orgListCacheService) {
+                    const currentOrgList = await OrgUtils._orgListCacheService.getCachedOrgList();
+                    if (currentOrgList) {
+                        let updated = false;
+                        (['devHubs', 'sandboxes', 'scratchOrgs', 'nonScratchOrgs', 'other'] as Array<keyof OrgGroups>).forEach(group => {
+                            const orgIndex = currentOrgList.orgs[group].findIndex((org: SalesforceOrg) => org.alias === fetchedOrgInfo.alias || org.username === fetchedOrgInfo.username);
+                            if (orgIndex !== -1) {
+                                currentOrgList.orgs[group][orgIndex] = fetchedOrgInfo;
+                                updated = true;
+                            }
+                        });
+                        if (!updated) {
+                            // If the org wasn't found in any existing group, add it to 'other' or a suitable default
+                            // For simplicity, adding to scratchOrgs if it has type 'scratchOrg', otherwise 'other'
+                            if (fetchedOrgInfo.type === 'scratchOrg') {
+                                currentOrgList.orgs.scratchOrgs.push(fetchedOrgInfo);
+                            } else {
+                                currentOrgList.orgs.other.push(fetchedOrgInfo);
+                            }
+                        }
+                        await OrgUtils._orgListCacheService.saveOrgList(currentOrgList.orgs);
+                    } else {
+                        // If no cache exists, create a new one with this org
+                        const newOrgGroups: OrgGroups = {
+                            devHubs: [], sandboxes: [], scratchOrgs: [], nonScratchOrgs: [], other: []
+                        };
+                        if (fetchedOrgInfo.type === 'scratchOrg') {
+                            newOrgGroups.scratchOrgs.push(fetchedOrgInfo);
+                        } else {
+                            newOrgGroups.other.push(fetchedOrgInfo);
+                        }
+                        await OrgUtils._orgListCacheService.saveOrgList(newOrgGroups);
+                    }
+                }
+                return fetchedOrgInfo;
+            } else {
+                OrgUtils.logError('[VisbalExt.OrgUtils] getOrgInfo -- Unexpected CLI output:', result);
+                return null;
+            }
+        } catch (error: any) {
+            OrgUtils.logError(`[VisbalExt.OrgUtils] getOrgInfo -- Error fetching org info for alias ${alias}:`, error);
+            return null;
+        }
     }
 
     /**
      * Opens the default org in a browser
      */
     public static async openDefaultOrg(): Promise<void> {
-        return UserIdService.openDefaultOrg();
+        try {
+            OrgUtils.logDebug('[VisbalExt.OrgUtils] openDefaultOrg -- Opening default org');
+            await execAsync('sf org open');
+            OrgUtils.logDebug('[VisbalExt.OrgUtils] openDefaultOrg -- Successfully opened default org');
+        } catch (error: any) {
+            OrgUtils.logError('[VisbalExt.OrgUtils] openDefaultOrg -- Error opening default org:', error as Error);
+            throw new Error(`Failed to open default org: ${error.message}`);
+        }
     }
 
     public static async openSelectedOrg(): Promise<void> {
-        return UserIdService.openSelectedOrg();
+        try {
+            OrgUtils.logDebug('[VisbalExt.OrgUtils] openSelectedOrg -- Opening selected org');
+            const selectedOrg = await this.getSelectedOrg();
+            OrgUtils.logDebug('[VisbalExt.OrgUtils] openSelectedOrg -- Retrieved selectedOrg:', selectedOrg);
+            await execAsync(`sf org open --target-org ${selectedOrg?.alias}`);
+            OrgUtils.logDebug('[VisbalExt.OrgUtils] openSelectedOrg -- Successfully opened selected org');
+        } catch (error: any) {
+            OrgUtils.logError('[VisbalExt.OrgUtils] openSelectedOrg -- Error opening selected org:', error as Error);
+            throw new Error(`Failed to open selected org: ${error.message}`);
+        }
     }
 
+
     public static async openOrg(alias: string): Promise<void> {
-        return UserIdService.openOrg(alias);
+        try {
+            OrgUtils.logDebug(`[VisbalExt.OrgUtils] openOrg -- alias: ${alias}`);
+            await execAsync(`sf org open --target-org ${alias}`);
+            OrgUtils.logDebug(`[VisbalExt.OrgUtils] openOrg -- Successfully opened alias: ${alias}`);
+        } catch (error: any) {
+            OrgUtils.logError('[VisbalExt.OrgUtils] openOrg -- Error opening selected org:', error as Error);
+            throw new Error(`Failed to open  alias: ${alias}: ${error.message}`);
+        }
     }
     
-    // ============================================================================
-    // LOG MANAGEMENT
-    // ============================================================================
+    /**
+     * Execute a CLI command
+     * @param command Command to execute
+     * @returns Promise<string> Command output
+     */
+    private static async _executeCommand(command: string): Promise<string> {
+        try {
+            const { stdout } = await execAsync(command);
+            return stdout;
+        } catch (error: any) {
+            throw new Error(`Command execution failed: ${error.message}`);
+        }
+    }
 
     public static parseResultJson(content: string): { isJson: boolean; hasError: boolean; content: null, rawContent: string } {
         const result = {
@@ -878,10 +1192,6 @@ export class OrgUtils {
     }
 
 
-    // ============================================================================
-    // DEBUG & TRACE MANAGEMENT
-    // ============================================================================
-
     public static async getExistingDebugTraceFlag(userId: string, currentOrgAlias?: string): Promise<{ existingTraceFlag: TraceFlag | null, existingDebugLevelId: string | null }> {
         let result = {
             existingTraceFlag: null as TraceFlag | null,
@@ -970,10 +1280,6 @@ export class OrgUtils {
     }
 
 
-    // ============================================================================
-    // SERVICE GETTERS
-    // ============================================================================
-
     private static get sfdxService(): SfdxService {
         if (!this._sfdxService) {
             throw new Error('SfdxService not initialized in OrgUtils');
@@ -987,21 +1293,6 @@ export class OrgUtils {
         }
         return this._cacheService;
     }
-
-    private static get userIdCacheService(): UserIdCacheService {
-        if (!this._userIdCacheService) {
-            if (!this._context) {
-                throw new Error('OrgUtils not initialized with a context');
-            }
-            const cachePath = OrgUtils.getCachePath();
-            this._userIdCacheService = new UserIdCacheService(cachePath);
-        }
-        return this._userIdCacheService;
-    }
-
-    // ============================================================================
-    // LOGGING & ERROR HANDLING
-    // ============================================================================
 
     public static logError(message: string, error: any): void {
         const config = vscode.workspace.getConfiguration('visbal.logging');
@@ -1141,10 +1432,6 @@ export class OrgUtils {
     }
 
 
-    // ============================================================================
-    // TEST MANAGEMENT
-    // ============================================================================
-
     public static async openTestFile(className: string, methodName: string): Promise<void> {
         if (!vscode.workspace.workspaceFolders) {
             throw new Error('No workspace folder found');
@@ -1188,32 +1475,450 @@ export class OrgUtils {
         OrgUtils.logDebug(`[VisbalExt.OrgUtils] selectTestMethod -- Updated configuration for ${key}`);
     }
 
-    // ============================================================================
-    // FILE NAVIGATION & SYMBOL SEARCH (Delegated to SymbolNavigationService)
-    // ============================================================================
+    /**
+     * Symbol types that can be navigated to
+     */
+    private static readonly SymbolType = {
+        METHOD: 'method',
+        PROPERTY: 'property',
+        CLASS: 'class',
+        VARIABLE: 'variable',
+        CSS_CLASS: 'css-class',
+        CSS_ID: 'css-id',
+        FUNCTION: 'function'
+    } as const;
+
+    /**
+     * File type mappings - what file types to search for each source file type
+     */
+    private static readonly FILE_TYPE_MAPPINGS = {
+        'cls': ['cls'],
+        'html': ['js', 'css', 'html'],
+        'htm': ['js', 'css', 'html'],
+        'js': ['js', 'css'],
+        'css': ['css'],
+        'scss': ['scss', 'css'],
+        'less': ['less', 'css'],
+        'ts': ['ts', 'js'],
+        'jsx': ['jsx', 'js'],
+        'tsx': ['tsx', 'ts', 'js']
+    };
+
+    /**
+     * Extracts the symbol and its type from the current cursor position
+     */
+    private static extractSymbolFromCursor(document: vscode.TextDocument, position: vscode.Position): {symbol: string, type: string, isThisReference: boolean, className?: string} | null {
+        const wordRange = document.getWordRangeAtPosition(position);
+        if (!wordRange) {
+            return null;
+        }
+        
+        const word = document.getText(wordRange);
+        const line = document.lineAt(position.line).text;
+        const fileExtension = document.fileName.split('.').pop()?.toLowerCase();
+        
+        // Check if this is a "this." reference
+        const wordStart = wordRange.start.character;
+        const beforeWord = line.substring(0, wordStart);
+        const isThisReference = /\bthis\.\s*$/.test(beforeWord);
+        
+        // Check if this is a class-prefixed method call (e.g., ClassName.methodName)
+        let className: string | undefined;
+        const classPrefixMatch = beforeWord.match(/\b([A-Z][a-zA-Z0-9_]*)\.\s*$/);
+        if (classPrefixMatch) {
+            className = classPrefixMatch[1];
+            OrgUtils.logDebug(`[VisbalExt.OrgUtils] extractSymbolFromCursor -- Detected class-prefixed call: ${className}.${word}`);
+        }
+        
+        // Check for instantiated class variable (e.g., `MyClass var = new MyClass(); var.property`)
+        // This needs to happen after classPrefixMatch to prioritize explicit class prefixes
+        if (!className) {
+            const instantiatedClassName = OrgUtils.extractInstantiatedClassName(line, word, wordRange);
+            if (instantiatedClassName) {
+                className = instantiatedClassName;
+                OrgUtils.logDebug(`[VisbalExt.OrgUtils] extractSymbolFromCursor -- Detected instantiated class variable: ${className}.${word}`);
+            }
+        }
+        
+        // Determine symbol type based on context and file type
+        const symbolInfo = this.determineSymbolType(word, line, wordRange, fileExtension || '');
+        
+        if (symbolInfo) {
+            return { ...symbolInfo, isThisReference, className };
+        }
+        
+        return null;
+    }
+
+    /**
+     * Determines the type of symbol based on context
+     */
+    private static determineSymbolType(word: string, line: string, wordRange: vscode.Range, fileExtension: string): {symbol: string, type: string} | null {
+        const wordEnd = wordRange.end.character;
+        const afterWord = line.substring(wordEnd).trim();
+        
+        switch (fileExtension) {
+            case 'cls':
+            case 'apex':
+                // Apex/Salesforce class file
+                if (afterWord.startsWith('(') || new RegExp(`\\b${word}\\s*\\(`).test(line)) {
+                    return { symbol: word, type: this.SymbolType.METHOD };
+                }
+                if (line.includes('class ') && line.includes(word)) {
+                    return { symbol: word, type: this.SymbolType.CLASS };
+                }
+                return { symbol: word, type: this.SymbolType.PROPERTY };
+                
+            case 'html':
+            case 'htm':
+                // HTML file - check for class, id, or function references
+                if (line.includes(`class=`) && line.includes(word)) {
+                    return { symbol: word, type: this.SymbolType.CSS_CLASS };
+                }
+                if (line.includes(`id=`) && line.includes(word)) {
+                    return { symbol: word, type: this.SymbolType.CSS_ID };
+                }
+                if (afterWord.startsWith('(') || new RegExp(`\\b${word}\\s*\\(`).test(line)) {
+                    return { symbol: word, type: this.SymbolType.FUNCTION };
+                }
+                return { symbol: word, type: this.SymbolType.VARIABLE };
+                
+            case 'js':
+            case 'ts':
+            case 'jsx':
+            case 'tsx':
+                // JavaScript/TypeScript file
+                if (afterWord.startsWith('(') || new RegExp(`\\b${word}\\s*\\(`).test(line)) {
+                    return { symbol: word, type: this.SymbolType.FUNCTION };
+                }
+                if (line.includes('class ') && line.includes(word)) {
+                    return { symbol: word, type: this.SymbolType.CLASS };
+                }
+                return { symbol: word, type: this.SymbolType.VARIABLE };
+                
+            case 'css':
+            case 'scss':
+            case 'less':
+                // CSS file
+                if (line.trim().startsWith('.') && line.includes(word)) {
+                    return { symbol: word, type: this.SymbolType.CSS_CLASS };
+                }
+                if (line.trim().startsWith('#') && line.includes(word)) {
+                    return { symbol: word, type: this.SymbolType.CSS_ID };
+                }
+                return { symbol: word, type: this.SymbolType.VARIABLE };
+                
+            default:
+                // Generic fallback
+                if (afterWord.startsWith('(') || new RegExp(`\\b${word}\\s*\\(`).test(line)) {
+                    return { symbol: word, type: this.SymbolType.FUNCTION };
+                }
+                return { symbol: word, type: this.SymbolType.VARIABLE };
+        }
+    }
+
+    /**
+     * Gets file extensions to search based on source file extension
+     */
+    private static getTargetFileExtensions(sourceExtension: string): string[] {
+        return this.FILE_TYPE_MAPPINGS[sourceExtension as keyof typeof this.FILE_TYPE_MAPPINGS] || [sourceExtension];
+    }
+
+    /**
+     * Creates search patterns for different symbol types
+     */
+    private static createSearchPatterns(symbol: string, symbolType: string): RegExp[] {
+        const patterns: RegExp[] = [];
+        
+        switch (symbolType) {
+            case this.SymbolType.METHOD:
+                // Apex method definition - prioritize proper method signatures
+                // Pattern 1: Method with access modifier and return type
+                patterns.push(new RegExp(
+                    `^\\s*(public|private|protected|global)\\s+(static\\s+)?(override\\s+)?[\\w<>\\[\\]_]+\\s+${symbol}\\s*\\(`,
+                    'im'
+                ));
+                // Pattern 2: Method with just access modifier (for void methods)
+                patterns.push(new RegExp(
+                    `^\\s*(public|private|protected|global)\\s+(static\\s+)?(override\\s+)?${symbol}\\s*\\(`,
+                    'im'
+                ));
+                // Pattern 3: Fallback - any method-like pattern
+                patterns.push(new RegExp(
+                    `\\s*[\\w<>\\[\\]_]+\\s+${symbol}\\s*\\(`,
+                    'i'
+                ));
+                break;
+                
+            case this.SymbolType.FUNCTION:
+                // JavaScript/TypeScript function definitions - prioritize actual definitions
+                // Pattern 1: Function declaration
+                patterns.push(new RegExp(`^\\s*function\\s+${symbol}\\s*\\(`, 'im'));
+                // Pattern 2: Method definition in class/object
+                patterns.push(new RegExp(`^\\s*${symbol}\\s*\\([^)]*\\)\\s*{`, 'im'));
+                // Pattern 3: Arrow function assignment
+                patterns.push(new RegExp(`^\\s*(const|let|var)\\s+${symbol}\\s*=\\s*\\([^)]*\\)\\s*=>`, 'im'));
+                // Pattern 4: Function assignment
+                patterns.push(new RegExp(`^\\s*(const|let|var)\\s+${symbol}\\s*=\\s*function`, 'im'));
+                // Pattern 5: Object method
+                patterns.push(new RegExp(`${symbol}\\s*:\\s*function\\s*\\(`, 'i'));
+                // Pattern 6: Fallback - any assignment
+                patterns.push(new RegExp(`${symbol}\\s*[:=]\\s*function`, 'i'));
+                patterns.push(new RegExp(`${symbol}\\s*[:=]\\s*\\(.*\\)\\s*=>`, 'i'));
+                break;
+                
+            case this.SymbolType.CLASS:
+                // Class definitions - prioritize actual class declarations
+                patterns.push(new RegExp(`^\\s*(public\\s+|private\\s+|protected\\s+|global\\s+)?(abstract\\s+)?class\\s+${symbol}\\b`, 'im'));
+                patterns.push(new RegExp(`^\\s*(public\\s+|private\\s+|protected\\s+|export\\s+)?(abstract\\s+)?interface\\s+${symbol}\\b`, 'im'));
+                patterns.push(new RegExp(`class\\s+${symbol}\\b`, 'i'));
+                patterns.push(new RegExp(`interface\\s+${symbol}\\b`, 'i'));
+                break;
+                
+            case this.SymbolType.CSS_CLASS:
+                // CSS class definitions - prioritize CSS rule definitions
+                patterns.push(new RegExp(`^\\.${symbol}\\b[^{]*{`, 'im'));
+                patterns.push(new RegExp(`\\.${symbol}\\b`, 'i'));
+                break;
+                
+            case this.SymbolType.CSS_ID:
+                // CSS ID definitions - prioritize CSS rule definitions
+                patterns.push(new RegExp(`^#${symbol}\\b[^{]*{`, 'im'));
+                patterns.push(new RegExp(`#${symbol}\\b`, 'i'));
+                break;
+                
+            case this.SymbolType.PROPERTY:
+            case this.SymbolType.VARIABLE:
+                // Property/variable definitions - prioritize actual declarations
+                // Pattern 1: Apex property/field with access modifier
+                patterns.push(new RegExp(`^\\s*(public|private|protected|global)\\s+(static\\s+)?[\\w<>\\[\\]]+\\s+${symbol}\\b`, 'im'));
+                // Pattern 2: JavaScript/TypeScript variable declarations
+                patterns.push(new RegExp(`^\\s*(const|let|var)\\s+${symbol}\\b`, 'im'));
+                // Pattern 3: Property assignment
+                patterns.push(new RegExp(`^\\s*${symbol}\\s*[:=]`, 'im'));
+                // Pattern 4: Fallback patterns
+                patterns.push(new RegExp(`\\b${symbol}\\s*[:=]`, 'i'));
+                break;
+        }
+        
+        return patterns;
+    }
+
+    /**
+     * Searches for a symbol definition in the current file first
+     */
+    private static searchInCurrentFile(document: vscode.TextDocument, symbol: string, symbolType: string): {filePath: vscode.Uri, position: vscode.Position} | null {
+        const text = document.getText();
+        const searchPatterns = this.createSearchPatterns(symbol, symbolType);
+        
+        for (const searchPattern of searchPatterns) {
+            searchPattern.lastIndex = 0;
+            const match = searchPattern.exec(text);
+            if (match) {
+                const position = document.positionAt(match.index);
+                OrgUtils.logDebug(`[VisbalExt.OrgUtils] searchInCurrentFile -- Found ${symbol} in current file using pattern: ${searchPattern.source} at line ${position.line + 1}`);
+                return { filePath: document.uri, position };
+            }
+        }
+        
+        return null;
+    }
+
+    /**
+     * Searches for a symbol definition in a specific class file
+     */
+    private static async searchInSpecificClass(className: string, symbol: string, symbolType: string): Promise<{filePath: vscode.Uri, position: vscode.Position} | null> {
+        if (!vscode.workspace.workspaceFolders) {
+            return null;
+        }
+
+        const workspaceFolder = vscode.workspace.workspaceFolders[0];
+        
+        try {
+            // Try to find the specific class file
+            const classPattern = new vscode.RelativePattern(workspaceFolder, `**/${className}.cls`);
+            const classFiles = await vscode.workspace.findFiles(classPattern);
+            
+            if (classFiles.length === 0) {
+                OrgUtils.logDebug(`[VisbalExt.OrgUtils] Class file ${className}.cls not found`);
+                return null;
+            }
+
+            // Search in the first matching class file
+            const classFile = classFiles[0];
+            try {
+                const document = await vscode.workspace.openTextDocument(classFile);
+                const text = document.getText();
+                const searchPatterns = this.createSearchPatterns(symbol, symbolType);
+                
+                for (const searchPattern of searchPatterns) {
+                    searchPattern.lastIndex = 0;
+                    const match = searchPattern.exec(text);
+                    if (match) {
+                        const position = document.positionAt(match.index);
+                        OrgUtils.logDebug(`[VisbalExt.OrgUtils] Found ${symbol} in ${className}.cls using pattern: ${searchPattern.source} at line ${position.line + 1}`);
+                        return { filePath: classFile, position };
+                    }
+                }
+                
+                OrgUtils.logDebug(`[VisbalExt.OrgUtils] searchInSpecificClass -- Symbol ${symbol} not found in ${className}.cls`);
+            } catch (error) {
+                OrgUtils.logError(`[VisbalExt.OrgUtils] searchInSpecificClass -- Could not read class file: ${classFile.fsPath}`, error as Error);
+            }
+        } catch (error) {
+            OrgUtils.logError(`[VisbalExt.OrgUtils] searchInSpecificClass -- Error searching in specific class ${className}:`, error as Error);
+        }
+        
+        return null;
+    }
+
+    /**
+     * Searches for a symbol definition across appropriate file types in the workspace
+     */
+    private static async findSymbolDefinition(symbol: string, symbolType: string, sourceFileExtension: string, currentDocument?: vscode.TextDocument, isThisReference: boolean = false, className?: string): Promise<{filePath: vscode.Uri, position: vscode.Position} | null> {
+        
+        // For class-prefixed calls (e.g., ClassName.methodName), search the specific class first
+        if (className && sourceFileExtension === 'cls') {
+            OrgUtils.logDebug(`[VisbalExt.OrgUtils] findSymbolDefinition -- Searching for '${className}.${symbol}' in ${className}.cls first`);
+            const classResult = await this.searchInSpecificClass(className, symbol, symbolType);
+            if (classResult) {
+                return classResult;
+            }
+            OrgUtils.logDebug(`[VisbalExt.OrgUtils] findSymbolDefinition -- '${className}.${symbol}' not found in ${className}.cls, expanding search`);
+        }
+        
+        // For "this." references, search current file first
+        if (isThisReference && currentDocument) {
+            OrgUtils.logDebug(`[VisbalExt.OrgUtils] findSymbolDefinition -- Searching for 'this.${symbol}' in current file first`);
+            const currentFileResult = this.searchInCurrentFile(currentDocument, symbol, symbolType);
+            if (currentFileResult) {
+                return currentFileResult;
+            }
+            OrgUtils.logDebug(`[VisbalExt.OrgUtils] findSymbolDefinition -- 'this.${symbol}' not found in current file, expanding search`);
+        }
+
+        if (!vscode.workspace.workspaceFolders) {
+            return null;
+        }
+
+        const workspaceFolder = vscode.workspace.workspaceFolders[0];
+        const targetExtensions = this.getTargetFileExtensions(sourceFileExtension);
+        const searchPatterns = this.createSearchPatterns(symbol, symbolType);
+        
+        if (searchPatterns.length === 0) {
+            return null;
+        }
+        
+        try {
+            // Search each target file type
+            for (const extension of targetExtensions) {
+                const pattern = new vscode.RelativePattern(workspaceFolder, `**/*.${extension}`);
+                const files = await vscode.workspace.findFiles(pattern);
+                
+                for (const file of files) {
+                    // Skip current file if we already searched it for "this." references
+                    if (isThisReference && currentDocument && file.fsPath === currentDocument.uri.fsPath) {
+                        continue;
+                    }
+                    
+                    // Skip the specific class file if we already searched it for class-prefixed calls
+                    if (className && file.fsPath.includes(`${className}.cls`)) {
+                        continue;
+                    }
+                    
+                    try {
+                        const document = await vscode.workspace.openTextDocument(file);
+                        const text = document.getText();
+                        
+                        // Try each search pattern in priority order
+                        for (const searchPattern of searchPatterns) {
+                            // Reset regex lastIndex to ensure proper matching
+                            searchPattern.lastIndex = 0;
+                            const match = searchPattern.exec(text);
+                            if (match) {
+                                const position = document.positionAt(match.index);
+                                OrgUtils.logDebug(`[VisbalExt.OrgUtils] findSymbolDefinition -- Found ${symbol} using pattern: ${searchPattern.source} at line ${position.line + 1}`);
+                                return { filePath: file, position };
+                            }
+                        }
+                    } catch (error) {
+                        // Skip files that can't be opened
+                        OrgUtils.logDebug(`[VisbalExt.OrgUtils] findSymbolDefinition -- Could not read file: ${file.fsPath}`, error);
+                        continue;
+                    }
+                }
+            }
+        } catch (error) {
+            OrgUtils.logError('[VisbalExt.OrgUtils] Error searching for symbol definition:', error as Error);
+        }
+        
+        return null;
+    }
 
     /**
      * Navigates to the symbol definition based on the current cursor position
      */
     public static async navigateToSelectedDefinition(): Promise<void> {
-        return SymbolNavigationService.navigateToSelectedDefinition();
-    }
+        const editor = vscode.window.activeTextEditor;
+        if (!editor) {
+            throw new Error('No active editor found');
+        }
 
-    // ============================================================================
-    // UTILITY METHODS
-    // ============================================================================
+        const sourceFileExtension = editor.document.fileName.split('.').pop()?.toLowerCase() || '';
 
-    /**
-     * Execute a CLI command
-     * @param command Command to execute
-     * @returns Promise<string> Command output
-     */
-    private static async _executeCommand(command: string): Promise<string> {
+        // Extract symbol and type from cursor position
+        const symbolInfo = this.extractSymbolFromCursor(editor.document, editor.selection.active);
+        if (!symbolInfo) {
+            throw new Error('No symbol found at cursor position. Please place cursor on a method, property, class, or other symbol.');
+        }
+
+        const { symbol, type, isThisReference, className } = symbolInfo;
+        const searchContext = className ? `${className}.${symbol}` : isThisReference ? `this.${symbol}` : symbol;
+        OrgUtils.logDebug(`[VisbalExt.OrgUtils] navigateToSelectedDefinition -- Searching for ${type} definition: ${searchContext}`);
+        
+        // Search for symbol definition
+        const symbolLocation = await this.findSymbolDefinition(symbol, type, sourceFileExtension, editor.document, isThisReference, className);
+        if (!symbolLocation) {
+            let searchScope = 'workspace files';
+            if (className) {
+                searchScope = `${className}.cls and workspace files`;
+            } else if (isThisReference) {
+                searchScope = 'current file and workspace';
+            }
+            throw new Error(`${type} definition for '${searchContext}' not found in ${searchScope}`);
+        }
+
         try {
-            const { stdout } = await execAsync(command);
-            return stdout;
+            // Open the document containing the symbol
+            const document = await vscode.workspace.openTextDocument(symbolLocation.filePath);
+            const newEditor = await vscode.window.showTextDocument(document);
+            
+            // Navigate to the symbol position
+            newEditor.revealRange(
+                new vscode.Range(symbolLocation.position, symbolLocation.position), 
+                vscode.TextEditorRevealType.InCenter
+            );
+            
+            // Set the cursor at the symbol
+            newEditor.selection = new vscode.Selection(symbolLocation.position, symbolLocation.position);
+            
+            const fileName = symbolLocation.filePath.fsPath.split(/[/\\]/).pop();
+            const location = symbolLocation.filePath.fsPath === editor.document.uri.fsPath ? 'same file' : fileName;
+            
+            // Show more specific success message for class-prefixed calls
+            let successMessage: string;
+            if (className) {
+                successMessage = `Navigated to ${type} '${symbol}' in ${fileName}`;
+            } else {
+                successMessage = `Navigated to ${type} '${searchContext}' in ${location}`;
+            }
+            
+            OrgUtils.logDebug(`[VisbalExt.OrgUtils] navigateToSelectedDefinition -- Successfully navigated to ${type} '${searchContext}' in ${location}`);
+            vscode.window.showInformationMessage(successMessage);
+            
         } catch (error: any) {
-            throw new Error(`Command execution failed: ${error.message}`);
+            OrgUtils.logError(`[VisbalExt.OrgUtils] Error opening symbol definition file:`, error);
+            throw new Error(`Could not open file containing ${type} '${searchContext}': ${error.message}`);
         }
     }
 
@@ -1223,10 +1928,6 @@ export class OrgUtils {
         // Only show output channel when explicitly requested, not by default
         outputChannel.show(true);
     }
-
-    // ============================================================================
-    // WEBVIEW SUPPORT METHODS
-    // ============================================================================
 
     /**
      * Shared method to load org list and post to a webview
@@ -1394,5 +2095,53 @@ export class OrgUtils {
         return null;
     }
 
+    private static get userIdCacheService(): UserIdCacheService {
+        if (!this._userIdCacheService) {
+            if (!this._context) {
+                throw new Error('OrgUtils not initialized with a context');
+            }
+            const cachePath = OrgUtils.getCachePath();
+            this._userIdCacheService = new UserIdCacheService(cachePath);
+        }
+        return this._userIdCacheService;
+    }
+
+    private static extractInstantiatedClassName(line: string, word: string, wordRange: vscode.Range): string | undefined {
+        // Example: MyClass myVar = new MyClass();
+        // Example: AnotherClass.staticMethod();
+        // Look for patterns like "ClassName variableName = new InstantiatedClass();" or "InstantiatedClass.staticProperty"
+        // This is a simplified regex and might need refinement for all Apex scenarios.
+
+        // Pattern for variable declaration with instantiation: `ClassName variableName = new InstantiatedClass();`
+        const instantiationRegex = new RegExp(`(?:[A-Za-z0-9_]+)\\s+${word}\\s*=\\s*new\\s+([A-Za-z0-9_]+)\\s*\\(`, 'i');
+        let match = instantiationRegex.exec(line);
+        if (match && match[1]) {
+            return match[1]; // Returns 'InstantiatedClass'
+        }
+
+        // Pattern for static method or property access: `ClassName.staticProperty` or `ClassName.staticMethod()`
+        const staticAccessRegex = new RegExp(`([A-Za-z0-9_]+)\\.${word}(?:\\s*\\()?`, 'i'); // Fixed regex
+        match = staticAccessRegex.exec(line);
+        if (match && match[1]) { // Removed !match[2] as the group is now non-capturing
+            // Check if the matched class name is not the word itself
+            if (match[1] !== word) {
+                return match[1]; // Returns 'ClassName'
+            }
+        }
+        
+        // Pattern for variable declaration: `ClassName variableName = ...;` or `ClassName variableName;`
+        // This should capture the declared type when the cursor is on the variableName
+        const declarationRegex = new RegExp(`^\\s*([A-Za-z0-9_]+)\s+${word}\b`, 'i');
+        match = declarationRegex.exec(line);
+        if (match && match[1]) {
+            // Ensure the extracted type is not a keyword or primitive type
+            const possibleType = match[1];
+            if (!/^(public|private|protected|global|static|void|string|integer|boolean|long|double|decimal|date|datetime|id|object|list|set|map)$/i.test(possibleType)) {
+                return possibleType;
+            }
+        }
+        
+        return undefined;
+    }
 
 } 
