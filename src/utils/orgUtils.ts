@@ -483,12 +483,12 @@ export class OrgUtils {
                 // Try to get the default org from project config first, then global config
                 try {
                     OrgUtils.logDebug(`[VisbalExt.OrgUtils] getCurrentOrgAlias -- Trying project config first...`);
-                    alias = this.getDefaultTargetOrgFromConfig(true); // preferProject = true
+                    alias = OrgUtils.getDefaultTargetOrgFromConfig(true); // preferProject = true
                     if (alias) {
                         OrgUtils.logDebug(`[VisbalExt.OrgUtils] getCurrentOrgAlias -- Got from project config: ${alias}`);
                     } else {
                         OrgUtils.logDebug(`[VisbalExt.OrgUtils] getCurrentOrgAlias -- No project config, trying global...`);
-                        alias = this.getDefaultTargetOrgFromConfig(false); // preferProject = false
+                        alias = OrgUtils.getDefaultTargetOrgFromConfig(false); // preferProject = false
                         if (alias) {
                             OrgUtils.logDebug(`[VisbalExt.OrgUtils] getCurrentOrgAlias -- Got from global config: ${alias}`);
                         }
@@ -500,7 +500,7 @@ export class OrgUtils {
                 // If not found, use the CLI as fallback via sfdxService
                 if (!alias) {
                     OrgUtils.logDebug(`[VisbalExt.OrgUtils] getCurrentOrgAlias -- No config found, falling back to SFDX CLI...`);
-                    alias = await this.sfdxService.getCurrentOrgAlias();
+                    alias = await OrgUtils.sfdxService.getCurrentOrgAlias();
                 }
 
                 this._orgAliasCache = {
