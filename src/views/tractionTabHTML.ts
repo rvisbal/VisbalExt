@@ -408,15 +408,16 @@ export function getTractionHtml(): string {
                     case 'setSelectedOrg':
                         selectedOrg = message.alias;
                         orgSelector.value = selectedOrg;
+                        orgSelector.setAttribute('data-last-selection', selectedOrg);
                         updateStatus(\`Selected org: \${selectedOrg}\`, 'success');
                         break;
                 }
             });
             
             // Update org list UI with the same logic as other tabs
-            function updateOrgListUI(orgs, fromCache = false, selectedOrg = null) {
+            function updateOrgListUI(orgs, fromCache = false, backendSelectedOrg = null) {
                 console.log('[VisbalExt.TractionTab] updateOrgListUI -- Updating org list UI with data:', orgs);
-                console.log('[VisbalExt.TractionTab] updateOrgListUI -- Selected org:', selectedOrg);
+                console.log('[VisbalExt.TractionTab] updateOrgListUI -- Backend selected org:', backendSelectedOrg);
                 
                 // Clear existing options
                 orgSelector.innerHTML = '';
@@ -454,8 +455,8 @@ export function getTractionHtml(): string {
                                     defaultOrg = org.alias; // Remember the first default org we find
                                 }
                             }
-                            // Select the option if it matches the selected org
-                            option.selected = selectedOrg && org.alias === selectedOrg;
+                            // Select the option if it matches the backend selected org
+                            option.selected = backendSelectedOrg && org.alias === backendSelectedOrg;
                             optgroup.appendChild(option);
                         });
                         
@@ -477,12 +478,19 @@ export function getTractionHtml(): string {
                     option.value = '';
                     option.textContent = 'No orgs found';
                     orgSelector.appendChild(option);
+                    selectedOrg = ''; // Clear global selectedOrg
                     updateStatus('No orgs found', 'error');
                 } else {
-                    if (!selectedOrg && defaultOrg) {
+                    if (backendSelectedOrg) {
+                        // Use the backend-provided selected org
+                        orgSelector.value = backendSelectedOrg;
+                        selectedOrg = backendSelectedOrg; // Update global selectedOrg variable
+                        console.log('[VisbalExt.TractionTab] Set selected org from backend:', backendSelectedOrg);
+                        updateStatus('Selected org: ' + backendSelectedOrg, 'success');
+                    } else if (!selectedOrg && defaultOrg) {
                         // Auto-select the default org if no org is currently selected
                         orgSelector.value = defaultOrg;
-                        selectedOrg = defaultOrg; // Update for the traction tab's selectedOrg variable
+                        selectedOrg = defaultOrg; // Update global selectedOrg variable
                         console.log('[VisbalExt.TractionTab] Auto-selected default org:', defaultOrg);
                         
                         // Notify the backend about the auto-selection
