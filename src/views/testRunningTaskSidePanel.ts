@@ -350,6 +350,55 @@ export class TestRunningTaskProvider implements vscode.TreeDataProvider<TestItem
         this._onDidChangeTreeData.fire();
     }
 
+    /**
+     * Selectively reset status of specific test methods to 'pending' while preserving others
+     * @param testsToReset Array of {className, methodName} objects to reset
+     */
+    resetSelectedTests(testsToReset: { className: string, methodName: string }[]) {
+        OrgUtils.logDebug(`[VisbalExt.TestRunningTaskProvider] resetSelectedTests -- Resetting ${testsToReset.length} specific tests`);
+        
+        for (const { className, methodName } of testsToReset) {
+            const classItem = this.testRuns.get(className);
+            if (classItem) {
+                const methodItem = classItem.children.find(child => child.label === methodName);
+                if (methodItem) {
+                    methodItem.updateStatus('pending');
+                    // Clear any previous log ID and error
+                    methodItem.logId = undefined;
+                    methodItem.error = undefined;
+                    OrgUtils.logDebug(`[VisbalExt.TestRunningTaskProvider] resetSelectedTests -- Reset ${className}.${methodName} to pending`);
+                }
+            }
+        }
+        
+        this._onDidChangeTreeData.fire();
+    }
+
+    /**
+     * Reset status of all methods in specific classes to 'pending' while preserving other classes
+     * @param classesToReset Array of class names to reset all methods for
+     */
+    resetSelectedClasses(classesToReset: string[]) {
+        OrgUtils.logDebug(`[VisbalExt.TestRunningTaskProvider] resetSelectedClasses -- Resetting ${classesToReset.length} classes`);
+        
+        for (const className of classesToReset) {
+            const classItem = this.testRuns.get(className);
+            if (classItem) {
+                // Reset all methods in this class
+                classItem.children.forEach(methodItem => {
+                    methodItem.updateStatus('pending');
+                    methodItem.logId = undefined;
+                    methodItem.error = undefined;
+                });
+                // Reset class status too
+                classItem.updateStatus('pending');
+                OrgUtils.logDebug(`[VisbalExt.TestRunningTaskProvider] resetSelectedClasses -- Reset class ${className} and all its methods`);
+            }
+        }
+        
+        this._onDidChangeTreeData.fire();
+    }
+
     public getTestRuns(): Map<string, TestItem> {
         return this.testRuns;
     }
@@ -395,6 +444,22 @@ export class TestRunningTaskView {
     public clearResults() {
         // Clear the tree data provider which will automatically update the view
         this.provider.clear();
+    }
+
+    /**
+     * Selectively reset status of specific test methods to 'pending' while preserving others
+     * @param testsToReset Array of {className, methodName} objects to reset
+     */
+    public resetSelectedTests(testsToReset: { className: string, methodName: string }[]) {
+        this.provider.resetSelectedTests(testsToReset);
+    }
+
+    /**
+     * Reset status of all methods in specific classes to 'pending' while preserving other classes
+     * @param classesToReset Array of class names to reset all methods for
+     */
+    public resetSelectedClasses(classesToReset: string[]) {
+        this.provider.resetSelectedClasses(classesToReset);
     }
 
     // Update rerunAllTests method

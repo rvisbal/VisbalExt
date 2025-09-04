@@ -1628,6 +1628,14 @@ if (!items.isEmpty()) {
      */
     public async executeSoqlQuery(query: string, useDefaultOrg: boolean = false, useToolingApi: boolean = false, targetOrgAlias?: string): Promise<any[]> {
         try {
+            // Force tooling API for metadata objects that require it
+            const requiresToolingApi = query.includes('TraceFlag') || query.includes('DebugLevel') || query.includes('ApexLog') || 
+                                     query.includes('ApexClass') || query.includes('ApexTrigger') || query.includes('CustomObject');
+            if (requiresToolingApi && !useToolingApi) {
+                useToolingApi = true;
+                OrgUtils.logDebug(`[VisbalExt.SfdxService] executeSoqlQuery -- Auto-enabling Tooling API for metadata object query`);
+            }
+            
             OrgUtils.logDebug(`[VisbalExt.SfdxService] executeSoqlQuery -- Executing SOQL query: ${query} -- useDefaultOrg: ${useDefaultOrg} -- useToolingApi: ${useToolingApi} -- targetOrgAlias: ${targetOrgAlias}`);
             
             // Execute the query using the Salesforce CLI
@@ -1666,8 +1674,10 @@ if (!items.isEmpty()) {
             }
             if (useToolingApi) {
                 command += ' --use-tooling-api';
+                OrgUtils.logDebug(`[VisbalExt.SfdxService] executeSoqlQuery -- Added --use-tooling-api flag`);
             }
             command += ' --json';
+            OrgUtils.logDebug(`[VisbalExt.SfdxService] executeSoqlQuery -- Final command: ${command}`);
             const resultStr = await this._executeCommand(command);
             const result = JSON.parse(resultStr.stdout);
             
@@ -1695,6 +1705,12 @@ if (!items.isEmpty()) {
                 throw new Error(errorMessage);
             }
         } catch (error: any) {
+            // If we get a "sObject type not supported" error and weren't using tooling API, retry with tooling API
+            if (error.message && error.message.includes("sObject type") && error.message.includes("not supported") && !useToolingApi) {
+                OrgUtils.logDebug('[VisbalExt.SfdxService] executeSoqlQuery -- Retrying with Tooling API due to metadata object error');
+                return this.executeSoqlQuery(query, useDefaultOrg, true, targetOrgAlias);
+            }
+            
             OrgUtils.logError('[VisbalExt.SfdxService] Error executing SOQL query:', error);
             
             // Format error message for better readability

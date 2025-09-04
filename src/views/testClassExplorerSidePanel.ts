@@ -667,8 +667,6 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
             }
             
             // Clear previous test runs from the results view
-            this._testRunResultsView.clearResults();
-            
             // Get test methods if not provided
             let methodsToRun: string[] = [];
             if (testMethod) {
@@ -679,7 +677,10 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                 methodsToRun = methods.map(m => m.name);
             }
 
-            // Add test run to results view
+            // Clear all running tasks and only show the selected test
+            this._testRunResultsView.clearResults();
+
+            // Add test run to results view (this will create the items if they don't exist)
             OrgUtils.logDebug('[VisbalExt.TestClassExplorerSidePanel] _runTest -- Adding test run to results view', testClass, methodsToRun);
             this._testRunResultsView.addTestRun(testClass, methodsToRun);
 
@@ -896,8 +897,8 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
             this._isRunning = true;
             this._abortController = new AbortController();
            
-            OrgUtils.logDebug('[VisbalExt.TestClassExplorerSidePanel] _runSelectedTests -- Clear previous test runs from the results view');
-            // Clear previous test runs from the results view
+            OrgUtils.logDebug('[VisbalExt.TestClassExplorerSidePanel] _runSelectedTests -- Clear all running tasks and only show the selected tests');
+            // Clear all running tasks and only show the selected tests
             this._testRunResultsView.clearResults();
             this._testSummaryView.clearView();
             
@@ -2485,7 +2486,7 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
             this._isRunning = true;
             this._abortController = new AbortController();
 
-            // Clear previous test runs from the results view
+            // Clear ALL previous test runs since we're running all tests
             this._testRunResultsView.clearResults();
             this._testSummaryView.clearView();
 
@@ -2508,7 +2509,7 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
             for (const testClass of testClasses) {
                 if (testClass.methods.length > 0) {
                     this._testRunResultsView.addTestRun(testClass.name, testClass.methods);
-                    // Set initial status to running
+                    // Set initial status to running for all methods since we're running all tests
                     testClass.methods.forEach(method => {
                         this._testRunResultsView.updateMethodStatus(testClass.name, method, 'running');
                     });

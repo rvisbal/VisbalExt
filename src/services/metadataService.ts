@@ -272,6 +272,21 @@ export class MetadataService {
 			const records =  await this._sfdxService.executeSoqlQuery(soqlQuery, false, false, targetOrgAlias);
             
             const classRecord = records[0];
+            if (!classRecord) {
+                throw new Error(`Class '${className}' not found in the org`);
+            }
+            
+            OrgUtils.logDebug(`[VisbalExt.MetadataService] getApexClassBody -- Class record found: ${JSON.stringify(classRecord)}`);
+            
+            if (!classRecord.Body) {
+                throw new Error(`Class body for '${className}' is empty or null`);
+            }
+            
+            if (typeof classRecord.Body !== 'string') {
+                OrgUtils.logDebug(`[VisbalExt.MetadataService] getApexClassBody -- Body type: ${typeof classRecord.Body}, value: ${classRecord.Body}`);
+                throw new Error(`Class body for '${className}' is not a string: ${typeof classRecord.Body}`);
+            }
+            
             OrgUtils.logDebug('[VisbalExt.MetadataService] getApexClassBody -- Successfully retrieved class body');
             return classRecord.Body;
         } catch (error: any) {
@@ -285,6 +300,13 @@ export class MetadataService {
      */
     public extractTestMethods(classBody: string): TestMethod[] {
         OrgUtils.logDebug('[VisbalExt.MetadataService] extractTestMethods -- Extracting test methods from class body...');
+        OrgUtils.logDebug(`[VisbalExt.MetadataService] extractTestMethods -- classBody type: ${typeof classBody}, length: ${classBody ? classBody.length : 'N/A'}`);
+        
+        if (!classBody || typeof classBody !== 'string') {
+            OrgUtils.logError('[VisbalExt.MetadataService] extractTestMethods -- Invalid class body provided', new Error(`Invalid class body: type=${typeof classBody}, value=${classBody}`));
+            return [];
+        }
+        
         const methods: TestMethod[] = [];
         
         // Regular expressions to match test methods - improved to catch more patterns
