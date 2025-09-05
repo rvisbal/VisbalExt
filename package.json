@@ -290,6 +290,30 @@
         "icon": "$(open-preview)"
       },
       {
+        "command": "visbal-ext.openTestFile",
+        "title": "Open Test File",
+        "category": "Visbal",
+        "icon": "$(go-to-file)"
+      },
+      {
+        "command": "visbal-ext.viewTestLog",
+        "title": "View Test Log",
+        "category": "Visbal",
+        "icon": "$(output)"
+      },
+      {
+        "command": "visbal-ext.testClassExplorerView.runTest",
+        "title": "Run Test",
+        "category": "Visbal",
+        "icon": "$(play)"
+      },
+      {
+        "command": "visbal-ext.testClassExplorerView.runSelectedTests",
+        "title": "Run Selected Tests",
+        "category": "Visbal",
+        "icon": "$(play-circle)"
+      },
+      {
         "command": "visbal-ext.validateJson",
         "title": "Validate JSON",
         "category": "Visbal",

@@ -145,6 +145,7 @@ export class TestRunningTaskProvider implements vscode.TreeDataProvider<TestItem
     private refreshTimer: NodeJS.Timeout | undefined;
     private pendingUpdates: Set<string> = new Set(); // Track pending updates
     private _view?: vscode.TreeView<TestItem>;
+    private _isAborted: boolean = false; // Track if tests have been aborted
 
     constructor() {
         OrgUtils.logDebug('[VisbalExt.TestRunningTaskProvider] constructor -- Initializing Test Running Task Provider');
@@ -162,9 +163,15 @@ export class TestRunningTaskProvider implements vscode.TreeDataProvider<TestItem
 
     getChildren(element?: TestItem): TestItem[] {
         if (!element) {
-            return Array.from(this.testRuns.values());
+            // Sort test runs alphabetically by class name
+            return Array.from(this.testRuns.values()).sort((a, b) => 
+                a.label.localeCompare(b.label)
+            );
         }
-        return element.children;
+        // Sort methods alphabetically within each class
+        return element.children.sort((a, b) => 
+            a.label.localeCompare(b.label)
+        );
     }
 
     private scheduleRefresh(immediate: boolean = false) {
@@ -185,36 +192,75 @@ export class TestRunningTaskProvider implements vscode.TreeDataProvider<TestItem
     }
 
     addTestRun(className: string, methods: string[]) {
+        // Don't add new test runs if tests have been aborted
+        if (this._isAborted) {
+            OrgUtils.logDebug(`[VisbalExt.TestRunningTaskProvider] Ignoring addTestRun for ${className} - tests have been aborted`);
+            return;
+        }
+
         const startTime = Date.now();
         OrgUtils.logDebug(`[VisbalExt.TestRunningTaskProvider] Adding test run for class: ${className} with ${methods.length} methods at ${new Date(startTime).toISOString()}`);
         
-        let existingMethods: string[] = [];
+        let existingMethodItems: TestItem[] = [];
         const existingClassItem = this.testRuns.get(className);
         if (existingClassItem) {
-            // Preserve existing methods
-            existingMethods = existingClassItem.children.map(child => child.label);
+            // Preserve existing method items with their statuses
+            existingMethodItems = existingClassItem.children;
         }
         
-        // Filter out empty method names and combine existing and new methods, removing duplicates
+        // Filter out empty method names
         const validMethods = methods.filter(method => method && method.trim() !== '');
-        const uniqueMethods = Array.from(new Set([...existingMethods, ...validMethods]));
         
-        const methodItems = uniqueMethods.map(method => {
-            OrgUtils.logDebug(`[VisbalExt.TestRunningTaskProvider] Creating method item: ${method}`);
-            return new TestItem(
-                method,
-                vscode.TreeItemCollapsibleState.None,
-                'pending',
-                [],
-                undefined,
-                className // Pass the className to the TestItem constructor
-            );
+        // Create a map of existing methods by name for quick lookup
+        const existingMethodMap = new Map<string, TestItem>();
+        existingMethodItems.forEach(item => {
+            existingMethodMap.set(item.label, item);
         });
+        
+        // Build the final list of method items, preserving existing statuses
+        const methodItems: TestItem[] = [];
+        const allMethodNames = new Set([...existingMethodItems.map(item => item.label), ...validMethods]);
+        
+        for (const methodName of allMethodNames) {
+            const existingItem = existingMethodMap.get(methodName);
+            if (existingItem) {
+                // Preserve existing item with its current status
+                OrgUtils.logDebug(`[VisbalExt.TestRunningTaskProvider] Preserving existing method: ${methodName} with status: ${existingItem.status}`);
+                methodItems.push(existingItem);
+            } else {
+                // Create new item for new methods
+                OrgUtils.logDebug(`[VisbalExt.TestRunningTaskProvider] Creating new method item: ${methodName}`);
+                const newItem = new TestItem(
+                    methodName,
+                    vscode.TreeItemCollapsibleState.None,
+                    'pending',
+                    [],
+                    undefined,
+                    className
+                );
+                methodItems.push(newItem);
+            }
+        }
+
+        // Determine class status based on method statuses
+        let classStatus: 'running' | 'success' | 'failed' | 'pending' | 'downloading' | 'skipped' = 'running';
+        const hasRunning = methodItems.some(item => item.status === 'running');
+        const hasPending = methodItems.some(item => item.status === 'pending');
+        const hasFailed = methodItems.some(item => item.status === 'failed');
+        const allSuccess = methodItems.length > 0 && methodItems.every(item => item.status === 'success');
+        
+        if (hasFailed) {
+            classStatus = 'failed';
+        } else if (allSuccess) {
+            classStatus = 'success';
+        } else if (hasRunning || hasPending) {
+            classStatus = 'running';
+        }
 
         const classItem = new TestItem(
             className,
             vscode.TreeItemCollapsibleState.Expanded,
-            'running',
+            classStatus,
             methodItems
         );
 
@@ -257,6 +303,12 @@ export class TestRunningTaskProvider implements vscode.TreeDataProvider<TestItem
     }
 
     updateMethodStatus(className: string, methodName: string, status: 'running' | 'success' | 'failed' | 'pending' | 'downloading' | 'skipped', logId?: string, error?: string) {
+        // Don't update method status if tests have been aborted
+        if (this._isAborted) {
+            OrgUtils.logDebug(`[VisbalExt.TestRunningTaskProvider] Ignoring updateMethodStatus for ${className}.${methodName} - tests have been aborted`);
+            return;
+        }
+
         const startTime = Date.now();
         OrgUtils.logDebug(`[VisbalExt.TestRunningTaskProvider] updateMethodStatus -- Updating method status: ${className}.${methodName} -> ${status} at ${new Date(startTime).toISOString()}`);
         
@@ -347,6 +399,10 @@ export class TestRunningTaskProvider implements vscode.TreeDataProvider<TestItem
 
     clear() {
         this.testRuns.clear();
+        
+        // Clear the abort state to allow new test runs
+        this.clearAborted();
+        
         this._onDidChangeTreeData.fire();
     }
 
@@ -401,6 +457,22 @@ export class TestRunningTaskProvider implements vscode.TreeDataProvider<TestItem
 
     public getTestRuns(): Map<string, TestItem> {
         return this.testRuns;
+    }
+
+    /**
+     * Set the abort state to prevent further test run additions
+     */
+    public setAborted() {
+        OrgUtils.logDebug('[VisbalExt.TestRunningTaskProvider] Setting aborted state - no more test runs will be added');
+        this._isAborted = true;
+    }
+
+    /**
+     * Clear the abort state to allow new test runs
+     */
+    public clearAborted() {
+        OrgUtils.logDebug('[VisbalExt.TestRunningTaskProvider] Clearing aborted state - test runs can be added again');
+        this._isAborted = false;
     }
 }
 

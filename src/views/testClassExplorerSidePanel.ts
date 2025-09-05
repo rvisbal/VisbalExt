@@ -2538,6 +2538,13 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                 let queueItemsStatus = [];
                 // Use selected org instead of default org determination
                 const currentOrgAlias = await this._getOrgAliasForStorage();
+                
+                // Check for abort before querying queue items
+                if (this._abortController?.signal.aborted) {
+                    OrgUtils.logDebug('[VisbalExt.TestClassExplorerSidePanel] _runAllTests -- Test run aborted before queue query');
+                    throw new Error('Test execution aborted by user');
+                }
+                
                 const queueItems = await this._sfdxService.executeSoqlQuery(`SELECT ApexClassId, ApexClass.Name, Status, ExtendedStatus, TestRunResultId  FROM ApexTestQueueItem WHERE ParentJobId='${runTest.testRunId}' `, false, false, currentOrgAlias);
                 if (queueItems.length > 0) {
                     for (const q of queueItems) {
@@ -2570,6 +2577,12 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                     
                 }
 
+                // Check for abort before querying test results
+                if (this._abortController?.signal.aborted) {
+                    OrgUtils.logDebug('[VisbalExt.TestClassExplorerSidePanel] _runAllTests -- Test run aborted before result query');
+                    throw new Error('Test execution aborted by user');
+                }
+                
                 // Use selected org instead of default org determination
                 // Note: currentOrgAlias already retrieved above in the same method
                 const resultItems = await this._sfdxService.executeSoqlQuery(`SELECT ApexClassId, ApexClass.Name, MethodName, Outcome, ApexLogId, Message, StackTrace, QueueItemId  FROM ApexTestResult WHERE AsyncApexJobId='${runTest.testRunId}' `, false, false, currentOrgAlias);
@@ -2585,12 +2598,23 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
 
                     // Process each class's methods together
                     for (const [className, classResults] of resultsByClass) {
+                        // Check for abort before processing each class
+                        if (this._abortController?.signal.aborted) {
+                            OrgUtils.logDebug('[VisbalExt.TestClassExplorerSidePanel] _runAllTests -- Test run aborted during result processing');
+                            throw new Error('Test execution aborted by user');
+                        }
+                        
                         // Get existing methods from storage to preserve them
                         const existingMethods = await this._storageService.getTestMethodsForClass(className, currentOrgAlias);
                         const existingMethodNames = new Set(existingMethods.map(m => m.name));
                         
                         // Add all methods from current results
                         for (const r of classResults) {
+                            // Check for abort before processing each result
+                            if (this._abortController?.signal.aborted) {
+                                OrgUtils.logDebug('[VisbalExt.TestClassExplorerSidePanel] _runAllTests -- Test run aborted during method processing');
+                                throw new Error('Test execution aborted by user');
+                            }
                             if (!existingMethodNames.has(r.MethodName)) {
                                 this._storageService.addTestMethod(className, r.MethodName, currentOrgAlias);
                                 this._testRunResultsView.addSingleMethod(className, r.MethodName);
@@ -2619,6 +2643,12 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                     }
                 }
 
+                // Check for abort before querying job results
+                if (this._abortController?.signal.aborted) {
+                    OrgUtils.logDebug('[VisbalExt.TestClassExplorerSidePanel] _runAllTests -- Test run aborted before job query');
+                    throw new Error('Test execution aborted by user');
+                }
+                
                 const jobResults = await this._sfdxService.executeSoqlQuery(`SELECT Id, CreatedDate,  AsyncApexJobId, UserId, JobName, IsAllTests, Source, StartTime, EndTime, TestTime, Status, ClassesEnqueued, ClassesCompleted, MethodsEnqueued, MethodsCompleted, MethodsFailed  FROM ApexTestRunResult WHERE AsyncApexJobId='${runTest.testRunId}' `, false, false, currentOrgAlias);
                 if (jobResults.length > 0) {
                     if (jobResults[0].Status === 'Completed') {
@@ -2628,6 +2658,9 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                 // Check for abort signal before updating progress
                 if (!this._abortController?.signal.aborted) {
                     this._testSummaryView.showProgress(queueItemsStatus, jobResults);
+                } else {
+                    OrgUtils.logDebug('[VisbalExt.TestClassExplorerSidePanel] _runAllTests -- Test run aborted before progress update');
+                    throw new Error('Test execution aborted by user');
                 }
 
 
@@ -2635,6 +2668,12 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                     if (allQueueItemsCompleted) {
                         allTestCompleted = true;
                     } 
+                }
+
+                // Check for abort before delay
+                if (this._abortController?.signal.aborted) {
+                    OrgUtils.logDebug('[VisbalExt.TestClassExplorerSidePanel] _runAllTests -- Test run aborted before delay');
+                    throw new Error('Test execution aborted by user');
                 }
 
                 //make a delay of 20 seconds (with abort support)
@@ -3772,6 +3811,11 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                             });
                         }
                         
+                        // Sort test classes alphabetically by name
+                        filteredClasses = filteredClasses.sort((a, b) => 
+                            a.name.localeCompare(b.name)
+                        );
+                        
                         if (!filteredClasses || filteredClasses.length === 0) {
                             noTestClasses.classList.remove('hidden');
                             noTestClasses.textContent = currentNamespaceFilter ? 
@@ -3947,6 +3991,9 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                             }
                             return true; // Include methods without annotations
                         });
+                        
+                        // Sort test methods alphabetically by name
+                        filteredMethods.sort((a, b) => a.name.localeCompare(b.name));
                         
                         if (!filteredMethods || filteredMethods.length === 0) {
                             const noMethodsItem = document.createElement('li');
@@ -5137,6 +5184,9 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
             
             // Clear the status bar message
             this._statusBarService.hide();
+            
+            // Set abort state to prevent further test processing
+            this._testRunResultsView.getProvider().setAborted();
             
             // Clear the Running Tasks panel
             this._testRunResultsView.clearResults();
