@@ -5188,7 +5188,7 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                             className: className,
                             methodName: child.label
                         })),
-                        runMode: 'sequential' as 'sequential' | 'parallel'
+                        runMode: 'parallel' as 'sequential' | 'parallel'
                     };
                     await this._runSelectedTests(testClasses);
                 }
@@ -5197,7 +5197,7 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                 const testClasses = {
                     classes: tests.map(([className]) => className),
                     methods: [],
-                    runMode: 'sequential' as 'sequential' | 'parallel'
+                    runMode: 'parallel' as 'sequential' | 'parallel'
                 };
                 await this._runSelectedTests(testClasses);
             }
