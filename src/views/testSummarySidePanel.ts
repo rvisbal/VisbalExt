@@ -225,7 +225,12 @@ export class TestSummaryView implements vscode.WebviewViewProvider {
         const failRate = totalTests > 0 ? ((aggregateSummary.failing / totalTests) * 100).toFixed(1) + '%' : '0%';
 
         //test filter for failed tests
-        const failedTests = tests.filter(test => test.Outcome?.toLowerCase() === 'fail' || test.outcome?.toLowerCase() === 'failed');
+        const failedTests = tests.filter(test => test.Outcome?.toLowerCase() === 'fail' || test.outcome?.toLowerCase() === 'failed')
+            .sort((a, b) => {
+                const aName = a.FullName || a.ApexClass?.Name || '';
+                const bName = b.FullName || b.ApexClass?.Name || '';
+                return aName.localeCompare(bName);
+            });
         OrgUtils.logDebug('[VisbalExt.TestSummaryView] _getWebviewContentForMultipleTests -- failedTests:', failedTests);
         
         // Update test selection for failing tests
@@ -472,7 +477,12 @@ export class TestSummaryView implements vscode.WebviewViewProvider {
     }
 
     private _getWebviewContent(summary: TestSummary, tests: TestResult[], coverage: any[] = []): string {
-        const failedTests = tests.filter(test => test.Outcome?.toLowerCase() === 'fail' || test.outcome?.toLowerCase() === 'failed');
+        const failedTests = tests.filter(test => test.Outcome?.toLowerCase() === 'fail' || test.outcome?.toLowerCase() === 'failed')
+            .sort((a, b) => {
+                const aName = a.FullName || a.ApexClass?.Name || '';
+                const bName = b.FullName || b.ApexClass?.Name || '';
+                return aName.localeCompare(bName);
+            });
         OrgUtils.logDebug('[VisbalExt.TestSummaryView] _getWebviewContent -- failedTests:', failedTests);
         let coverageHtml = '';
         if (coverage && coverage.length > 0) {

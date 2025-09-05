@@ -146,6 +146,11 @@ export class TestRunningTaskProvider implements vscode.TreeDataProvider<TestItem
     private pendingUpdates: Set<string> = new Set(); // Track pending updates
     private _view?: vscode.TreeView<TestItem>;
     private _isAborted: boolean = false; // Track if tests have been aborted
+    
+    // Batch processing for performance
+    private batchTimer: NodeJS.Timeout | undefined;
+    private pendingTestRuns: Map<string, string[]> = new Map();
+    private statusUpdateQueue: Array<{className: string, methodName: string, status: string, apexLogId?: string, message?: string, timestamp: number}> = [];
 
     constructor() {
         OrgUtils.logDebug('[VisbalExt.TestRunningTaskProvider] constructor -- Initializing Test Running Task Provider');
@@ -191,7 +196,60 @@ export class TestRunningTaskProvider implements vscode.TreeDataProvider<TestItem
         }, 100); // Debounce updates
     }
 
+    // Batch processing methods for performance
+    addTestRunBatch(className: string, methods: string[]) {
+        // Don't add new test runs if tests have been aborted
+        if (this._isAborted) {
+            OrgUtils.logDebug(`[VisbalExt.TestRunningTaskProvider] Ignoring addTestRunBatch for ${className} - tests have been aborted`);
+            return;
+        }
+
+        // Queue the test run for batch processing
+        this.pendingTestRuns.set(className, methods);
+        this.scheduleBatchProcessing();
+    }
+
+    private scheduleBatchProcessing(): void {
+        // Clear existing timer
+        if (this.batchTimer) {
+            clearTimeout(this.batchTimer);
+        }
+
+        // Schedule batch processing with 200ms debounce
+        this.batchTimer = setTimeout(() => {
+            this.processBatchedTestRuns();
+        }, 200);
+    }
+
+    private processBatchedTestRuns(): void {
+        if (this.pendingTestRuns.size === 0) {
+            return;
+        }
+
+        const startTime = Date.now();
+        OrgUtils.logDebug(`[VisbalExt.TestRunningTaskProvider] processBatchedTestRuns -- Processing ${this.pendingTestRuns.size} batched test runs`);
+
+        // Process all pending test runs in one go
+        for (const [className, methods] of this.pendingTestRuns) {
+            this.addTestRunInternal(className, methods);
+        }
+
+        // Clear the pending runs
+        this.pendingTestRuns.clear();
+
+        const endTime = Date.now();
+        OrgUtils.logDebug(`[VisbalExt.TestRunningTaskProvider] processBatchedTestRuns -- Completed batch processing in ${endTime - startTime}ms`);
+
+        // Trigger a single refresh for all changes
+        this.scheduleRefresh(true);
+    }
+
     addTestRun(className: string, methods: string[]) {
+        // Use batch processing for better performance
+        this.addTestRunBatch(className, methods);
+    }
+
+    private addTestRunInternal(className: string, methods: string[]) {
         // Don't add new test runs if tests have been aborted
         if (this._isAborted) {
             OrgUtils.logDebug(`[VisbalExt.TestRunningTaskProvider] Ignoring addTestRun for ${className} - tests have been aborted`);
@@ -404,6 +462,65 @@ export class TestRunningTaskProvider implements vscode.TreeDataProvider<TestItem
         this.clearAborted();
         
         this._onDidChangeTreeData.fire();
+    }
+
+    clearRunningStates() {
+        let clearedCount = 0;
+        OrgUtils.logDebug('[VisbalExt.TestRunningTaskProvider] clearRunningStates -- Starting to clear stale running states');
+        
+        for (const [className, classItem] of this.testRuns) {
+            if (classItem.status === 'running') {
+                // Check if all children are complete but class is still running
+                if (classItem.areAllChildrenComplete()) {
+                    // Determine final status based on children
+                    let newStatus: 'success' | 'failed' | 'skipped';
+                    if (classItem.hasFailedChildren()) {
+                        newStatus = 'failed';
+                    } else if (classItem.hasSkippedChildren()) {
+                        newStatus = 'skipped';
+                    } else {
+                        newStatus = 'success';
+                    }
+                    
+                    classItem.updateStatus(newStatus);
+                    clearedCount++;
+                    OrgUtils.logDebug(`[VisbalExt.TestRunningTaskProvider] clearRunningStates -- Updated ${className} from running to ${newStatus}`);
+                } else {
+                    // Class has running methods, mark them as completed (assuming they're stuck)
+                    for (const child of classItem.children) {
+                        if (child.status === 'running') {
+                            child.updateStatus('success'); // Default to success for stale running tests
+                            OrgUtils.logDebug(`[VisbalExt.TestRunningTaskProvider] clearRunningStates -- Updated ${className}.${child.label} from running to success`);
+                        }
+                    }
+                    
+                    // Update class status after fixing children
+                    if (classItem.areAllChildrenComplete()) {
+                        classItem.updateStatus(classItem.hasFailedChildren() ? 'failed' : 'success');
+                        clearedCount++;
+                        OrgUtils.logDebug(`[VisbalExt.TestRunningTaskProvider] clearRunningStates -- Updated ${className} after fixing children`);
+                    }
+                }
+            } else {
+                // Check individual methods that might be stuck in running state
+                for (const child of classItem.children) {
+                    if (child.status === 'running') {
+                        child.updateStatus('success'); // Default to success for stale running tests
+                        clearedCount++;
+                        OrgUtils.logDebug(`[VisbalExt.TestRunningTaskProvider] clearRunningStates -- Updated method ${className}.${child.label} from running to success`);
+                    }
+                }
+            }
+        }
+        
+        if (clearedCount > 0) {
+            OrgUtils.logDebug(`[VisbalExt.TestRunningTaskProvider] clearRunningStates -- Cleared ${clearedCount} stale running states`);
+            this._onDidChangeTreeData.fire();
+            return clearedCount;
+        } else {
+            OrgUtils.logDebug('[VisbalExt.TestRunningTaskProvider] clearRunningStates -- No stale running states found');
+            return 0;
+        }
     }
 
     /**

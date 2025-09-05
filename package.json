@@ -348,6 +348,12 @@
         "title": "Generate JSON Schema",
         "category": "Visbal",
         "icon": "$(type-hierarchy)"
+      },
+      {
+        "command": "visbal-ext.clearRunningTests",
+        "title": "Clear Running Test States",
+        "category": "Visbal",
+        "icon": "$(clear-all)"
       }
     ],
     "menus": {
@@ -365,6 +371,11 @@
           "command": "visbal-ext.rerunFailedTests",
           "when": "view == testRunResults",
           "group": "navigation@2"
+        },
+        {
+          "command": "visbal-ext.clearRunningTests",
+          "when": "view == testRunResults",
+          "group": "navigation@3"
         }
       ],
       "editor/title": [

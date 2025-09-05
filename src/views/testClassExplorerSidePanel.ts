@@ -399,7 +399,7 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                         
                         this._view.webview.postMessage({
                             command: 'testClassesLoaded',
-                            testClasses: testClasses
+                            testClasses: testClasses.sort((a, b) => a.name.localeCompare(b.name))
                         });
                     }
                     return;
@@ -552,7 +552,7 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                 
                 this._view.webview.postMessage({
                     command: 'testClassesLoaded',
-                    testClasses: testClasses
+                    testClasses: testClasses.sort((a, b) => a.name.localeCompare(b.name))
                 });
             }
             
@@ -5375,6 +5375,25 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
         }
     }
 
+    public async clearRunningTestStates() {
+        try {
+            OrgUtils.logDebug('[VisbalExt.TestClassExplorerSidePanel] clearRunningTestStates -- Starting to clear stale running test states');
+            
+            const clearedCount = this._testRunResultsView.getProvider().clearRunningStates();
+            
+            if (clearedCount > 0) {
+                vscode.window.showInformationMessage(`Cleared ${clearedCount} stale running test state(s)`);
+                OrgUtils.logDebug(`[VisbalExt.TestClassExplorerSidePanel] clearRunningTestStates -- Successfully cleared ${clearedCount} stale running states`);
+            } else {
+                vscode.window.showInformationMessage('No stale running test states found');
+                OrgUtils.logDebug('[VisbalExt.TestClassExplorerSidePanel] clearRunningTestStates -- No stale running states to clear');
+            }
+        } catch (error) {
+            OrgUtils.logDebug(`[VisbalExt.TestClassExplorerSidePanel] clearRunningTestStates -- Error: ${error instanceof Error ? error.message : String(error)}`);
+            vscode.window.showErrorMessage(`Failed to clear running test states: ${error instanceof Error ? error.message : String(error)}`);
+        }
+    }
+
     /**
      * Attempts to cancel the server-side test job using CLI and Anonymous Apex
      */
@@ -5719,7 +5738,7 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                 OrgUtils.logDebug(`[VisbalExt.TestClassExplorerSidePanel] _setSelectedOrg -- Found ${cachedTestClasses.length} cached test classes for org: ${username}`);
                 this._view?.webview.postMessage({
                     command: 'testClassesLoaded',
-                    testClasses: cachedTestClasses
+                    testClasses: cachedTestClasses.sort((a, b) => a.name.localeCompare(b.name))
                 });
                 
                 // Then set the namespace filter AFTER test classes are loaded (silently)
@@ -5805,10 +5824,10 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
             if (cachedTestClasses && cachedTestClasses.length > 0) {
                 OrgUtils.logDebug(`[VisbalExt.TestClassExplorerSidePanel] _loadCachedTestClasses -- Found ${cachedTestClasses.length} cached test classes`);
                 if (this._view) {
-                    this._view.webview.postMessage({
-                        command: 'testClassesLoaded',
-                        testClasses: cachedTestClasses
-                    });
+                                    this._view.webview.postMessage({
+                    command: 'testClassesLoaded',
+                    testClasses: cachedTestClasses.sort((a, b) => a.name.localeCompare(b.name))
+                });
                 }
             } else {
                 OrgUtils.logDebug('[VisbalExt.TestClassExplorerSidePanel] _loadCachedTestClasses -- No cached test classes found, fetching from Salesforce');

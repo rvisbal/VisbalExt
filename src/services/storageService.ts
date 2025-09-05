@@ -13,6 +13,9 @@ export class StorageService {
     private testClassesFile: string;
     private currentOrgAlias: string | undefined;
     private _sfdxService: SfdxService;
+    private writeDebounceTimer: NodeJS.Timeout | undefined;
+    private pendingWrites: Map<string, TestClass[]> = new Map();
+    private inMemoryCache: Map<string, TestClass[]> = new Map();
 
     constructor(context: vscode.ExtensionContext) {
         this._sfdxService = new SfdxService();
@@ -73,11 +76,24 @@ export class StorageService {
 
     public async getTestClasses(orgAlias?: string): Promise<TestClass[]> {
         try {
-            OrgUtils.logDebug('[VisbalExt.StorageService] getTestClasses -- BEGIN');
             const targetOrgAlias = orgAlias || await OrgUtils.getCurrentOrgAlias();
+            
+            // Check in-memory cache first
+            if (this.inMemoryCache.has(targetOrgAlias)) {
+                OrgUtils.logDebug(`[VisbalExt.StorageService] getTestClasses -- Using in-memory cache for org: ${targetOrgAlias}`);
+                return this.inMemoryCache.get(targetOrgAlias) || [];
+            }
+
+            // Fall back to disk cache
+            OrgUtils.logDebug('[VisbalExt.StorageService] getTestClasses -- Reading from disk cache');
             const cache = this.readCache<Record<string, { testClasses: TestClass[] }>>();
-            OrgUtils.logDebug(`[VisbalExt.StorageService] getTestClasses -- Getting test classes for org: ${targetOrgAlias}`);
-            return cache[targetOrgAlias]?.testClasses || [];
+            const testClasses = cache[targetOrgAlias]?.testClasses || [];
+            
+            // Cache in memory for future reads
+            this.inMemoryCache.set(targetOrgAlias, testClasses);
+            
+            OrgUtils.logDebug(`[VisbalExt.StorageService] getTestClasses -- Loaded ${testClasses.length} test classes for org: ${targetOrgAlias}`);
+            return testClasses;
         } catch (error: any) {
             OrgUtils.logError('[VisbalExt.StorageService] getTestClasses -- Error reading test classes:', error);
             return [];
@@ -86,19 +102,85 @@ export class StorageService {
 
     public async saveTestClasses(testClasses: TestClass[], orgAlias?: string): Promise<void> {
         try {
-            OrgUtils.logDebug('[VisbalExt.StorageService] saveTestClasses -- BEGIN');
             const targetOrgAlias = orgAlias || await OrgUtils.getCurrentOrgAlias();
-            const cache = this.readCache<Record<string, { testClasses: TestClass[] }>>();
             
-            cache[targetOrgAlias] = {
-                testClasses: testClasses
-            };
-
-            this.writeCache(cache);
-            OrgUtils.logDebug(`[VisbalExt.StorageService] saveTestClasses -- Test classes saved for org ${targetOrgAlias}`);
+            // Update in-memory cache immediately
+            this.inMemoryCache.set(targetOrgAlias, testClasses);
+            
+            // Queue for debounced write
+            this.pendingWrites.set(targetOrgAlias, testClasses);
+            this.scheduleDebouncedWrite();
+            
+            OrgUtils.logDebug(`[VisbalExt.StorageService] saveTestClasses -- Test classes queued for save (org: ${targetOrgAlias})`);
         } catch (error: any) {
             OrgUtils.logError('[VisbalExt.StorageService] saveTestClasses -- Error saving test classes:', error);
             throw error;
+        }
+    }
+
+    private scheduleDebouncedWrite(): void {
+        // Clear existing timer
+        if (this.writeDebounceTimer) {
+            clearTimeout(this.writeDebounceTimer);
+        }
+
+        // Schedule new write with 500ms debounce
+        this.writeDebounceTimer = setTimeout(async () => {
+            await this.flushPendingWrites();
+        }, 500);
+    }
+
+    private async flushPendingWrites(): Promise<void> {
+        if (this.pendingWrites.size === 0) {
+            return;
+        }
+
+        try {
+            const cache = this.readCache<Record<string, { testClasses: TestClass[] }>>();
+            let hasChanges = false;
+
+            // Apply all pending writes
+            for (const [orgAlias, testClasses] of this.pendingWrites) {
+                cache[orgAlias] = { testClasses };
+                hasChanges = true;
+                OrgUtils.logDebug(`[VisbalExt.StorageService] flushPendingWrites -- Flushing ${testClasses.length} test classes for org ${orgAlias}`);
+            }
+
+            if (hasChanges) {
+                this.writeCache(cache);
+                OrgUtils.logDebug(`[VisbalExt.StorageService] flushPendingWrites -- Batch saved ${this.pendingWrites.size} org(s) to disk`);
+            }
+
+            // Clear pending writes
+            this.pendingWrites.clear();
+        } catch (error: any) {
+            OrgUtils.logError('[VisbalExt.StorageService] flushPendingWrites -- Error flushing writes:', error);
+        }
+    }
+
+    public async forceFlush(): Promise<void> {
+        // Cancel any pending timer
+        if (this.writeDebounceTimer) {
+            clearTimeout(this.writeDebounceTimer);
+            this.writeDebounceTimer = undefined;
+        }
+        
+        // Force immediate flush
+        await this.flushPendingWrites();
+    }
+
+    public dispose(): void {
+        // Cleanup timers and force final flush
+        if (this.writeDebounceTimer) {
+            clearTimeout(this.writeDebounceTimer);
+        }
+        
+        // Force synchronous final flush (best effort)
+        if (this.pendingWrites.size > 0) {
+            OrgUtils.logDebug('[VisbalExt.StorageService] dispose -- Force flushing pending writes');
+            this.flushPendingWrites().catch(error => 
+                OrgUtils.logError('[VisbalExt.StorageService] dispose -- Error in final flush:', error)
+            );
         }
     }
 

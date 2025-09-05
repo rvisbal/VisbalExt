@@ -39,7 +39,8 @@ interface ResultContent {
 
 export class SfdxService {
     
-    private readonly CACHE_EXPIRATION = 15 * 60 * 1000; // 15 minutes in milliseconds
+    private readonly CACHE_EXPIRATION = 15 * 60 * 1000 // 15 minutes in milliseconds
+    private readonly MIN_CLI_VERSION = '2.100.0'
     private readonly LONG_TIMEOUT = 30 * 60 * 1000; // 30 minutes for long operations
     private _currentOrgCache: { alias: string; timestamp: number } | null = null;
     private _userIdCacheService: UserIdCacheService | null = null;
@@ -1183,6 +1184,41 @@ export class SfdxService {
             OrgUtils.logError(`[VisbalExt.SfdxService] getApexClassBody -- Failed to get class body for ${className}:`, error);
             throw new Error(`Failed to get class body for ${className}: ${error.message}`);
         }
+    }
+
+    public async checkCliVersion(): Promise<void> {
+        try {
+            const result = await this._executeCommand('sf --version --json');
+            const versionData = JSON.parse(result.stdout);
+            const currentVersion = versionData?.result?.cliVersion || versionData?.version;
+            
+            if (currentVersion && this.compareVersions(currentVersion, this.MIN_CLI_VERSION) < 0) {
+                vscode.window.showWarningMessage(
+                    `Salesforce CLI v${currentVersion} detected. Consider upgrading to v${this.MIN_CLI_VERSION}+ for better performance.`,
+                    'Update CLI'
+                ).then(selection => {
+                    if (selection === 'Update CLI') {
+                        vscode.env.openExternal(vscode.Uri.parse('https://developer.salesforce.com/docs/atlas.en-us.sfdx_setup.meta/sfdx_setup/sfdx_setup_install_cli.htm'));
+                    }
+                });
+            }
+        } catch (error) {
+            OrgUtils.logDebug('[VisbalExt.SfdxService] checkCliVersion -- Could not check CLI version:', error);
+        }
+    }
+
+    private compareVersions(a: string, b: string): number {
+        const partsA = a.split('.').map(Number);
+        const partsB = b.split('.').map(Number);
+        
+        for (let i = 0; i < Math.max(partsA.length, partsB.length); i++) {
+            const partA = partsA[i] || 0;
+            const partB = partsB[i] || 0;
+            
+            if (partA < partB) return -1;
+            if (partA > partB) return 1;
+        }
+        return 0;
     }
 
     /**
