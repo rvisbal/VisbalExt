@@ -153,6 +153,13 @@ export async function activate(context: vscode.ExtensionContext) {
                 vscode.window.showErrorMessage('Test class explorer view is not initialized');
             }
         }),
+        vscode.commands.registerCommand('visbal-ext.rerunFailedTests', async () => {
+            if (testClassExplorerView) {
+                await testClassExplorerView.rerunFailedTests();
+            } else {
+                vscode.window.showErrorMessage('Test class explorer view is not initialized');
+            }
+        }),
         vscode.commands.registerCommand('visbal-ext.rerunSelectedTests', (args) => {
             testClassExplorerView.rerunSelectedTests();
         })

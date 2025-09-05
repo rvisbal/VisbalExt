@@ -225,6 +225,12 @@
         "icon": "$(refresh)"
       },
       {
+        "command": "visbal-ext.rerunFailedTests",
+        "title": "Rerun Failed Tests",
+        "category": "Visbal",
+        "icon": "$(debug-restart)"
+      },
+      {
         "command": "visbal-ext.showGitHistoryForSelection",
         "title": "V: Show Git History for Selection",
         "category": "Visbal",
@@ -354,6 +360,11 @@
           "command": "visbal-ext.rerunAllTests",
           "when": "view == testRunResults",
           "group": "navigation@1"
+        },
+        {
+          "command": "visbal-ext.rerunFailedTests",
+          "when": "view == testRunResults",
+          "group": "navigation@2"
         }
       ],
       "editor/title": [

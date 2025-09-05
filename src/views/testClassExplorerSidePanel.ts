@@ -5208,6 +5208,71 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
             this._statusBarService.hide();
         }
     }
+
+    public async rerunFailedTests() {
+        try {
+            OrgUtils.logDebug('[VisbalExt.TestClassExplorerView] rerunFailedTests -- Starting rerun of failed tests');
+            const testRuns = this._testRunResultsView.getProvider().getTestRuns();
+            console.log('[VisbalExt.TestClassExplorerView] rerunFailedTests -- testRuns', testRuns);
+            
+            if (testRuns.size === 0) {
+                vscode.window.showInformationMessage('No tests to rerun');
+                return;
+            }
+
+            // Filter only failed tests
+            const failedMethods: { className: string, methodName: string }[] = [];
+            
+            for (const [className, classItem] of testRuns.entries()) {
+                for (const methodItem of classItem.children) {
+                    // Check if this method failed
+                    if (methodItem.collapsibleState === vscode.TreeItemCollapsibleState.None && 
+                        methodItem.status === 'failed') {
+                        failedMethods.push({
+                            className: className,
+                            methodName: methodItem.label
+                        });
+                    }
+                }
+            }
+
+            if (failedMethods.length === 0) {
+                vscode.window.showInformationMessage('No failed tests to rerun');
+                return;
+            }
+
+            // Show loading message
+            this._statusBarService.showProgress(`Rerunning ${failedMethods.length} failed test(s)...`);
+
+            // Group failed methods by class
+            const failedByClass = new Map<string, string[]>();
+            for (const { className, methodName } of failedMethods) {
+                if (!failedByClass.has(className)) {
+                    failedByClass.set(className, []);
+                }
+                failedByClass.get(className)!.push(methodName);
+            }
+
+            if (failedByClass.size === 1 && failedMethods.length === 1) {
+                // Single failed method
+                const { className, methodName } = failedMethods[0];
+                await this._runTest(className, methodName);
+            } else {
+                // Multiple failed methods - run them as selected tests
+                const testClasses = {
+                    classes: [],
+                    methods: failedMethods,
+                    runMode: 'parallel' as 'sequential' | 'parallel'
+                };
+                await this._runSelectedTests(testClasses);
+            }
+        } catch (error: any) {
+            OrgUtils.logError('[VisbalExt.TestClassExplorerView] rerunFailedTests -- Error:', error);
+            vscode.window.showErrorMessage(`Error rerunning failed tests: ${error.message}`);
+        } finally {
+            this._statusBarService.hide();
+        }
+    }
     
 
     // Add handler for opening test files (add near the top of the class where other methods are defined)
