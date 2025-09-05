@@ -4629,6 +4629,47 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                                     }
                                 }
                                 break;
+                            case 'updateFailedTestSelection':
+                                // Clear current selection and select only failed tests
+                                selectedTests.classes = {};
+                                selectedTests.methods = {};
+                                selectedTests.count = 0;
+                                
+                                // Uncheck all checkboxes first
+                                document.querySelectorAll('.class-checkbox, .method-checkbox').forEach(checkbox => {
+                                    checkbox.checked = false;
+                                });
+                                
+                                // Select the failed test methods
+                                if (message.failedMethods && Array.isArray(message.failedMethods)) {
+                                    message.failedMethods.forEach(failedTest => {
+                                        const methodCheckbox = document.querySelector('.method-checkbox[data-class="' + failedTest.className + '"][data-method="' + failedTest.methodName + '"]');
+                                        if (methodCheckbox) {
+                                            methodCheckbox.checked = true;
+                                            const key = failedTest.className + '.' + failedTest.methodName;
+                                            selectedTests.methods[key] = true;
+                                            selectedTests.count++;
+                                            
+                                            // Also expand the class to show the method
+                                            const classItem = document.querySelector('[data-class-name="' + failedTest.className + '"]');
+                                            if (classItem && !classItem.classList.contains('expanded')) {
+                                                const expandButton = classItem.querySelector('.expand-button');
+                                                if (expandButton) {
+                                                    expandButton.click();
+                                                }
+                                            }
+                                        }
+                                    });
+                                }
+                                
+                                updateSelectionCount();
+                                saveState();
+                                
+                                // Show notification about failed tests selection
+                                if (message.failedMethods && message.failedMethods.length > 0) {
+                                    showNotification(message.failedMethods.length + ' failed test(s) selected for rerun');
+                                }
+                                break;
                         }
                     });
                     
@@ -5241,6 +5282,14 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                 return;
             }
 
+            // Update the UI selection to show which failed tests are being rerun
+            if (this._view && failedMethods.length > 0) {
+                this._view.webview.postMessage({
+                    command: 'updateFailedTestSelection',
+                    failedMethods: failedMethods
+                });
+            }
+
             // Show loading message
             this._statusBarService.showProgress(`Rerunning ${failedMethods.length} failed test(s)...`);
 
@@ -5266,6 +5315,7 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                 };
                 await this._runSelectedTests(testClasses);
             }
+
         } catch (error: any) {
             OrgUtils.logError('[VisbalExt.TestClassExplorerView] rerunFailedTests -- Error:', error);
             vscode.window.showErrorMessage(`Error rerunning failed tests: ${error.message}`);
