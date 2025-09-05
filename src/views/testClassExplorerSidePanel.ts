@@ -5155,6 +5155,59 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
             });
         }
     }
+
+    public async rerunAllTests() {
+        try {
+            OrgUtils.logDebug('[VisbalExt.TestClassExplorerView] rerunAllTests -- Starting rerun of all tests');
+            const testRuns = this._testRunResultsView.getProvider().getTestRuns();
+            console.log('[VisbalExt.TestClassExplorerView] rerunAllTests -- testRuns', testRuns);
+            
+            if (testRuns.size === 0) {
+                vscode.window.showInformationMessage('No tests to rerun');
+                return;
+            }
+
+            // Show loading message
+            this._statusBarService.showProgress('Rerunning tests...');
+
+            // Convert the Map entries to an array for easier processing
+            const tests = Array.from(testRuns.entries());
+
+            if (tests.length === 1) {
+                // Single test class scenario
+                const [className, classItem] = tests[0];
+                if (classItem.children.length === 1) {
+                    // Single method in a single class
+                    const methodName = classItem.children[0].label;
+                    await this._runTest(className, methodName);
+                } else {
+                    // Multiple methods in a single class - rerun only the specific methods that were originally run
+                    const testClasses = {
+                        classes: [],
+                        methods: classItem.children.map(child => ({
+                            className: className,
+                            methodName: child.label
+                        })),
+                        runMode: 'sequential' as 'sequential' | 'parallel'
+                    };
+                    await this._runSelectedTests(testClasses);
+                }
+            } else {
+                // Multiple test classes scenario
+                const testClasses = {
+                    classes: tests.map(([className]) => className),
+                    methods: [],
+                    runMode: 'sequential' as 'sequential' | 'parallel'
+                };
+                await this._runSelectedTests(testClasses);
+            }
+        } catch (error: any) {
+            OrgUtils.logError('[VisbalExt.TestClassExplorerView] rerunAllTests -- Error:', error);
+            vscode.window.showErrorMessage(`Error rerunning tests: ${error.message}`);
+        } finally {
+            this._statusBarService.hide();
+        }
+    }
     
 
     // Add handler for opening test files (add near the top of the class where other methods are defined)
