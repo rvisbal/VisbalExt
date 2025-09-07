@@ -176,6 +176,14 @@ export async function activate(context: vscode.ExtensionContext) {
             } else {
                 vscode.window.showErrorMessage('Test running task view is not initialized');
             }
+        }),
+        vscode.commands.registerCommand('visbal-ext.cleanupDebugFiles', async () => {
+            try {
+                const result = OrgUtils.cleanupOldDebugFiles();
+                vscode.window.showInformationMessage(`Visbal Debug Cleanup: ${result}`);
+            } catch (error) {
+                vscode.window.showErrorMessage(`Failed to cleanup debug files: ${error}`);
+            }
         })
         
     );

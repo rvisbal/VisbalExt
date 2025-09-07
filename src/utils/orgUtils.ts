@@ -1057,6 +1057,10 @@ export class OrgUtils {
         }
     }
 
+    // Track last cleanup time to prevent excessive cleanup calls
+    private static lastCleanupTime: number = 0;
+    private static readonly CLEANUP_INTERVAL = 5 * 60 * 1000; // 5 minutes
+
     public static archiveDebugLog(): void {
         const config = vscode.workspace.getConfiguration('visbal.logging');
         //configure debug file max size
@@ -1070,16 +1074,53 @@ export class OrgUtils {
                 fs.renameSync(debugFile, path.join(debugDir, `debug.${Date.now()}.log`));
             }
         }
-        //and delete files older than deleteErrorLogsOlderThan
-        const deleteDebugLogsOlderThan = config.get<number>('deleteDebugLogsOlderThan', 1);
         
-        const files = fs.readdirSync(debugDir);
-        files.forEach(file => {
-            const fileDate = new Date(file.split('.')[2]);
-            if (fileDate < new Date(Date.now() - deleteDebugLogsOlderThan * 24 * 60 * 60 * 1000)) {
-                fs.unlinkSync(path.join(debugDir, file));
+        // Only run cleanup every 5 minutes to prevent race conditions
+        const now = Date.now();
+        if (now - OrgUtils.lastCleanupTime < OrgUtils.CLEANUP_INTERVAL) {
+            return;
+        }
+        OrgUtils.lastCleanupTime = now;
+
+        // Clean up old debug files (now using the correct configuration with 10 days default)
+        const deleteDebugLogsOlderThan = config.get<number>('deleteDebugLogsOlderThan', 10);
+        
+        try {
+            if (fs.existsSync(debugDir)) {
+                const files = fs.readdirSync(debugDir);
+                const cutoffDate = new Date(Date.now() - deleteDebugLogsOlderThan * 24 * 60 * 60 * 1000);
+                
+                files.forEach(file => {
+                    try {
+                        const filePath = path.join(debugDir, file);
+                        
+                        // Check if file still exists before attempting to stat it
+                        if (!fs.existsSync(filePath)) {
+                            return; // File already deleted by another process, skip silently
+                        }
+
+                        const stats = fs.statSync(filePath);
+                        
+                        // Use file modification time instead of parsing filename
+                        if (stats.mtime < cutoffDate) {
+                            // Double-check file still exists before deleting
+                            if (fs.existsSync(filePath)) {
+                                fs.unlinkSync(filePath);
+                                // Only log successful deletions, don't call logDebug to avoid recursion
+                                console.log(`[VisbalExt.OrgUtils] archiveDebugLog -- Deleted old debug file: ${file} (older than ${deleteDebugLogsOlderThan} days)`);
+                            }
+                        }
+                    } catch (fileError: any) {
+                        // Ignore "file not found" errors as they're expected in concurrent cleanup scenarios
+                        if (fileError.code !== 'ENOENT') {
+                            console.error(`[VisbalExt.OrgUtils] archiveDebugLog -- Error processing file ${file}:`, fileError);
+                        }
+                    }
+                });
             }
-        });
+        } catch (error) {
+            console.error(`[VisbalExt.OrgUtils] archiveDebugLog -- Error during cleanup:`, error);
+        }
     }
 
 
@@ -1098,6 +1139,67 @@ export class OrgUtils {
             fs.mkdirSync(debugDir, { recursive: true });
         }
         return path.join(debugDir, `debug.log`);
+    }
+
+    /**
+     * Manually cleans up old debug files in the .visbal/debug directory
+     * This method can be called independently of archiveDebugLog()
+     * @returns A message indicating the cleanup results
+     */
+    public static cleanupOldDebugFiles(): string {
+        const config = vscode.workspace.getConfiguration('visbal.logging');
+        const deleteDebugLogsOlderThan = config.get<number>('deleteDebugLogsOlderThan', 10);
+        const debugDir = OrgUtils.getDebugDir();
+        
+        try {
+            if (fs.existsSync(debugDir)) {
+                const files = fs.readdirSync(debugDir);
+                const cutoffDate = new Date(Date.now() - deleteDebugLogsOlderThan * 24 * 60 * 60 * 1000);
+                let deletedCount = 0;
+                let skippedCount = 0;
+                
+                files.forEach(file => {
+                    try {
+                        const filePath = path.join(debugDir, file);
+                        
+                        // Check if file still exists before attempting to stat it
+                        if (!fs.existsSync(filePath)) {
+                            skippedCount++;
+                            return; // File already deleted by another process, skip silently
+                        }
+
+                        const stats = fs.statSync(filePath);
+                        
+                        if (stats.mtime < cutoffDate) {
+                            // Double-check file still exists before deleting
+                            if (fs.existsSync(filePath)) {
+                                fs.unlinkSync(filePath);
+                                deletedCount++;
+                                console.log(`[VisbalExt.OrgUtils] cleanupOldDebugFiles -- Deleted old debug file: ${file} (older than ${deleteDebugLogsOlderThan} days)`);
+                            } else {
+                                skippedCount++;
+                            }
+                        }
+                    } catch (fileError: any) {
+                        // Ignore "file not found" errors as they're expected in concurrent cleanup scenarios
+                        if (fileError.code === 'ENOENT') {
+                            skippedCount++;
+                        } else {
+                            console.error(`[VisbalExt.OrgUtils] cleanupOldDebugFiles -- Error processing file ${file}:`, fileError);
+                        }
+                    }
+                });
+                
+                const message = `Cleanup completed. Deleted ${deletedCount} files older than ${deleteDebugLogsOlderThan} days from .visbal/debug directory.`;
+                return skippedCount > 0 ? `${message} (${skippedCount} files were already processed by other cleanup operations)` : message;
+            } else {
+                return 'Debug directory does not exist.';
+            }
+        } catch (error) {
+            const errorMessage = `Error during debug files cleanup: ${error}`;
+            console.error(`[VisbalExt.OrgUtils] cleanupOldDebugFiles --`, error);
+            return errorMessage;
+        }
     }
 
     public static logDebug(message: string, o?: unknown, o2?: unknown): void {

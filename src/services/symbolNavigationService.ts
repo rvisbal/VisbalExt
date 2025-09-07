@@ -50,7 +50,7 @@ export class SymbolNavigationService {
     /**
      * Extracts the symbol and its type from the current cursor position
      */
-    private static extractSymbolFromCursor(document: vscode.TextDocument, position: vscode.Position): {symbol: string, type: string, isThisReference: boolean, className?: string} | null {
+    private static extractSymbolFromCursor(document: vscode.TextDocument, position: vscode.Position): {symbol: string, type: string, isThisReference: boolean, className?: string, variableToTrace?: string} | null {
         const wordRange = document.getWordRangeAtPosition(position);
         if (!wordRange) {
             return null;
@@ -73,8 +73,43 @@ export class SymbolNavigationService {
             this.logDebug(`[VisbalExt.SymbolNavigationService] extractSymbolFromCursor -- Detected class-prefixed call: ${className}.${word}`);
         }
         
+        // Determine symbol type based on context and file type first
+        const symbolInfo = this.determineSymbolType(word, line, wordRange, fileExtension || '');
+        if (!symbolInfo) {
+            return null;
+        }
+        
+        // Enhanced variable type tracing - look for variable assignments in the document
+        // This is particularly useful for singleton patterns like Logger.getInstance()
+        // This should happen BEFORE the old extractInstantiatedClassName to prioritize variable tracing
+        if (!className) {
+            // Extract the variable name that precedes the word (the object being accessed)
+            const beforeWordMatch = beforeWord.match(/\b([A-Za-z0-9_]+)\.\s*$/);
+            if (beforeWordMatch) {
+                const variableName = beforeWordMatch[1];
+                
+                // Check if this looks like a variable name (starts with lowercase) vs class name (starts with uppercase)
+                if (/^[a-z]/.test(variableName)) {
+                    // Store variable name for async resolution during navigation
+                    this.logDebug(`[VisbalExt.SymbolNavigationService] extractSymbolFromCursor -- Variable ${variableName} will be traced during navigation for ${word}`);
+                    // Return variableName as a marker for later async resolution
+                    return { 
+                        symbol: word, 
+                        type: symbolInfo.type, 
+                        isThisReference, 
+                        className: undefined,
+                        variableToTrace: variableName
+                    };
+                } else {
+                    // Looks like a class name (starts with uppercase), treat as direct class reference
+                    className = variableName;
+                    this.logDebug(`[VisbalExt.SymbolNavigationService] extractSymbolFromCursor -- Detected class-prefixed call: ${className}.${word}`);
+                }
+            }
+        }
+        
         // Check for instantiated class variable (e.g., `MyClass var = new MyClass(); var.property`)
-        // This needs to happen after classPrefixMatch to prioritize explicit class prefixes
+        // This is now secondary to variable tracing
         if (!className) {
             const instantiatedClassName = this.extractInstantiatedClassName(line, word, wordRange);
             if (instantiatedClassName) {
@@ -83,14 +118,7 @@ export class SymbolNavigationService {
             }
         }
         
-        // Determine symbol type based on context and file type
-        const symbolInfo = this.determineSymbolType(word, line, wordRange, fileExtension || '');
-        
-        if (symbolInfo) {
-            return { ...symbolInfo, isThisReference, className };
-        }
-        
-        return null;
+        return { ...symbolInfo, isThisReference, className };
     }
 
     /**
@@ -353,10 +381,14 @@ export class SymbolNavigationService {
         }
         
         try {
+            this.logDebug(`[VisbalExt.SymbolNavigationService] findSymbolDefinition -- Starting workspace search for '${symbol}' in extensions: ${targetExtensions.join(', ')}`);
+            
             // Search each target file type
             for (const extension of targetExtensions) {
                 const pattern = new vscode.RelativePattern(workspaceFolder, `**/*.${extension}`);
                 const files = await vscode.workspace.findFiles(pattern);
+                
+                this.logDebug(`[VisbalExt.SymbolNavigationService] findSymbolDefinition -- Found ${files.length} .${extension} files to search`);
                 
                 for (const file of files) {
                     // Skip current file if we already searched it for "this." references
@@ -391,6 +423,8 @@ export class SymbolNavigationService {
                     }
                 }
             }
+            
+            this.logDebug(`[VisbalExt.SymbolNavigationService] findSymbolDefinition -- Workspace search completed. Symbol '${symbol}' not found in any files.`);
         } catch (error) {
             this.logError('[VisbalExt.SymbolNavigationService] Error searching for symbol definition:', error as Error);
         }
@@ -398,11 +432,140 @@ export class SymbolNavigationService {
         return null;
     }
 
+    /**
+     * Common singleton and factory method patterns
+     */
+    private static readonly SINGLETON_PATTERNS = [
+        'getInstance',
+        'getService',
+        'getProvider',
+        'getManager',
+        'getHandler',
+        'create',
+        'newInstance',
+        'of',
+        'forName',
+        'valueOf'
+    ];
+
+    /**
+     * Traces variable assignment to determine the actual class type
+     */
+    private static async traceVariableType(document: vscode.TextDocument, variableName: string): Promise<string | undefined> {
+        const text = document.getText();
+        const lines = text.split('\n');
+        
+        // Look for variable declaration and assignment patterns
+        for (let i = 0; i < lines.length; i++) {
+            const line = lines[i];
+            
+            // Pattern 1: Direct assignment with method call returning a class instance
+            // Example: Logger loggerInstance = Logger.getInstance();
+            const methodCallPattern = new RegExp(`\\b${variableName}\\s*=\\s*([A-Za-z0-9_]+)\\.(\\w+)\\s*\\(`, 'i');
+            const methodMatch = methodCallPattern.exec(line);
+            if (methodMatch) {
+                const className = methodMatch[1];
+                const methodName = methodMatch[2];
+                
+                // Check if this is a known singleton/factory pattern
+                if (this.SINGLETON_PATTERNS.includes(methodName)) {
+                    this.logDebug(`[VisbalExt.SymbolNavigationService] traceVariableType -- Found singleton pattern: ${className}.${methodName}() for variable ${variableName}`);
+                    return className;
+                }
+                
+                // Try to determine return type by analyzing the method in the class
+                const returnType = await this.analyzeMethodReturnType(document, className, methodName);
+                if (returnType) {
+                    this.logDebug(`[VisbalExt.SymbolNavigationService] traceVariableType -- Determined return type: ${returnType} for ${className}.${methodName}()`);
+                    return returnType;
+                }
+                
+                // Fallback: assume method returns the class it's called on
+                this.logDebug(`[VisbalExt.SymbolNavigationService] traceVariableType -- Assuming ${className} return type for ${className}.${methodName}()`);
+                return className;
+            }
+            
+            // Pattern 2: Variable declaration with explicit type
+            // Example: Logger loggerInstance = ...;
+            const declarationPattern = new RegExp(`\\b([A-Za-z0-9_]+)\\s+${variableName}\\s*=`, 'i');
+            const declMatch = declarationPattern.exec(line);
+            if (declMatch && declMatch[1]) {
+                const declaredType = declMatch[1];
+                // Ensure it's not a keyword or access modifier
+                if (!/^(public|private|protected|global|static|final|override|virtual|abstract)$/i.test(declaredType)) {
+                    this.logDebug(`[VisbalExt.SymbolNavigationService] traceVariableType -- Found declared type: ${declaredType} for variable ${variableName}`);
+                    return declaredType;
+                }
+            }
+        }
+        
+        return undefined;
+    }
+
+    /**
+     * Analyzes method signature to determine return type
+     */
+    private static async analyzeMethodReturnType(document: vscode.TextDocument, className: string, methodName: string): Promise<string | undefined> {
+        // First, try to find the method in the current document
+        const currentDocResult = this.analyzeMethodReturnTypeInDocument(document, methodName);
+        if (currentDocResult) {
+            return currentDocResult;
+        }
+        
+        // If not found in current document, try to find the class file
+        if (!vscode.workspace.workspaceFolders) {
+            return undefined;
+        }
+
+        try {
+            const workspaceFolder = vscode.workspace.workspaceFolders[0];
+            const classPattern = new vscode.RelativePattern(workspaceFolder, `**/${className}.cls`);
+            const classFiles = await vscode.workspace.findFiles(classPattern);
+            
+            if (classFiles.length > 0) {
+                const classFile = classFiles[0];
+                const classDocument = await vscode.workspace.openTextDocument(classFile);
+                const classResult = this.analyzeMethodReturnTypeInDocument(classDocument, methodName);
+                if (classResult) {
+                    this.logDebug(`[VisbalExt.SymbolNavigationService] analyzeMethodReturnType -- Found return type ${classResult} for ${className}.${methodName}() in ${className}.cls`);
+                    return classResult;
+                }
+            }
+        } catch (error) {
+            this.logDebug(`[VisbalExt.SymbolNavigationService] analyzeMethodReturnType -- Error searching for ${className}.cls:`, error);
+        }
+        
+        return undefined;
+    }
+    
+    /**
+     * Analyzes method signature in a specific document to determine return type
+     */
+    private static analyzeMethodReturnTypeInDocument(document: vscode.TextDocument, methodName: string): string | undefined {
+        const text = document.getText();
+        
+        // Look for method signature patterns in the document
+        const methodSignaturePattern = new RegExp(
+            `^\\s*(public|private|protected|global)\\s+(static\\s+)?([A-Za-z0-9_<>\\[\\]]+)\\s+${methodName}\\s*\\(`,
+            'im'
+        );
+        
+        const match = methodSignaturePattern.exec(text);
+        if (match && match[3]) {
+            const returnType = match[3].trim();
+            // Filter out access modifiers and common keywords
+            if (!/^(void|public|private|protected|global|static|override|virtual|abstract)$/i.test(returnType)) {
+                return returnType;
+            }
+        }
+        
+        return undefined;
+    }
+
     private static extractInstantiatedClassName(line: string, word: string, wordRange: vscode.Range): string | undefined {
         // Example: MyClass myVar = new MyClass();
         // Example: AnotherClass.staticMethod();
         // Look for patterns like "ClassName variableName = new InstantiatedClass();" or "InstantiatedClass.staticProperty"
-        // This is a simplified regex and might need refinement for all Apex scenarios.
 
         // Pattern for variable declaration with instantiation: `ClassName variableName = new InstantiatedClass();`
         const instantiationRegex = new RegExp(`(?:[A-Za-z0-9_]+)\\s+${word}\\s*=\\s*new\\s+([A-Za-z0-9_]+)\\s*\\(`, 'i');
@@ -412,9 +575,10 @@ export class SymbolNavigationService {
         }
 
         // Pattern for static method or property access: `ClassName.staticProperty` or `ClassName.staticMethod()`
-        const staticAccessRegex = new RegExp(`([A-Za-z0-9_]+)\\.${word}(?:\\s*\\()?`, 'i'); // Fixed regex
+        // Only consider it if the prefix starts with uppercase (class naming convention)
+        const staticAccessRegex = new RegExp(`([A-Z][A-Za-z0-9_]*)\\.${word}(?:\\s*\\()?`, 'i');
         match = staticAccessRegex.exec(line);
-        if (match && match[1]) { // Removed !match[2] as the group is now non-capturing
+        if (match && match[1]) {
             // Check if the matched class name is not the word itself
             if (match[1] !== word) {
                 return match[1]; // Returns 'ClassName'
@@ -423,7 +587,7 @@ export class SymbolNavigationService {
         
         // Pattern for variable declaration: `ClassName variableName = ...;` or `ClassName variableName;`
         // This should capture the declared type when the cursor is on the variableName
-        const declarationRegex = new RegExp(`^\\s*([A-Za-z0-9_]+)\s+${word}\b`, 'i');
+        const declarationRegex = new RegExp(`^\\s*([A-Za-z0-9_]+)\\s+${word}\b`, 'i');
         match = declarationRegex.exec(line);
         if (match && match[1]) {
             // Ensure the extracted type is not a keyword or primitive type
@@ -453,7 +617,20 @@ export class SymbolNavigationService {
             throw new Error('No symbol found at cursor position. Please place cursor on a method, property, class, or other symbol.');
         }
 
-        const { symbol, type, isThisReference, className } = symbolInfo;
+        let { symbol, type, isThisReference, className, variableToTrace } = symbolInfo;
+        
+        // If we have a variable to trace, try to resolve its type asynchronously
+        if (variableToTrace && !className) {
+            this.logDebug(`[VisbalExt.SymbolNavigationService] navigateToSelectedDefinition -- Tracing variable type for ${variableToTrace}`);
+            const tracedClassName = await this.traceVariableType(editor.document, variableToTrace);
+            if (tracedClassName) {
+                className = tracedClassName;
+                this.logDebug(`[VisbalExt.SymbolNavigationService] navigateToSelectedDefinition -- Successfully traced ${variableToTrace} -> ${className}`);
+            } else {
+                this.logDebug(`[VisbalExt.SymbolNavigationService] navigateToSelectedDefinition -- Could not trace variable type for ${variableToTrace}`);
+            }
+        }
+        
         const searchContext = className ? `${className}.${symbol}` : isThisReference ? `this.${symbol}` : symbol;
         this.logDebug(`[VisbalExt.SymbolNavigationService] navigateToSelectedDefinition -- Searching for ${type} definition: ${searchContext}`);
         
@@ -461,12 +638,22 @@ export class SymbolNavigationService {
         const symbolLocation = await this.findSymbolDefinition(symbol, type, sourceFileExtension, editor.document, isThisReference, className);
         if (!symbolLocation) {
             let searchScope = 'workspace files';
+            let suggestion = '';
+            
             if (className) {
                 searchScope = `${className}.cls and workspace files`;
+                suggestion = ` Make sure the ${className} class exists and contains the method '${symbol}'.`;
             } else if (isThisReference) {
                 searchScope = 'current file and workspace';
+                suggestion = ` Make sure the method '${symbol}' is defined in this class.`;
+            } else if (variableToTrace) {
+                searchScope = `traced variable files`;
+                suggestion = ` Could not trace the type of variable '${variableToTrace}'. Make sure it's properly declared with a class type.`;
             }
-            throw new Error(`${type} definition for '${searchContext}' not found in ${searchScope}`);
+            
+            const errorMessage = `${type} definition for '${searchContext}' not found in ${searchScope}.${suggestion}`;
+            this.logError(`[VisbalExt.SymbolNavigationService] navigateToSelectedDefinition -- ${errorMessage}`, new Error(errorMessage));
+            throw new Error(errorMessage);
         }
 
         try {

@@ -1,7 +1,7 @@
 {
   "name": "visbal-ext",
   "displayName": "Visbal Extension",
-  "version": "1.2.2",
+  "version": "1.2.3",
   "publisher": "visbal",
   "icon": "media/icon.png",
   "description": "A Visual Studio Code extension for Salesforce development with enhanced test execution and log analysis capabilities",
@@ -360,6 +360,12 @@
         "title": "Export Test Results",
         "category": "Visbal",
         "icon": "$(save-as)"
+      },
+      {
+        "command": "visbal-ext.cleanupDebugFiles",
+        "title": "Cleanup Debug Files",
+        "category": "Visbal",
+        "icon": "$(trash)"
       }
     ],
     "menus": {
@@ -533,6 +539,11 @@
           "type": "number",
           "default": 1,
           "description": "Delete error logs older than this number of days"
+        },
+        "visbal.logging.deleteDebugLogsOlderThan": {
+          "type": "number",
+          "default": 10,
+          "description": "Delete debug logs older than this number of days"
         },
         "visbal.logging.debugMaxLength": {
           "type": "number",

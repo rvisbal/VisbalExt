@@ -750,12 +750,19 @@ export class TestRunningTaskView {
             
             const workspacePath = workspaceFolders[0].uri.fsPath;
             
+            // Create .visbal/logs directory if it doesn't exist
+            const visbalLogsDir = path.join(workspacePath, '.visbal', 'logs');
+            if (!fs.existsSync(visbalLogsDir)) {
+                await fs.promises.mkdir(visbalLogsDir, { recursive: true });
+                OrgUtils.logDebug('[VisbalExt.TestRunningTaskView] exportTestResults -- Created .visbal/logs directory');
+            }
+            
             // Generate filename with timestamp
             const timestamp = new Date().toISOString().replace(/[:.]/g, '-').split('T');
             const dateStr = timestamp[0];
             const timeStr = timestamp[1].split('-').slice(0, 3).join('-'); // HH-MM-SS
             const filename = `test-results-${dateStr}-${timeStr}.txt`;
-            const filePath = path.join(workspacePath, filename);
+            const filePath = path.join(visbalLogsDir, filename);
             
             // Write the file
             await fs.promises.writeFile(filePath, reportContent, 'utf8');
@@ -764,7 +771,7 @@ export class TestRunningTaskView {
             const document = await vscode.workspace.openTextDocument(filePath);
             await vscode.window.showTextDocument(document);
             
-            vscode.window.showInformationMessage(`Test results exported to ${filename}`);
+            vscode.window.showInformationMessage(`Test results exported to .visbal/logs/${filename}`);
             OrgUtils.logDebug('[VisbalExt.TestRunningTaskView] exportTestResults -- Export completed successfully');
             
         } catch (error: any) {
