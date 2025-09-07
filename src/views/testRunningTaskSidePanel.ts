@@ -11,7 +11,7 @@ export class TestItem extends vscode.TreeItem {
     constructor(
         public readonly label: string,
         public readonly collapsibleState: vscode.TreeItemCollapsibleState,
-        status: 'running' | 'success' | 'failed' | 'pending' | 'downloading' | 'skipped' = 'pending',
+        status: 'running' | 'success' | 'failed' | 'pending' | 'downloading' | 'skipped' | 'aborted' = 'pending',
         public readonly children: TestItem[] = [],
         logId?: string,
         public readonly className?: string
@@ -41,7 +41,7 @@ export class TestItem extends vscode.TreeItem {
         }
     }
 
-    get status(): 'running' | 'success' | 'failed' | 'pending' | 'downloading' | 'skipped' {
+    get status(): 'running' | 'success' | 'failed' | 'pending' | 'downloading' | 'skipped' | 'aborted' {
         return this._status;
     }
 
@@ -83,7 +83,7 @@ export class TestItem extends vscode.TreeItem {
         }
     }
 
-    updateStatus(status: 'running' | 'success' | 'failed' | 'pending' | 'downloading' | 'skipped') {
+    updateStatus(status: 'running' | 'success' | 'failed' | 'pending' | 'downloading' | 'skipped' | 'aborted') {
         this._status = status;
         switch (status) {
             case 'running':
@@ -108,6 +108,10 @@ export class TestItem extends vscode.TreeItem {
                     this.description = 'Failed';
                 }
                 break;
+            case 'aborted':
+                this.iconPath = new vscode.ThemeIcon('circle-filled', new vscode.ThemeColor('notificationsErrorIcon.foreground'));
+                this.description = 'Aborted';
+                break;
             case 'pending':
                 this.iconPath = new vscode.ThemeIcon('circle-outline');
                 this.description = 'Pending';
@@ -129,10 +133,18 @@ export class TestItem extends vscode.TreeItem {
         return this.children.some(child => child.status === 'skipped');
     }
 
-    // Helper method to check if all children are complete (success, failed, or skipped)
+    // Helper method to check if any children have been aborted
+    hasAbortedChildren(): boolean {
+        return this.children.some(child => child.status === 'aborted');
+    }
+
+    // Helper method to check if all children are complete (success, failed, skipped, or aborted)
     areAllChildrenComplete(): boolean {
         return this.children.every(child => 
-            child.status === 'success' || child.status === 'failed' || child.status === 'skipped'
+            child.status === 'success' || 
+            child.status === 'failed' || 
+            child.status === 'skipped' ||
+            child.status === 'aborted'
         );
     }
 }
@@ -301,14 +313,17 @@ export class TestRunningTaskProvider implements vscode.TreeDataProvider<TestItem
         }
 
         // Determine class status based on method statuses
-        let classStatus: 'running' | 'success' | 'failed' | 'pending' | 'downloading' | 'skipped' = 'running';
+        let classStatus: 'running' | 'success' | 'failed' | 'pending' | 'downloading' | 'skipped' | 'aborted' = 'running';
         const hasRunning = methodItems.some(item => item.status === 'running');
         const hasPending = methodItems.some(item => item.status === 'pending');
         const hasFailed = methodItems.some(item => item.status === 'failed');
+        const hasAborted = methodItems.some(item => item.status === 'aborted');
         const allSuccess = methodItems.length > 0 && methodItems.every(item => item.status === 'success');
         
         if (hasFailed) {
             classStatus = 'failed';
+        } else if (hasAborted) {
+            classStatus = 'aborted';
         } else if (allSuccess) {
             classStatus = 'success';
         } else if (hasRunning || hasPending) {
@@ -360,7 +375,7 @@ export class TestRunningTaskProvider implements vscode.TreeDataProvider<TestItem
         }
     }
 
-    updateMethodStatus(className: string, methodName: string, status: 'running' | 'success' | 'failed' | 'pending' | 'downloading' | 'skipped', logId?: string, error?: string) {
+    updateMethodStatus(className: string, methodName: string, status: 'running' | 'success' | 'failed' | 'pending' | 'downloading' | 'skipped' | 'aborted', logId?: string, error?: string) {
         // Don't update method status if tests have been aborted
         if (this._isAborted) {
             OrgUtils.logDebug(`[VisbalExt.TestRunningTaskProvider] Ignoring updateMethodStatus for ${className}.${methodName} - tests have been aborted`);
@@ -396,9 +411,11 @@ export class TestRunningTaskProvider implements vscode.TreeDataProvider<TestItem
                 
                 // Auto-update class status if all methods are complete
                 if (classItem.areAllChildrenComplete()) {
-                    let newStatus: 'success' | 'failed' | 'skipped';
+                    let newStatus: 'success' | 'failed' | 'skipped' | 'aborted';
                     if (classItem.hasFailedChildren()) {
                         newStatus = 'failed';
+                    } else if (classItem.hasAbortedChildren()) {
+                        newStatus = 'aborted';
                     } else if (classItem.hasSkippedChildren()) {
                         newStatus = 'skipped';
                     } else {
@@ -430,7 +447,7 @@ export class TestRunningTaskProvider implements vscode.TreeDataProvider<TestItem
         }
     }
 
-    updateClassStatus(className: string, status: 'running' | 'success' | 'failed' | 'pending' | 'downloading' | 'skipped') {
+    updateClassStatus(className: string, status: 'running' | 'success' | 'failed' | 'pending' | 'downloading' | 'skipped' | 'aborted') {
         const startTime = Date.now();
         OrgUtils.logDebug(`[VisbalExt.TestRunningTaskProvider] updateClassStatus -- Updating class status: ${className} -> ${status} at ${new Date(startTime).toISOString()}`);
         
@@ -615,11 +632,11 @@ export class TestRunningTaskView {
         this.provider.addTestRun(className, methods);
     }
 
-    updateMethodStatus(className: string, methodName: string, status: 'running' | 'success' | 'failed' | 'pending' | 'downloading' | 'skipped', logId?: string, error?: string) {
+    updateMethodStatus(className: string, methodName: string, status: 'running' | 'success' | 'failed' | 'pending' | 'downloading' | 'skipped' | 'aborted', logId?: string, error?: string) {
         this.provider.updateMethodStatus(className, methodName, status, logId, error);
     }
 
-    updateClassStatus(className: string, status: 'running' | 'success' | 'failed' | 'pending' | 'downloading' | 'skipped') {
+    updateClassStatus(className: string, status: 'running' | 'success' | 'failed' | 'pending' | 'downloading' | 'skipped' | 'aborted') {
         this.provider.updateClassStatus(className, status);
     }
 

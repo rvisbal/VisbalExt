@@ -749,6 +749,11 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                                     this._testRunResultsView.updateMethodStatus(testClass, t.MethodName, 'failed');
                                     mainClassMap.set(t.ApexClass.Name, false);
                                 }
+                                else if (t.Outcome === 'Aborted') {
+                                    OrgUtils.logDebug('[VisbalExt.TestClassExplorerSidePanel] _runTest -- Test aborted', t.Outcome);
+                                    this._testRunResultsView.updateMethodStatus(testClass, t.MethodName, 'aborted');
+                                    mainClassMap.set(t.ApexClass.Name, false);
+                                }
                                 
                                 // Process logs in background (non-blocking)
                                 this._processTestLogAsync(t, testClass, result.testRunId, currentOrgAlias || '', mainClassMap.size === 0);
@@ -872,6 +877,8 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                 this._testRunResultsView.updateMethodStatus(testClass, testResult.MethodName, 'failed', logId);
             } else if (testResult.Outcome === 'Skip' || testResult.Outcome === 'Skipped') {
                 this._testRunResultsView.updateMethodStatus(testClass, testResult.MethodName, 'skipped', logId);
+            } else if (testResult.Outcome === 'Aborted') {
+                this._testRunResultsView.updateMethodStatus(testClass, testResult.MethodName, 'aborted', logId);
             }
             
         } catch (error: any) {
@@ -881,6 +888,10 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                 this._testRunResultsView.updateMethodStatus(testClass, testResult.MethodName, 'success');
             } else if (testResult.Outcome === 'Fail' || testResult.Outcome === 'Failed') {
                 this._testRunResultsView.updateMethodStatus(testClass, testResult.MethodName, 'failed');
+            } else if (testResult.Outcome === 'Skip' || testResult.Outcome === 'Skipped') {
+                this._testRunResultsView.updateMethodStatus(testClass, testResult.MethodName, 'skipped');
+            } else if (testResult.Outcome === 'Aborted') {
+                this._testRunResultsView.updateMethodStatus(testClass, testResult.MethodName, 'aborted');
             }
         }
     }
@@ -1034,6 +1045,10 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                                                         }
                                                         else if (test.Outcome === 'Fail' || test.Outcome === 'Failed') {
                                                             this._testRunResultsView.updateMethodStatus(testClassName, test.MethodName, 'failed', logId);
+                                                            mainClassMap.set(testClassName, false);
+                                                        }
+                                                        else if (test.Outcome === 'Aborted') {
+                                                            this._testRunResultsView.updateMethodStatus(testClassName, test.MethodName, 'aborted', logId);
                                                             mainClassMap.set(testClassName, false);
                                                         }
 
@@ -1215,10 +1230,20 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                                                                 for (const t of testRunResult.tests) {
                                                                     if (t.MethodName === methodName) {
                                                                         OrgUtils.logError('[VisbalExt.TestClassExplorerSidePanel] _runSelectedTests.sequentially POLL updateMethodStatus.t.Outcome:', t.Outcome);
+                                                                        let status: 'success' | 'failed' | 'skipped' | 'aborted';
+                                                                        if (t.Outcome === 'Pass' || t.Outcome === 'Passed') {
+                                                                            status = 'success';
+                                                                        } else if (t.Outcome === 'Skip' || t.Outcome === 'Skipped') {
+                                                                            status = 'skipped';
+                                                                        } else if (t.Outcome === 'Aborted') {
+                                                                            status = 'aborted';
+                                                                        } else {
+                                                                            status = 'failed';
+                                                                        }
                                                                         this._testRunResultsView.updateMethodStatus(
                                                                             className,
                                                                             methodName,
-                                                                            t.Outcome === 'Pass' ? 'success' : 'failed',
+                                                                            status,
                                                                             logId
                                                                         );
                                                                         break;
@@ -1613,10 +1638,20 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                                                     for (const t of testRunResult.tests) {
                                                         if (t.MethodName === progress.methodName) {
                                                             OrgUtils.logDebug(`[VisbalExt.TestClassExplorerSidePanel] _runSelectedTests.sequentially POLL updateMethodStatus.t.Outcome: ${t.Outcome}`);
+                                                            let status: 'success' | 'failed' | 'skipped' | 'aborted';
+                                                            if (t.Outcome === 'Pass' || t.Outcome === 'Passed') {
+                                                                status = 'success';
+                                                            } else if (t.Outcome === 'Skip' || t.Outcome === 'Skipped') {
+                                                                status = 'skipped';
+                                                            } else if (t.Outcome === 'Aborted') {
+                                                                status = 'aborted';
+                                                            } else {
+                                                                status = 'failed';
+                                                            }
                                                             this._testRunResultsView.updateMethodStatus(
                                                                 progress.className,
                                                                 progress.methodName,
-                                                                t.Outcome === 'Pass' ? 'success' : 'failed',
+                                                                status,
                                                                 logId
                                                             );
                                                             break;
@@ -2769,10 +2804,20 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
 
                 const test = testRunResult.tests.find((t: { MethodName: string, Outcome: string }) => t.MethodName === methodName);
                 if (test) {
+                    let status: 'success' | 'failed' | 'skipped' | 'aborted';
+                    if (test.Outcome === 'Pass' || test.Outcome === 'Passed') {
+                        status = 'success';
+                    } else if (test.Outcome === 'Skip' || test.Outcome === 'Skipped') {
+                        status = 'skipped';
+                    } else if (test.Outcome === 'Aborted') {
+                        status = 'aborted';
+                    } else {
+                        status = 'failed';
+                    }
                     this._testRunResultsView.updateMethodStatus(
                         className,
                         methodName,
-                        (test.Outcome === 'Pass' || test.Outcome === 'Passed') ? 'success' : 'failed'
+                        status
                     );
                 }
 
