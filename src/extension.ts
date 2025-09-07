@@ -169,6 +169,13 @@ export async function activate(context: vscode.ExtensionContext) {
             } else {
                 vscode.window.showErrorMessage('Test class explorer view is not initialized');
             }
+        }),
+        vscode.commands.registerCommand('visbal-ext.exportTestResults', async () => {
+            if (testRunningTaskView) {
+                await testRunningTaskView.exportTestResults();
+            } else {
+                vscode.window.showErrorMessage('Test running task view is not initialized');
+            }
         })
         
     );

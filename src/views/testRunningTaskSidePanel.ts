@@ -1,4 +1,6 @@
 import * as vscode from 'vscode';
+import * as fs from 'fs';
+import * as path from 'path';
 import { OrgUtils } from '../utils/orgUtils';
 
 //@description: TestItem is a class that represents a test item in the test run results view or RUNNING TASK view
@@ -720,5 +722,190 @@ export class TestRunningTaskView {
 
     public addSingleMethod(className: string, methodName: string) {
         this.provider.addTestRun(className, [methodName]);
+    }
+
+    /**
+     * Exports all test results to a text file and opens it in Cursor IDE
+     */
+    public async exportTestResults() {
+        try {
+            OrgUtils.logDebug('[VisbalExt.TestRunningTaskView] exportTestResults -- Starting export of test results');
+            
+            const testRuns = this.provider.getTestRuns();
+            
+            if (testRuns.size === 0) {
+                vscode.window.showInformationMessage('No test results to export');
+                return;
+            }
+
+            // Generate the report content
+            const reportContent = this.generateTestResultsReport(testRuns);
+            
+            // Get workspace folder path
+            const workspaceFolders = vscode.workspace.workspaceFolders;
+            if (!workspaceFolders || workspaceFolders.length === 0) {
+                vscode.window.showErrorMessage('No workspace folder found');
+                return;
+            }
+            
+            const workspacePath = workspaceFolders[0].uri.fsPath;
+            
+            // Generate filename with timestamp
+            const timestamp = new Date().toISOString().replace(/[:.]/g, '-').split('T');
+            const dateStr = timestamp[0];
+            const timeStr = timestamp[1].split('-').slice(0, 3).join('-'); // HH-MM-SS
+            const filename = `test-results-${dateStr}-${timeStr}.txt`;
+            const filePath = path.join(workspacePath, filename);
+            
+            // Write the file
+            await fs.promises.writeFile(filePath, reportContent, 'utf8');
+            
+            // Open the file in Cursor IDE
+            const document = await vscode.workspace.openTextDocument(filePath);
+            await vscode.window.showTextDocument(document);
+            
+            vscode.window.showInformationMessage(`Test results exported to ${filename}`);
+            OrgUtils.logDebug('[VisbalExt.TestRunningTaskView] exportTestResults -- Export completed successfully');
+            
+        } catch (error: any) {
+            const errorMessage = error instanceof Error ? error.message : String(error);
+            OrgUtils.logError('[VisbalExt.TestRunningTaskView] exportTestResults -- Error exporting test results:', error);
+            vscode.window.showErrorMessage(`Failed to export test results: ${errorMessage}`);
+        }
+    }
+
+    /**
+     * Generates a formatted text report of all test results
+     * @param testRuns Map of test runs to format
+     * @returns Formatted text content
+     */
+    private generateTestResultsReport(testRuns: Map<string, TestItem>): string {
+        const lines: string[] = [];
+        
+        // Header
+        lines.push('='.repeat(80));
+        lines.push('TEST RESULTS REPORT');
+        lines.push('='.repeat(80));
+        lines.push(`Generated: ${new Date().toLocaleString()}`);
+        lines.push('');
+        
+        // Summary statistics
+        let totalTests = 0;
+        let passedTests = 0;
+        let failedTests = 0;
+        let skippedTests = 0;
+        let abortedTests = 0;
+        let runningTests = 0;
+        let pendingTests = 0;
+        
+        // Count test results
+        testRuns.forEach((classItem) => {
+            if (classItem.children.length === 0) {
+                // Class-level test (no specific methods)
+                totalTests += 1;
+                switch (classItem.status) {
+                    case 'success': passedTests++; break;
+                    case 'failed': failedTests++; break;
+                    case 'skipped': skippedTests++; break;
+                    case 'aborted': abortedTests++; break;
+                    case 'running': runningTests++; break;
+                    case 'pending': pendingTests++; break;
+                }
+            } else {
+                // Method-level tests
+                classItem.children.forEach(method => {
+                    totalTests++;
+                    switch (method.status) {
+                        case 'success': passedTests++; break;
+                        case 'failed': failedTests++; break;
+                        case 'skipped': skippedTests++; break;
+                        case 'aborted': abortedTests++; break;
+                        case 'running': runningTests++; break;
+                        case 'pending': pendingTests++; break;
+                    }
+                });
+            }
+        });
+        
+        // Summary section
+        lines.push('SUMMARY');
+        lines.push('-'.repeat(40));
+        lines.push(`Total Tests:    ${totalTests}`);
+        lines.push(`Passed:         ${passedTests}`);
+        lines.push(`Failed:         ${failedTests}`);
+        lines.push(`Skipped:        ${skippedTests}`);
+        lines.push(`Aborted:        ${abortedTests}`);
+        lines.push(`Running:        ${runningTests}`);
+        lines.push(`Pending:        ${pendingTests}`);
+        
+        if (totalTests > 0) {
+            const passPercentage = ((passedTests / totalTests) * 100).toFixed(1);
+            lines.push(`Pass Rate:      ${passPercentage}%`);
+        }
+        
+        lines.push('');
+        
+        // Detailed results by class
+        lines.push('DETAILED RESULTS');
+        lines.push('-'.repeat(40));
+        lines.push('');
+        
+        // Sort classes alphabetically
+        const sortedTestRuns = Array.from(testRuns.entries()).sort(([a], [b]) => a.localeCompare(b));
+        
+        sortedTestRuns.forEach(([className, classItem]) => {
+            lines.push(`📁 ${className}`);
+            
+            if (classItem.children.length === 0) {
+                // Class-level test result
+                const statusIcon = this.getStatusIcon(classItem.status);
+                lines.push(`   ${statusIcon} Class Test - ${classItem.status.toUpperCase()}`);
+                if (classItem.logId) {
+                    lines.push(`      Log ID: ${classItem.logId}`);
+                }
+                if (classItem.error) {
+                    lines.push(`      Error: ${classItem.error}`);
+                }
+            } else {
+                // Method-level tests
+                classItem.children.sort((a, b) => a.label.localeCompare(b.label)).forEach(method => {
+                    const statusIcon = this.getStatusIcon(method.status);
+                    lines.push(`   ${statusIcon} ${method.label} - ${method.status.toUpperCase()}`);
+                    
+                    if (method.logId) {
+                        lines.push(`      Log ID: ${method.logId}`);
+                    }
+                    if (method.error) {
+                        lines.push(`      Error: ${method.error}`);
+                    }
+                });
+            }
+            lines.push('');
+        });
+        
+        // Footer
+        lines.push('-'.repeat(80));
+        lines.push('End of Report');
+        lines.push('-'.repeat(80));
+        
+        return lines.join('\n');
+    }
+
+    /**
+     * Returns an appropriate icon for the test status
+     * @param status Test status
+     * @returns Icon string
+     */
+    private getStatusIcon(status: 'running' | 'success' | 'failed' | 'pending' | 'downloading' | 'skipped' | 'aborted'): string {
+        switch (status) {
+            case 'success': return '✅';
+            case 'failed': return '❌';
+            case 'skipped': return '⏭️';
+            case 'aborted': return '🛑';
+            case 'running': return '🔄';
+            case 'downloading': return '⬇️';
+            case 'pending': return '⏸️';
+            default: return '❓';
+        }
     }
 } 
