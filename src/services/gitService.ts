@@ -1,13 +1,28 @@
 import * as vscode from 'vscode';
-import { exec } from 'child_process';
+import { exec, spawn } from 'child_process';
 import { promisify } from 'util';
 import { OrgUtils } from '../utils/orgUtils';
 import { StatusBarService } from './statusBarService';
 
 const execAsync = promisify(exec);
 
+/**
+ * GitService provides git history functionality with buffer overflow protection.
+ * 
+ * Methods:
+ * - getHistoryForFile: Standard buffered approach with automatic fallbacks
+ * - getHistoryForFileStreaming: Streaming approach for very large repositories
+ * 
+ * The service handles buffer overflow by:
+ * 1. Using increased buffer size (50MB)
+ * 2. Limiting commits by default (100 max)
+ * 3. Making diffs optional to reduce output
+ * 4. Automatic fallbacks: no diffs -> fewer commits -> streaming
+ * 5. Streaming approach for extreme cases
+ */
 export class GitService {
-    private static readonly MAX_EXEC_BUFFER = 10 * 1024 * 1024; // 10MB
+    private static readonly MAX_EXEC_BUFFER = 50 * 1024 * 1024; // 50MB - increased from 10MB
+    private static readonly DEFAULT_MAX_COMMITS = 100; // Default limit for commits to prevent overflow
     constructor(private context: vscode.ExtensionContext) {}
 
     /**
@@ -49,7 +64,9 @@ export class GitService {
      * Gets the git history for an entire file
      */
     async getHistoryForFile(
-        filePath: string
+        filePath: string,
+        maxCommits: number = GitService.DEFAULT_MAX_COMMITS,
+        includeDiffs: boolean = true
     ): Promise<Array<{
         hash: string,
         author: string,
@@ -67,10 +84,12 @@ export class GitService {
             // Escape the file path to handle spaces and special characters
             const escapedPath = filePath.replace(/(["\s'$`\\])/g,'\\$1');
 
-            // Command to get git history for the entire file with context lines
+            // Command to get git history for the entire file with optimizations
+            const patchFlag = includeDiffs ? '-p' : '';
             const command = `git log ` +
                 `--full-history ` +
-                `-m -p ` +
+                `--max-count=${maxCommits} ` +
+                `-m ${patchFlag} ` +
                 `--date=local ` +
                 `--pretty=format:"commit %H%nAuthor: %an%nDate: %ad%n%n%s%n%n" ` +
                 `-L 1,999999:${escapedPath}`;
@@ -78,54 +97,33 @@ export class GitService {
             OrgUtils.logDebug(`[VisbalExt.GitService] getHistoryForFile -- Git command:`, command);
             
             // Get the git log with detailed format
-            const { stdout } = await execAsync(command, { maxBuffer: GitService.MAX_EXEC_BUFFER });
-            OrgUtils.logDebug(`[VisbalExt.GitService] getHistoryForFile -- Git output:`, stdout);
-            
-            const commits = [];
-            let currentCommit: any = {};
-            let diffContent = '';
-            
-            // Split the output into commits and their corresponding diffs
-            // Using a more precise regex to handle merge commits and their parents
-            const parts = stdout.split(/(?=^commit\s[a-f0-9]{40}(?:\s\([^)]*\))?\n)/m);
-            
-            for (const part of parts) {
-                OrgUtils.logDebug(`[VisbalExt.GitService] getHistoryForFile -- Part:`, part);
-                if (!part.trim()) continue;
-                
-                // Enhanced regex to better handle merge commit messages
-                const commitMatch = part.match(/^commit\s([a-f0-9]+)(?:\s\([^)]*\))?\nAuthor:\s(.*?)\nDate:\s(.*?)\n\n([\s\S]*?)(?=\n(?:diff|$))/);
-                if (commitMatch) {
-                    if (currentCommit.hash) {
-                        currentCommit.diff = diffContent.trim();
-                        commits.push(currentCommit);
-                        diffContent = '';
+            let stdout: string;
+            try {
+                const result = await execAsync(command, { maxBuffer: GitService.MAX_EXEC_BUFFER });
+                stdout = result.stdout;
+                OrgUtils.logDebug(`[VisbalExt.GitService] getHistoryForFile -- Git output:`, stdout);
+            } catch (error: any) {
+                if (error.code === 'ERR_CHILD_PROCESS_STDIO_MAXBUFFER') {
+                    OrgUtils.logError('[VisbalExt.GitService] getHistoryForFile -- Buffer overflow, trying fallbacks', error);
+                    // Fallback 1: try without diffs if they were included
+                    if (includeDiffs) {
+                        return await this.getHistoryForFile(filePath, maxCommits, false);
                     }
-                    
-                    currentCommit = {
-                        hash: commitMatch[1],
-                        author: commitMatch[2],
-                        date: commitMatch[3],
-                        message: commitMatch[4].trim(),
-                        diff: ''
-                    };
-                    
-                    // Extract diff content after the commit header
-                    const diffStart = part.indexOf('\ndiff ');
-                    if (diffStart !== -1) {
-                        diffContent = part.slice(diffStart).trim();
+                    // Fallback 2: if still failing without diffs, try with fewer commits
+                    if (maxCommits > 10) {
+                        const reducedCommits = Math.max(10, Math.floor(maxCommits / 2));
+                        OrgUtils.logDebug(`[VisbalExt.GitService] getHistoryForFile -- Reducing commits to ${reducedCommits}`);
+                        return await this.getHistoryForFile(filePath, reducedCommits, false);
                     }
-                } else {
-                    // If no commit match, this must be diff content
-                    diffContent += '\n' + part.trim();
+                    // Fallback 3: try streaming approach as last resort
+                    OrgUtils.logDebug('[VisbalExt.GitService] getHistoryForFile -- Trying streaming approach as final fallback');
+                    return await this.getHistoryForFileStreaming(filePath, 10, false);
                 }
+                throw error;
             }
-
-            // Don't forget to add the last commit
-            if (currentCommit.hash) {
-                currentCommit.diff = diffContent.trim();
-                commits.push(currentCommit);
-            }
+            
+            // Parse the output using the shared parsing logic
+            const commits = this.parseGitLogOutput(stdout);
             statusBarService.showSuccess('Git history loaded');
             return commits;
         } catch (error) {
@@ -425,6 +423,153 @@ export class GitService {
             // Return null if no parent exists (initial commit)
             return null;
         }
+    }
+
+    /**
+     * Gets the git history for an entire file using streaming to handle large outputs
+     * This is an alternative method for very large repositories where buffered approach fails
+     */
+    async getHistoryForFileStreaming(
+        filePath: string,
+        maxCommits: number = GitService.DEFAULT_MAX_COMMITS,
+        includeDiffs: boolean = true
+    ): Promise<Array<{
+        hash: string,
+        author: string,
+        date: string,
+        message: string,
+        diff: string
+    }>> {
+        const statusBarService = StatusBarService.getInstance();
+        return new Promise((resolve, reject) => {
+            try {
+                statusBarService.showProgress('Loading git history (streaming)...');
+                
+                // First check if file is tracked
+                this.checkIfFileIsTracked(filePath).then(() => {
+                    const escapedPath = filePath.replace(/(["\s'$`\\])/g,'\\$1');
+                    const patchFlag = includeDiffs ? '-p' : '';
+                    
+                    const args = [
+                        'log',
+                        '--full-history',
+                        `--max-count=${maxCommits}`,
+                        '-m',
+                        ...(patchFlag ? ['-p'] : []),
+                        '--date=local',
+                        '--pretty=format:commit %H%nAuthor: %an%nDate: %ad%n%n%s%n%n',
+                        `-L`, `1,999999:${escapedPath}`
+                    ];
+
+                    OrgUtils.logDebug('[VisbalExt.GitService] getHistoryForFileStreaming -- Git args:', args.join(' '));
+                    
+                    const gitProcess = spawn('git', args, { 
+                        stdio: ['pipe', 'pipe', 'pipe'],
+                        shell: true 
+                    });
+                    
+                    let stdout = '';
+                    let stderr = '';
+                    
+                    gitProcess.stdout.on('data', (data) => {
+                        stdout += data.toString();
+                    });
+                    
+                    gitProcess.stderr.on('data', (data) => {
+                        stderr += data.toString();
+                    });
+                    
+                    gitProcess.on('error', (error) => {
+                        statusBarService.showError('Failed to load git history (streaming)');
+                        OrgUtils.logError('[VisbalExt.GitService] getHistoryForFileStreaming -- Process error:', error);
+                        reject(error);
+                    });
+                    
+                    gitProcess.on('close', (code) => {
+                        statusBarService.hide();
+                        if (code !== 0) {
+                            const error = new Error(`Git command failed with code ${code}: ${stderr}`);
+                            OrgUtils.logError('[VisbalExt.GitService] getHistoryForFileStreaming -- Command failed:', error);
+                            reject(error);
+                            return;
+                        }
+                        
+                        try {
+                            // Parse the output using the same logic as the buffered approach
+                            const commits = this.parseGitLogOutput(stdout);
+                            statusBarService.showSuccess('Git history loaded (streaming)');
+                            resolve(commits);
+                        } catch (parseError) {
+                            OrgUtils.logError('[VisbalExt.GitService] getHistoryForFileStreaming -- Parse error:', parseError);
+                            reject(parseError);
+                        }
+                    });
+                    
+                }).catch(reject);
+                
+            } catch (error) {
+                statusBarService.showError('Failed to load git history (streaming)');
+                statusBarService.hide();
+                reject(error);
+            }
+        });
+    }
+
+    /**
+     * Parses git log output into structured commit objects
+     */
+    private parseGitLogOutput(stdout: string): Array<{
+        hash: string,
+        author: string,
+        date: string,
+        message: string,
+        diff: string
+    }> {
+        const commits = [];
+        let currentCommit: any = {};
+        let diffContent = '';
+        
+        // Split the output into commits and their corresponding diffs
+        const parts = stdout.split(/(?=^commit\s[a-f0-9]{40}(?:\s\([^)]*\))?\n)/m);
+        
+        for (const part of parts) {
+            if (!part.trim()) continue;
+            
+            // Enhanced regex to better handle merge commit messages
+            const commitMatch = part.match(/^commit\s([a-f0-9]+)(?:\s\([^)]*\))?\nAuthor:\s(.*?)\nDate:\s(.*?)\n\n([\s\S]*?)(?=\n(?:diff|$))/);
+            if (commitMatch) {
+                if (currentCommit.hash) {
+                    currentCommit.diff = diffContent.trim();
+                    commits.push(currentCommit);
+                    diffContent = '';
+                }
+                
+                currentCommit = {
+                    hash: commitMatch[1],
+                    author: commitMatch[2],
+                    date: commitMatch[3],
+                    message: commitMatch[4].trim(),
+                    diff: ''
+                };
+                
+                // Extract diff content after the commit header
+                const diffStart = part.indexOf('\ndiff ');
+                if (diffStart !== -1) {
+                    diffContent = part.slice(diffStart).trim();
+                }
+            } else {
+                // If no commit match, this must be diff content
+                diffContent += '\n' + part.trim();
+            }
+        }
+
+        // Don't forget to add the last commit
+        if (currentCommit.hash) {
+            currentCommit.diff = diffContent.trim();
+            commits.push(currentCommit);
+        }
+        
+        return commits;
     }
 
     /**
