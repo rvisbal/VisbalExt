@@ -615,6 +615,7 @@ export class TestRunningTaskProvider implements vscode.TreeDataProvider<TestItem
 export class TestRunningTaskView {
     private provider: TestRunningTaskProvider;
     private treeView: vscode.TreeView<TestItem>;
+    private testSummaryView?: any; // Reference to TestSummaryView for accessing detailed error data
 
     constructor(context: vscode.ExtensionContext) {
         this.provider = new TestRunningTaskProvider();
@@ -624,6 +625,14 @@ export class TestRunningTaskView {
             canSelectMany: false
         });
         this.provider.setTreeView(this.treeView);
+    }
+
+    /**
+     * Sets the reference to TestSummaryView for accessing detailed error information
+     * @param testSummaryView Reference to the TestSummaryView instance
+     */
+    public setTestSummaryView(testSummaryView: any) {
+        this.testSummaryView = testSummaryView;
     }
 
     getProvider(): TestRunningTaskProvider {
@@ -796,6 +805,10 @@ export class TestRunningTaskView {
         lines.push(`Generated: ${new Date().toLocaleString()}`);
         lines.push('');
         
+        // Get detailed error information from TestSummaryView if available
+        const testSummaryData = this.testSummaryView?.getCurrentTests();
+        const testSummary = this.testSummaryView?.getCurrentSummary();
+        
         // Summary statistics
         let totalTests = 0;
         let passedTests = 0;
@@ -850,6 +863,28 @@ export class TestRunningTaskView {
             lines.push(`Pass Rate:      ${passPercentage}%`);
         }
         
+        // Add additional summary info from TestSummary if available
+        if (testSummary) {
+            lines.push('');
+            lines.push('ADDITIONAL DETAILS');
+            lines.push('-'.repeat(20));
+            if (testSummary.testExecutionTime) {
+                lines.push(`Execution Time:  ${testSummary.testExecutionTime}`);
+            }
+            if (testSummary.commandTime) {
+                lines.push(`Command Time:    ${testSummary.commandTime}`);
+            }
+            if (testSummary.testRunId) {
+                lines.push(`Test Run ID:     ${testSummary.testRunId}`);
+            }
+            if (testSummary.userId) {
+                lines.push(`User ID:         ${testSummary.userId}`);
+            }
+            if (testSummary.username) {
+                lines.push(`Username:        ${testSummary.username}`);
+            }
+        }
+        
         lines.push('');
         
         // Detailed results by class
@@ -884,6 +919,40 @@ export class TestRunningTaskView {
                     }
                     if (method.error) {
                         lines.push(`      Error: ${method.error}`);
+                    }
+                    
+                    // Add detailed error information from TestSummaryView if available
+                    if (testSummaryData && method.status === 'failed') {
+                        const detailedTestResult = testSummaryData.find((test: any) => {
+                            const testMethodName = test.MethodName || test.methodName;
+                            const testClassName = test.ApexClass?.Name || test.FullName?.split('.')[0];
+                            return testMethodName === method.label && testClassName === className;
+                        });
+                        
+                        if (detailedTestResult) {
+                            if (detailedTestResult.Message) {
+                                lines.push(`      Error Message:`);
+                                // Format the error message with proper indentation
+                                const errorMessage = detailedTestResult.Message
+                                    .replace(/^System\.[^:]+:/, '') // Remove System.* prefix
+                                    .trim();
+                                errorMessage.split('\n').forEach((line: string) => {
+                                    if (line.trim()) {
+                                        lines.push(`        ${line.trim()}`);
+                                    }
+                                });
+                            }
+                            
+                            if (detailedTestResult.StackTrace) {
+                                lines.push(`      Stack Trace:`);
+                                // Format the stack trace with proper indentation
+                                detailedTestResult.StackTrace.split('\n').forEach((line: string) => {
+                                    if (line.trim()) {
+                                        lines.push(`        ${line.trim()}`);
+                                    }
+                                });
+                            }
+                        }
                     }
                 });
             }

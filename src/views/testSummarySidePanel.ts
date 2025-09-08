@@ -84,8 +84,26 @@ interface ApexTestRunResult {
 export class TestSummaryView implements vscode.WebviewViewProvider {
     public static readonly viewType = 'visbal-test-summary';
     private _view?: vscode.WebviewView;
+    private _currentSummary?: TestSummary;
+    private _currentTests?: TestResult[];
 
     constructor(private readonly _extensionUri: vscode.Uri) {}
+
+    /**
+     * Gets the current test summary data
+     * @returns Current test summary or undefined if not available
+     */
+    public getCurrentSummary(): TestSummary | undefined {
+        return this._currentSummary;
+    }
+
+    /**
+     * Gets the current test results data
+     * @returns Current test results array or undefined if not available
+     */
+    public getCurrentTests(): TestResult[] | undefined {
+        return this._currentTests;
+    }
 
     public resolveWebviewView(
         webviewView: vscode.WebviewView,
@@ -146,6 +164,11 @@ export class TestSummaryView implements vscode.WebviewViewProvider {
     public updateSummary(summary: TestSummary | TestSummary[], tests: TestResult[]) {
         OrgUtils.logDebug('[VisbalExt.TestSummaryView] updateSummary -- summary:', summary);
         OrgUtils.logDebug('[VisbalExt.TestSummaryView] updateSummary -- tests:', tests);
+        
+        // Store the current summary and tests data for export access
+        this._currentSummary = Array.isArray(summary) ? summary[0] : summary;
+        this._currentTests = tests;
+        
         // Extract code coverage if present
         let coverage: any[] = [];
         if (Array.isArray(tests) && tests.length > 0 && tests[0].coverage) {

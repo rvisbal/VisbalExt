@@ -124,6 +124,9 @@ export async function activate(context: vscode.ExtensionContext) {
     outputChannel.appendLine('[VisbalExt.Extension] activate -- Initializing TestSummaryView');
     const testSummaryView = new TestSummaryView(context.extensionUri);
 
+    // Set reference to TestSummaryView in TestRunningTaskView for detailed error access
+    testRunningTaskView.setTestSummaryView(testSummaryView);
+
     // Initialize test class explorer view with test results view
     OrgUtils.logDebug('[VisbalExt.Extension] activate -- Initializing TestClassExplorerView: Initialize test class explorer view with test results view');
     outputChannel.appendLine('[VisbalExt.Extension] activate -- Initializing TestClassExplorerView');
