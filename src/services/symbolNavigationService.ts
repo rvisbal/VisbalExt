@@ -294,6 +294,48 @@ export class SymbolNavigationService {
     }
 
     /**
+     * Searches for a symbol in a list of files
+     */
+    private static async searchInFiles(files: vscode.Uri[], symbol: string, symbolType: string, currentDocument?: vscode.TextDocument, className?: string): Promise<{filePath: vscode.Uri, position: vscode.Position} | null> {
+        const searchPatterns = this.createSearchPatterns(symbol, symbolType);
+        
+        for (const file of files) {
+            // Skip current file if we already searched it
+            if (currentDocument && file.fsPath === currentDocument.uri.fsPath) {
+                continue;
+            }
+            
+            // Skip the specific class file if we already searched it for class-prefixed calls
+            if (className && file.fsPath.includes(`${className}.cls`)) {
+                continue;
+            }
+            
+            try {
+                const document = await vscode.workspace.openTextDocument(file);
+                const text = document.getText();
+                
+                // Try each search pattern in priority order
+                for (const searchPattern of searchPatterns) {
+                    // Reset regex lastIndex to ensure proper matching
+                    searchPattern.lastIndex = 0;
+                    const match = searchPattern.exec(text);
+                    if (match) {
+                        const position = document.positionAt(match.index);
+                        this.logDebug(`[VisbalExt.SymbolNavigationService] searchInFiles -- Found ${symbol} in ${file.fsPath} using pattern: ${searchPattern.source} at line ${position.line + 1}`);
+                        return { filePath: file, position };
+                    }
+                }
+            } catch (error) {
+                // Skip files that can't be opened
+                this.logDebug(`[VisbalExt.SymbolNavigationService] searchInFiles -- Could not read file: ${file.fsPath}`, error);
+                continue;
+            }
+        }
+        
+        return null;
+    }
+
+    /**
      * Creates search patterns for different symbol types
      */
     private static createSearchPatterns(symbol: string, symbolType: string): RegExp[] {
@@ -404,17 +446,30 @@ export class SymbolNavigationService {
         const workspaceFolder = vscode.workspace.workspaceFolders[0];
         
         try {
-            // Try to find the specific class file
-            const classPattern = new vscode.RelativePattern(workspaceFolder, `**/${className}.cls`);
-            const classFiles = await vscode.workspace.findFiles(classPattern);
+            // Hierarchical search for specific class file:
+            // 1. force-app/main/default/classes/ (user classes)
+            // 2. .sfdx/tools/StandardApexLibrary/ (standard library fallback)
             
-            if (classFiles.length === 0) {
-                this.logDebug(`[VisbalExt.SymbolNavigationService] Class file ${className}.cls not found`);
+            // Step 1: Look in user classes first
+            let userClassPattern = new vscode.RelativePattern(workspaceFolder, `force-app/main/default/classes/${className}.cls`);
+            let userClassFiles = await vscode.workspace.findFiles(userClassPattern);
+            
+            // Step 2: Fallback to standard library
+            let standardLibPattern = new vscode.RelativePattern(workspaceFolder, `.sfdx/tools/*/StandardApexLibrary/**/${className}.cls`);
+            let standardLibFiles = await vscode.workspace.findFiles(standardLibPattern);
+            
+            // Combine results, prioritizing user classes
+            const allClassFiles = [...userClassFiles, ...standardLibFiles];
+            
+            this.logDebug(`[VisbalExt.SymbolNavigationService] searchInSpecificClass -- Found ${userClassFiles.length} user class files and ${standardLibFiles.length} standard library files for ${className}.cls`);
+            
+            if (allClassFiles.length === 0) {
+                this.logDebug(`[VisbalExt.SymbolNavigationService] searchInSpecificClass -- Class file ${className}.cls not found in user code or standard library`);
                 return null;
             }
 
-            // Search in the first matching class file
-            const classFile = classFiles[0];
+            // Search in the first matching class file (user classes have priority)
+            const classFile = allClassFiles[0];
             try {
                 const document = await vscode.workspace.openTextDocument(classFile);
                 const text = document.getText();
@@ -491,48 +546,53 @@ export class SymbolNavigationService {
         try {
             this.logDebug(`[VisbalExt.SymbolNavigationService] findSymbolDefinition -- Starting workspace search for '${symbol}' in extensions: ${targetExtensions.join(', ')}`);
             
-            // Search each target file type
+            // Hierarchical search strategy: 
+            // 1. force-app/main/default/classes/ (user classes)
+            // 2. force-app/main/default/ (other user metadata)  
+            // 3. .sfdx/tools/StandardApexLibrary/ (standard library fallback)
+            
             for (const extension of targetExtensions) {
-                const pattern = new vscode.RelativePattern(workspaceFolder, `**/*.${extension}`);
-                const files = await vscode.workspace.findFiles(pattern);
+                // Step 1: Search force-app/main/default/classes for user classes
+                let userClassPattern = new vscode.RelativePattern(workspaceFolder, `force-app/main/default/classes/*.${extension}`);
+                let userClassFiles = await vscode.workspace.findFiles(userClassPattern);
                 
-                this.logDebug(`[VisbalExt.SymbolNavigationService] findSymbolDefinition -- Found ${files.length} .${extension} files to search`);
+                this.logDebug(`[VisbalExt.SymbolNavigationService] findSymbolDefinition -- Found ${userClassFiles.length} .${extension} files in force-app/main/default/classes/`);
                 
-                for (const file of files) {
-                    // Skip current file if we already searched it (for "this." references, regular calls, or any current file search)
-                    if (currentDocument && file.fsPath === currentDocument.uri.fsPath) {
-                        continue;
+                // Step 2: Search broader force-app/main/default for other types
+                let userMetadataPattern = new vscode.RelativePattern(workspaceFolder, `force-app/main/default/**/*.${extension}`);
+                let userMetadataFiles = await vscode.workspace.findFiles(userMetadataPattern);
+                
+                this.logDebug(`[VisbalExt.SymbolNavigationService] findSymbolDefinition -- Found ${userMetadataFiles.length} .${extension} files in force-app/main/default/`);
+                
+                // Combine user files (classes + other metadata), removing duplicates
+                const userFiles = Array.from(new Set([...userClassFiles, ...userMetadataFiles].map(f => f.fsPath)))
+                    .map(fsPath => vscode.Uri.file(fsPath));
+                
+                this.logDebug(`[VisbalExt.SymbolNavigationService] findSymbolDefinition -- Total unique user files: ${userFiles.length}`);
+                
+                // Search user files first
+                if (userFiles.length > 0) {
+                    const userResult = await this.searchInFiles(userFiles, symbol, symbolType, currentDocument, className);
+                    if (userResult) {
+                        return userResult;
                     }
-                    
-                    // Skip the specific class file if we already searched it for class-prefixed calls
-                    if (className && file.fsPath.includes(`${className}.cls`)) {
-                        continue;
-                    }
-                    
-                    try {
-                        const document = await vscode.workspace.openTextDocument(file);
-                        const text = document.getText();
-                        
-                        // Try each search pattern in priority order
-                        for (const searchPattern of searchPatterns) {
-                            // Reset regex lastIndex to ensure proper matching
-                            searchPattern.lastIndex = 0;
-                            const match = searchPattern.exec(text);
-                            if (match) {
-                                const position = document.positionAt(match.index);
-                                this.logDebug(`[VisbalExt.SymbolNavigationService] findSymbolDefinition -- Found ${symbol} using pattern: ${searchPattern.source} at line ${position.line + 1}`);
-                                return { filePath: file, position };
-                            }
-                        }
-                    } catch (error) {
-                        // Skip files that can't be opened
-                        this.logDebug(`[VisbalExt.SymbolNavigationService] findSymbolDefinition -- Could not read file: ${file.fsPath}`, error);
-                        continue;
+                }
+                
+                // Step 3: Fallback to standard library if not found in user code
+                let standardLibPattern = new vscode.RelativePattern(workspaceFolder, `.sfdx/tools/*/StandardApexLibrary/**/*.${extension}`);
+                let standardLibFiles = await vscode.workspace.findFiles(standardLibPattern);
+                
+                this.logDebug(`[VisbalExt.SymbolNavigationService] findSymbolDefinition -- Found ${standardLibFiles.length} .${extension} files in StandardApexLibrary (fallback)`);
+                
+                if (standardLibFiles.length > 0) {
+                    const standardLibResult = await this.searchInFiles(standardLibFiles, symbol, symbolType, currentDocument, className);
+                    if (standardLibResult) {
+                        return standardLibResult;
                     }
                 }
             }
             
-            this.logDebug(`[VisbalExt.SymbolNavigationService] findSymbolDefinition -- Workspace search completed. Symbol '${symbol}' not found in any files.`);
+            this.logDebug(`[VisbalExt.SymbolNavigationService] findSymbolDefinition -- Workspace search completed. Symbol '${symbol}' not found in user code or standard library.`);
         } catch (error) {
             this.logError('[VisbalExt.SymbolNavigationService] Error searching for symbol definition:', error as Error);
         }
