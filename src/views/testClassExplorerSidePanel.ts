@@ -137,6 +137,11 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
         );
         this._testItems = new Map<string, vscode.TestItem>();
         this._testCaseListManager = new TestCaseListManager(this._context);
+        
+        // Set up callback to receive status updates from Running Tasks panel
+        this._testRunResultsView.setStatusUpdateCallback((className, methodName, status, logId, error) => {
+            this._onTestStatusUpdate(className, methodName, status, logId, error);
+        });
         const cachePath = OrgUtils.getCachePath();
         this._orgListCacheService = new OrgListCacheService(cachePath);
 
@@ -417,7 +422,7 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                     apexClass && 
                     apexClass.name && 
                     apexClass.name.endsWith('Test'))
-                .map((apexClass: { name: string, namespace?: string }) => ({
+                .map((apexClass: { name: string, namespace?: string, fullName?: string }) => ({
                     name: apexClass.name,
                     id: apexClass.name,
                     methods: [],
@@ -425,7 +430,7 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                     symbolTable: {},
                     attributes: {
                         fileName: `${apexClass.name}.cls`,
-                        fullName: apexClass.name
+                        fullName: apexClass.fullName || apexClass.name
                     }
                 })) || [];
 
@@ -705,11 +710,14 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                 OrgUtils.logDebug('[VisbalExt.TestClassExplorerSidePanel] _runTest -- Test run summary', testRunResult.summary);
 
                 // Use the shared test results view instance
-                if (testRunResult?.summary) {
+                if (testRunResult?.summary && Array.isArray(testRunResult?.tests)) {
                     OrgUtils.logDebug('[VisbalExt.TestClassExplorerSidePanel] _runTest -- Updating test results view with summary', testRunResult.summary);
                     this._testSummaryView.updateSummary(testRunResult.summary, testRunResult.tests);
                 } else {
-                    OrgUtils.logDebug('[VisbalExt.TestClassExplorerSidePanel] _runTest -- No summary data available in test run result');
+                    OrgUtils.logDebug('[VisbalExt.TestClassExplorerSidePanel] _runTest -- No summary data available or invalid test result format');
+                    if (testRunResult?.name === 'TypeError' || testRunResult?.exitCode) {
+                        OrgUtils.logError('[VisbalExt.TestClassExplorerSidePanel] _runTest -- SFDX CLI Error:', testRunResult.message);
+                    }
                 }
 
                 // Update test results in webview
@@ -726,7 +734,9 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                 // Process all tests and wait for all async operations to complete
                 const testProcessingPromises: Promise<void>[] = [];
                 
-                for (const t of testRunResult.tests) {
+                // Only proceed if we have valid tests array
+                if (Array.isArray(testRunResult?.tests)) {
+                    for (const t of testRunResult.tests) {
                     const processTestPromise = (async () => {
                         try {
                             if (t.Outcome === 'Skip') {
@@ -769,6 +779,9 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                 // Wait for all test processing to complete
                 await Promise.all(testProcessingPromises);
                 OrgUtils.logDebug('[VisbalExt.TestClassExplorerSidePanel] _runTest -- All test processing completed');
+                } else {
+                    OrgUtils.logError('[VisbalExt.TestClassExplorerSidePanel] _runTest -- No valid test results to process', new Error('Invalid test results format'));
+                }
 
                 // Update final class statuses
                 for (const [className, isSuccess] of mainClassMap.entries()) {
@@ -969,6 +982,10 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                     this._testRunResultsView.addTestRun(className, methodNames);
                 }
 
+                // Ensure all test runs are immediately available for status updates
+                this._testRunResultsView.flushPendingTestRuns();
+                OrgUtils.logDebug('[VisbalExt.TestClassExplorerSidePanel] _runSelectedTests -- Flushed pending test runs to ensure immediate availability');
+
 
                 const config = vscode.workspace.getConfiguration('visbal.apexTest');
                 const manualExecution = config.get<boolean>('manualExecution', true);
@@ -1012,8 +1029,9 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                                                         allTestResults.push(testRunResult);
                                                     }
 
-                                                    // Process each test in the result
-                                                    for (const test of testRunResult.tests) {
+                                                    // Process each test in the result  
+                                                    if (Array.isArray(testRunResult?.tests)) {
+                                                        for (const test of testRunResult.tests) {
                                                         const testClassName = test.ApexClass?.Name;
                                                         if (!testClassName) continue;
 
@@ -1057,6 +1075,9 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                                                             testClassName, 
                                                             mainClassMap.get(testClassName) ? 'success' : 'failed'
                                                         );
+                                                    }
+                                                    } else {
+                                                        OrgUtils.logError('[VisbalExt.TestClassExplorerSidePanel] _runSelectedTests.parallel -- Invalid test results format, tests array missing or invalid', new Error('Invalid test results format'));
                                                     }
 
                                                     // Update the webview with current results
@@ -1145,7 +1166,8 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                                                 }
 
                                                 const mainClassMap = new Map<string, Boolean>();
-                                                for (const t of testRunResult.tests) {
+                                                if (Array.isArray(testRunResult?.tests)) {
+                                                    for (const t of testRunResult.tests) {
                                                     try {
                                                         if (logId) {
                                                             OrgUtils.logDebug('[VisbalExt.TestClassExplorerSidePanel] _runSelectedTests.sequentially  Processing log for test', t.ApexClass?.Name);
@@ -1179,6 +1201,9 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                                                             OrgUtils.logError('[VisbalExt.TestClassExplorerSidePanel] _runSelectedTests.sequentially updateMethodStatus.failed ERROR ON ${className}.${methodName}', error as Error);
                                                         this._testRunResultsView.updateMethodStatus(className, t.MethodName, 'failed');
                                                     }
+                                                }
+                                                } else {
+                                                    OrgUtils.logError('[VisbalExt.TestClassExplorerSidePanel] _runSelectedTests.sequentially -- Invalid test results format, tests array missing or invalid', new Error('Invalid test results format'));
                                                 }
 
                                                 // Update class status after all methods are processed
@@ -1227,7 +1252,8 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                                                                 const logId = await this._sfdxService.getTestLogId(testRunId, currentOrgAlias);
                                                                 OrgUtils.logDebug('[VisbalExt.TestClassExplorerSidePanel] _runSelectedTests.sequentially POLL${className}.${methodName} testRunId:${testRunId} logId:${logId} testRunResult:', testRunResult);
                                                                 // If we get here, we have results
-                                                                for (const t of testRunResult.tests) {
+                                                                if (Array.isArray(testRunResult?.tests)) {
+                                                                    for (const t of testRunResult.tests) {
                                                                     if (t.MethodName === methodName) {
                                                                         OrgUtils.logError('[VisbalExt.TestClassExplorerSidePanel] _runSelectedTests.sequentially POLL updateMethodStatus.t.Outcome:', t.Outcome);
                                                                         let status: 'success' | 'failed' | 'skipped' | 'aborted';
@@ -1248,6 +1274,9 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                                                                         );
                                                                         break;
                                                                     }
+                                                                }
+                                                                } else {
+                                                                    OrgUtils.logError('[VisbalExt.TestClassExplorerSidePanel] _runSelectedTests.sequentially POLL -- Invalid test results format, tests array missing', new Error('Invalid test results format'));
                                                                 }
                                                                 return;
                                                             } catch (error: any) {
@@ -2131,7 +2160,7 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
             //run many test using the format sf apex run test --tests ns.TestA.excitingMethod --tests ns.TestA.boringMethod --tests ns.TestB
             // Use the specific org alias instead of default org determination
             const currentOrgAlias = await this._getOrgAliasForStorage();
-            const runResult = await this._sfdxService.runManyTests(tests, false, true, currentOrgAlias);
+            const runResult = await this._sfdxService.runManyTests(tests, false, true, currentOrgAlias, signal);
             OrgUtils.logDebug('[VisbalExt.TestClassExplorerSidePanel] _runManyTest -- runResult:', runResult);  
 
             if (!runResult) {
@@ -2184,7 +2213,15 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
 
                 // Store the testRunId for potential cancellation
                 this._currentTestRunId = testRunId;
-                OrgUtils.logDebug('[VisbalExt.TestClassExplorerSidePanel] _runManyTest -- testRunId stored:', testRunId);  
+                OrgUtils.logDebug('[VisbalExt.TestClassExplorerSidePanel] _runManyTest -- testRunId stored:', testRunId);
+                
+                // Update the running status with testRunId
+                if (this._view) {
+                    this._view.webview.postMessage({
+                        command: 'updateRunningStatus',
+                        testRunId: testRunId
+                    });
+                }  
                 if (tests.methods.length > 3) {
                     //#region COLLECT_TEST_RESULTS_ALL_RUNN
                     let countIteration = 0;
@@ -2205,6 +2242,12 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                         OrgUtils.logDebug(`[VisbalExt.TestClassExplorerSidePanel] _runManyTest -- countIteration: ${countIteration} -- queueItems:`, queueItems);
                         if (queueItems.length > 0) {
                             for (const q of queueItems) {
+                                // Check if ApexClass exists before accessing Name property
+                                if (!q.ApexClass || !q.ApexClass.Name) {
+                                    OrgUtils.logDebug(`[VisbalExt.TestClassExplorerSidePanel] _runManyTest -- Skipping queue item with missing ApexClass.Name:`, q);
+                                    continue;
+                                }
+                                
                                 //add this method to the cache storage of test methods if it doesn't exist
                                 // Note: currentOrgAlias already retrieved above in the same method
                                 this._storageService.addTestMethod(q.ApexClass.Name, '', currentOrgAlias);
@@ -2318,6 +2361,19 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                     const currentOrgAlias = await this._getOrgAliasForStorage();
                     const testRunResult = await this._sfdxService.getTestRunResult(testRunId, true, currentOrgAlias);
                     OrgUtils.logDebug('[VisbalExt.TestClassExplorerSidePanel] _runManyTest -- testRunResult:', testRunResult);
+
+                    // Check if testRunResult is an error object or invalid
+                    if (testRunResult?.name === 'TypeError' || testRunResult?.exitCode || !testRunResult?.tests) {
+                        const errorMsg = testRunResult?.message || 'Invalid test result format - tests property missing or invalid';
+                        OrgUtils.logError('[VisbalExt.TestClassExplorerSidePanel] _runManyTest -- SFDX CLI Error:', testRunResult);
+                        throw new Error(`Failed to retrieve test results: ${errorMsg}`);
+                    }
+
+                    // Validate that tests is an array before iterating
+                    if (!Array.isArray(testRunResult.tests)) {
+                        OrgUtils.logError('[VisbalExt.TestClassExplorerSidePanel] _runManyTest -- Invalid tests format:', typeof testRunResult.tests);
+                        throw new Error('Invalid test results format: tests property is not an array');
+                    }
 
                     let testIds = [];
                     for (const t of testRunResult.tests) {
@@ -3084,6 +3140,105 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                     cursor: not-allowed;
                 }
 
+                /* Test status indicator styles */
+                .test-status-indicator {
+                    margin-left: 8px;
+                    font-size: 12px;
+                }
+
+                .status-icon {
+                    display: inline-block;
+                    width: 16px;
+                    height: 16px;
+                    text-align: center;
+                    font-weight: bold;
+                    border-radius: 50%;
+                    padding: 2px;
+                }
+
+                .status-running {
+                    color: var(--vscode-testing-iconRunning);
+                    animation: spin 1s linear infinite;
+                }
+
+                .status-success {
+                    color: var(--vscode-testing-iconPassed);
+                }
+
+                .status-failed {
+                    color: var(--vscode-testing-iconFailed);
+                }
+
+                .status-pending {
+                    color: var(--vscode-testing-iconQueued);
+                }
+
+                .status-downloading {
+                    color: var(--vscode-progressBar-background);
+                    animation: pulse 1.5s ease-in-out infinite;
+                }
+
+                .status-skipped {
+                    color: var(--vscode-testing-iconSkipped);
+                }
+
+                .status-aborted {
+                    color: var(--vscode-testing-iconErrored);
+                }
+
+                /* CSS animations */
+                @keyframes spin {
+                    0% { transform: rotate(0deg); }
+                    100% { transform: rotate(360deg); }
+                }
+
+                @keyframes pulse {
+                    0%, 100% { opacity: 1; }
+                    50% { opacity: 0.5; }
+                }
+
+                /* Class-level indicators when tests are running */
+                .has-running-tests > .class-label {
+                    font-weight: bold;
+                    color: var(--vscode-testing-iconRunning);
+                }
+
+                /* Running status bar at top of panel */
+                .running-status-bar {
+                    background-color: var(--vscode-badge-background);
+                    border: 1px solid var(--vscode-badge-foreground);
+                    border-radius: 3px;
+                    margin: 8px 12px;
+                    padding: 8px 12px;
+                    display: none;
+                    font-size: 13px;
+                    font-weight: 500;
+                }
+
+                .running-status-content {
+                    display: flex;
+                    align-items: center;
+                    gap: 8px;
+                    color: var(--vscode-badge-foreground);
+                }
+
+                .running-icon {
+                    font-size: 14px;
+                    animation: spin 1s linear infinite;
+                    display: inline-block;
+                }
+
+                .running-text {
+                    font-weight: 500;
+                }
+
+                .test-run-id {
+                    font-size: 11px;
+                    opacity: 0.8;
+                    margin-left: auto;
+                    font-family: var(--vscode-editor-font-family);
+                }
+
                 .icon-button {
                     background: transparent;
                     border: none;
@@ -3791,10 +3946,13 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                         // Disable org dropdown during test run
                         setOrgDropdownEnabled(false);
                         
-                        // Hide run buttons and show abort button immediately
-                        abortButton.style.display = 'inline-block';
-                        runSelectedButton.style.display = 'none';
-                        runAllButton.style.display = 'none';
+                                // Hide run buttons and show abort button immediately
+                                abortButton.style.display = 'inline-block';
+                                runSelectedButton.style.display = 'none';
+                                runAllButton.style.display = 'none';
+                                
+                                // Clear any existing status indicators
+                                clearAllStatusIndicators();
                         
                         vscode.postMessage({
                             command: 'runSelectedTests',
@@ -3819,15 +3977,80 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                         // Store all test classes for filtering
                         allTestClasses = testClasses || [];
                         
+                        // DEBUG: Log test class data for namespace analysis
+                        console.log('[TestClassExplorer] DEBUG: Received', allTestClasses.length, 'test classes');
+                        console.log('[TestClassExplorer] DEBUG: First few test classes (full structure):', allTestClasses.slice(0, 3));
+                        console.log('[TestClassExplorer] DEBUG: First few test classes (key properties):', allTestClasses.slice(0, 3).map(tc => ({
+                            name: tc.name,
+                            namePrefix: tc.namePrefix,
+                            fullName: tc.fullName,
+                            namespace: tc.namespace,
+                            manageableState: tc.manageableState,
+                            namespacePrefix: tc.namespacePrefix
+                        })));
+                        
+                        // Check if test classes have namespace info in fullName (format: namespace__ClassName)
+                        const classesByNamespace = {};
+                        allTestClasses.forEach(testClass => {
+                            let detectedNamespace = null;
+                            
+                            // Method 1: Check namePrefix property
+                            if (testClass.namePrefix) {
+                                detectedNamespace = testClass.namePrefix;
+                            }
+                            // Method 2: Check namespace property
+                            else if (testClass.namespace) {
+                                detectedNamespace = testClass.namespace;
+                            }
+                            // Method 3: Check namespacePrefix property
+                            else if (testClass.namespacePrefix) {
+                                detectedNamespace = testClass.namespacePrefix;
+                            }
+                            // Method 4: Parse from fullName if it contains __ pattern
+                            else if (testClass.fullName && testClass.fullName.includes('__')) {
+                                const parts = testClass.fullName.split('__');
+                                if (parts.length >= 2 && parts[0] !== testClass.name) {
+                                    detectedNamespace = parts[0];
+                                }
+                            }
+                            // Method 5: Parse from name if it contains __ pattern  
+                            else if (testClass.name && testClass.name.includes('__')) {
+                                const parts = testClass.name.split('__');
+                                if (parts.length >= 2) {
+                                    detectedNamespace = parts[0];
+                                }
+                            }
+                            
+                            const key = detectedNamespace || '(No Namespace)';
+                            if (!classesByNamespace[key]) classesByNamespace[key] = 0;
+                            classesByNamespace[key]++;
+                        });
+                        
+                        console.log('[TestClassExplorer] DEBUG: Classes by detected namespace:', classesByNamespace);
+                        
                         // Extract available namespaces
                         availableNamespaces.clear();
                         allTestClasses.forEach(testClass => {
+                            // Try multiple methods to detect namespace
+                            let detectedNamespace = null;
+                            
                             if (testClass.namePrefix) {
-                                availableNamespaces.add(testClass.namePrefix);
-                            } else {
-                                availableNamespaces.add('(No Namespace)');
+                                detectedNamespace = testClass.namePrefix;
+                            } else if (testClass.namespace) {
+                                detectedNamespace = testClass.namespace;
+                            } else if (testClass.attributes?.fullName?.includes('__')) {
+                                // Parse namespace from fullName (e.g., "TracHier__TestClass" -> "TracHier")
+                                const parts = testClass.attributes.fullName.split('__');
+                                if (parts.length >= 2) {
+                                    detectedNamespace = parts[0];
+                                }
                             }
+                            
+                            availableNamespaces.add(detectedNamespace || '(No Namespace)');
                         });
+                        
+                        // DEBUG: Log available namespaces
+                        console.log('[TestClassExplorer] DEBUG: Available namespaces found:', Array.from(availableNamespaces));
                         
                         // Update filter menu
                         updateFilterMenu();
@@ -3844,16 +4067,41 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                     function applyNamespaceFilter() {
                         testClassesList.innerHTML = '';
                         
+                        // DEBUG: Log current filter state
+                        console.log('[TestClassExplorer] DEBUG: Applying namespace filter:', currentNamespaceFilter);
+                        console.log('[TestClassExplorer] DEBUG: Total test classes:', allTestClasses.length);
+                        
                         // Filter test classes based on current namespace filter
                         let filteredClasses = allTestClasses;
                         if (currentNamespaceFilter !== null) {
                             filteredClasses = allTestClasses.filter(testClass => {
+                                // Use robust namespace detection for filtering
+                                let detectedNamespace = null;
+                                
+                                if (testClass.namePrefix) {
+                                    detectedNamespace = testClass.namePrefix;
+                                } else if (testClass.namespace) {
+                                    detectedNamespace = testClass.namespace;
+                                } else if (testClass.attributes?.fullName?.includes('__')) {
+                                    const parts = testClass.attributes.fullName.split('__');
+                                    if (parts.length >= 2) {
+                                        detectedNamespace = parts[0];
+                                    }
+                                }
+                                
                                 if (currentNamespaceFilter === '(No Namespace)') {
-                                    return !testClass.namePrefix;
+                                    const matches = !detectedNamespace;
+                                    console.debug('[TestClassExplorer] DEBUG: Class', testClass.name, 'detectedNamespace:', detectedNamespace, 'expected: (No Namespace), matches:', matches);
+                                    return matches;
                                 } else {
-                                    return testClass.namePrefix === currentNamespaceFilter;
+                                    const matches = detectedNamespace === currentNamespaceFilter;
+                                    console.debug('[TestClassExplorer] DEBUG: Class', testClass.name, 'detectedNamespace:', detectedNamespace, 'expected:', currentNamespaceFilter, 'matches:', matches);
+                                    return matches;
                                 }
                             });
+                            
+                            // DEBUG: Log filtering results
+                            console.log('[TestClassExplorer] DEBUG: After filtering by namespace "' + currentNamespaceFilter + '":', filteredClasses.length, 'classes remain');
                         }
                         
                         // Sort test classes alphabetically by name
@@ -4530,6 +4778,186 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                     
                     //#endregion ORG SELECTOR FUNCTIONALITY
                     
+                    // Function to clear all status indicators
+                    function clearAllStatusIndicators() {
+                        try {
+                            console.log('[TestClassExplorer] Clearing all status indicators');
+                            
+                            // Remove all status indicators and classes
+                            const statusIndicators = document.querySelectorAll('.test-status-indicator');
+                            statusIndicators.forEach(indicator => indicator.remove());
+                            
+                            const testElements = document.querySelectorAll('[data-method-name]');
+                            testElements.forEach(element => {
+                                element.classList.remove('test-running', 'test-success', 'test-failed', 'test-pending', 'test-downloading', 'test-skipped', 'test-aborted');
+                            });
+                            
+                            const classElements = document.querySelectorAll('[data-class-name]');
+                            classElements.forEach(element => {
+                                element.classList.remove('has-running-tests');
+                            });
+                        } catch (error) {
+                            console.error('[TestClassExplorer] Error clearing status indicators:', error);
+                        }
+                    }
+
+                    // Function to update test status indicators in the UI
+                    function updateTestStatusInUI(className, methodName, status, logId, error) {
+                        try {
+                            console.log('[TestClassExplorer] updateTestStatusInUI:', className, methodName, status);
+                            
+                            // Find the method element
+                            const methodSelector = \`[data-class-name="\${className}"] [data-method-name="\${methodName}"]\`;
+                            const methodElement = document.querySelector(methodSelector);
+                            
+                            if (methodElement) {
+                                // Remove all existing status classes
+                                methodElement.classList.remove('test-running', 'test-success', 'test-failed', 'test-pending', 'test-downloading', 'test-skipped', 'test-aborted');
+                                
+                                // Add the appropriate status class
+                                methodElement.classList.add(\`test-\${status}\`);
+                                
+                                // Update the visual indicator (find or create status indicator)
+                                let statusIndicator = methodElement.querySelector('.test-status-indicator');
+                                if (!statusIndicator) {
+                                    statusIndicator = document.createElement('span');
+                                    statusIndicator.className = 'test-status-indicator';
+                                    methodElement.appendChild(statusIndicator);
+                                }
+                                
+                                // Update status indicator based on status
+                                switch (status) {
+                                    case 'running':
+                                        statusIndicator.innerHTML = '<span class="status-icon status-running" title="Running...">⟳</span>';
+                                        break;
+                                    case 'success':
+                                        statusIndicator.innerHTML = '<span class="status-icon status-success" title="Passed">✓</span>';
+                                        break;
+                                    case 'failed':
+                                        statusIndicator.innerHTML = '<span class="status-icon status-failed" title="Failed">✗</span>';
+                                        break;
+                                    case 'pending':
+                                        statusIndicator.innerHTML = '<span class="status-icon status-pending" title="Pending">○</span>';
+                                        break;
+                                    case 'downloading':
+                                        statusIndicator.innerHTML = '<span class="status-icon status-downloading" title="Downloading log...">⬇</span>';
+                                        break;
+                                    case 'skipped':
+                                        statusIndicator.innerHTML = '<span class="status-icon status-skipped" title="Skipped">⊘</span>';
+                                        break;
+                                    case 'aborted':
+                                        statusIndicator.innerHTML = '<span class="status-icon status-aborted" title="Aborted">⊗</span>';
+                                        break;
+                                    default:
+                                        statusIndicator.innerHTML = '';
+                                }
+                            } else {
+                                console.warn('[TestClassExplorer] Method element not found:', methodSelector);
+                            }
+                            
+                            // Also update class-level status if needed
+                            const classElement = document.querySelector(\`[data-class-name="\${className}"]\`);
+                            if (classElement && status === 'running') {
+                                classElement.classList.add('has-running-tests');
+                            }
+                        } catch (error) {
+                            console.error('[TestClassExplorer] Error updating test status in UI:', error);
+                        }
+                    }
+
+                    // Function to restore running test state when tab becomes visible
+                    function restoreRunningTestState(isRunning, testRunId) {
+                        try {
+                            console.log('[TestClassExplorer] restoreRunningTestState:', isRunning, testRunId);
+                            
+                            if (isRunning) {
+                                // Show abort button and hide run buttons
+                                abortButton.style.display = 'inline-block';
+                                runSelectedButton.style.display = 'none';
+                                runAllButton.style.display = 'none';
+                                
+                                // Disable org dropdown
+                                setOrgDropdownEnabled(false);
+                                
+                                // Show running status at top
+                                showRunningStatus(testRunId);
+                            } else {
+                                // Show run buttons and hide abort button
+                                abortButton.style.display = 'none';
+                                runAllButton.style.display = 'inline-block';
+                                updateSelectionCount(); // This will show/hide run selected button based on selection
+                                
+                                // Enable org dropdown
+                                setOrgDropdownEnabled(true);
+                                
+                                // Hide running status
+                                hideRunningStatus();
+                            }
+                        } catch (error) {
+                            console.error('[TestClassExplorer] Error restoring running test state:', error);
+                        }
+                    }
+
+                    // Function to show running status indicator at top of panel
+                    function showRunningStatus(testRunId) {
+                        try {
+                            let statusBar = document.getElementById('running-status-bar');
+                            if (!statusBar) {
+                                statusBar = document.createElement('div');
+                                statusBar.id = 'running-status-bar';
+                                statusBar.className = 'running-status-bar';
+                                
+                                // Insert at the top of the container
+                                const container = document.querySelector('.test-explorer-container') || document.body;
+                                container.insertBefore(statusBar, container.firstChild);
+                            }
+                            
+                            statusBar.innerHTML = \`
+                                <div class="running-status-content">
+                                    <span class="running-icon">⟳</span>
+                                    <span class="running-text">Tests Running...</span>
+                                    \${testRunId ? '<span class="test-run-id">ID: ' + testRunId + '</span>' : ''}
+                                </div>
+                            \`;
+                            statusBar.style.display = 'block';
+                        } catch (error) {
+                            console.error('[TestClassExplorer] Error showing running status:', error);
+                        }
+                    }
+
+                    // Function to hide running status indicator
+                    function hideRunningStatus() {
+                        try {
+                            const statusBar = document.getElementById('running-status-bar');
+                            if (statusBar) {
+                                statusBar.style.display = 'none';
+                            }
+                        } catch (error) {
+                            console.error('[TestClassExplorer] Error hiding running status:', error);
+                        }
+                    }
+
+                    // Function to update running status with testRunId
+                    function updateRunningStatusWithId(testRunId) {
+                        try {
+                            console.log('[TestClassExplorer] updateRunningStatusWithId:', testRunId);
+                            
+                            const statusBar = document.getElementById('running-status-bar');
+                            if (statusBar) {
+                                const content = statusBar.querySelector('.running-status-content');
+                                if (content) {
+                                    content.innerHTML = \`
+                                        <span class="running-icon">⟳</span>
+                                        <span class="running-text">Tests Running...</span>
+                                        <span class="test-run-id">ID: \${testRunId}</span>
+                                    \`;
+                                }
+                            }
+                        } catch (error) {
+                            console.error('[TestClassExplorer] Error updating running status with ID:', error);
+                        }
+                    }
+                    
                     // Handle messages from the extension
                     window.addEventListener('message', event => {
                         const message = event.data;
@@ -4554,10 +4982,13 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                                         hideError();
                                         hideNotification();
                                         
-                                        // Hide run buttons and show abort button immediately
-                                        abortButton.style.display = 'inline-block';
-                                        runSelectedButton.style.display = 'none';
-                                        runAllButton.style.display = 'none';
+                                // Hide run buttons and show abort button immediately
+                                abortButton.style.display = 'inline-block';
+                                runSelectedButton.style.display = 'none';
+                                runAllButton.style.display = 'none';
+                                
+                                // Clear any existing status indicators
+                                clearAllStatusIndicators();
                                         
                                         vscode.postMessage({    
                                             command: 'runAllTests',
@@ -4586,6 +5017,9 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                                 abortButton.style.display = 'inline-block';
                                 runSelectedButton.style.display = 'none';
                                 runAllButton.style.display = 'none';
+                                // Clear any existing status indicators and show running status
+                                clearAllStatusIndicators();
+                                showRunningStatus();
                                 break;
                             case 'openTestFile':
                                 this._openTestFile(message.className, message.methodName);
@@ -4598,6 +5032,8 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                                 runAllButton.style.display = 'inline-block';
                                 // Update button visibility based on current selection count
                                 updateSelectionCount();
+                                // Hide running status
+                                hideRunningStatus();
                                 break;
                             case 'selectTestMethod':
                                 const key = message.className + '.' + message.methodName;
@@ -4654,6 +5090,9 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                                 abortButton.style.display = 'inline-block';
                                 runSelectedButton.style.display = 'none';
                                 runAllButton.style.display = 'none';
+                                // Clear any existing status indicators and show running status
+                                clearAllStatusIndicators();
+                                showRunningStatus();
                                 break;
                             case 'testRunFinished':
                             case 'testRunAborted':
@@ -4663,8 +5102,12 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                                 runAllButton.style.display = 'inline-block';
                                 // Update button visibility based on current selection count
                                 updateSelectionCount();
+                                // Hide running status
+                                hideRunningStatus();
                                 break;
                             case 'setDefaultNamespaceFilter':
+                                // DEBUG: Log the namespace being set
+                                console.log('[TestClassExplorer] DEBUG: Received setDefaultNamespaceFilter command with namespace:', message.namespace, 'silent:', message.silent);
                                 // Set the default namespace filter when org is selected
                                 if (message.namespace) {
                                     setNamespaceFilter(message.namespace);
@@ -4714,6 +5157,15 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                                 if (message.failedMethods && message.failedMethods.length > 0) {
                                     showNotification(message.failedMethods.length + ' failed test(s) selected for rerun');
                                 }
+                                break;
+                            case 'testStatusUpdate':
+                                updateTestStatusInUI(message.className, message.methodName, message.status, message.logId, message.error);
+                                break;
+                            case 'restoreRunningState':
+                                restoreRunningTestState(message.isRunning, message.testRunId);
+                                break;
+                            case 'updateRunningStatus':
+                                updateRunningStatusWithId(message.testRunId);
                                 break;
                         }
                     });
@@ -5440,38 +5892,108 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
     }
 
     /**
+     * Handle status updates from Running Tasks panel and forward to Test Classes webview
+     */
+    private _onTestStatusUpdate(className: string, methodName: string, status: string, logId?: string, error?: string) {
+        try {
+            OrgUtils.logDebug(`[VisbalExt.TestClassExplorerSidePanel] _onTestStatusUpdate -- Forwarding status update to webview: ${className}.${methodName} -> ${status}`);
+            
+            if (this._view) {
+                this._view.webview.postMessage({
+                    command: 'testStatusUpdate',
+                    className: className,
+                    methodName: methodName,
+                    status: status,
+                    logId: logId,
+                    error: error
+                });
+            }
+        } catch (error: any) {
+            OrgUtils.logError('[VisbalExt.TestClassExplorerSidePanel] _onTestStatusUpdate -- Error forwarding status update to webview', error as Error);
+        }
+    }
+
+    /**
+     * Check if tests are currently running and restore UI state accordingly
+     */
+    private _restoreRunningTestState() {
+        try {
+            OrgUtils.logDebug('[VisbalExt.TestClassExplorerSidePanel] _restoreRunningTestState -- Checking running test state');
+            
+            const hasRunningTests = this._isRunning && this._abortController;
+            
+            if (this._view) {
+                this._view.webview.postMessage({
+                    command: 'restoreRunningState',
+                    isRunning: hasRunningTests,
+                    testRunId: this._currentTestRunId
+                });
+            }
+            
+            OrgUtils.logDebug(`[VisbalExt.TestClassExplorerSidePanel] _restoreRunningTestState -- Running state: ${hasRunningTests}, testRunId: ${this._currentTestRunId}`);
+        } catch (error: any) {
+            OrgUtils.logError('[VisbalExt.TestClassExplorerSidePanel] _restoreRunningTestState -- Error restoring running test state', error as Error);
+        }
+    }
+
+    /**
+     * Gets job status using existing ApexTestRunResult query (reuses existing pattern)
+     */
+    private async _getJobStatus(testRunId: string): Promise<{ status: string | undefined, exists: boolean }> {
+        try {
+            const currentOrgAlias = await this._getOrgAliasForStorage();
+            // Reuse the existing ApexTestRunResult query pattern (same as lines 2310, 2710)
+            const jobResults = await this._sfdxService.executeSoqlQuery(
+                `SELECT Id, Status, AsyncApexJobId FROM ApexTestRunResult WHERE AsyncApexJobId='${testRunId}'`,
+                false, false, currentOrgAlias
+            );
+            
+            if (jobResults && jobResults.length > 0) {
+                const job = jobResults[0];
+                OrgUtils.logDebug(`[VisbalExt.TestClassExplorerSidePanel] _getJobStatus -- Job ${testRunId} status: ${job.Status}`);
+                return { status: job.Status, exists: true };
+            } else {
+                OrgUtils.logDebug(`[VisbalExt.TestClassExplorerSidePanel] _getJobStatus -- No ApexTestRunResult found for job: ${testRunId}`);
+                return { status: undefined, exists: false };
+            }
+        } catch (error: any) {
+            OrgUtils.logError('[VisbalExt.TestClassExplorerSidePanel] _getJobStatus -- Error getting job status:', error);
+            return { status: undefined, exists: false };
+        }
+    }
+
+    /**
      * Attempts to cancel the server-side test job using CLI and Anonymous Apex
      */
     private async _attemptServerSideJobCancellation(testRunId: string) {
         try {
             OrgUtils.logDebug(`[VisbalExt.TestClassExplorerSidePanel] _attemptServerSideJobCancellation -- Attempting to cancel test job with ID: ${testRunId}`);
             
-            // First, query the current job status
-            // Use selected org instead of default org determination
+            // Reuse existing job status pattern instead of duplicating AsyncApexJob queries
+            const jobInfo = await this._getJobStatus(testRunId);
             const currentOrgAlias = await this._getOrgAliasForStorage();
-            const jobQuery = `SELECT Id, Status, CreatedDate FROM AsyncApexJob WHERE Id = '${testRunId}'`;
-            const jobResult = await this._sfdxService.executeSoqlQuery(jobQuery, false, false, currentOrgAlias);
             
-            if (jobResult && jobResult.length > 0) {
-                const job = jobResult[0];
-                OrgUtils.logDebug(`[VisbalExt.TestClassExplorerSidePanel] _attemptServerSideJobCancellation -- Current job status: ${job.Status}`);
-                
-                if (job.Status === 'Processing' || job.Status === 'Queued') {
+            if (jobInfo.exists) {
+                // Attempt cancellation if job is still active OR if status is undefined (safety fallback)
+                if (jobInfo.status === 'Processing' || jobInfo.status === 'Queued' || jobInfo.status === undefined) {
                     // Attempt to cancel the test run using CLI and Anonymous Apex
                     OrgUtils.logDebug(`[VisbalExt.TestClassExplorerSidePanel] _attemptServerSideJobCancellation -- Attempting CLI cancellation for job ${testRunId}`);
                     
                     try {
+                        OrgUtils.logDebug(`[VisbalExt.TestClassExplorerSidePanel] _attemptServerSideJobCancellation -- Executing Anonymous Apex cancellation for job ${testRunId}`);
                         const cancelResult = await this._sfdxService.cancelTestRun(testRunId, false, currentOrgAlias);
-                        OrgUtils.logDebug(`[VisbalExt.TestClassExplorerSidePanel] _attemptServerSideJobCancellation -- CLI cancellation result:`, cancelResult);
+                        OrgUtils.logDebug(`[VisbalExt.TestClassExplorerSidePanel] _attemptServerSideJobCancellation -- Anonymous Apex cancellation result:`, cancelResult);
                         
                         // Check if the cancellation was successful
-                        if (cancelResult?.result?.success) {
+                        if (cancelResult?.result?.success !== false) {
+                            // Anonymous Apex executed successfully (even if it didn't find items to cancel)
                             vscode.window.showInformationMessage(
-                                `✅ Test execution aborted successfully. Server-side job ${testRunId} has been canceled.`
+                                `✅ Test execution aborted locally. Server-side cancellation attempted via Anonymous Apex.`
                             );
-                            OrgUtils.logDebug(`[VisbalExt.TestClassExplorerSidePanel] _attemptServerSideJobCancellation -- Successfully canceled test job ${testRunId}`);
+                            OrgUtils.logDebug(`[VisbalExt.TestClassExplorerSidePanel] _attemptServerSideJobCancellation -- Anonymous Apex executed for test job ${testRunId}`);
                         } else {
-                            // Fallback to manual cancellation message
+                            // Anonymous Apex failed
+                            OrgUtils.logError(`[VisbalExt.TestClassExplorerSidePanel] _attemptServerSideJobCancellation -- Anonymous Apex failed:`, cancelResult);
                             this._showManualCancellationMessage(testRunId);
                         }
                     } catch (cliError: any) {
@@ -5488,10 +6010,26 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                         });
                     }
                 } else {
-                    OrgUtils.logDebug(`[VisbalExt.TestClassExplorerSidePanel] _attemptServerSideJobCancellation -- Job ${testRunId} status is ${job.Status}, no cancellation needed`);
+                    OrgUtils.logDebug(`[VisbalExt.TestClassExplorerSidePanel] _attemptServerSideJobCancellation -- Job ${testRunId} status is ${jobInfo.status}, no cancellation needed`);
+                    vscode.window.showInformationMessage(
+                        `✅ Test execution aborted locally. Server-side job ${testRunId} status is ${jobInfo.status || 'completed'}.`
+                    );
                 }
             } else {
-                OrgUtils.logDebug(`[VisbalExt.TestClassExplorerSidePanel] _attemptServerSideJobCancellation -- No job found with ID: ${testRunId}`);
+                // Job not found - might have completed already, but attempt cancellation anyway as safety measure
+                OrgUtils.logDebug(`[VisbalExt.TestClassExplorerSidePanel] _attemptServerSideJobCancellation -- Job not found in ApexTestRunResult, attempting Anonymous Apex cancellation as safety measure`);
+                try {
+                    const cancelResult = await this._sfdxService.cancelTestRun(testRunId, false, currentOrgAlias);
+                    OrgUtils.logDebug(`[VisbalExt.TestClassExplorerSidePanel] _attemptServerSideJobCancellation -- Fallback Anonymous Apex result:`, cancelResult);
+                    vscode.window.showInformationMessage(
+                        `✅ Test execution aborted locally. Server-side job ${testRunId} not found in results (may have completed).`
+                    );
+                } catch (fallbackError: any) {
+                    OrgUtils.logError('[VisbalExt.TestClassExplorerSidePanel] _attemptServerSideJobCancellation -- Fallback cancellation failed:', fallbackError);
+                    vscode.window.showInformationMessage(
+                        `✅ Test execution aborted locally. Server-side job ${testRunId} not found.`
+                    );
+                }
             }
         } catch (error: any) {
             OrgUtils.logError('[VisbalExt.TestClassExplorerSidePanel] _attemptServerSideJobCancellation -- Error during cancellation attempt:', error);
@@ -5908,6 +6446,9 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
 
             // 3. Load cached test classes only (no auto-fetch)
             await this._loadCachedTestClasses();
+
+            // 4. Restore running test state if tests are currently running
+            this._restoreRunningTestState();
 
         } catch (error: any) {
             OrgUtils.logError('[VisbalExt.TestClassExplorerSidePanel] _handleTabVisible -- Error handling tab visibility:', error);

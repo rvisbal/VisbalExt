@@ -3,6 +3,8 @@
 ## Overview
 The cache system manages user IDs, organization IDs, and view-specific organization selections for the active project where the extension is loaded.
 
+
+
 ### Cache Management Architecture
 - **Centralized Service**: All cache operations MUST be handled through a single service layer
 - **Primary Services**: Use either `src\services\cacheService.ts` OR `src\services\storageService.ts` (choose ONE as the single source of truth)

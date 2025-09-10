@@ -161,6 +161,9 @@ export class TestRunningTaskProvider implements vscode.TreeDataProvider<TestItem
     private _view?: vscode.TreeView<TestItem>;
     private _isAborted: boolean = false; // Track if tests have been aborted
     
+    // Status update callback for Test Classes webview synchronization
+    private _statusUpdateCallback?: (className: string, methodName: string, status: string, logId?: string, error?: string) => void;
+    
     // Batch processing for performance
     private batchTimer: NodeJS.Timeout | undefined;
     private pendingTestRuns: Map<string, string[]> = new Map();
@@ -172,6 +175,11 @@ export class TestRunningTaskProvider implements vscode.TreeDataProvider<TestItem
 
     setTreeView(view: vscode.TreeView<TestItem>) {
         this._view = view;
+    }
+
+    setStatusUpdateCallback(callback: (className: string, methodName: string, status: string, logId?: string, error?: string) => void) {
+        this._statusUpdateCallback = callback;
+        OrgUtils.logDebug('[VisbalExt.TestRunningTaskProvider] setStatusUpdateCallback -- Status update callback set for Test Classes webview synchronization');
     }
 
     getTreeItem(element: TestItem): vscode.TreeItem {
@@ -240,6 +248,12 @@ export class TestRunningTaskProvider implements vscode.TreeDataProvider<TestItem
             return;
         }
 
+        // Clear any existing batch timer since we're processing now
+        if (this.batchTimer) {
+            clearTimeout(this.batchTimer);
+            this.batchTimer = undefined;
+        }
+
         const startTime = Date.now();
         OrgUtils.logDebug(`[VisbalExt.TestRunningTaskProvider] processBatchedTestRuns -- Processing ${this.pendingTestRuns.size} batched test runs`);
 
@@ -261,6 +275,19 @@ export class TestRunningTaskProvider implements vscode.TreeDataProvider<TestItem
     addTestRun(className: string, methods: string[]) {
         // Use batch processing for better performance
         this.addTestRunBatch(className, methods);
+    }
+
+    addTestRunImmediate(className: string, methods: string[]) {
+        // Add test run immediately without batch processing
+        // This is used when we need immediate access to the test runs
+        this.addTestRunInternal(className, methods);
+    }
+
+    flushPendingTestRuns(): void {
+        // Immediately process any pending test runs
+        if (this.pendingTestRuns.size > 0) {
+            this.processBatchedTestRuns();
+        }
     }
 
     private addTestRunInternal(className: string, methods: string[]) {
@@ -387,9 +414,33 @@ export class TestRunningTaskProvider implements vscode.TreeDataProvider<TestItem
         const startTime = Date.now();
         OrgUtils.logDebug(`[VisbalExt.TestRunningTaskProvider] updateMethodStatus -- Updating method status: ${className}.${methodName} -> ${status} at ${new Date(startTime).toISOString()}`);
         
-        const classItem = this.testRuns.get(className);
+        let classItem = this.testRuns.get(className);
+        
+        // If class is not found, check if there are pending test runs and flush them
+        if (!classItem && this.pendingTestRuns.size > 0) {
+            OrgUtils.logDebug(`[VisbalExt.TestRunningTaskProvider] updateMethodStatus -- Class ${className} not found, flushing pending test runs`);
+            this.flushPendingTestRuns();
+            classItem = this.testRuns.get(className);
+        }
+
+        // If class is still not found, create it with the method to prevent status loss
+        if (!classItem) {
+            OrgUtils.logDebug(`[VisbalExt.TestRunningTaskProvider] updateMethodStatus -- Class ${className} still not found, creating it with method ${methodName}`);
+            this.addTestRunInternal(className, [methodName]);
+            classItem = this.testRuns.get(className);
+        }
+        
         if (classItem) {
-            const methodItem = classItem.children.find(m => m.label === methodName);
+            let methodItem = classItem.children.find(m => m.label === methodName);
+            
+            // If method is not found, add it to the class
+            if (!methodItem) {
+                OrgUtils.logDebug(`[VisbalExt.TestRunningTaskProvider] updateMethodStatus -- Method ${methodName} not found in class ${className}, adding it`);
+                methodItem = new TestItem(methodName, vscode.TreeItemCollapsibleState.None, 'pending');
+                classItem.children.push(methodItem);
+                this.scheduleRefresh(true);
+            }
+            
             if (methodItem) {
                 // Determine final status based on error message if provided
                 let finalStatus = status;
@@ -436,6 +487,11 @@ export class TestRunningTaskProvider implements vscode.TreeDataProvider<TestItem
                 const endTime = Date.now();
                 OrgUtils.logDebug(`[VisbalExt.TestRunningTaskProvider] updateMethodStatus Method status updated in ${endTime - startTime}ms, scheduling refresh on ${className}.${methodName}`);
                 this.scheduleRefresh();
+
+                // Notify Test Classes webview of status update
+                if (this._statusUpdateCallback) {
+                    this._statusUpdateCallback(className, methodName, finalStatus, logId, error);
+                }
 
                 // Reveal the updated method
                 if (this._view) {
@@ -641,6 +697,18 @@ export class TestRunningTaskView {
 
     addTestRun(className: string, methods: string[]) {
         this.provider.addTestRun(className, methods);
+    }
+
+    addTestRunImmediate(className: string, methods: string[]) {
+        this.provider.addTestRunImmediate(className, methods);
+    }
+
+    flushPendingTestRuns(): void {
+        this.provider.flushPendingTestRuns();
+    }
+
+    setStatusUpdateCallback(callback: (className: string, methodName: string, status: string, logId?: string, error?: string) => void) {
+        this.provider.setStatusUpdateCallback(callback);
     }
 
     updateMethodStatus(className: string, methodName: string, status: 'running' | 'success' | 'failed' | 'pending' | 'downloading' | 'skipped' | 'aborted', logId?: string, error?: string) {

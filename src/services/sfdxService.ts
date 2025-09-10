@@ -98,7 +98,21 @@ export class SfdxService {
      */
     private _executeCommandWithSignal(command: string, signal?: AbortSignal): Promise<ExecResult> {
         return new Promise((resolve, reject) => {
+            // Check if already aborted before starting
+            if (signal?.aborted) {
+                reject(new Error('Command aborted by user'));
+                return;
+            }
+            
+            let isAborted = false;
+            
             const childProcess = child_process.exec(command, { maxBuffer: MAX_BUFFER_SIZE }, (error, stdout, stderr) => {
+                // Don't process results if command was aborted
+                if (isAborted) {
+                    OrgUtils.logDebug('[VisbalExt.SfdxService] _executeCommandWithSignal -- Ignoring results from aborted command');
+                    return;
+                }
+                
                 if (!command.includes('sf apex list log')) {
                     OrgUtils.logDebug(`[VisbalExt.SfdxService] _executeCommandWithSignal command:${command} -- stdout:`);
                 }
@@ -130,8 +144,20 @@ export class SfdxService {
             // Handle abort signal
             if (signal) {
                 signal.addEventListener('abort', () => {
+                    isAborted = true;
                     OrgUtils.logDebug('[VisbalExt.SfdxService] _executeCommandWithSignal -- Aborting command:', command);
+                    
+                    // Try graceful termination first
                     childProcess.kill('SIGTERM');
+                    
+                    // Force kill after a short timeout if process doesn't terminate
+                    setTimeout(() => {
+                        if (!childProcess.killed) {
+                            OrgUtils.logDebug('[VisbalExt.SfdxService] _executeCommandWithSignal -- Force killing process with SIGKILL');
+                            childProcess.kill('SIGKILL');
+                        }
+                    }, 1000);
+                    
                     reject(new Error('Command aborted by user'));
                 });
             }
@@ -1148,16 +1174,16 @@ export class SfdxService {
     public async listApexClasses(): Promise<ApexClass[]> {
         try {
             OrgUtils.logDebug('[VisbalExt.SfdxService] listApexClasses -- Listing Apex classes...');
-            // Use SOQL query to get Apex classes with TracHier namespace
-            const soqlQuery = "SELECT Id, Name, NamespacePrefix FROM ApexClass WHERE NamespacePrefix IN ('TracHier', 'TracRTC') ORDER BY Name";
+            // Use SOQL query to get ALL Apex classes (including unmanaged ones)
+            const soqlQuery = "SELECT Id, Name, NamespacePrefix FROM ApexClass ORDER BY Name";
 			const records =  await this.executeSoqlQuery(soqlQuery, true);
 			
-            OrgUtils.logDebug(`[VisbalExt.SfdxService] listApexClasses -- Found ${records.length} classes in TracHier, TracRTC  namespace`);
+            OrgUtils.logDebug(`[VisbalExt.SfdxService] listApexClasses -- Found ${records.length} total classes`);
             
             return records.map((cls: any) => ({
                 id: cls.Id,
                 name: cls.Name,
-                fullName: cls.Name,
+                fullName: cls.NamespacePrefix ? `${cls.NamespacePrefix}__${cls.Name}` : cls.Name,
                 namespace: cls.NamespacePrefix,
                 status: 'Active'
             }));
@@ -1281,7 +1307,7 @@ export class SfdxService {
         classes: string[], 
         methods: { className: string, methodName: string }[],
         runMode: 'sequential' | 'parallel'
-    }, useDefaultOrg: boolean = false, showTestCoverage: boolean = true, targetOrgAlias?: string): Promise<any> {
+    }, useDefaultOrg: boolean = false, showTestCoverage: boolean = true, targetOrgAlias?: string, signal?: AbortSignal): Promise<any> {
         const startTime = Date.now();
         try {
             OrgUtils.logDebug(`[VisbalExt.SfdxService] runManyTests -- START at ${new Date(startTime).toISOString()} -- targetOrgAlias: ${targetOrgAlias}`);
@@ -1311,8 +1337,8 @@ export class SfdxService {
                 command += ' --code-coverage';
             }
             command += ' --json';
-            OrgUtils.logDebug(`[VisbalExt.SfdxService] runManyTests -- _executeCommand: ${command}`);
-            const output = await this._executeCommand(command);
+            OrgUtils.logDebug(`[VisbalExt.SfdxService] runManyTests -- _executeCommandWithSignal: ${command}`);
+            const output = await this._executeCommandWithSignal(command, signal);
             const endTime = Date.now();
             OrgUtils.logDebug(`[VisbalExt.MetadataService] runManyTests -- TIME COMPLETED: ${endTime - startTime}ms`, output);
 
