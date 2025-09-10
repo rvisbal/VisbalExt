@@ -48,17 +48,77 @@ export class SymbolNavigationService {
     }
 
     /**
-     * Extracts the symbol and its type from the current cursor position
+     * Manually extracts a word from a line when VS Code's word detection fails
      */
-    private static extractSymbolFromCursor(document: vscode.TextDocument, position: vscode.Position): {symbol: string, type: string, isThisReference: boolean, className?: string, variableToTrace?: string} | null {
-        const wordRange = document.getWordRangeAtPosition(position);
-        if (!wordRange) {
+    private static extractWordManually(line: string, character: number): {word: string, start: number, end: number} | null {
+        // Define word character pattern (alphanumeric and underscore)
+        const wordCharPattern = /[a-zA-Z0-9_]/;
+        
+        this.logDebug(`[VisbalExt.SymbolNavigationService] extractWordManually -- Attempting manual extraction at character ${character} in line: "${line}"`);
+        
+        // If cursor is not on a word character, return null
+        if (character >= line.length || !wordCharPattern.test(line[character])) {
+            this.logDebug(`[VisbalExt.SymbolNavigationService] extractWordManually -- Character at position ${character} is not a word character: "${line[character] || 'END_OF_LINE'}" (charCode: ${line.charCodeAt(character) || 'N/A'})`);
             return null;
         }
         
-        const word = document.getText(wordRange);
+        this.logDebug(`[VisbalExt.SymbolNavigationService] extractWordManually -- Character at position ${character} IS a word character: "${line[character]}"`);
+        
+        // Find word start by going backwards
+        let start = character;
+        while (start > 0 && wordCharPattern.test(line[start - 1])) {
+            start--;
+        }
+        
+        // Find word end by going forwards
+        let end = character;
+        while (end < line.length && wordCharPattern.test(line[end])) {
+            end++;
+        }
+        
+        const word = line.substring(start, end);
+        this.logDebug(`[VisbalExt.SymbolNavigationService] extractWordManually -- Extracted word: "${word}" from ${start} to ${end}`);
+        return word.length > 0 ? { word, start, end } : null;
+    }
+    
+    /**
+     * Extracts the symbol and its type from the current cursor position
+     */
+    private static extractSymbolFromCursor(document: vscode.TextDocument, position: vscode.Position): {symbol: string, type: string, isThisReference: boolean, className?: string, variableToTrace?: string} | null {
+        let wordRange = document.getWordRangeAtPosition(position);
+        let word: string;
+        
+        if (!wordRange) {
+            const line = document.lineAt(position.line).text;
+            const character = position.character;
+            
+            this.logDebug(`[VisbalExt.SymbolNavigationService] extractSymbolFromCursor -- VS Code getWordRangeAtPosition() returned null at position ${position.line}:${position.character}`);
+            this.logDebug(`[VisbalExt.SymbolNavigationService] extractSymbolFromCursor -- Line: "${line}"`);
+            this.logDebug(`[VisbalExt.SymbolNavigationService] extractSymbolFromCursor -- Character at cursor: "${line[character] || 'END_OF_LINE'}" (charCode: ${line.charCodeAt(character) || 'N/A'})`);
+            
+            // Try manual word extraction for cases where VS Code's word detection fails
+            // This is particularly useful for method calls with parentheses immediately following
+            const manualWordMatch = this.extractWordManually(line, character);
+            if (manualWordMatch) {
+                word = manualWordMatch.word;
+                wordRange = new vscode.Range(
+                    new vscode.Position(position.line, manualWordMatch.start),
+                    new vscode.Position(position.line, manualWordMatch.end)
+                );
+                this.logDebug(`[VisbalExt.SymbolNavigationService] extractSymbolFromCursor -- Manual extraction SUCCEEDED: word="${word}" at ${manualWordMatch.start}-${manualWordMatch.end}`);
+            } else {
+                this.logDebug(`[VisbalExt.SymbolNavigationService] extractSymbolFromCursor -- Manual extraction also FAILED`);
+                return null;
+            }
+        } else {
+            word = document.getText(wordRange);
+            this.logDebug(`[VisbalExt.SymbolNavigationService] extractSymbolFromCursor -- VS Code getWordRangeAtPosition() SUCCEEDED: found word "${word}" at range ${wordRange.start.line}:${wordRange.start.character}-${wordRange.end.line}:${wordRange.end.character}`);
+        }
+        
         const line = document.lineAt(position.line).text;
         const fileExtension = document.fileName.split('.').pop()?.toLowerCase();
+        
+        this.logDebug(`[VisbalExt.SymbolNavigationService] extractSymbolFromCursor -- Found word: "${word}" at position ${position.line}:${position.character} in .${fileExtension} file`);
         
         // Check if this is a "this." reference
         const wordStart = wordRange.start.character;
@@ -76,8 +136,11 @@ export class SymbolNavigationService {
         // Determine symbol type based on context and file type first
         const symbolInfo = this.determineSymbolType(word, line, wordRange, fileExtension || '');
         if (!symbolInfo) {
+            this.logDebug(`[VisbalExt.SymbolNavigationService] extractSymbolFromCursor -- determineSymbolType returned null for word: "${word}", line: "${line}", fileExtension: "${fileExtension || 'UNKNOWN'}"`);
             return null;
         }
+        
+        this.logDebug(`[VisbalExt.SymbolNavigationService] extractSymbolFromCursor -- Determined symbol type: ${symbolInfo.type} for word: "${word}"`);
         
         // Enhanced variable type tracing - look for variable assignments in the document
         // This is particularly useful for singleton patterns like Logger.getInstance()
@@ -135,9 +198,44 @@ export class SymbolNavigationService {
                 if (afterWord.startsWith('(') || new RegExp(`\\b${word}\\s*\\(`).test(line)) {
                     return { symbol: word, type: this.SymbolType.METHOD };
                 }
+                
+                // Check for explicit class declaration
                 if (line.includes('class ') && line.includes(word)) {
                     return { symbol: word, type: this.SymbolType.CLASS };
                 }
+                
+                // Check if word is being used as a type declaration (likely a class name)
+                // Patterns: "ClassName variableName = ..." or "ClassName variableName;" 
+                // or in generics: "List<ClassName>" etc.
+                const wordStart = wordRange.start.character;
+                const beforeWord = line.substring(0, wordStart).trim();
+                const afterWordFull = line.substring(wordRange.end.character);
+                
+                this.logDebug(`[VisbalExt.SymbolNavigationService] determineSymbolType -- Analyzing '${word}' | beforeWord: "${beforeWord}" | afterWord: "${afterWordFull}"`);
+                
+                // Pattern 1: Word is at start of line or after access modifiers (type declaration)
+                const typeDeclarationPattern = /^(\s*(public|private|protected|global|static|final)?\s*)$/;
+                if (typeDeclarationPattern.test(beforeWord) && /^[A-Z]/.test(word)) {
+                    this.logDebug(`[VisbalExt.SymbolNavigationService] determineSymbolType -- Pattern 1 matched: type declaration with access modifiers`);
+                    return { symbol: word, type: this.SymbolType.CLASS };
+                }
+                
+                // Pattern 2: Check if word is followed by variable name (ClassName variableName)
+                const typeDeclarationFollowPattern = /^\s+[a-z][a-zA-Z0-9_]*\s*[=;]/.test(afterWordFull);
+                if (typeDeclarationFollowPattern && /^[A-Z]/.test(word)) {
+                    this.logDebug(`[VisbalExt.SymbolNavigationService] determineSymbolType -- Pattern 2 matched: type declaration followed by variable name`);
+                    return { symbol: word, type: this.SymbolType.CLASS };
+                }
+                
+                // Pattern 3: Word appears inside generic brackets: List<ClassName>, Map<String,ClassName>
+                const genericPattern = new RegExp(`<[^>]*\\b${word}\\b[^>]*>`, 'i');
+                if (genericPattern.test(line) && /^[A-Z]/.test(word)) {
+                    this.logDebug(`[VisbalExt.SymbolNavigationService] determineSymbolType -- Pattern 3 matched: class name in generics`);
+                    return { symbol: word, type: this.SymbolType.CLASS };
+                }
+                
+                this.logDebug(`[VisbalExt.SymbolNavigationService] determineSymbolType -- No class patterns matched, defaulting to PROPERTY`);
+                
                 return { symbol: word, type: this.SymbolType.PROPERTY };
                 
             case 'html':
@@ -367,6 +465,16 @@ export class SymbolNavigationService {
             }
             this.logDebug(`[VisbalExt.SymbolNavigationService] findSymbolDefinition -- 'this.${symbol}' not found in current file, expanding search`);
         }
+        
+        // For regular method calls (no class prefix, no "this."), always search current file first to avoid expensive workspace searches
+        if (!className && !isThisReference && currentDocument) {
+            this.logDebug(`[VisbalExt.SymbolNavigationService] findSymbolDefinition -- Searching for '${symbol}' in current file first (optimization)`);
+            const currentFileResult = this.searchInCurrentFile(currentDocument, symbol, symbolType);
+            if (currentFileResult) {
+                return currentFileResult;
+            }
+            this.logDebug(`[VisbalExt.SymbolNavigationService] findSymbolDefinition -- '${symbol}' not found in current file, expanding to workspace search`);
+        }
 
         if (!vscode.workspace.workspaceFolders) {
             return null;
@@ -391,8 +499,8 @@ export class SymbolNavigationService {
                 this.logDebug(`[VisbalExt.SymbolNavigationService] findSymbolDefinition -- Found ${files.length} .${extension} files to search`);
                 
                 for (const file of files) {
-                    // Skip current file if we already searched it for "this." references
-                    if (isThisReference && currentDocument && file.fsPath === currentDocument.uri.fsPath) {
+                    // Skip current file if we already searched it (for "this." references, regular calls, or any current file search)
+                    if (currentDocument && file.fsPath === currentDocument.uri.fsPath) {
                         continue;
                     }
                     
@@ -610,12 +718,23 @@ export class SymbolNavigationService {
         }
 
         const sourceFileExtension = editor.document.fileName.split('.').pop()?.toLowerCase() || '';
+        const position = editor.selection.active;
+        const line = editor.document.lineAt(position.line).text;
+        
+        // Debug log the cursor position and selection context
+        this.logDebug(`[VisbalExt.SymbolNavigationService] navigateToSelectedDefinition -- Starting navigation from position ${position.line}:${position.character}`);
+        this.logDebug(`[VisbalExt.SymbolNavigationService] navigateToSelectedDefinition -- Line content: "${line}"`);
+        this.logDebug(`[VisbalExt.SymbolNavigationService] navigateToSelectedDefinition -- Character at cursor: "${line[position.character] || 'END_OF_LINE'}" (charCode: ${line.charCodeAt(position.character) || 'N/A'})`);
+        this.logDebug(`[VisbalExt.SymbolNavigationService] navigateToSelectedDefinition -- File extension: "${sourceFileExtension}"`);
 
         // Extract symbol and type from cursor position
         const symbolInfo = this.extractSymbolFromCursor(editor.document, editor.selection.active);
         if (!symbolInfo) {
+            this.logDebug(`[VisbalExt.SymbolNavigationService] navigateToSelectedDefinition -- extractSymbolFromCursor returned null`);
             throw new Error('No symbol found at cursor position. Please place cursor on a method, property, class, or other symbol.');
         }
+        
+        this.logDebug(`[VisbalExt.SymbolNavigationService] navigateToSelectedDefinition -- Successfully extracted symbol: "${symbolInfo.symbol}", type: "${symbolInfo.type}", isThisReference: ${symbolInfo.isThisReference}, className: "${symbolInfo.className || 'N/A'}", variableToTrace: "${symbolInfo.variableToTrace || 'N/A'}"`);
 
         let { symbol, type, isThisReference, className, variableToTrace } = symbolInfo;
         
