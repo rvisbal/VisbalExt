@@ -207,7 +207,7 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
         this._loadOrgList();
 
         webviewView.webview.onDidReceiveMessage(async (data) => {
-                OrgUtils.logDebug(`[VisbalExt.TestClassExplorerSidePanel] resolveWebviewView -- Received message from webview ${data.command}: ${data.message}`, data);
+                OrgUtils.logDebug(`[VisbalExt.TestClassExplorerSidePanel] resolveWebviewView -- Received message from webview ${data.command}: ${data.message || 'no message'}`, data);
                 switch (data.command) {
                     case 'getTestCaseLists':
                         const lists = this._testCaseListManager.getTestCaseLists();
@@ -744,7 +744,7 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                                 OrgUtils.logDebug('[VisbalExt.TestClassExplorerSidePanel] _runTest ', t.Message);
                             } else {
                                 //UPDATE THE STATUS OF THE METHOD FIRST (before log retrieval)
-                                if (!mainClassMap.has(t.ApexClass.Name)) {
+                                if (t.ApexClass && t.ApexClass.Name && !mainClassMap.has(t.ApexClass.Name)) {
                                     mainClassMap.set(t.ApexClass.Name, true);
                                 }
                                 OrgUtils.logDebug('[VisbalExt.TestClassExplorerSidePanel] _runTest -- Processing test result', t);
@@ -757,12 +757,16 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                                 else if (t.Outcome === 'Fail' || t.Outcome === 'Failed') {
                                     OrgUtils.logDebug('[VisbalExt.TestClassExplorerSidePanel] _runTest -- Test failed', t.Outcome);
                                     this._testRunResultsView.updateMethodStatus(testClass, t.MethodName, 'failed');
-                                    mainClassMap.set(t.ApexClass.Name, false);
+                                    if (t.ApexClass && t.ApexClass.Name) {
+                                        mainClassMap.set(t.ApexClass.Name, false);
+                                    }
                                 }
                                 else if (t.Outcome === 'Aborted') {
                                     OrgUtils.logDebug('[VisbalExt.TestClassExplorerSidePanel] _runTest -- Test aborted', t.Outcome);
                                     this._testRunResultsView.updateMethodStatus(testClass, t.MethodName, 'aborted');
-                                    mainClassMap.set(t.ApexClass.Name, false);
+                                    if (t.ApexClass && t.ApexClass.Name) {
+                                        mainClassMap.set(t.ApexClass.Name, false);
+                                    }
                                 }
                                 
                                 // Process logs in background (non-blocking)
@@ -1182,7 +1186,7 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                                                             }
                                                         }
 
-                                                        if (!mainClassMap.has(t.ApexClass.Name)) {
+                                                        if (t.ApexClass && t.ApexClass.Name && !mainClassMap.has(t.ApexClass.Name)) {
                                                             mainClassMap.set(t.ApexClass.Name, true);
                                                         }
 
@@ -1195,7 +1199,9 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                                                         else {
                                                             OrgUtils.logDebug('[VisbalExt.TestClassExplorerSidePanel] _runSelectedTests.sequentially updateMethodStatus.failed logId:', logId);
                                                             this._testRunResultsView.updateMethodStatus(className, t.methodName, 'failed', logId);
-                                                            mainClassMap.set(t.ApexClass.Name, false);
+                                                            if (t.ApexClass && t.ApexClass.Name) {
+                                                                mainClassMap.set(t.ApexClass.Name, false);
+                                                            }
                                                         }
                                                     } catch (error: any) {
                                                             OrgUtils.logError('[VisbalExt.TestClassExplorerSidePanel] _runSelectedTests.sequentially updateMethodStatus.failed ERROR ON ${className}.${methodName}', error as Error);
