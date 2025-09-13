@@ -420,7 +420,7 @@ export class LogFilterService {
             {
                 id: 'builtin-common',
                 name: 'Common ',
-                description: 'Shows all common',
+                description: 'Shows all common log statements & errors',
                 isActive: false,
                 isBuiltIn: true,
                 created: new Date(),
@@ -488,7 +488,7 @@ export class LogFilterService {
             {
                 id: 'builtin-user-debug',
                 name: 'User Debug Messages',
-                description: 'Shows System.debug() statements',
+                description: 'Shows System.debug() statements & errors',
                 isActive: false,
                 isBuiltIn: true,
                 created: new Date(),
@@ -520,13 +520,239 @@ export class LogFilterService {
                         caseSensitive: false,
                         useRegex: false,
                         negated: false
+                    },
+                    {
+                        id: 'debug-2',
+                        field: 'category',
+                        operator: 'equals',
+                        value: 'FATAL_ERROR',
+                        caseSensitive: false,
+                        useRegex: false,
+                        negated: false
                     }
                 ],
                 logicalOperator: 'OR',
                 color: '#00aa00',
                 icon: 'bug'
             },
- 
+            {
+                id: 'builtin-user-debug-only',
+                name: 'User Debug Only',
+                description: 'Shows System.debug() statements only',
+                isActive: false,
+                isBuiltIn: true,
+                created: new Date(),
+                lastModified: new Date(),
+                conditions: [
+                    {
+                        id: 'debug-1',
+                        field: 'category',
+                        operator: 'equals',
+                        value: 'USER_DEBUG',
+                        caseSensitive: false,
+                        useRegex: false,
+                        negated: false
+                    },
+                    {
+                        id: 'debug-2',
+                        field: 'category',
+                        operator: 'equals',
+                        value: 'FATAL_ERROR',
+                        caseSensitive: false,
+                        useRegex: false,
+                        negated: false
+                    }
+                ],
+                logicalOperator: 'OR',
+                color: '#00aa00',
+                icon: 'bug'
+            },
+            {
+                id: 'builtin-user-debug-with-dml',
+                name: 'User Debug with DML',
+                description: 'Shows System.debug() statements with DML',
+                isActive: false,
+                isBuiltIn: true,
+                created: new Date(),
+                lastModified: new Date(),
+                conditions: [
+                    {
+                        id: 'error-1',
+                        field: 'logLevel',
+                        operator: 'equals',
+                        value: 'ERROR',
+                        caseSensitive: false,
+                        useRegex: false,
+                        negated: false
+                    },
+                    {
+                        id: 'error-2',
+                        field: 'content',
+                        operator: 'contains',
+                        value: 'Exception',
+                        caseSensitive: false,
+                        useRegex: false,
+                        negated: false
+                    },
+                    {
+                        id: 'debug-1',
+                        field: 'category',
+                        operator: 'equals',
+                        value: 'USER_DEBUG',
+                        caseSensitive: false,
+                        useRegex: false,
+                        negated: false
+                    },
+                    {
+                        id: 'debug-2',
+                        field: 'category',
+                        operator: 'equals',
+                        value: 'FATAL_ERROR',
+                        caseSensitive: false,
+                        useRegex: false,
+                        negated: false
+                    },
+                    {
+                        id: 'debug-3',
+                        field: 'category',
+                        operator: 'equals',
+                        value: 'DML_BEGIN',
+                        caseSensitive: false,
+                        useRegex: false,
+                        negated: false
+                    }
+                ],
+                logicalOperator: 'OR',
+                color: '#00aa00',
+                icon: 'bug'
+            },
+            {
+                id: 'builtin-user-debug-with-dml-soql',
+                name: 'User Debug with DML & soql',
+                description: 'Shows System.debug() statements with DML & soql',
+                isActive: false,
+                isBuiltIn: true,
+                created: new Date(),
+                lastModified: new Date(),
+                conditions: [
+                    {
+                        id: 'error-1',
+                        field: 'logLevel',
+                        operator: 'equals',
+                        value: 'ERROR',
+                        caseSensitive: false,
+                        useRegex: false,
+                        negated: false
+                    },
+                    {
+                        id: 'error-2',
+                        field: 'content',
+                        operator: 'contains',
+                        value: 'Exception',
+                        caseSensitive: false,
+                        useRegex: false,
+                        negated: false
+                    },
+                    {
+                        id: 'debug-1',
+                        field: 'category',
+                        operator: 'equals',
+                        value: 'USER_DEBUG',
+                        caseSensitive: false,
+                        useRegex: false,
+                        negated: false
+                    },
+                    {
+                        id: 'debug-2',
+                        field: 'category',
+                        operator: 'equals',
+                        value: 'FATAL_ERROR',
+                        caseSensitive: false,
+                        useRegex: false,
+                        negated: false
+                    },
+                    {
+                        id: 'debug-3',
+                        field: 'category',
+                        operator: 'equals',
+                        value: 'DML_BEGIN',
+                        caseSensitive: false,
+                        useRegex: false,
+                        negated: false
+                    },
+                    {
+                        id: 'debug-4',
+                        field: 'category',
+                        operator: 'equals',
+                        value: 'SOQL_EXECUTE_BEGIN',
+                        caseSensitive: false,
+                        useRegex: false,
+                        negated: false
+                    }
+                ],
+                logicalOperator: 'OR',
+                color: '#00aa00',
+                icon: 'bug'
+            },
+            {
+                id: 'builtin-database-only',
+                name: 'Database Only',
+                description: 'Shows Database statements',
+                isActive: false,
+                isBuiltIn: true,
+                created: new Date(),
+                lastModified: new Date(),
+                conditions: [
+                    {
+                        id: 'error-1',
+                        field: 'logLevel',
+                        operator: 'equals',
+                        value: 'ERROR',
+                        caseSensitive: false,
+                        useRegex: false,
+                        negated: false
+                    },
+                    {
+                        id: 'error-2',
+                        field: 'content',
+                        operator: 'contains',
+                        value: 'Exception',
+                        caseSensitive: false,
+                        useRegex: false,
+                        negated: false
+                    },
+                    {
+                        id: 'debug-2',
+                        field: 'category',
+                        operator: 'equals',
+                        value: 'FATAL_ERROR',
+                        caseSensitive: false,
+                        useRegex: false,
+                        negated: false
+                    },
+                    {
+                        id: 'debug-3',
+                        field: 'category',
+                        operator: 'equals',
+                        value: 'DML_BEGIN',
+                        caseSensitive: false,
+                        useRegex: false,
+                        negated: false
+                    },
+                    {
+                        id: 'debug-4',
+                        field: 'category',
+                        operator: 'equals',
+                        value: 'SOQL_EXECUTE_BEGIN',
+                        caseSensitive: false,
+                        useRegex: false,
+                        negated: false
+                    }
+                ],
+                logicalOperator: 'OR',
+                color: '#00aa00',
+                icon: 'bug'
+            }
         ];
 
         for (const filter of builtInFilters) {
