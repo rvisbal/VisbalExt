@@ -240,6 +240,12 @@ export async function activate(context: vscode.ExtensionContext) {
         try {
           OrgUtils.logDebug('[VisbalExt.Extension] activate -- Viewing test log:', { logId, testName });
           
+          // Show immediate visual feedback in status bar
+          statusBarService.showProgress(`Opening log for test: ${testName}...`);
+          
+          // Mark the log as downloading in the test explorer UI
+          TestItem.setDownloading(logId, true);
+          
           // Use the test explorer's selected org instead of the project default org
           let selectedOrg = await OrgUtils.getSelectedOrgForView(ViewId.TEST_EXPLORER);
           if (!selectedOrg?.alias) {
@@ -247,10 +253,17 @@ export async function activate(context: vscode.ExtensionContext) {
             selectedOrg = { alias: await OrgUtils.getCurrentOrgAlias(), timestamp: new Date().toISOString() };
           }
           
-          OrgUtils.openLog(logId, context.extensionUri, selectedOrg.alias);
+          await OrgUtils.openLog(logId, context.extensionUri, selectedOrg.alias);
+          
+          // Show success feedback
+          statusBarService.showSuccess(`Log opened for test: ${testName}`);
+          
+          // Clear downloading state
+          TestItem.setDownloading(logId, false);
           
         } catch (error: any) {
           TestItem.setDownloading(logId, false);
+          statusBarService.showError(`Failed to open log for test ${testName}: ${error.message}`);
           OrgUtils.logError(`[VisbalExt.Extension] activate Error viewing test:${testName} log:${logId}`, error);
           vscode.window.showWarningMessage(`Could not view log for test ${testName}: ${(error as Error).message}`);
         }

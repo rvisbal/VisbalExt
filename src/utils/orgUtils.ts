@@ -782,13 +782,14 @@ export class OrgUtils {
      */
     public static async openLog(logId: string, extensionUri: vscode.Uri, targetOrgAlias: string): Promise<void> {
         try {
-       
-
-           
+            OrgUtils.logDebug(`[VisbalExt.OrgUtils] openLog -- Starting to open log: ${logId}`);
+            
             // Check if we have a local copy of the log
             const localFilePath = this._downloadedLogPaths.get(logId);
             if (localFilePath && fs.existsSync(localFilePath)) {
-            
+                OrgUtils.logDebug(`[VisbalExt.OrgUtils] openLog -- Opening cached log from: ${localFilePath}`);
+                statusBarService.showProgress(`Opening cached log: ${logId}...`);
+                
                 //open log raw file in new tab
                 const document = await vscode.workspace.openTextDocument(localFilePath);
                 await vscode.window.showTextDocument(document);
@@ -797,22 +798,32 @@ export class OrgUtils {
             }
 
             // Fetch and save the log content
+            statusBarService.showProgress(`Downloading log content: ${logId}...`);
+            OrgUtils.logDebug(`[VisbalExt.OrgUtils] openLog -- Fetching log content for: ${logId} from org: ${targetOrgAlias}`);
+            
             const logContent = await this._fetchLogContent(logId, targetOrgAlias);
+            
+            statusBarService.showProgress(`Preparing log file: ${logId}...`);
             const sanitizedLogId = logId.replace(/[\/\\:*?"<>|]/g, '_');
             const timestamp = new Date().toISOString().replace(/:/g, '-');
             const tempFile = path.join(os.tmpdir(), `sf_${sanitizedLogId}_${timestamp}.log`);
             
+            OrgUtils.logDebug(`[VisbalExt.OrgUtils] openLog -- Writing log content to temp file: ${tempFile}`);
             await fs.promises.writeFile(tempFile, logContent);
-        
+            
+            statusBarService.showProgress(`Opening log editor: ${logId}...`);
             //open log raw file in new tab
             const document = await vscode.workspace.openTextDocument(tempFile);
             await vscode.window.showTextDocument(document);
-        
+            
+            OrgUtils.logDebug(`[VisbalExt.OrgUtils] openLog -- Successfully opened log: ${logId}`);
 
             // Mark as downloaded
             this._downloadedLogs.add(logId);
             this._downloadedLogPaths.set(logId, tempFile);
         } catch (error: any) {
+            OrgUtils.logError(`[VisbalExt.OrgUtils] openLog -- Failed to open log ${logId}:`, error);
+            statusBarService.showError(`Failed to open log: ${error.message}`);
             vscode.window.showErrorMessage(`Failed to open log: ${error.message}`);
             throw error;
         }
