@@ -71,6 +71,9 @@ export class OrgUtils {
     private static _downloadedLogPaths: Map<string, string> = new Map<string, string>();
     private static _logs: any[] = [];
     
+    // Download Concurrency Control - prevents multiple simultaneous downloads of same log
+    private static _ongoingDownloads: Map<string, Promise<void>> = new Map<string, Promise<void>>();
+    
     // Core Services
     private static _context: vscode.ExtensionContext;
     private static _sfdxService: SfdxService;
@@ -797,31 +800,54 @@ export class OrgUtils {
                 return;
             }
 
-            // Fetch and save the log content
-            statusBarService.showProgress(`Downloading log content: ${logId}...`);
-            OrgUtils.logDebug(`[VisbalExt.OrgUtils] openLog -- Fetching log content for: ${logId} from org: ${targetOrgAlias}`);
-            
-            const logContent = await this._fetchLogContent(logId, targetOrgAlias);
-            
-            statusBarService.showProgress(`Preparing log file: ${logId}...`);
-            const sanitizedLogId = logId.replace(/[\/\\:*?"<>|]/g, '_');
-            const timestamp = new Date().toISOString().replace(/:/g, '-');
-            const tempFile = path.join(os.tmpdir(), `sf_${sanitizedLogId}_${timestamp}.log`);
-            
-            OrgUtils.logDebug(`[VisbalExt.OrgUtils] openLog -- Writing log content to temp file: ${tempFile}`);
-            await fs.promises.writeFile(tempFile, logContent);
-            
-            statusBarService.showProgress(`Opening log editor: ${logId}...`);
-            //open log raw file in new tab
-            const document = await vscode.workspace.openTextDocument(tempFile);
-            await vscode.window.showTextDocument(document);
-            
-            OrgUtils.logDebug(`[VisbalExt.OrgUtils] openLog -- Successfully opened log: ${logId}`);
+            // Check if there's already an ongoing download for this log
+            const existingDownload = this._ongoingDownloads.get(logId);
+            if (existingDownload) {
+                OrgUtils.logDebug(`[VisbalExt.OrgUtils] openLog -- Download already in progress for log: ${logId}, waiting for completion`);
+                statusBarService.showProgress(`Waiting for ongoing download: ${logId}...`);
+                
+                // Wait for the existing download to complete
+                await existingDownload;
+                
+                // After the existing download completes, try to open the cached file
+                const cachedFilePath = this._downloadedLogPaths.get(logId);
+                if (cachedFilePath && fs.existsSync(cachedFilePath)) {
+                    OrgUtils.logDebug(`[VisbalExt.OrgUtils] openLog -- Opening log from completed download: ${cachedFilePath}`);
+                    statusBarService.showProgress(`Opening downloaded log: ${logId}...`);
+                    const document = await vscode.workspace.openTextDocument(cachedFilePath);
+                    await vscode.window.showTextDocument(document);
+                    return;
+                } else {
+                    OrgUtils.logDebug(`[VisbalExt.OrgUtils] openLog -- Cached file not found after download completion, will retry download`);
+                }
+            }
 
-            // Mark as downloaded
-            this._downloadedLogs.add(logId);
-            this._downloadedLogPaths.set(logId, tempFile);
+            // Create a promise for this download and track it
+            const downloadPromise = this._performLogDownload(logId, targetOrgAlias);
+            this._ongoingDownloads.set(logId, downloadPromise);
+
+            try {
+                // Perform the actual download
+                await downloadPromise;
+                
+                // Open the downloaded file
+                const finalFilePath = this._downloadedLogPaths.get(logId);
+                if (finalFilePath && fs.existsSync(finalFilePath)) {
+                    statusBarService.showProgress(`Opening log editor: ${logId}...`);
+                    const document = await vscode.workspace.openTextDocument(finalFilePath);
+                    await vscode.window.showTextDocument(document);
+                    OrgUtils.logDebug(`[VisbalExt.OrgUtils] openLog -- Successfully opened log: ${logId}`);
+                } else {
+                    throw new Error(`Downloaded log file not found for ${logId}`);
+                }
+            } finally {
+                // Always clean up the tracking
+                this._ongoingDownloads.delete(logId);
+            }
         } catch (error: any) {
+            // Clean up tracking on error
+            this._ongoingDownloads.delete(logId);
+            
             OrgUtils.logError(`[VisbalExt.OrgUtils] openLog -- Failed to open log ${logId}:`, error);
             statusBarService.showError(`Failed to open log: ${error.message}`);
             vscode.window.showErrorMessage(`Failed to open log: ${error.message}`);
@@ -830,62 +856,151 @@ export class OrgUtils {
     }
 
     /**
+     * Performs the actual log download without concurrency control - used internally by openLog
+     * @param logId The ID of the log to download
+     * @param targetOrgAlias The target org alias
+     */
+    private static async _performLogDownload(logId: string, targetOrgAlias: string): Promise<void> {
+        // Fetch and save the log content
+        statusBarService.showProgress(`Downloading log content: ${logId}...`);
+        OrgUtils.logDebug(`[VisbalExt.OrgUtils] openLog -- Fetching log content for: ${logId} from org: ${targetOrgAlias}`);
+        
+        const logContent = await this._fetchLogContent(logId, targetOrgAlias);
+        
+        statusBarService.showProgress(`Preparing log file: ${logId}...`);
+        
+        // Determine target directory - use .visbal/logs like other methods
+        const logsDir = vscode.workspace.workspaceFolders?.[0]
+            ? path.join(vscode.workspace.workspaceFolders[0].uri.fsPath, '.visbal', 'logs')
+            : path.join(os.homedir(), '.visbal', 'logs');
+        
+        // Ensure directory exists
+        await fs.promises.mkdir(logsDir, { recursive: true });
+        
+        const sanitizedLogId = logId.replace(/[\/\\:*?"<>|]/g, '_');
+        const timestamp = new Date().toISOString().replace(/:/g, '-');
+        const tempFile = path.join(logsDir, `sf_${sanitizedLogId}_${timestamp}.log`);
+        
+        OrgUtils.logDebug(`[VisbalExt.OrgUtils] openLog -- Writing log content to temp file: ${tempFile}`);
+        await fs.promises.writeFile(tempFile, logContent);
+
+        // Mark as downloaded
+        this._downloadedLogs.add(logId);
+        this._downloadedLogPaths.set(logId, tempFile);
+    }
+
+    /**
      * Downloads a log
      * @param logId The ID of the log to download
      */
     public static async downloadLog(logId: string, targetOrgAlias: string): Promise<void> {
         try {
-            statusBarService.showProgress(`Downloading log: ${logId}...`);
+            // Check if we already have a cached copy of this log
+            const cachedFilePath = this._downloadedLogPaths.get(logId);
+            if (cachedFilePath && fs.existsSync(cachedFilePath)) {
+                OrgUtils.logDebug(`[VisbalExt.OrgUtils] downloadLog -- Opening cached log from: ${cachedFilePath}`);
+                statusBarService.showProgress(`Opening cached log: ${logId}...`);
+                const document = await vscode.workspace.openTextDocument(cachedFilePath);
+                await vscode.window.showTextDocument(document);
+                statusBarService.showSuccess('Log opened from cache');
+                return;
+            }
 
-            // Get log details
-            const logDetails = this._logs.find((log: any) => log.id === logId);
-            const operation = logDetails?.operation || 'unknown';
-            const status = logDetails?.status || 'unknown';
-            const size = logDetails?.logLength || 0;
+            // Check if there's already an ongoing download for this log
+            const existingDownload = this._ongoingDownloads.get(logId);
+            if (existingDownload) {
+                OrgUtils.logDebug(`[VisbalExt.OrgUtils] downloadLog -- Download already in progress for log: ${logId}, waiting for completion`);
+                statusBarService.showProgress(`Waiting for ongoing download: ${logId}...`);
+                
+                // Wait for the existing download to complete
+                await existingDownload;
+                
+                // After completion, try to open the cached file
+                const completedFilePath = this._downloadedLogPaths.get(logId);
+                if (completedFilePath && fs.existsSync(completedFilePath)) {
+                    OrgUtils.logDebug(`[VisbalExt.OrgUtils] downloadLog -- Opening log from completed download: ${completedFilePath}`);
+                    const document = await vscode.workspace.openTextDocument(completedFilePath);
+                    await vscode.window.showTextDocument(document);
+                    statusBarService.showSuccess('Log downloaded successfully');
+                    return;
+                }
+            }
 
-            // Determine target directory
-            const logsDir = vscode.workspace.workspaceFolders?.[0]
-                ? path.join(vscode.workspace.workspaceFolders[0].uri.fsPath, '.visbal', 'logs')
-                : path.join(os.homedir(), '.visbal', 'logs');
-            OrgUtils.logDebug('[VisbalExt.OrgUtils] downloadLog -- logsDir:', logsDir);
+            // Create a promise for this download and track it
+            const downloadPromise = this._performDetailedLogDownload(logId, targetOrgAlias);
+            this._ongoingDownloads.set(logId, downloadPromise);
 
-            // Ensure directory exists
-            await fs.promises.mkdir(logsDir, { recursive: true });
-
-            // Create filename
-            const sanitizedLogId = logId.replace(/[\/\\:*?"<>|]/g, '_');
-            const timestamp = new Date().toISOString().replace(/:/g, '-');
-            const sanitizedOperation = operation.toLowerCase().replace(/[\/\\:*?"<>|]/g, '_');
-            const sanitizedStatus = status.replace(/[\/\\:*?"<>|]/g, '_');
-            const logFilename = `${sanitizedLogId}_${sanitizedOperation}_${sanitizedStatus}_${size}_${timestamp}.log`;
-            const targetFilePath = path.join(logsDir, logFilename);
-            OrgUtils.logDebug('[VisbalExt.OrgUtils] downloadLog -- targetFilePath:', targetFilePath);
-
-            // Fetch and save log content
-            const logContent = await this._fetchLogContent(logId, targetOrgAlias);
-            OrgUtils.logDebug('[VisbalExt.OrgUtils] downloadLog -- finish fetch:');
-            await fs.promises.writeFile(targetFilePath, logContent);
-            OrgUtils.logDebug('[VisbalExt.OrgUtils] downloadLog -- finish writing file:');
-
-            // Update tracking
-            this._downloadedLogs.add(logId);
-            this._downloadedLogPaths.set(logId, targetFilePath);
-            OrgUtils.logDebug('[VisbalExt.OrgUtils] downloadLog -- _downloadedLogs:', this._downloadedLogs);
-            OrgUtils.logDebug('[VisbalExt.OrgUtils] downloadLog -- _downloadedLogPaths:', this._downloadedLogPaths);
-
-
-            statusBarService.showSuccess('Log downloaded successfully');    
-            OrgUtils.logDebug('[VisbalExt.OrgUtils] downloadLog -- statusBarService.showSuccess');
-
-            // Open the log file
-            const document = await vscode.workspace.openTextDocument(targetFilePath);
-            await vscode.window.showTextDocument(document);
+            try {
+                statusBarService.showProgress(`Downloading log: ${logId}...`);
+                
+                // Perform the actual download
+                await downloadPromise;
+                
+                // Open the downloaded file
+                const finalFilePath = this._downloadedLogPaths.get(logId);
+                if (finalFilePath && fs.existsSync(finalFilePath)) {
+                    const document = await vscode.workspace.openTextDocument(finalFilePath);
+                    await vscode.window.showTextDocument(document);
+                    statusBarService.showSuccess('Log downloaded successfully');
+                } else {
+                    throw new Error(`Downloaded log file not found for ${logId}`);
+                }
+            } finally {
+                // Always clean up the tracking
+                this._ongoingDownloads.delete(logId);
+            }
         } catch (error: any) {
+            // Clean up tracking on error
+            this._ongoingDownloads.delete(logId);
+            
             OrgUtils.logDebug('[VisbalExt.OrgUtils] downloadLog -- error:', error);
             statusBarService.showError(`Error downloading log: ${error.message}`);
             vscode.window.showErrorMessage(`Failed to download log: ${error.message}`);
             throw error;
         }
+    }
+
+    /**
+     * Performs the actual detailed log download with metadata-based filename - used internally by downloadLog
+     * @param logId The ID of the log to download
+     * @param targetOrgAlias The target org alias
+     */
+    private static async _performDetailedLogDownload(logId: string, targetOrgAlias: string): Promise<void> {
+        // Get log details
+        const logDetails = this._logs.find((log: any) => log.id === logId);
+        const operation = logDetails?.operation || 'unknown';
+        const status = logDetails?.status || 'unknown';
+        const size = logDetails?.logLength || 0;
+
+        // Determine target directory
+        const logsDir = vscode.workspace.workspaceFolders?.[0]
+            ? path.join(vscode.workspace.workspaceFolders[0].uri.fsPath, '.visbal', 'logs')
+            : path.join(os.homedir(), '.visbal', 'logs');
+        OrgUtils.logDebug('[VisbalExt.OrgUtils] downloadLog -- logsDir:', logsDir);
+
+        // Ensure directory exists
+        await fs.promises.mkdir(logsDir, { recursive: true });
+
+        // Create filename
+        const sanitizedLogId = logId.replace(/[\/\\:*?"<>|]/g, '_');
+        const timestamp = new Date().toISOString().replace(/:/g, '-');
+        const sanitizedOperation = operation.toLowerCase().replace(/[\/\\:*?"<>|]/g, '_');
+        const sanitizedStatus = status.replace(/[\/\\:*?"<>|]/g, '_');
+        const logFilename = `${sanitizedLogId}_${sanitizedOperation}_${sanitizedStatus}_${size}_${timestamp}.log`;
+        const targetFilePath = path.join(logsDir, logFilename);
+        OrgUtils.logDebug('[VisbalExt.OrgUtils] downloadLog -- targetFilePath:', targetFilePath);
+
+        // Fetch and save log content
+        const logContent = await this._fetchLogContent(logId, targetOrgAlias);
+        OrgUtils.logDebug('[VisbalExt.OrgUtils] downloadLog -- finish fetch:');
+        await fs.promises.writeFile(targetFilePath, logContent);
+        OrgUtils.logDebug('[VisbalExt.OrgUtils] downloadLog -- finish writing file:');
+
+        // Update tracking
+        this._downloadedLogs.add(logId);
+        this._downloadedLogPaths.set(logId, targetFilePath);
+        OrgUtils.logDebug('[VisbalExt.OrgUtils] downloadLog -- _downloadedLogs:', this._downloadedLogs);
+        OrgUtils.logDebug('[VisbalExt.OrgUtils] downloadLog -- _downloadedLogPaths:', this._downloadedLogPaths);
     }
 
 
