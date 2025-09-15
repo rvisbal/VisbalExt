@@ -284,6 +284,12 @@
         "icon": "$(filter-filled)"
       },
       {
+        "command": "visbal-ext.saveFilteredLogResults",
+        "title": "Apply Filter and Save Results to File",
+        "category": "Visbal",
+        "icon": "$(save)"
+      },
+      {
         "command": "visbal-ext.showJsonViewer",
         "title": "Show JSON Viewer",
         "category": "Visbal",
@@ -409,6 +415,11 @@
         },
         {
           "command": "visbal-ext.applyLogFilter",
+          "when": "resourceExtname == .log",
+          "group": "navigation"
+        },
+        {
+          "command": "visbal-ext.saveFilteredLogResults",
           "when": "resourceExtname == .log",
           "group": "navigation"
         },

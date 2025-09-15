@@ -466,6 +466,52 @@ export async function activate(context: vscode.ExtensionContext) {
         }
       })
     );
+
+    context.subscriptions.push(
+      vscode.commands.registerCommand('visbal-ext.saveFilteredLogResults', async () => {
+        const activeEditor = vscode.window.activeTextEditor;
+        if (!activeEditor || !activeEditor.document.fileName.endsWith('.log')) {
+          vscode.window.showErrorMessage('Please open a .log file to apply filters and save results');
+          return;
+        }
+        
+        const filters = logFilterService.getAllFilters();
+        if (filters.length === 0) {
+          vscode.window.showErrorMessage('No filters available. Create a filter first.');
+          return;
+        }
+        
+        const filterItems = filters.map(f => ({
+          label: f.name,
+          description: f.description,
+          detail: `${f.conditions.length} conditions - ${f.isBuiltIn ? 'Built-in' : 'Custom'}`,
+          filterId: f.id
+        }));
+        
+        const selectedFilter = await vscode.window.showQuickPick(filterItems, {
+          placeHolder: 'Select a filter to apply and save results'
+        });
+        
+        if (selectedFilter) {
+          try {
+            const logContent = activeEditor.document.getText();
+            const result = logFilterService.applyFilters(logContent, [selectedFilter.filterId]);
+            
+            // Save the filtered results to file
+            const savedFilePath = await logFilterService.saveFilteredResults(result, 'testResult.log');
+            
+            // Open the saved file
+            const document = await vscode.workspace.openTextDocument(savedFilePath);
+            await vscode.window.showTextDocument(document);
+            
+            statusBarService.showSuccess(`Filter applied and saved: ${result.totalMatches} matches found`);
+            vscode.window.showInformationMessage(`Filtered results saved to: ${savedFilePath}`);
+          } catch (error: any) {
+            vscode.window.showErrorMessage(`Error saving filtered results: ${error.message}`);
+          }
+        }
+      })
+    );
   }
 
   if (isModuleEnabled('soqlQuery')) {

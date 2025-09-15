@@ -1,4 +1,6 @@
 import * as vscode from 'vscode';
+import * as fs from 'fs';
+import * as path from 'path';
 import { 
     LogFilter, 
     FilterCondition, 
@@ -230,6 +232,54 @@ export class LogFilterService {
             appliedFilters: filtersToApply,
             executionTime
         };
+    }
+
+    /**
+     * Saves filtered log content to a file
+     */
+    public async saveFilteredResults(filterResult: FilterResult, fileName?: string): Promise<string> {
+        try {
+            // Get workspace folder path
+            const workspaceFolders = vscode.workspace.workspaceFolders;
+            if (!workspaceFolders || workspaceFolders.length === 0) {
+                throw new Error('No workspace folder found');
+            }
+            
+            const workspacePath = workspaceFolders[0].uri.fsPath;
+            
+            // Create .visbal/logs directory if it doesn't exist
+            const visbalLogsDir = path.join(workspacePath, '.visbal', 'logs');
+            if (!fs.existsSync(visbalLogsDir)) {
+                await fs.promises.mkdir(visbalLogsDir, { recursive: true });
+                OrgUtils.logDebug('[VisbalExt.LogFilterService] saveFilteredResults -- Created .visbal/logs directory');
+            }
+            
+            // Generate filename if not provided
+            const finalFileName = fileName || 'testResult.log';
+            const filePath = path.join(visbalLogsDir, finalFileName);
+            
+            // Generate filtered content
+            const filteredContent = filterResult.filteredLines.map(line => line.content).join('\n');
+            
+            // Add header with filter information
+            const timestamp = new Date().toISOString();
+            const header = `# Filtered Log Results - ${timestamp}\n` +
+                          `# Applied ${filterResult.appliedFilters.length} filters\n` +
+                          `# Found ${filterResult.totalMatches} matches in ${filterResult.executionTime.toFixed(2)}ms\n` +
+                          `# Filters: ${filterResult.appliedFilters.map(f => f.name).join(', ')}\n\n`;
+            
+            const contentToSave = header + filteredContent;
+            
+            // Write the file
+            await fs.promises.writeFile(filePath, contentToSave, 'utf8');
+            
+            OrgUtils.logDebug(`[VisbalExt.LogFilterService] saveFilteredResults -- Saved filtered results to: ${filePath}`);
+            
+            return filePath;
+        } catch (error: any) {
+            OrgUtils.logError('[VisbalExt.LogFilterService] saveFilteredResults -- Error saving filtered results:', error);
+            throw error;
+        }
     }
 
     /**
