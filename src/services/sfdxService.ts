@@ -52,7 +52,19 @@ export class SfdxService {
     //#region Core Functionality
     private _executeCommand(command: string): Promise<ExecResult> {
         return new Promise((resolve, reject) => {
-            child_process.exec(command, { maxBuffer: MAX_BUFFER_SIZE }, (error, stdout, stderr) => {
+            // Increase memory limit for sf CLI commands that might need more memory
+            const options: child_process.ExecOptions = { 
+                maxBuffer: MAX_BUFFER_SIZE,
+                // Increase heap size for the child process if it's a test command with coverage
+                ...(command.includes('--code-coverage') && {
+                    env: {
+                        ...process.env,
+                        NODE_OPTIONS: '--max-old-space-size=8192' // 8GB heap limit
+                    }
+                })
+            };
+
+            child_process.exec(command, options, (error, stdout, stderr) => {
                 OrgUtils.logDebug(`[VisbalExt.SfdxService] _executeCommand command:${command} `);
                 console.log(`[VisbalExt.SfdxService] _executeCommand command:${command} -- stdout:`, OrgUtils.parseResultJson(stdout));
                 
@@ -1250,9 +1262,15 @@ export class SfdxService {
     /**
      * Runs Apex tests
      */
-    public async runTests(testClass: string, testMethod?: string, useDefaultOrg: boolean = false, showTestCoverage: boolean = true, signal?: AbortSignal, targetOrgAlias?: string): Promise<any> {
+    public async runTests(testClass: string, testMethod?: string, useDefaultOrg: boolean = false, showTestCoverage?: boolean, signal?: AbortSignal, targetOrgAlias?: string): Promise<any> {
         const startTime = Date.now();
         try {
+            // If showTestCoverage is not explicitly provided, check the configuration
+            if (showTestCoverage === undefined) {
+                showTestCoverage = vscode.workspace.getConfiguration('visbal.apexTest').get<boolean>('enableCodeCoverage', false);
+                OrgUtils.logDebug(`[VisbalExt.SfdxService] runTests -- Using configuration setting for code coverage: ${showTestCoverage}`);
+            }
+
             OrgUtils.logDebug(`[VisbalExt.SfdxService] runTests -- START at ${new Date(startTime).toISOString()} -- targetOrgAlias: ${targetOrgAlias}`);
             OrgUtils.logDebug(`[VisbalExt.SfdxService] runTests -- RUNNING class: ${testClass}${testMethod ? `, method: ${testMethod}` : ''}`);
             
@@ -1307,9 +1325,15 @@ export class SfdxService {
         classes: string[], 
         methods: { className: string, methodName: string }[],
         runMode: 'sequential' | 'parallel'
-    }, useDefaultOrg: boolean = false, showTestCoverage: boolean = true, targetOrgAlias?: string, signal?: AbortSignal): Promise<any> {
+    }, useDefaultOrg: boolean = false, showTestCoverage?: boolean, targetOrgAlias?: string, signal?: AbortSignal): Promise<any> {
         const startTime = Date.now();
         try {
+            // If showTestCoverage is not explicitly provided, check the configuration
+            if (showTestCoverage === undefined) {
+                showTestCoverage = vscode.workspace.getConfiguration('visbal.apexTest').get<boolean>('enableCodeCoverage', false);
+                OrgUtils.logDebug(`[VisbalExt.SfdxService] runManyTests -- Using configuration setting for code coverage: ${showTestCoverage}`);
+            }
+
             OrgUtils.logDebug(`[VisbalExt.SfdxService] runManyTests -- START at ${new Date(startTime).toISOString()} -- targetOrgAlias: ${targetOrgAlias}`);
             OrgUtils.logDebug(`[VisbalExt.SfdxService] runManyTests -- RUNNING TESTS: `,tests);
             
@@ -1374,9 +1398,15 @@ export class SfdxService {
         }
     }
 
-    public async runAllTests(targetOrgAlias?: string, synchronous: boolean = false, showTestCoverage: boolean = true, signal?: AbortSignal): Promise<any> {
+    public async runAllTests(targetOrgAlias?: string, synchronous: boolean = false, showTestCoverage?: boolean, signal?: AbortSignal): Promise<any> {
         const startTime = Date.now();
         try {
+            // If showTestCoverage is not explicitly provided, check the configuration
+            if (showTestCoverage === undefined) {
+                showTestCoverage = vscode.workspace.getConfiguration('visbal.apexTest').get<boolean>('enableCodeCoverage', false);
+                OrgUtils.logDebug(`[VisbalExt.SfdxService] runAllTests -- Using configuration setting for code coverage: ${showTestCoverage}`);
+            }
+
             OrgUtils.logDebug(`[VisbalExt.SfdxService] runAllTests -- START at ${new Date(startTime).toISOString()}`);
             let command = `sf apex run test `;
 
@@ -1474,11 +1504,47 @@ export class SfdxService {
      * @param testRunId The ID of the test run
      * @returns Promise containing the test run result
      */
-    public async getTestRunResult(testRunId: string, showTestCoverage: boolean = true, targetOrgAlias?: string): Promise<any> {
+    public async getTestRunResult(testRunId: string, showTestCoverage?: boolean, targetOrgAlias?: string): Promise<any> {
         const startTime = Date.now();
+        
+        // If showTestCoverage is not explicitly provided, check the configuration
+        if (showTestCoverage === undefined) {
+            showTestCoverage = vscode.workspace.getConfiguration('visbal.apexTest').get<boolean>('enableCodeCoverage', false);
+            OrgUtils.logDebug(`[VisbalExt.SfdxService] getTestRunResult -- Using configuration setting for code coverage: ${showTestCoverage}`);
+        }
+        
+        // First attempt - try with code coverage if requested
+        if (showTestCoverage) {
+            try {
+                return await this._getTestRunResultInternal(testRunId, true, targetOrgAlias, startTime);
+            } catch (error: any) {
+                // Check if this is a memory error
+                if (this._isMemoryError(error)) {
+                    OrgUtils.logDebug('[VisbalExt.SfdxService] getTestRunResult -- Memory error detected, retrying without code coverage');
+                    // Fall through to retry without code coverage
+                } else {
+                    throw error; // Re-throw non-memory errors
+                }
+            }
+        }
+        
+        // Second attempt or direct call - without code coverage
+        return await this._getTestRunResultInternal(testRunId, false, targetOrgAlias, startTime);
+    }
+
+    private _isMemoryError(error: any): boolean {
+        const errorMessage = error?.message?.toLowerCase() || '';
+        return errorMessage.includes('heap out of memory') ||
+               errorMessage.includes('allocation failed') ||
+               errorMessage.includes('fatal error') ||
+               error?.code === 134; // Exit code for memory issues
+    }
+
+    private async _getTestRunResultInternal(testRunId: string, showTestCoverage: boolean, targetOrgAlias: string | undefined, startTime: number): Promise<any> {
         try {
             OrgUtils.logDebug(`[VisbalExt.SfdxService] getTestRunResult Getting test run result at ${new Date(startTime).toISOString()}`);
             OrgUtils.logDebug('[VisbalExt.SfdxService] getTestRunResult Test run ID:', testRunId);
+            OrgUtils.logDebug(`[VisbalExt.SfdxService] getTestRunResult Code coverage: ${showTestCoverage}`);
             
             // Get the test run details
             let command = `sf apex get test --test-run-id ${testRunId}`;

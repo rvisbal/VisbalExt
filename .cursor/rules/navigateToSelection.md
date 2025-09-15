@@ -92,4 +92,100 @@ When users install your extension in **real SFDX projects**, they'll get:
 - **Smart standard library fallback** 🧠  
 - **No more 5,433 file searches** 🎉
 
-The hierarchical search strategy is **perfectly designed** for the actual runtime environment! 👏
+The hierarchical search strategy is **perfectly designed** for the actual runtime environment! 
+
+Sample NAVIGATIONS 
+
+SecurityTestUtils.doRerun(defaultHierarchyFactory, true) SELECTED doRerun
+	SecurityTestUtils.doRerun(defaultHierarchyFactory, true);
+		public static void doRerun(HierarchyFactory defaultHierarchyFactory, Boolean hasPermission) {
+		found in : SecurityTestUtils.cls  
+	
+HierarchyLinkerUtils.collectIds SELECTED collectIds
+	HierarchyLinkerUtils.cls
+		public static Set<Id> collectIds(List<SObject> records) {
+		found in : HierarchyLinkerUtils.cls  
+
+public static Map<String, String>
+public static final Map<String, List<String>>
+public static Map<String, Map<String, DescribeFieldResult>>
+ublic static Schema.DescribeSObjectResult[] getDescribeSObjectResultsIndividually(List<String> objects) {
+public static String getLookupPath(String valueString) {
+public static CronTrigger getTriggerById(Id triggerId) {
+
+
+
+ several distinct patterns for `public static` declarations in this Apex codebase. Here's a organized list of the main patterns:
+
+ public can be private
+ static can or not available
+ variable name
+
+## Constants and Static Variables
+
+1. **String Constants**
+   - `public static String TAG = ...`
+   - `public static final String CONSTANT_NAME = ...`
+
+2. **Numeric Constants**
+   - `public static final Integer CONSTANT_NAME = ...`
+   - `public static final Decimal CONSTANT_NAME = ...`
+
+3. **Boolean Constants**
+   - `public static final Boolean CONSTANT_NAME = ...`
+   - `public static Boolean variableName = ...`
+
+4. **Collection Constants**
+   - `public static final Set<String> CONSTANT_SET = ...`
+   - `public static final List<String> CONSTANT_LIST = ...`
+   - `public static final Map<String, String> CONSTANT_MAP = ...`
+   - `public static final Map<String, Object> CONSTANT_MAP = ...`
+
+5. **Static Variables (Non-final)**
+   - `public static Map<String, Object> variableName = ...`
+   - `public static Set<Id> variableName = ...`
+   - `public static List<Object> variableName = ...`
+
+## Static Methods by Return Type
+
+6. **Void Methods**
+   - `public static void methodName(...)`
+
+7. **String Methods**
+   - `public static String methodName(...)`
+
+8. **Boolean Methods**
+   - `public static Boolean methodName(...)`
+
+9. **Numeric Methods**
+   - `public static Integer methodName(...)`
+   - `public static Decimal methodName(...)`
+
+10. **Collection Methods**
+    - `public static List<Type> methodName(...)`
+    - `public static Map<Key, Value> methodName(...)`
+    - `public static Set<Type> methodName(...)`
+
+11. **Custom Object Methods**
+    - `public static Response methodName(...)`
+    - `public static SaveResponse methodName(...)`
+    - `public static SObject methodName(...)`
+    - `public static Object methodName(...)`
+
+12. **Generic/Complex Type Methods**
+    - `public static Schema.DescribeFieldResult methodName(...)`
+    - `public static Database.SaveResult[] methodName(...)`
+    - `public static Hierarchy__c methodName(...)`
+
+## Specialized Patterns
+
+13. **Factory/Builder Methods**
+    - `public static ClassName getInstance()`
+    - `public static ClassName getNewInstance()`
+
+14. **Utility/Helper Methods**
+    - `public static void ResetContext()`
+    - `public static Boolean isValidType(...)`
+    - `public static String getFieldName(...)`
+
+These patterns show a well-structured Apex codebase with clear separation between constants, utility methods, and business logic methods, following common Salesforce development patterns.

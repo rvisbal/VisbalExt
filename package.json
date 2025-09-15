@@ -320,6 +320,12 @@
         "icon": "$(play-circle)"
       },
       {
+        "command": "visbal.toggleCodeCoverage",
+        "title": "Toggle Code Coverage for Tests",
+        "category": "Visbal",
+        "icon": "$(symbol-method)"
+      },
+      {
         "command": "visbal-ext.validateJson",
         "title": "Validate JSON",
         "category": "Visbal",
@@ -564,6 +570,11 @@
           "type": "boolean",
           "default": false,
           "description": "Enable/disable custom handling of test execution"
+        },
+        "visbal.apexTest.enableCodeCoverage": {
+          "type": "boolean",
+          "default": false,
+          "description": "Enable/disable code coverage collection for test runs (warning: large codebases may cause memory issues)"
         },
         "visbal.selectedTests": {
           "type": "object",

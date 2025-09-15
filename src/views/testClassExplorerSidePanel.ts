@@ -302,7 +302,19 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                         break;
                     case 'runAllTests':
                         await this._runAllTests(data.runMode);
-                        break;  
+                        break;
+                    case 'toggleCodeCoverage':
+                        await this._toggleCodeCoverage();
+                        break;
+                    case 'getCodeCoverageState':
+                        const isCodeCoverageEnabled = vscode.workspace.getConfiguration('visbal.apexTest').get<boolean>('enableCodeCoverage', false);
+                        if (this._view) {
+                            this._view.webview.postMessage({
+                                command: 'updateCodeCoverageButton',
+                                isEnabled: isCodeCoverageEnabled
+                            });
+                        }
+                        break;
                     case 'viewTestLog':
                         await this._viewTestLog(data.logId, data.testName);
                         break;
@@ -700,12 +712,12 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
 
             OrgUtils.logDebug('[VisbalExt.TestClassExplorerSidePanel] _runTest -- Calling SfdxService.runTests');
             // Use the specific org alias instead of default org determination
-            const result = await this._sfdxService.runTests(testClass, testMethod, false, true, this._abortController?.signal, currentOrgAlias);
+            const result = await this._sfdxService.runTests(testClass, testMethod, false, undefined, this._abortController?.signal, currentOrgAlias);
             OrgUtils.logDebug('[VisbalExt.TestClassExplorerSidePanel] _runTest -- Test execution completed', result);
 
             if (result && result.testRunId) {
                 OrgUtils.logDebug('[VisbalExt.TestClassExplorerSidePanel] _runTest -- Getting test run details for', result.testRunId);
-                const testRunResult = await this._sfdxService.getTestRunResult(result.testRunId, true, currentOrgAlias);
+                const testRunResult = await this._sfdxService.getTestRunResult(result.testRunId, undefined, currentOrgAlias);
                 OrgUtils.logDebug('[VisbalExt.TestClassExplorerSidePanel] _runTest -- Test run result', testRunResult);
                 OrgUtils.logDebug('[VisbalExt.TestClassExplorerSidePanel] _runTest -- Test run summary', testRunResult.summary);
 
@@ -1154,7 +1166,7 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                                     const handleTestAndLog = async () => {
                                         try {
                                             const currentOrgAlias = await this._getOrgAliasForStorage();
-                                            const result = await this._sfdxService.runTests(className, methodName, false, true, this._abortController?.signal, currentOrgAlias);
+                                            const result = await this._sfdxService.runTests(className, methodName, false, undefined, this._abortController?.signal, currentOrgAlias);
                                             OrgUtils.logDebug('[VisbalExt.TestClassExplorerSidePanel] _runSelectedTests.sequentially -- runTests result', result);
                                             if (result && result.testRunId) {
                                                 const [testRunResult, logId] = await Promise.all([
@@ -1254,7 +1266,7 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                                                         const pollWithBackoff = async () => {
                                                             try {
                                                                 const currentOrgAlias = await this._getOrgAliasForStorage();
-                                                                const testRunResult = await this._sfdxService.getTestRunResult(testRunId, true, currentOrgAlias);
+                                                                const testRunResult = await this._sfdxService.getTestRunResult(testRunId, undefined, currentOrgAlias);
                                                                 const logId = await this._sfdxService.getTestLogId(testRunId, currentOrgAlias);
                                                                 OrgUtils.logDebug('[VisbalExt.TestClassExplorerSidePanel] _runSelectedTests.sequentially POLL${className}.${methodName} testRunId:${testRunId} logId:${logId} testRunResult:', testRunResult);
                                                                 // If we get here, we have results
@@ -1589,7 +1601,7 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                                 // Execute test and wait for result
                                 // Use selected org instead of default org determination
                                 const currentOrgAlias = await this._getOrgAliasForStorage();
-                                const runTest = await this._sfdxService.runTests(progress.className, progress.methodName, false, true, this._abortController?.signal, currentOrgAlias);
+                                const runTest = await this._sfdxService.runTests(progress.className, progress.methodName, false, undefined, this._abortController?.signal, currentOrgAlias);
                                 progress.runTest = runTest;
                                 progress.finishExecutingTest = true;
                                 progress.testRunId = runTest.testRunId;
@@ -1666,7 +1678,7 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                                             const pollWithBackoff = async () => {
                                                 try {
                                                     const currentOrgAlias = await this._getOrgAliasForStorage();
-                                                    const testRunResult = await this._sfdxService.getTestRunResult(testRunId, true, currentOrgAlias);
+                                                    const testRunResult = await this._sfdxService.getTestRunResult(testRunId, undefined, currentOrgAlias);
                                                     const logId = await this._sfdxService.getTestLogId(testRunId, currentOrgAlias);
                                                     OrgUtils.logDebug('[VisbalExt.TestClassExplorerSidePanel] _runSelectedTests.sequentially POLL${className}.${methodName} testRunId:${testRunId} logId:${logId} testRunResult:', testRunResult);
                                                     // If we get here, we have results
@@ -1924,7 +1936,7 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                                 // Execute test and wait for result
                                 // Use selected org instead of default org determination
                                 const currentOrgAlias = await this._getOrgAliasForStorage();
-                                const result = await this._sfdxService.runTests(className, methodName, false, true, this._abortController?.signal, currentOrgAlias);
+                                const result = await this._sfdxService.runTests(className, methodName, false, undefined, this._abortController?.signal, currentOrgAlias);
                                 OrgUtils.logDebug(`[VisbalExt.TestClassExplorerSidePanel] _runTestSelectedSequentially -- runTests -- ${className}.${methodName} -- A -- iteration:${countIteration} result:`, result);
                                 progress.runTest = result;
                                 progress.testRunId = result.testRunId;
@@ -2166,7 +2178,7 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
             //run many test using the format sf apex run test --tests ns.TestA.excitingMethod --tests ns.TestA.boringMethod --tests ns.TestB
             // Use the specific org alias instead of default org determination
             const currentOrgAlias = await this._getOrgAliasForStorage();
-            const runResult = await this._sfdxService.runManyTests(tests, false, true, currentOrgAlias, signal);
+            const runResult = await this._sfdxService.runManyTests(tests, false, undefined, currentOrgAlias, signal);
             OrgUtils.logDebug('[VisbalExt.TestClassExplorerSidePanel] _runManyTest -- runResult:', runResult);  
 
             if (!runResult) {
@@ -2365,7 +2377,7 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                     }
 
                     const currentOrgAlias = await this._getOrgAliasForStorage();
-                    const testRunResult = await this._sfdxService.getTestRunResult(testRunId, true, currentOrgAlias);
+                    const testRunResult = await this._sfdxService.getTestRunResult(testRunId, undefined, currentOrgAlias);
                     OrgUtils.logDebug('[VisbalExt.TestClassExplorerSidePanel] _runManyTest -- testRunResult:', testRunResult);
 
                     // Check if testRunResult is an error object or invalid
@@ -2416,7 +2428,7 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                 else {
 
                     const currentOrgAlias = await this._getOrgAliasForStorage();
-                    const testRunResult = await this._sfdxService.getTestRunResult(testRunId, true, currentOrgAlias);
+                    const testRunResult = await this._sfdxService.getTestRunResult(testRunId, undefined, currentOrgAlias);
                     OrgUtils.logDebug('[VisbalExt.TestClassExplorerSidePanel] _runManyTest -- testRunResult:', testRunResult);
 
                     let testIds = [];
@@ -2845,7 +2857,7 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
             
             // Use selected org instead of default org determination
             const currentOrgAlias = await this._getOrgAliasForStorage();
-            const result = await this._sfdxService.runTests(className, methodName, false, true, this._abortController?.signal, currentOrgAlias);
+            const result = await this._sfdxService.runTests(className, methodName, false, undefined, this._abortController?.signal, currentOrgAlias);
             if (result && result.testRunId) {
                 const [testRunResult, logId] = await Promise.all([
                     this._sfdxService.getTestRunResult(result.testRunId, true, currentOrgAlias),
@@ -3442,6 +3454,33 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                     opacity: 0.8;
                 }
 
+                .coverage-checkbox-container {
+                    display: flex;
+                    align-items: center;
+                    gap: 6px;
+                    cursor: pointer;
+                    user-select: none;
+                    padding: 2px 6px;
+                    border-radius: 3px;
+                    transition: background-color 0.1s ease;
+                }
+
+                .coverage-checkbox-container:hover {
+                    background-color: var(--vscode-toolbar-hoverBackground);
+                }
+
+                .coverage-checkbox {
+                    margin: 0;
+                    cursor: pointer;
+                }
+
+                .coverage-checkbox-label {
+                    font-size: 11px;
+                    color: var(--vscode-foreground);
+                    cursor: pointer;
+                    white-space: nowrap;
+                }
+
                 .test-case-list-container {
                     padding: 5px;
                     border-bottom: 1px solid var(--vscode-panel-border);
@@ -3593,6 +3632,10 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                                     <path d="M8 1a7 7 0 1 0 0 14A7 7 0 0 0 8 1zm0 1a6 6 0 1 1 0 12A6 6 0 0 1 8 2zm3.854 3.146L8 8.707l-3.854-3.561-.708.708L7.293 9.5l-3.855 3.854.708.708L8 10.207l3.854 3.855.708-.708L8.707 9.5l3.855-3.854-.708-.708z"/>
                                 </svg>
                             </button>
+                            <label class="coverage-checkbox-container" title="Enable/disable code coverage collection for test runs">
+                                <input type="checkbox" id="codeCoverageToggle" class="coverage-checkbox">
+                                <span class="coverage-checkbox-label">Code Coverage</span>
+                            </label>
                         </div>
                     </div>
                     <button id="filterButton" class="icon-button filter" title="Filter by Namespace">
@@ -3665,6 +3708,7 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                     const noTestClasses = document.getElementById('noTestClasses');
                     const runAllButton = document.getElementById('runAllButton');
                     const abortButton = document.getElementById('abortButton');
+                    const codeCoverageToggle = document.getElementById('codeCoverageToggle');
                     const orgDropdown = document.getElementById('org-selector');
                     
                     // Track selected tests
@@ -3705,6 +3749,10 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
 
                     runAllButton.addEventListener('click', () => {
                         runAllTests();
+                    });
+
+                    codeCoverageToggle.addEventListener('change', () => {
+                        toggleCodeCoverage();
                     });
                     
                     // Functions
@@ -3823,6 +3871,16 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                         selectionCount.textContent = count + ' selected';
                         runSelectedButton.style.display = count > 0 ? 'inline-block' : 'none';
                         runSelectedButton.disabled = count === 0;
+                    }
+
+                    function toggleCodeCoverage() {
+                        vscode.postMessage({
+                            command: 'toggleCodeCoverage'
+                        });
+                    }
+
+                    function updateCodeCoverageCheckbox(isEnabled) {
+                        codeCoverageToggle.checked = isEnabled;
                     }
 
                     function clearAllSelections() {
@@ -5173,6 +5231,9 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                             case 'updateRunningStatus':
                                 updateRunningStatusWithId(message.testRunId);
                                 break;
+                            case 'updateCodeCoverageButton':
+                                updateCodeCoverageCheckbox(message.isEnabled);
+                                break;
                         }
                     });
                     
@@ -5186,6 +5247,9 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                     abortButton.style.display = 'none';
                     // Set initial visibility based on current selection state
                     updateSelectionCount();
+
+                    // Initialize code coverage button state
+                    vscode.postMessage({ command: 'getCodeCoverageState' });
 
                     const selectAllCheckbox = document.getElementById('selectAllCheckbox');
 
@@ -6432,6 +6496,37 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                     testClasses: []
                 });
             }
+        }
+    }
+
+    /**
+     * Toggles the code coverage setting and updates the UI button
+     */
+    private async _toggleCodeCoverage(): Promise<void> {
+        try {
+            const config = vscode.workspace.getConfiguration('visbal.apexTest');
+            const currentValue = config.get<boolean>('enableCodeCoverage', false);
+            const newValue = !currentValue;
+            
+            // Update the configuration
+            await config.update('enableCodeCoverage', newValue, vscode.ConfigurationTarget.Global);
+            
+            // Update the checkbox in the webview
+            if (this._view) {
+                this._view.webview.postMessage({
+                    command: 'updateCodeCoverageButton',
+                    isEnabled: newValue
+                });
+            }
+            
+            // Show notification
+            const status = newValue ? 'enabled' : 'disabled';
+            vscode.window.showInformationMessage(`Code coverage for test runs is now ${status}`);
+            OrgUtils.logDebug(`[VisbalExt.TestClassExplorerSidePanel] _toggleCodeCoverage -- Code coverage ${status}`);
+            
+        } catch (error: any) {
+            vscode.window.showErrorMessage(`Failed to update code coverage setting: ${error.message}`);
+            OrgUtils.logError('[VisbalExt.TestClassExplorerSidePanel] _toggleCodeCoverage -- Failed to update setting', error);
         }
     }
 

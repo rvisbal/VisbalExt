@@ -790,6 +790,25 @@ context.subscriptions.push(
 
   
 
+  // Command to toggle code coverage for test runs
+  context.subscriptions.push(
+    vscode.commands.registerCommand('visbal.toggleCodeCoverage', async () => {
+      const config = vscode.workspace.getConfiguration('visbal.apexTest');
+      const currentValue = config.get<boolean>('enableCodeCoverage', false);
+      const newValue = !currentValue;
+      
+      try {
+        await config.update('enableCodeCoverage', newValue, vscode.ConfigurationTarget.Global);
+        const status = newValue ? 'enabled' : 'disabled';
+        vscode.window.showInformationMessage(`Code coverage for test runs is now ${status}`);
+        OrgUtils.logDebug(`[VisbalExt.Extension] toggleCodeCoverage -- Code coverage ${status}`);
+      } catch (error: any) {
+        vscode.window.showErrorMessage(`Failed to update code coverage setting: ${error.message}`);
+        OrgUtils.logError('[VisbalExt.Extension] toggleCodeCoverage -- Failed to update setting', error);
+      }
+    })
+  );
+
   // Command to show the Visbal Extension output channel
   context.subscriptions.push(
     vscode.commands.registerCommand('visbal-ext.showOutput', () => {

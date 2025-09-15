@@ -234,6 +234,20 @@ export class SymbolNavigationService {
                     return { symbol: word, type: this.SymbolType.CLASS };
                 }
                 
+                // Pattern 4: Constructor call pattern - "new ClassName(" or "= new ClassName("
+                const constructorCallPattern = new RegExp(`\\bnew\\s+${word}\\s*\\(`, 'i');
+                if (constructorCallPattern.test(line) && /^[A-Z]/.test(word)) {
+                    this.logDebug(`[VisbalExt.SymbolNavigationService] determineSymbolType -- Pattern 4 matched: constructor call pattern`);
+                    return { symbol: word, type: this.SymbolType.CLASS };
+                }
+                
+                // Pattern 5: Variable assignment with class instantiation - "ClassName var = new ClassName("
+                const assignmentPattern = new RegExp(`\\b[a-zA-Z_][a-zA-Z0-9_]*\\s*=\\s*new\\s+${word}\\s*\\(`, 'i');
+                if (assignmentPattern.test(line) && /^[A-Z]/.test(word)) {
+                    this.logDebug(`[VisbalExt.SymbolNavigationService] determineSymbolType -- Pattern 5 matched: class in assignment pattern`);
+                    return { symbol: word, type: this.SymbolType.CLASS };
+                }
+                
                 this.logDebug(`[VisbalExt.SymbolNavigationService] determineSymbolType -- No class patterns matched, defaulting to PROPERTY`);
                 
                 return { symbol: word, type: this.SymbolType.PROPERTY };
@@ -318,11 +332,23 @@ export class SymbolNavigationService {
                 for (const searchPattern of searchPatterns) {
                     // Reset regex lastIndex to ensure proper matching
                     searchPattern.lastIndex = 0;
-                    const match = searchPattern.exec(text);
-                    if (match) {
+                    let match;
+                    while ((match = searchPattern.exec(text)) !== null) {
                         const position = document.positionAt(match.index);
-                        this.logDebug(`[VisbalExt.SymbolNavigationService] searchInFiles -- Found ${symbol} in ${file.fsPath} using pattern: ${searchPattern.source} at line ${position.line + 1}`);
-                        return { filePath: file, position };
+                        const matchedLine = document.lineAt(position.line).text;
+                        
+                        // Validate that this is actually a definition, not a usage/call
+                        if (this.validateDefinitionMatch(matchedLine, symbol, symbolType)) {
+                            this.logDebug(`[VisbalExt.SymbolNavigationService] searchInFiles -- Found ${symbol} in ${file.fsPath} using pattern: ${searchPattern.source} at line ${position.line + 1}`);
+                            return { filePath: file, position };
+                        } else {
+                            this.logDebug(`[VisbalExt.SymbolNavigationService] searchInFiles -- Rejected match in ${file.fsPath} at line ${position.line + 1} - not a valid definition: "${matchedLine.trim()}"`);
+                        }
+                        
+                        // Prevent infinite loop if regex doesn't have global flag
+                        if (!searchPattern.global) {
+                            break;
+                        }
                     }
                 }
             } catch (error) {
@@ -343,76 +369,168 @@ export class SymbolNavigationService {
         
         switch (symbolType) {
             case this.SymbolType.METHOD:
-                // Apex method definition - prioritize proper method signatures
-                // Pattern 1: Method with access modifier and return type
+                // Apex method definition - comprehensive patterns for all cases
+                // Pattern 1: public static void methodName( - most common
                 patterns.push(new RegExp(
-                    `^\\s*(public|private|protected|global)\\s+(static\\s+)?(override\\s+)?[\\w<>\\[\\]_]+\\s+${symbol}\\s*\\(`,
-                    'im'
+                    `\\b(public|private|protected|global)\\s+static\\s+void\\s+${symbol}\\s*\\(`,
+                    'gim'
                 ));
-                // Pattern 2: Method with just access modifier (for void methods)
+                // Pattern 2: public static ReturnType methodName( - with return type
                 patterns.push(new RegExp(
-                    `^\\s*(public|private|protected|global)\\s+(static\\s+)?(override\\s+)?${symbol}\\s*\\(`,
-                    'im'
+                    `\\b(public|private|protected|global)\\s+static\\s+[\\w<>\\[\\]_,\\s]+\\s+${symbol}\\s*\\(`,
+                    'gim'
                 ));
-                // Pattern 3: Fallback - any method-like pattern
+                // Pattern 3: public ReturnType methodName( - non-static methods
                 patterns.push(new RegExp(
-                    `\\s*[\\w<>\\[\\]_]+\\s+${symbol}\\s*\\(`,
-                    'i'
+                    `\\b(public|private|protected|global)\\s+[\\w<>\\[\\]_,\\s]+\\s+${symbol}\\s*\\(`,
+                    'gim'
+                ));
+                // Pattern 4: override methods
+                patterns.push(new RegExp(
+                    `\\b(public|private|protected|global)\\s+override\\s+[\\w<>\\[\\]_,\\s]+\\s+${symbol}\\s*\\(`,
+                    'gim'
                 ));
                 break;
                 
             case this.SymbolType.FUNCTION:
                 // JavaScript/TypeScript function definitions - prioritize actual definitions
                 // Pattern 1: Function declaration
-                patterns.push(new RegExp(`^\\s*function\\s+${symbol}\\s*\\(`, 'im'));
+                patterns.push(new RegExp(`^\\s*function\\s+${symbol}\\s*\\(`, 'gim'));
                 // Pattern 2: Method definition in class/object
-                patterns.push(new RegExp(`^\\s*${symbol}\\s*\\([^)]*\\)\\s*{`, 'im'));
+                patterns.push(new RegExp(`^\\s*${symbol}\\s*\\([^)]*\\)\\s*{`, 'gim'));
                 // Pattern 3: Arrow function assignment
-                patterns.push(new RegExp(`^\\s*(const|let|var)\\s+${symbol}\\s*=\\s*\\([^)]*\\)\\s*=>`, 'im'));
+                patterns.push(new RegExp(`^\\s*(const|let|var)\\s+${symbol}\\s*=\\s*\\([^)]*\\)\\s*=>`, 'gim'));
                 // Pattern 4: Function assignment
-                patterns.push(new RegExp(`^\\s*(const|let|var)\\s+${symbol}\\s*=\\s*function`, 'im'));
+                patterns.push(new RegExp(`^\\s*(const|let|var)\\s+${symbol}\\s*=\\s*function`, 'gim'));
                 // Pattern 5: Object method
-                patterns.push(new RegExp(`${symbol}\\s*:\\s*function\\s*\\(`, 'i'));
+                patterns.push(new RegExp(`${symbol}\\s*:\\s*function\\s*\\(`, 'gi'));
                 // Pattern 6: Fallback - any assignment
-                patterns.push(new RegExp(`${symbol}\\s*[:=]\\s*function`, 'i'));
-                patterns.push(new RegExp(`${symbol}\\s*[:=]\\s*\\(.*\\)\\s*=>`, 'i'));
+                patterns.push(new RegExp(`${symbol}\\s*[:=]\\s*function`, 'gi'));
+                patterns.push(new RegExp(`${symbol}\\s*[:=]\\s*\\(.*\\)\\s*=>`, 'gi'));
                 break;
                 
             case this.SymbolType.CLASS:
                 // Class definitions - prioritize actual class declarations
-                patterns.push(new RegExp(`^\\s*(public\\s+|private\\s+|protected\\s+|global\\s+)?(abstract\\s+)?class\\s+${symbol}\\b`, 'im'));
-                patterns.push(new RegExp(`^\\s*(public\\s+|private\\s+|protected\\s+|export\\s+)?(abstract\\s+)?interface\\s+${symbol}\\b`, 'im'));
-                patterns.push(new RegExp(`class\\s+${symbol}\\b`, 'i'));
-                patterns.push(new RegExp(`interface\\s+${symbol}\\b`, 'i'));
+                patterns.push(new RegExp(`^\\s*(public\\s+|private\\s+|protected\\s+|global\\s+)?(abstract\\s+)?class\\s+${symbol}\\b`, 'gim'));
+                patterns.push(new RegExp(`^\\s*(public\\s+|private\\s+|protected\\s+|export\\s+)?(abstract\\s+)?interface\\s+${symbol}\\b`, 'gim'));
+                patterns.push(new RegExp(`class\\s+${symbol}\\b`, 'gi'));
+                patterns.push(new RegExp(`interface\\s+${symbol}\\b`, 'gi'));
                 break;
                 
             case this.SymbolType.CSS_CLASS:
                 // CSS class definitions - prioritize CSS rule definitions
-                patterns.push(new RegExp(`^\\.${symbol}\\b[^{]*{`, 'im'));
-                patterns.push(new RegExp(`\\.${symbol}\\b`, 'i'));
+                patterns.push(new RegExp(`^\\.${symbol}\\b[^{]*{`, 'gim'));
+                patterns.push(new RegExp(`\\.${symbol}\\b`, 'gi'));
                 break;
                 
             case this.SymbolType.CSS_ID:
                 // CSS ID definitions - prioritize CSS rule definitions
-                patterns.push(new RegExp(`^#${symbol}\\b[^{]*{`, 'im'));
-                patterns.push(new RegExp(`#${symbol}\\b`, 'i'));
+                patterns.push(new RegExp(`^#${symbol}\\b[^{]*{`, 'gim'));
+                patterns.push(new RegExp(`#${symbol}\\b`, 'gi'));
                 break;
                 
             case this.SymbolType.PROPERTY:
             case this.SymbolType.VARIABLE:
-                // Property/variable definitions - prioritize actual declarations
-                // Pattern 1: Apex property/field with access modifier
-                patterns.push(new RegExp(`^\\s*(public|private|protected|global)\\s+(static\\s+)?[\\w<>\\[\\]]+\\s+${symbol}\\b`, 'im'));
-                // Pattern 2: JavaScript/TypeScript variable declarations
-                patterns.push(new RegExp(`^\\s*(const|let|var)\\s+${symbol}\\b`, 'im'));
-                // Pattern 3: Property assignment
-                patterns.push(new RegExp(`^\\s*${symbol}\\s*[:=]`, 'im'));
-                // Pattern 4: Fallback patterns
-                patterns.push(new RegExp(`\\b${symbol}\\s*[:=]`, 'i'));
+                // Apex property/variable definitions - handle all documented patterns
+                // Pattern 1: public static final constants - most common
+                patterns.push(new RegExp(
+                    `\\b(public|private|protected|global)\\s+static\\s+final\\s+[\\w<>\\[\\]_,\\s]+\\s+${symbol}\\b`,
+                    'gim'
+                ));
+                // Pattern 2: public static variables (non-final)
+                patterns.push(new RegExp(
+                    `\\b(public|private|protected|global)\\s+static\\s+[\\w<>\\[\\]_,\\s]+\\s+${symbol}\\b`,
+                    'gim'
+                ));
+                // Pattern 3: instance properties/fields  
+                patterns.push(new RegExp(
+                    `\\b(public|private|protected|global)\\s+[\\w<>\\[\\]_,\\s]+\\s+${symbol}\\b`,
+                    'gim'
+                ));
+                // Pattern 4: JavaScript/TypeScript variable declarations
+                patterns.push(new RegExp(`^\\s*(const|let|var)\\s+${symbol}\\b`, 'gim'));
+                // Pattern 5: Property assignment fallback
+                patterns.push(new RegExp(`\\b${symbol}\\s*[:=]`, 'gi'));
                 break;
         }
         
         return patterns;
+    }
+
+    /**
+     * Validates that a matched line contains an actual definition, not just a usage/call
+     */
+    private static validateDefinitionMatch(line: string, symbol: string, symbolType: string): boolean {
+        const trimmedLine = line.trim();
+        
+        switch (symbolType) {
+            case this.SymbolType.METHOD:
+                // For methods, ensure it's not a constructor call or method invocation
+                
+                // Reject lines with assignment operators before the symbol (e.g., "var = new Symbol(")
+                if (/\s*[a-zA-Z_][a-zA-Z0-9_]*\s*=.*new\s+/i.test(trimmedLine)) {
+                    return false;
+                }
+                
+                // Reject lines that look like variable declarations with instantiation
+                // e.g., "ClassName var = new ClassName(" or "var obj = Symbol("
+                const variableDeclarationPattern = new RegExp(`\\b[a-zA-Z_][a-zA-Z0-9_]*\\s*=.*\\b${symbol}\\s*\\(`, 'i');
+                if (variableDeclarationPattern.test(trimmedLine)) {
+                    return false;
+                }
+                
+                // Accept lines that start with access modifiers (proper method definitions)
+                if (/^(public|private|protected|global)\s/i.test(trimmedLine)) {
+                    return true;
+                }
+                
+                // Accept lines that look like method signatures at the beginning of a line
+                const methodSignaturePattern = new RegExp(`^\\s*[\\w<>\\[\\]_]+\\s+${symbol}\\s*\\(`, 'i');
+                if (methodSignaturePattern.test(trimmedLine)) {
+                    return true;
+                }
+                
+                return false;
+                
+            case this.SymbolType.CLASS:
+                // For classes, ensure it's a class declaration, not an instantiation
+                
+                // Reject lines with "new" keyword (instantiations)
+                if (/\bnew\s+/i.test(trimmedLine)) {
+                    return false;
+                }
+                
+                // Accept lines that start with class declaration keywords
+                if (/^(public|private|protected|global)?\s*(abstract\s+)?(class|interface)\s/i.test(trimmedLine)) {
+                    return true;
+                }
+                
+                // Reject variable assignments
+                if (/\s*[a-zA-Z_][a-zA-Z0-9_]*\s*=/.test(trimmedLine)) {
+                    return false;
+                }
+                
+                return true; // Allow other class-related patterns
+                
+            case this.SymbolType.PROPERTY:
+            case this.SymbolType.VARIABLE:
+                // For properties/variables, look for declarations, not assignments or usage
+                
+                // Accept lines that start with access modifiers (property declarations)
+                if (/^(public|private|protected|global|static)\s/i.test(trimmedLine)) {
+                    return true;
+                }
+                
+                // Accept variable declarations
+                if (/^(const|let|var)\s/i.test(trimmedLine)) {
+                    return true;
+                }
+                
+                return true; // Be more permissive for properties
+                
+            default:
+                return true; // Default to accepting for other types
+        }
     }
 
     /**
@@ -424,11 +542,23 @@ export class SymbolNavigationService {
         
         for (const searchPattern of searchPatterns) {
             searchPattern.lastIndex = 0;
-            const match = searchPattern.exec(text);
-            if (match) {
+            let match;
+            while ((match = searchPattern.exec(text)) !== null) {
                 const position = document.positionAt(match.index);
-                this.logDebug(`[VisbalExt.SymbolNavigationService] searchInCurrentFile -- Found ${symbol} in current file using pattern: ${searchPattern.source} at line ${position.line + 1}`);
-                return { filePath: document.uri, position };
+                const matchedLine = document.lineAt(position.line).text;
+                
+                // Validate that this is actually a definition, not a usage/call
+                if (this.validateDefinitionMatch(matchedLine, symbol, symbolType)) {
+                    this.logDebug(`[VisbalExt.SymbolNavigationService] searchInCurrentFile -- Found ${symbol} in current file using pattern: ${searchPattern.source} at line ${position.line + 1}`);
+                    return { filePath: document.uri, position };
+                } else {
+                    this.logDebug(`[VisbalExt.SymbolNavigationService] searchInCurrentFile -- Rejected match at line ${position.line + 1} - not a valid definition: "${matchedLine.trim()}"`);
+                }
+                
+                // Prevent infinite loop if regex doesn't have global flag
+                if (!searchPattern.global) {
+                    break;
+                }
             }
         }
         
@@ -462,14 +592,32 @@ export class SymbolNavigationService {
             const allClassFiles = [...userClassFiles, ...standardLibFiles];
             
             this.logDebug(`[VisbalExt.SymbolNavigationService] searchInSpecificClass -- Found ${userClassFiles.length} user class files and ${standardLibFiles.length} standard library files for ${className}.cls`);
+            this.logDebug(`[VisbalExt.SymbolNavigationService] searchInSpecificClass -- User files: ${userClassFiles.map(f => f.fsPath).join(', ') || 'none'}`);
+            this.logDebug(`[VisbalExt.SymbolNavigationService] searchInSpecificClass -- Standard files: ${standardLibFiles.map(f => f.fsPath).join(', ') || 'none'}`);
             
             if (allClassFiles.length === 0) {
                 this.logDebug(`[VisbalExt.SymbolNavigationService] searchInSpecificClass -- Class file ${className}.cls not found in user code or standard library`);
                 return null;
             }
 
-            // Search in the first matching class file (user classes have priority)
-            const classFile = allClassFiles[0];
+            // Validate that files actually exist before proceeding
+            const existingFiles: vscode.Uri[] = [];
+            for (const file of allClassFiles) {
+                try {
+                    await vscode.workspace.fs.stat(file);
+                    existingFiles.push(file);
+                } catch (error) {
+                    this.logDebug(`[VisbalExt.SymbolNavigationService] searchInSpecificClass -- File ${file.fsPath} does not exist, skipping`);
+                }
+            }
+            
+            if (existingFiles.length === 0) {
+                this.logDebug(`[VisbalExt.SymbolNavigationService] searchInSpecificClass -- No existing files found for ${className}.cls after validation`);
+                return null;
+            }
+
+            // Search in the first existing class file (user classes have priority)
+            const classFile = existingFiles[0];
             try {
                 const document = await vscode.workspace.openTextDocument(classFile);
                 const text = document.getText();
@@ -477,11 +625,23 @@ export class SymbolNavigationService {
                 
                 for (const searchPattern of searchPatterns) {
                     searchPattern.lastIndex = 0;
-                    const match = searchPattern.exec(text);
-                    if (match) {
+                    let match;
+                    while ((match = searchPattern.exec(text)) !== null) {
                         const position = document.positionAt(match.index);
-                        this.logDebug(`[VisbalExt.SymbolNavigationService] Found ${symbol} in ${className}.cls using pattern: ${searchPattern.source} at line ${position.line + 1}`);
-                        return { filePath: classFile, position };
+                        const matchedLine = document.lineAt(position.line).text;
+                        
+                        // Validate that this is actually a definition, not a usage/call
+                        if (this.validateDefinitionMatch(matchedLine, symbol, symbolType)) {
+                            this.logDebug(`[VisbalExt.SymbolNavigationService] Found ${symbol} in ${className}.cls using pattern: ${searchPattern.source} at line ${position.line + 1}`);
+                            return { filePath: classFile, position };
+                        } else {
+                            this.logDebug(`[VisbalExt.SymbolNavigationService] searchInSpecificClass -- Rejected match in ${className}.cls at line ${position.line + 1} - not a valid definition: "${matchedLine.trim()}"`);
+                        }
+                        
+                        // Prevent infinite loop if regex doesn't have global flag
+                        if (!searchPattern.global) {
+                            break;
+                        }
                     }
                 }
                 
@@ -821,7 +981,7 @@ export class SymbolNavigationService {
             
             if (className) {
                 searchScope = `${className}.cls and workspace files`;
-                suggestion = ` Make sure the ${className} class exists and contains the method '${symbol}'.`;
+                suggestion = ` Make sure the ${className} class exists and contains the method '${symbol}'. Check if the class file is in force-app/main/default/classes/ or if it's a standard Salesforce class.`;
             } else if (isThisReference) {
                 searchScope = 'current file and workspace';
                 suggestion = ` Make sure the method '${symbol}' is defined in this class.`;
