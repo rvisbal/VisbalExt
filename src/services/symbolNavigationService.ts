@@ -33,7 +33,9 @@ export class SymbolNavigationService {
         'less': ['less', 'css'],
         'ts': ['ts', 'js'],
         'jsx': ['jsx', 'js'],
-        'tsx': ['tsx', 'ts', 'js']
+        'tsx': ['tsx', 'ts', 'js'],
+        'log': ['cls', 'html', 'js', 'css', 'ts'], // Log files can reference any code type
+        'txt': ['cls', 'html', 'js', 'css', 'ts']  // Text files can reference any code type
     };
 
     /**
@@ -302,9 +304,18 @@ export class SymbolNavigationService {
 
     /**
      * Gets file extensions to search based on source file extension
+     * For log/txt files with class-prefixed calls, prioritize .cls files
      */
-    private static getTargetFileExtensions(sourceExtension: string): string[] {
-        return this.FILE_TYPE_MAPPINGS[sourceExtension as keyof typeof this.FILE_TYPE_MAPPINGS] || [sourceExtension];
+    private static getTargetFileExtensions(sourceExtension: string, className?: string): string[] {
+        const mappedExtensions = this.FILE_TYPE_MAPPINGS[sourceExtension as keyof typeof this.FILE_TYPE_MAPPINGS] || [sourceExtension];
+        
+        // For log/txt files with class-prefixed calls, prioritize .cls files for better performance
+        if ((sourceExtension === 'log' || sourceExtension === 'txt') && className) {
+            this.logDebug(`[VisbalExt.SymbolNavigationService] getTargetFileExtensions -- Prioritizing .cls files for class-prefixed call: ${className}`);
+            return ['cls', ...mappedExtensions.filter(ext => ext !== 'cls')];
+        }
+        
+        return mappedExtensions;
     }
 
     /**
@@ -662,8 +673,9 @@ export class SymbolNavigationService {
     private static async findSymbolDefinition(symbol: string, symbolType: string, sourceFileExtension: string, currentDocument?: vscode.TextDocument, isThisReference: boolean = false, className?: string): Promise<{filePath: vscode.Uri, position: vscode.Position} | null> {
         
         // For class-prefixed calls (e.g., ClassName.methodName), search the specific class first
-        if (className && sourceFileExtension === 'cls') {
-            this.logDebug(`[VisbalExt.SymbolNavigationService] findSymbolDefinition -- Searching for '${className}.${symbol}' in ${className}.cls first`);
+        // This applies to calls from .cls files, .log files, .txt files, etc.
+        if (className) {
+            this.logDebug(`[VisbalExt.SymbolNavigationService] findSymbolDefinition -- Searching for '${className}.${symbol}' in ${className}.cls first (source: ${sourceFileExtension})`);
             const classResult = await this.searchInSpecificClass(className, symbol, symbolType);
             if (classResult) {
                 return classResult;
@@ -696,7 +708,7 @@ export class SymbolNavigationService {
         }
 
         const workspaceFolder = vscode.workspace.workspaceFolders[0];
-        const targetExtensions = this.getTargetFileExtensions(sourceFileExtension);
+        const targetExtensions = this.getTargetFileExtensions(sourceFileExtension, className);
         const searchPatterns = this.createSearchPatterns(symbol, symbolType);
         
         if (searchPatterns.length === 0) {
