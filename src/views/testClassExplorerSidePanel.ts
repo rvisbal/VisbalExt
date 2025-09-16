@@ -3632,7 +3632,7 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                                     <path d="M8 1a7 7 0 1 0 0 14A7 7 0 0 0 8 1zm0 1a6 6 0 1 1 0 12A6 6 0 0 1 8 2zm3.854 3.146L8 8.707l-3.854-3.561-.708.708L7.293 9.5l-3.855 3.854.708.708L8 10.207l3.854 3.855.708-.708L8.707 9.5l3.855-3.854-.708-.708z"/>
                                 </svg>
                             </button>
-                            <label class="coverage-checkbox-container" title="Enable/disable code coverage collection for test runs">
+                            <label class="coverage-checkbox-container" title="Enable/disable code coverage collection for test runs" style="display: none;">
                                 <input type="checkbox" id="codeCoverageToggle" class="coverage-checkbox">
                                 <span class="coverage-checkbox-label">Code Coverage</span>
                             </label>

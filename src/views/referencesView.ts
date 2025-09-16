@@ -264,7 +264,7 @@ export class ReferencesTreeProvider implements vscode.TreeDataProvider<Reference
      */
     private formatReferenceLabel(lineText: string, lineNumber: number): string {
         // Truncate very long lines and add ellipsis
-        const maxLength = 80;
+        const maxLength = 200;
         let displayText = lineText;
         
         if (displayText.length > maxLength) {
@@ -391,10 +391,10 @@ export class ReferencesView {
             // Update the tree view with results
             this.treeDataProvider.updateReferences(symbolReference);
 
-            // Open the References panel and focus on the results
+            // Show the References panel (since it's collapsed by default)
             try {
-                // Execute command to show the References panel
-                await vscode.commands.executeCommand('visbal-ext.showReferencesPanel');
+                // Execute command to show the References container panel
+                await vscode.commands.executeCommand('workbench.view.extension.visbal-references-container');
                 
                 // After panel is shown, reveal the first item for better UX
                 setTimeout(() => {
@@ -402,16 +402,21 @@ export class ReferencesView {
                     if (children.length > 0) {
                         this.treeView.reveal(children[0], { expand: true, focus: true, select: true });
                     }
-                }, 100); // Increased timeout to allow panel to load
+                }, 200); // Increased timeout to allow panel to load properly
             } catch (error) {
-                // Fallback: just try to reveal items without panel activation
-                console.log('[References] Panel activation failed, revealing items only');
-                setTimeout(() => {
-                    const children = this.treeDataProvider.getChildren();
-                    if (children.length > 0) {
-                        this.treeView.reveal(children[0], { expand: true, focus: true, select: true });
-                    }
-                }, 50);
+                // Fallback: try the custom show panel command
+                console.log('[References] Direct panel activation failed, trying custom command');
+                try {
+                    await vscode.commands.executeCommand('visbal-ext.showReferencesPanel');
+                    setTimeout(() => {
+                        const children = this.treeDataProvider.getChildren();
+                        if (children.length > 0) {
+                            this.treeView.reveal(children[0], { expand: true, focus: true, select: true });
+                        }
+                    }, 100);
+                } catch (fallbackError) {
+                    console.log('[References] All panel activation attempts failed, references still available in tree');
+                }
             }
 
             // Show success message
