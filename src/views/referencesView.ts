@@ -391,18 +391,27 @@ export class ReferencesView {
             // Update the tree view with results
             this.treeDataProvider.updateReferences(symbolReference);
 
-            // Try to show the References panel without triggering external commands
+            // Open the References panel and focus on the results
             try {
-                // Simple attempt to reveal the first item without external command execution
+                // Execute command to show the References panel
+                await vscode.commands.executeCommand('visbal-ext.showReferencesPanel');
+                
+                // After panel is shown, reveal the first item for better UX
+                setTimeout(() => {
+                    const children = this.treeDataProvider.getChildren();
+                    if (children.length > 0) {
+                        this.treeView.reveal(children[0], { expand: true, focus: true, select: true });
+                    }
+                }, 100); // Increased timeout to allow panel to load
+            } catch (error) {
+                // Fallback: just try to reveal items without panel activation
+                console.log('[References] Panel activation failed, revealing items only');
                 setTimeout(() => {
                     const children = this.treeDataProvider.getChildren();
                     if (children.length > 0) {
                         this.treeView.reveal(children[0], { expand: true, focus: true, select: true });
                     }
                 }, 50);
-            } catch (error) {
-                // Silently ignore panel visibility issues to prevent external command execution
-                console.log('[References] Panel visibility optimization skipped');
             }
 
             // Show success message
@@ -498,7 +507,10 @@ export class ReferencesView {
      */
     public async showReferencesPanel(): Promise<void> {
         try {
-            // Try to focus on the tree view without external command execution
+            // Open the References container panel
+            await vscode.commands.executeCommand('workbench.view.extension.visbal-references-container');
+            
+            // Focus on the tree view items if available
             const children = this.treeDataProvider.getChildren();
             if (children.length > 0) {
                 await this.treeView.reveal(children[0], { focus: true });
