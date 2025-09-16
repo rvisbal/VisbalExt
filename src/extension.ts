@@ -31,6 +31,7 @@ import { JsonViewerTab } from './views/jsonViewerTab';
 import { JsonViewerService } from './services/jsonViewerService';
 import { StorageService } from './services/storageService';
 import { OrgListCacheService } from './services/orgListCacheService';
+import { ReferencesView } from './views/referencesView';
 
 let outputChannel: vscode.OutputChannel;
 
@@ -102,6 +103,7 @@ export async function activate(context: vscode.ExtensionContext) {
   let orgTabViewProvider: OrgTabView | undefined;
   let tractionTab: TractionTab | undefined;
   let jsonViewerTab: JsonViewerTab | undefined;
+  let referencesView: ReferencesView | undefined;
 
   // Watch for configuration changes
   context.subscriptions.push(
@@ -378,6 +380,10 @@ export async function activate(context: vscode.ExtensionContext) {
     const jsonViewerService = JsonViewerService.getInstance(context);
     jsonViewerService.initialize(jsonViewerTab);
   }
+
+  // Initialize References View (using simple logging to avoid external processes)
+  outputChannel.appendLine('[VisbalExt.Extension] activate -- Initializing ReferencesView');
+  referencesView = new ReferencesView(context);
 
   // Register commands for panel activation (only if respective modules are enabled)
   if (isModuleEnabled('logAnalyzer')) {

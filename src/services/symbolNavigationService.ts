@@ -941,6 +941,13 @@ export class SymbolNavigationService {
     }
 
     /**
+     * Extracts symbol information from the current cursor position (public method for references feature)
+     */
+    public static extractSymbolInfo(document: vscode.TextDocument, position: vscode.Position): {symbol: string, type: string, isThisReference: boolean, className?: string} | null {
+        return this.extractSymbolFromCursor(document, position);
+    }
+
+    /**
      * Navigates to the symbol definition based on the current cursor position
      */
     public static async navigateToSelectedDefinition(): Promise<void> {
