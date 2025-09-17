@@ -32,6 +32,7 @@ import { JsonViewerService } from './services/jsonViewerService';
 import { StorageService } from './services/storageService';
 import { OrgListCacheService } from './services/orgListCacheService';
 import { ReferencesView } from './views/referencesView';
+import { SymbolNavigationService } from './services/symbolNavigationService';
 
 let outputChannel: vscode.OutputChannel;
 
@@ -146,6 +147,7 @@ export async function activate(context: vscode.ExtensionContext) {
     // Register test class explorer view commands
     context.subscriptions.push(
         vscode.commands.registerCommand('visbal-ext.testClassExplorerView.runTest', (args) => {
+            OrgUtils.logDebug('[VisbalExt.Extension] testClassExplorerView.runTest command called with args:', args);
             testClassExplorerView.runTest(args.testClass, args.testMethod);
         }),
         vscode.commands.registerCommand('visbal-ext.testClassExplorerView.runSelectedTests', (args) => {
@@ -188,6 +190,100 @@ export async function activate(context: vscode.ExtensionContext) {
                 vscode.window.showInformationMessage(`Visbal Debug Cleanup: ${result}`);
             } catch (error) {
                 vscode.window.showErrorMessage(`Failed to cleanup debug files: ${error}`);
+            }
+        }),
+        vscode.commands.registerCommand('visbal-ext.selectAndRunTestClass', async () => {
+            try {
+                const editor = vscode.window.activeTextEditor;
+                if (!editor) {
+                    vscode.window.showErrorMessage('No active editor found');
+                    return;
+                }
+                
+                let testClassName: string | undefined;
+                let testMethodName: string | undefined;
+                
+                // Method 1: Try to detect method name from cursor position/selection
+                const position = editor.selection.active;
+                const symbolInfo = SymbolNavigationService.extractSymbolInfo(editor.document, position);
+                
+                if (symbolInfo && symbolInfo.symbol) {
+                    // Check if the cursor is on a test method name
+                    if (symbolInfo.symbol.toLowerCase().includes('test')) {
+                        testMethodName = symbolInfo.symbol;
+                        OrgUtils.logDebug(`[VisbalExt.Extension] selectAndRunTestClass -- Detected test method from cursor: ${testMethodName}`);
+                    }
+                }
+                
+                // Method 2: Get class name from current file name (if it's a test class)
+                const fileName = editor.document.fileName;
+                const fileBaseName = fileName.split(/[\\/]/).pop()?.replace('.cls', '');
+                
+                if (fileBaseName && (fileBaseName.toLowerCase().includes('test') || fileBaseName.toLowerCase().endsWith('tests'))) {
+                    testClassName = fileBaseName;
+                    OrgUtils.logDebug(`[VisbalExt.Extension] selectAndRunTestClass -- Detected test class from filename: ${testClassName}`);
+                }
+                
+                // Method 3: Try to extract class name from cursor position (if user has selected a class name)
+                if (!testClassName && symbolInfo && symbolInfo.type === 'class') {
+                    testClassName = symbolInfo.symbol;
+                    OrgUtils.logDebug(`[VisbalExt.Extension] selectAndRunTestClass -- Detected test class from cursor: ${testClassName}`);
+                }
+                
+                // Method 4: Look for class declaration in the current file
+                if (!testClassName) {
+                    const document = editor.document;
+                    const text = document.getText();
+                    const classMatch = text.match(/(?:public|private|global)?\s*class\s+(\w+)(?:\s+extends\s+\w+)?(?:\s+implements\s+[\w,\s]+)?\s*\{/);
+                    
+                    if (classMatch && (classMatch[1].toLowerCase().includes('test') || classMatch[1].toLowerCase().endsWith('tests'))) {
+                        testClassName = classMatch[1];
+                        OrgUtils.logDebug(`[VisbalExt.Extension] selectAndRunTestClass -- Detected test class from file content: ${testClassName}`);
+                    }
+                }
+                
+                if (!testClassName) {
+                    vscode.window.showErrorMessage('Could not detect a test class. Make sure you are in a test class file or have selected a test class name.');
+                    return;
+                }
+                
+                // Show the Test Explorer panel
+                try {
+                    await vscode.commands.executeCommand('workbench.view.extension.visbal-test-container');
+                } catch (error) {
+                    OrgUtils.logDebug('[VisbalExt.Extension] selectAndRunTestClass -- Could not open test container, continuing anyway');
+                }
+                
+                // Run the detected test (method or class)
+                const targetDescription = testMethodName ? `method: ${testMethodName}` : `class: ${testClassName}`;
+                const runningMessage = vscode.window.setStatusBarMessage(`$(beaker~spin) Running test ${targetDescription}...`);
+                
+                try {
+                    // Add debug logging
+                    OrgUtils.logDebug(`[VisbalExt.Extension] selectAndRunTestClass -- About to execute command for test class: ${testClassName}, method: ${testMethodName || 'all methods'}`);
+                    
+                    // Reuse existing command instead of calling service directly
+                    await vscode.commands.executeCommand('visbal-ext.testClassExplorerView.runTest', {
+                        testClass: testClassName,
+                        testMethod: testMethodName  // Will be undefined if no specific method detected
+                    });
+                    
+                    OrgUtils.logDebug(`[VisbalExt.Extension] selectAndRunTestClass -- Command executed successfully for test class: ${testClassName}, method: ${testMethodName || 'all methods'}`);
+                    
+                    runningMessage.dispose();
+                    const successMessage = testMethodName 
+                        ? `Test method '${testMethodName}' in class '${testClassName}' has been executed.`
+                        : `Test class '${testClassName}' has been executed.`;
+                    vscode.window.showInformationMessage(`${successMessage} Check the Test Summary view for results.`);
+                } catch (testError) {
+                    runningMessage.dispose();
+                    OrgUtils.logError(`[VisbalExt.Extension] selectAndRunTestClass -- Error executing test: ${testError}`, testError);
+                    vscode.window.showErrorMessage(`Failed to run test ${targetDescription}: ${testError}`);
+                }
+                
+            } catch (error: any) {
+                OrgUtils.logError('[VisbalExt.Extension] selectAndRunTestClass -- Error:', error);
+                vscode.window.showErrorMessage(`Failed to run test: ${error.message}`);
             }
         })
         

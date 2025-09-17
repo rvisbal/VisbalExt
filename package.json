@@ -427,6 +427,12 @@
         "title": "Open File",
         "category": "Visbal",
         "icon": "$(go-to-file)"
+      },
+      {
+        "command": "visbal-ext.selectAndRunTestClass",
+        "title": "V: Select and Run Test",
+        "category": "Visbal",
+        "icon": "$(play)"
       }
     ],
     "menus": {
@@ -525,6 +531,11 @@
           "group": "1_visbal"
         },
         {
+          "command": "visbal-ext.selectAndRunTestClass",
+          "when": "editorTextFocus && resourceExtname == .cls",
+          "group": "1_visbal"
+        },
+        {
           "command": "visbal-ext.openJsonInViewer",
           "when": "resourceExtname == .json",
           "group": "2_json"
@@ -590,6 +601,11 @@
         "command": "visbal-ext.findAllReferences", 
         "key": "ctrl+shift+r",
         "when": "editorTextFocus"
+      },
+      {
+        "command": "visbal-ext.selectAndRunTestClass",
+        "key": "ctrl+shift+t",
+        "when": "!inDebugMode"
       }
     ],
     "configuration": {

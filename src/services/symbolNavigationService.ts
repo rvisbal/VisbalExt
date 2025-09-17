@@ -400,22 +400,37 @@ export class SymbolNavigationService {
         switch (symbolType) {
             case this.SymbolType.METHOD:
                 // Apex method definition - comprehensive patterns for all cases
-                // Pattern 1: public static void methodName( - most common
+                // Pattern 1: public static void methodName( - with explicit access modifier
                 patterns.push(new RegExp(
                     `\\b(public|private|protected|global)\\s+static\\s+void\\s+${symbol}\\s*\\(`,
                     'gim'
                 ));
-                // Pattern 2: public static ReturnType methodName( - with return type
+                // Pattern 2: static void methodName( - no explicit access modifier (defaults to private)
+                patterns.push(new RegExp(
+                    `\\bstatic\\s+void\\s+${symbol}\\s*\\(`,
+                    'gim'
+                ));
+                // Pattern 3: public static ReturnType methodName( - with explicit access modifier and return type
                 patterns.push(new RegExp(
                     `\\b(public|private|protected|global)\\s+static\\s+[\\w<>\\[\\]_,\\s]+\\s+${symbol}\\s*\\(`,
                     'gim'
                 ));
-                // Pattern 3: public ReturnType methodName( - non-static methods
+                // Pattern 4: static ReturnType methodName( - no explicit access modifier with return type
+                patterns.push(new RegExp(
+                    `\\bstatic\\s+[\\w<>\\[\\]_,\\s]+\\s+${symbol}\\s*\\(`,
+                    'gim'
+                ));
+                // Pattern 5: public ReturnType methodName( - non-static methods with explicit access modifier
                 patterns.push(new RegExp(
                     `\\b(public|private|protected|global)\\s+[\\w<>\\[\\]_,\\s]+\\s+${symbol}\\s*\\(`,
                     'gim'
                 ));
-                // Pattern 4: override methods
+                // Pattern 6: ReturnType methodName( - non-static methods without explicit access modifier
+                patterns.push(new RegExp(
+                    `\\b[\\w<>\\[\\]_,\\s]+\\s+${symbol}\\s*\\(`,
+                    'gim'
+                ));
+                // Pattern 7: override methods
                 patterns.push(new RegExp(
                     `\\b(public|private|protected|global)\\s+override\\s+[\\w<>\\[\\]_,\\s]+\\s+${symbol}\\s*\\(`,
                     'gim'
@@ -477,9 +492,32 @@ export class SymbolNavigationService {
                     `\\b(public|private|protected|global)\\s+[\\w<>\\[\\]_,\\s]+\\s+${symbol}\\b`,
                     'gim'
                 ));
-                // Pattern 4: JavaScript/TypeScript variable declarations
+                
+                // FALLBACK: Method patterns (since methods are sometimes misclassified as variables)
+                // Pattern 4: public static void methodName( - with explicit access modifier
+                patterns.push(new RegExp(
+                    `\\b(public|private|protected|global)\\s+static\\s+void\\s+${symbol}\\s*\\(`,
+                    'gim'
+                ));
+                // Pattern 5: static void methodName( - no explicit access modifier (defaults to private)
+                patterns.push(new RegExp(
+                    `\\bstatic\\s+void\\s+${symbol}\\s*\\(`,
+                    'gim'
+                ));
+                // Pattern 6: public static ReturnType methodName( - with explicit access modifier and return type
+                patterns.push(new RegExp(
+                    `\\b(public|private|protected|global)\\s+static\\s+[\\w<>\\[\\]_,\\s]+\\s+${symbol}\\s*\\(`,
+                    'gim'
+                ));
+                // Pattern 7: static ReturnType methodName( - no explicit access modifier with return type
+                patterns.push(new RegExp(
+                    `\\bstatic\\s+[\\w<>\\[\\]_,\\s]+\\s+${symbol}\\s*\\(`,
+                    'gim'
+                ));
+                
+                // Pattern 8: JavaScript/TypeScript variable declarations
                 patterns.push(new RegExp(`^\\s*(const|let|var)\\s+${symbol}\\b`, 'gim'));
-                // Pattern 5: Property assignment fallback
+                // Pattern 9: Property assignment fallback
                 patterns.push(new RegExp(`\\b${symbol}\\s*[:=]`, 'gi'));
                 break;
         }
@@ -605,28 +643,39 @@ export class SymbolNavigationService {
 
         const workspaceFolder = vscode.workspace.workspaceFolders[0];
         
+        // Strip namespace prefix from className for file search
+        // Namespace prefixes follow pattern: NamespacePrefix__ActualClassName
+        let fileClassName = className;
+        if (className.includes('__')) {
+            const parts = className.split('__');
+            if (parts.length === 2) {
+                fileClassName = parts[1]; // Use the actual class name without namespace prefix
+                this.logDebug(`[VisbalExt.SymbolNavigationService] searchInSpecificClass -- Stripped namespace prefix: ${className} -> ${fileClassName}`);
+            }
+        }
+        
         try {
             // Hierarchical search for specific class file:
             // 1. force-app/main/default/classes/ (user classes)
             // 2. .sfdx/tools/StandardApexLibrary/ (standard library fallback)
             
-            // Step 1: Look in user classes first
-            let userClassPattern = new vscode.RelativePattern(workspaceFolder, `force-app/main/default/classes/${className}.cls`);
+            // Step 1: Look in user classes first (using actual class name without namespace)
+            let userClassPattern = new vscode.RelativePattern(workspaceFolder, `force-app/main/default/classes/${fileClassName}.cls`);
             let userClassFiles = await vscode.workspace.findFiles(userClassPattern);
             
-            // Step 2: Fallback to standard library
-            let standardLibPattern = new vscode.RelativePattern(workspaceFolder, `.sfdx/tools/*/StandardApexLibrary/**/${className}.cls`);
+            // Step 2: Fallback to standard library (use original className for standard library search)
+            let standardLibPattern = new vscode.RelativePattern(workspaceFolder, `.sfdx/tools/*/StandardApexLibrary/**/${fileClassName}.cls`);
             let standardLibFiles = await vscode.workspace.findFiles(standardLibPattern);
             
             // Combine results, prioritizing user classes
             const allClassFiles = [...userClassFiles, ...standardLibFiles];
             
-            this.logDebug(`[VisbalExt.SymbolNavigationService] searchInSpecificClass -- Found ${userClassFiles.length} user class files and ${standardLibFiles.length} standard library files for ${className}.cls`);
+            this.logDebug(`[VisbalExt.SymbolNavigationService] searchInSpecificClass -- Found ${userClassFiles.length} user class files and ${standardLibFiles.length} standard library files for ${fileClassName}.cls (original: ${className})`);
             this.logDebug(`[VisbalExt.SymbolNavigationService] searchInSpecificClass -- User files: ${userClassFiles.map(f => f.fsPath).join(', ') || 'none'}`);
             this.logDebug(`[VisbalExt.SymbolNavigationService] searchInSpecificClass -- Standard files: ${standardLibFiles.map(f => f.fsPath).join(', ') || 'none'}`);
             
             if (allClassFiles.length === 0) {
-                this.logDebug(`[VisbalExt.SymbolNavigationService] searchInSpecificClass -- Class file ${className}.cls not found in user code or standard library`);
+                this.logDebug(`[VisbalExt.SymbolNavigationService] searchInSpecificClass -- Class file ${fileClassName}.cls (original: ${className}) not found in user code or standard library`);
                 return null;
             }
 
@@ -642,7 +691,7 @@ export class SymbolNavigationService {
             }
             
             if (existingFiles.length === 0) {
-                this.logDebug(`[VisbalExt.SymbolNavigationService] searchInSpecificClass -- No existing files found for ${className}.cls after validation`);
+                this.logDebug(`[VisbalExt.SymbolNavigationService] searchInSpecificClass -- No existing files found for ${fileClassName}.cls (original: ${className}) after validation`);
                 return null;
             }
 
@@ -662,10 +711,10 @@ export class SymbolNavigationService {
                         
                         // Validate that this is actually a definition, not a usage/call
                         if (this.validateDefinitionMatch(matchedLine, symbol, symbolType)) {
-                            this.logDebug(`[VisbalExt.SymbolNavigationService] Found ${symbol} in ${className}.cls using pattern: ${searchPattern.source} at line ${position.line + 1}`);
+                            this.logDebug(`[VisbalExt.SymbolNavigationService] Found ${symbol} in ${fileClassName}.cls (original: ${className}) using pattern: ${searchPattern.source} at line ${position.line + 1}`);
                             return { filePath: classFile, position };
                         } else {
-                            this.logDebug(`[VisbalExt.SymbolNavigationService] searchInSpecificClass -- Rejected match in ${className}.cls at line ${position.line + 1} - not a valid definition: "${matchedLine.trim()}"`);
+                            this.logDebug(`[VisbalExt.SymbolNavigationService] searchInSpecificClass -- Rejected match in ${fileClassName}.cls at line ${position.line + 1} - not a valid definition: "${matchedLine.trim()}"`);
                         }
                         
                         // Prevent infinite loop if regex doesn't have global flag
@@ -675,7 +724,7 @@ export class SymbolNavigationService {
                     }
                 }
                 
-                this.logDebug(`[VisbalExt.SymbolNavigationService] searchInSpecificClass -- Symbol ${symbol} not found in ${className}.cls`);
+                this.logDebug(`[VisbalExt.SymbolNavigationService] searchInSpecificClass -- Symbol ${symbol} not found in ${fileClassName}.cls (original: ${className})`);
             } catch (error) {
                 this.logError(`[VisbalExt.SymbolNavigationService] searchInSpecificClass -- Could not read class file: ${classFile.fsPath}`, error as Error);
             }
@@ -855,21 +904,32 @@ export class SymbolNavigationService {
 
         const workspaceFolder = vscode.workspace.workspaceFolders[0];
         
+        // Strip namespace prefix from className for file search
+        // Namespace prefixes follow pattern: NamespacePrefix__ActualClassName
+        let fileClassName = className;
+        if (className.includes('__')) {
+            const parts = className.split('__');
+            if (parts.length === 2) {
+                fileClassName = parts[1]; // Use the actual class name without namespace prefix
+                this.logDebug(`[VisbalExt.SymbolNavigationService] performSecondIterationSearch -- Stripped namespace prefix: ${className} -> ${fileClassName}`);
+            }
+        }
+        
         try {
-            // Step 1: Try to find the class file using a broader search
-            this.logDebug(`[VisbalExt.SymbolNavigationService] performSecondIterationSearch -- Searching for class file: ${className}.cls`);
+            // Step 1: Try to find the class file using a broader search (use actual class name without namespace)
+            this.logDebug(`[VisbalExt.SymbolNavigationService] performSecondIterationSearch -- Searching for class file: ${fileClassName}.cls (original: ${className})`);
             
             // Search for the class file in the entire user code base
-            let classFilePattern = new vscode.RelativePattern(workspaceFolder, `**/${className}.cls`);
+            let classFilePattern = new vscode.RelativePattern(workspaceFolder, `**/${fileClassName}.cls`);
             let classFiles = await vscode.workspace.findFiles(classFilePattern);
             
             // Filter out StandardApexLibrary files to avoid the fallback we're trying to avoid
             classFiles = classFiles.filter(file => !file.fsPath.includes('StandardApexLibrary'));
             
-            this.logDebug(`[VisbalExt.SymbolNavigationService] performSecondIterationSearch -- Found ${classFiles.length} instances of ${className}.cls in user code`);
+            this.logDebug(`[VisbalExt.SymbolNavigationService] performSecondIterationSearch -- Found ${classFiles.length} instances of ${fileClassName}.cls (original: ${className}) in user code`);
             
             if (classFiles.length === 0) {
-                this.logDebug(`[VisbalExt.SymbolNavigationService] performSecondIterationSearch -- Class file ${className}.cls not found in user code`);
+                this.logDebug(`[VisbalExt.SymbolNavigationService] performSecondIterationSearch -- Class file ${fileClassName}.cls (original: ${className}) not found in user code`);
                 return null;
             }
             
@@ -890,7 +950,7 @@ export class SymbolNavigationService {
                 }
             }
             
-            this.logDebug(`[VisbalExt.SymbolNavigationService] performSecondIterationSearch -- Method '${symbol}' not found in any instance of ${className}.cls`);
+            this.logDebug(`[VisbalExt.SymbolNavigationService] performSecondIterationSearch -- Method '${symbol}' not found in any instance of ${fileClassName}.cls (original: ${className})`);
             return null;
             
         } catch (error) {

@@ -5659,13 +5659,9 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
 
     // Add public methods for running tests
     public runTest(testClass: string, testMethod?: string) {
-        if (this._view) {
-            this._view.webview.postMessage({
-                command: 'runTest',
-                testClass,
-                testMethod
-            });
-        }
+        OrgUtils.logDebug('[VisbalExt.TestClassExplorerSidePanel] runTest -- Called with testClass:', testClass, testMethod);
+        // Directly call the internal _runTest method to trigger full test execution workflow
+        this._runTest(testClass, testMethod);
     }
 
     public runSelectedTests(tests: { classes: string[], methods: { className: string, methodName: string }[], runMode: 'sequential' | 'parallel' }) {
