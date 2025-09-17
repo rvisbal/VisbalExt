@@ -796,7 +796,7 @@ export class SymbolNavigationService {
             // Hierarchical search strategy: 
             // 1. force-app/main/default/classes/ (user classes)
             // 2. force-app/main/default/ (other user metadata)  
-            // 3. .sfdx/tools/StandardApexLibrary/ (standard library fallback)
+            // 3. Second iteration: find class file then search within it (for class-prefixed calls)
             
             for (const extension of targetExtensions) {
                 // Step 1: Search force-app/main/default/classes for user classes
@@ -825,26 +825,78 @@ export class SymbolNavigationService {
                     }
                 }
                 
-                // Step 3: Fallback to standard library if not found in user code
-                let standardLibPattern = new vscode.RelativePattern(workspaceFolder, `.sfdx/tools/*/StandardApexLibrary/**/*.${extension}`);
-                let standardLibFiles = await vscode.workspace.findFiles(standardLibPattern);
-                
-                this.logDebug(`[VisbalExt.SymbolNavigationService] findSymbolDefinition -- Found ${standardLibFiles.length} .${extension} files in StandardApexLibrary (fallback)`);
-                
-                if (standardLibFiles.length > 0) {
-                    const standardLibResult = await this.searchInFiles(standardLibFiles, symbol, symbolType, currentDocument, className);
-                    if (standardLibResult) {
-                        return standardLibResult;
+                // If we have a className and the first search failed, try a second iteration
+                // to find the class file itself and then search for the method within it
+                if (className) {
+                    this.logDebug(`[VisbalExt.SymbolNavigationService] findSymbolDefinition -- First iteration failed, trying second iteration: find class '${className}.cls' then method '${symbol}'`);
+                    const secondIterationResult = await this.performSecondIterationSearch(className, symbol, symbolType);
+                    if (secondIterationResult) {
+                        return secondIterationResult;
                     }
                 }
             }
             
-            this.logDebug(`[VisbalExt.SymbolNavigationService] findSymbolDefinition -- Workspace search completed. Symbol '${symbol}' not found in user code or standard library.`);
+            this.logDebug(`[VisbalExt.SymbolNavigationService] findSymbolDefinition -- Workspace search completed. Symbol '${symbol}' not found in user code.`);
         } catch (error) {
             this.logError('[VisbalExt.SymbolNavigationService] Error searching for symbol definition:', error as Error);
         }
         
         return null;
+    }
+
+    /**
+     * Performs a second iteration search when the first iteration fails
+     * First tries to find the class file, then searches for the method within it
+     */
+    private static async performSecondIterationSearch(className: string, symbol: string, symbolType: string): Promise<{filePath: vscode.Uri, position: vscode.Position} | null> {
+        if (!vscode.workspace.workspaceFolders) {
+            return null;
+        }
+
+        const workspaceFolder = vscode.workspace.workspaceFolders[0];
+        
+        try {
+            // Step 1: Try to find the class file using a broader search
+            this.logDebug(`[VisbalExt.SymbolNavigationService] performSecondIterationSearch -- Searching for class file: ${className}.cls`);
+            
+            // Search for the class file in the entire user code base
+            let classFilePattern = new vscode.RelativePattern(workspaceFolder, `**/${className}.cls`);
+            let classFiles = await vscode.workspace.findFiles(classFilePattern);
+            
+            // Filter out StandardApexLibrary files to avoid the fallback we're trying to avoid
+            classFiles = classFiles.filter(file => !file.fsPath.includes('StandardApexLibrary'));
+            
+            this.logDebug(`[VisbalExt.SymbolNavigationService] performSecondIterationSearch -- Found ${classFiles.length} instances of ${className}.cls in user code`);
+            
+            if (classFiles.length === 0) {
+                this.logDebug(`[VisbalExt.SymbolNavigationService] performSecondIterationSearch -- Class file ${className}.cls not found in user code`);
+                return null;
+            }
+            
+            // Step 2: Search for the method within each found class file
+            for (const classFile of classFiles) {
+                this.logDebug(`[VisbalExt.SymbolNavigationService] performSecondIterationSearch -- Searching for method '${symbol}' in ${classFile.fsPath}`);
+                
+                try {
+                    const document = await vscode.workspace.openTextDocument(classFile);
+                    const result = this.searchInCurrentFile(document, symbol, symbolType);
+                    if (result) {
+                        this.logDebug(`[VisbalExt.SymbolNavigationService] performSecondIterationSearch -- Successfully found '${symbol}' in ${classFile.fsPath}`);
+                        return result;
+                    }
+                } catch (error) {
+                    this.logError(`[VisbalExt.SymbolNavigationService] performSecondIterationSearch -- Error searching in ${classFile.fsPath}:`, error as Error);
+                    continue;
+                }
+            }
+            
+            this.logDebug(`[VisbalExt.SymbolNavigationService] performSecondIterationSearch -- Method '${symbol}' not found in any instance of ${className}.cls`);
+            return null;
+            
+        } catch (error) {
+            this.logError(`[VisbalExt.SymbolNavigationService] performSecondIterationSearch -- Error during second iteration search:`, error as Error);
+            return null;
+        }
     }
 
     /**
