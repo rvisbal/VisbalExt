@@ -16,78 +16,14 @@ import { TestRunningTaskView } from './testRunningTaskSidePanel';
 import { TestSummaryView } from './testSummarySidePanel';
 import { SalesforceApiService } from '../services/salesforceApiService';
 import { TestRunnerService } from '../services/testRunnerService';
+import { 
+    TestStatus, 
+    TestRunSuccess, 
+    TestRunFailure, 
+    TestRunResult, 
+    TestProgressState 
+} from '../types/testExplorerTypes';
 
-enum TestStatus {
-    pending = 'pending',
-    running = 'running',
-    success = 'success',
-    failed = 'failed',
-    downloading = 'downloading',
-    skipped = 'skipped'
-}
-
-interface TestRunSuccess {
-    methodName: string;
-    outcome: string;
-    runTime: number;
-    message?: string;
-}
-
-interface TestRunFailure {
-    methodName: string;
-    outcome: string;
-    runTime: number;
-    message: string;
-    stackTrace?: string;
-}
-
-interface TestRunResult {
-    status: number;
-    result: {
-        summary: {
-            commandTime?: string;
-            failing?: number;
-            failRate?: string;
-            hostname?: string;
-            orgId?: string;
-            outcome?: string;
-            passing?: number;
-            passRate?: string;
-            skipped?: number;
-            testExecutionTime?: string;
-            testRunId?: string;
-            testsRan?: number;
-            testStartTime?: string;
-            testTotalTime?: string;
-            userId?: string;
-            username?: string;
-        };
-        tests: any[];
-    };
-    warnings: any[];
-}
-
-interface TestProgressState {
-    className: string;
-    methodName: string;
-    testRunId: string;
-    error: string;
-    runTest: any;
-    runResult: any;
-    logId: string;
-    initiated: boolean;
-    finished: boolean;
-    finishExecutingTest: boolean;
-    initiateTestResult: boolean;
-    finishGettingTestResult: boolean;
-    initiateLogId: boolean;
-    finishGettingLogId: boolean;
-    initiateDownloadingLog: boolean;
-    finishDownloadingLog: boolean;
-    status: TestStatus;
-    downloadLog: boolean;
-    hasDebugTrace: boolean;
-}
 
 export class TestClassExplorerView implements vscode.WebviewViewProvider {
     public static readonly viewType = 'testClassExplorerView';

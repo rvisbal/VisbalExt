@@ -538,7 +538,7 @@ export class LogFilterService {
             {
                 id: 'builtin-user-debug',
                 name: 'User Debug Messages',
-                description: 'Shows System.debug() statements & errors',
+                description: 'Shows DEBUG & errors',
                 isActive: false,
                 isBuiltIn: true,
                 created: new Date(),
@@ -588,7 +588,7 @@ export class LogFilterService {
             {
                 id: 'builtin-user-debug-only',
                 name: 'User Debug Only',
-                description: 'Shows System.debug() statements only',
+                description: 'Shows DEBUG only',
                 isActive: false,
                 isBuiltIn: true,
                 created: new Date(),
@@ -620,7 +620,7 @@ export class LogFilterService {
             {
                 id: 'builtin-user-debug-with-dml',
                 name: 'User Debug with DML',
-                description: 'Shows System.debug() statements with DML',
+                description: 'Shows DEBUG & DML',
                 isActive: false,
                 isBuiltIn: true,
                 created: new Date(),
@@ -679,7 +679,7 @@ export class LogFilterService {
             {
                 id: 'builtin-user-debug-with-dml-soql',
                 name: 'User Debug with DML & soql',
-                description: 'Shows System.debug() statements with DML & soql',
+                description: 'Shows DEBUG, DML & SOQL',
                 isActive: false,
                 isBuiltIn: true,
                 created: new Date(),
@@ -735,6 +735,15 @@ export class LogFilterService {
                         field: 'category',
                         operator: 'equals',
                         value: 'SOQL_EXECUTE_BEGIN',
+                        caseSensitive: false,
+                        useRegex: false,
+                        negated: false
+                    },
+                    {
+                        id: 'debug-5',
+                        field: 'category',
+                        operator: 'equals',
+                        value: 'SOQL_EXECUTE_END',
                         caseSensitive: false,
                         useRegex: false,
                         negated: false
@@ -794,6 +803,15 @@ export class LogFilterService {
                         field: 'category',
                         operator: 'equals',
                         value: 'SOQL_EXECUTE_BEGIN',
+                        caseSensitive: false,
+                        useRegex: false,
+                        negated: false
+                    },
+                    {
+                        id: 'debug-5',
+                        field: 'category',
+                        operator: 'equals',
+                        value: 'SOQL_EXECUTE_END',
                         caseSensitive: false,
                         useRegex: false,
                         negated: false

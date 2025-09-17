@@ -6,6 +6,7 @@ import * as vscode from 'vscode';
 export class SymbolNavigationService {
     private static logDebug: (message: string, ...args: any[]) => void;
     private static logError: (message: string, error: any) => void;
+    private static isNavigationInProgress: boolean = false;
 
     /**
      * Symbol types that can be navigated to
@@ -290,6 +291,24 @@ export class SymbolNavigationService {
                 }
                 if (line.trim().startsWith('#') && line.includes(word)) {
                     return { symbol: word, type: this.SymbolType.CSS_ID };
+                }
+                return { symbol: word, type: this.SymbolType.VARIABLE };
+                
+            case 'log':
+            case 'txt':
+                // Log and text files - use enhanced class detection for file references
+                // Check if this appears to be a class reference in a file path
+                if (/^[A-Z][a-zA-Z0-9_]*$/.test(word) && line.includes('.cls')) {
+                    this.logDebug(`[VisbalExt.SymbolNavigationService] determineSymbolType -- Log file class pattern matched for: ${word}`);
+                    return { symbol: word, type: this.SymbolType.CLASS };
+                }
+                // Check for method calls
+                if (afterWord.startsWith('(') || new RegExp(`\\b${word}\\s*\\(`).test(line)) {
+                    return { symbol: word, type: this.SymbolType.FUNCTION };
+                }
+                // For other cases in log files, prefer CLASS if uppercase, otherwise VARIABLE
+                if (/^[A-Z][a-zA-Z0-9_]*$/.test(word)) {
+                    return { symbol: word, type: this.SymbolType.CLASS };
                 }
                 return { symbol: word, type: this.SymbolType.VARIABLE };
                 
@@ -668,9 +687,65 @@ export class SymbolNavigationService {
     }
 
     /**
+     * Searches for a direct class file by name (for log file navigation)
+     */
+    private static async searchForDirectClassFile(className: string): Promise<{filePath: vscode.Uri, position: vscode.Position} | null> {
+        if (!vscode.workspace.workspaceFolders) {
+            return null;
+        }
+
+        const workspaceFolder = vscode.workspace.workspaceFolders[0];
+        
+        try {
+            // Look for the exact class file
+            const classPattern = new vscode.RelativePattern(workspaceFolder, `**/${className}.cls`);
+            const classFiles = await vscode.workspace.findFiles(classPattern);
+            
+            if (classFiles.length === 0) {
+                return null;
+            }
+            
+            // Use the first found class file (prioritize user classes over standard lib)
+            const classFile = classFiles[0];
+            
+            // Open the file and navigate to the class declaration
+            const document = await vscode.workspace.openTextDocument(classFile);
+            const text = document.getText();
+            
+            // Look for the class declaration line
+            const classDeclarationPattern = new RegExp(`^\\s*(public\\s+|private\\s+|protected\\s+|global\\s+)?(abstract\\s+)?class\\s+${className}\\b`, 'gim');
+            const match = classDeclarationPattern.exec(text);
+            
+            if (match) {
+                const position = document.positionAt(match.index);
+                this.logDebug(`[VisbalExt.SymbolNavigationService] searchForDirectClassFile -- Found class declaration for ${className} at line ${position.line + 1}`);
+                return { filePath: classFile, position };
+            }
+            
+            // Fallback: navigate to the beginning of the file
+            this.logDebug(`[VisbalExt.SymbolNavigationService] searchForDirectClassFile -- Class declaration pattern not found, navigating to file start for ${className}.cls`);
+            return { filePath: classFile, position: new vscode.Position(0, 0) };
+            
+        } catch (error) {
+            this.logError(`[VisbalExt.SymbolNavigationService] searchForDirectClassFile -- Error searching for ${className}.cls:`, error as Error);
+            return null;
+        }
+    }
+
+    /**
      * Searches for a symbol definition across appropriate file types in the workspace
      */
     private static async findSymbolDefinition(symbol: string, symbolType: string, sourceFileExtension: string, currentDocument?: vscode.TextDocument, isThisReference: boolean = false, className?: string): Promise<{filePath: vscode.Uri, position: vscode.Position} | null> {
+        
+        // Special handling for log files: Try direct class file navigation first for CLASS symbols
+        if ((sourceFileExtension === 'log' || sourceFileExtension === 'txt') && symbolType === this.SymbolType.CLASS) {
+            this.logDebug(`[VisbalExt.SymbolNavigationService] findSymbolDefinition -- Log file: Attempting direct navigation to ${symbol}.cls`);
+            const directClassResult = await this.searchForDirectClassFile(symbol);
+            if (directClassResult) {
+                return directClassResult;
+            }
+            this.logDebug(`[VisbalExt.SymbolNavigationService] findSymbolDefinition -- Direct class file ${symbol}.cls not found, continuing with normal search`);
+        }
         
         // For class-prefixed calls (e.g., ClassName.methodName), search the specific class first
         // This applies to calls from .cls files, .log files, .txt files, etc.
@@ -951,100 +1026,138 @@ export class SymbolNavigationService {
      * Navigates to the symbol definition based on the current cursor position
      */
     public static async navigateToSelectedDefinition(): Promise<void> {
+        // Check if navigation is already in progress
+        if (this.isNavigationInProgress) {
+            this.logDebug(`[VisbalExt.SymbolNavigationService] navigateToSelectedDefinition -- Navigation already in progress, ignoring request`);
+            vscode.window.showWarningMessage('Navigation to definition is already in progress. Please wait...');
+            return;
+        }
+
         const editor = vscode.window.activeTextEditor;
         if (!editor) {
             throw new Error('No active editor found');
         }
 
-        const sourceFileExtension = editor.document.fileName.split('.').pop()?.toLowerCase() || '';
-        const position = editor.selection.active;
-        const line = editor.document.lineAt(position.line).text;
-        
-        // Debug log the cursor position and selection context
-        this.logDebug(`[VisbalExt.SymbolNavigationService] navigateToSelectedDefinition -- Starting navigation from position ${position.line}:${position.character}`);
-        this.logDebug(`[VisbalExt.SymbolNavigationService] navigateToSelectedDefinition -- Line content: "${line}"`);
-        this.logDebug(`[VisbalExt.SymbolNavigationService] navigateToSelectedDefinition -- Character at cursor: "${line[position.character] || 'END_OF_LINE'}" (charCode: ${line.charCodeAt(position.character) || 'N/A'})`);
-        this.logDebug(`[VisbalExt.SymbolNavigationService] navigateToSelectedDefinition -- File extension: "${sourceFileExtension}"`);
+        // Set navigation in progress flag and show progress
+        this.isNavigationInProgress = true;
 
-        // Extract symbol and type from cursor position
-        const symbolInfo = this.extractSymbolFromCursor(editor.document, editor.selection.active);
-        if (!symbolInfo) {
-            this.logDebug(`[VisbalExt.SymbolNavigationService] navigateToSelectedDefinition -- extractSymbolFromCursor returned null`);
-            throw new Error('No symbol found at cursor position. Please place cursor on a method, property, class, or other symbol.');
-        }
-        
-        this.logDebug(`[VisbalExt.SymbolNavigationService] navigateToSelectedDefinition -- Successfully extracted symbol: "${symbolInfo.symbol}", type: "${symbolInfo.type}", isThisReference: ${symbolInfo.isThisReference}, className: "${symbolInfo.className || 'N/A'}", variableToTrace: "${symbolInfo.variableToTrace || 'N/A'}"`);
+        return await vscode.window.withProgress({
+            location: vscode.ProgressLocation.Notification,
+            title: "Navigating to Definition",
+            cancellable: false
+        }, async (progress, token) => {
+            try {
+                progress.report({ increment: 0, message: "Analyzing cursor position..." });
 
-        let { symbol, type, isThisReference, className, variableToTrace } = symbolInfo;
-        
-        // If we have a variable to trace, try to resolve its type asynchronously
-        if (variableToTrace && !className) {
-            this.logDebug(`[VisbalExt.SymbolNavigationService] navigateToSelectedDefinition -- Tracing variable type for ${variableToTrace}`);
-            const tracedClassName = await this.traceVariableType(editor.document, variableToTrace);
-            if (tracedClassName) {
-                className = tracedClassName;
-                this.logDebug(`[VisbalExt.SymbolNavigationService] navigateToSelectedDefinition -- Successfully traced ${variableToTrace} -> ${className}`);
-            } else {
-                this.logDebug(`[VisbalExt.SymbolNavigationService] navigateToSelectedDefinition -- Could not trace variable type for ${variableToTrace}`);
-            }
-        }
-        
-        const searchContext = className ? `${className}.${symbol}` : isThisReference ? `this.${symbol}` : symbol;
-        this.logDebug(`[VisbalExt.SymbolNavigationService] navigateToSelectedDefinition -- Searching for ${type} definition: ${searchContext}`);
-        
-        // Search for symbol definition
-        const symbolLocation = await this.findSymbolDefinition(symbol, type, sourceFileExtension, editor.document, isThisReference, className);
-        if (!symbolLocation) {
-            let searchScope = 'workspace files';
-            let suggestion = '';
-            
-            if (className) {
-                searchScope = `${className}.cls and workspace files`;
-                suggestion = ` Make sure the ${className} class exists and contains the method '${symbol}'. Check if the class file is in force-app/main/default/classes/ or if it's a standard Salesforce class.`;
-            } else if (isThisReference) {
-                searchScope = 'current file and workspace';
-                suggestion = ` Make sure the method '${symbol}' is defined in this class.`;
-            } else if (variableToTrace) {
-                searchScope = `traced variable files`;
-                suggestion = ` Could not trace the type of variable '${variableToTrace}'. Make sure it's properly declared with a class type.`;
-            }
-            
-            const errorMessage = `${type} definition for '${searchContext}' not found in ${searchScope}.${suggestion}`;
-            this.logError(`[VisbalExt.SymbolNavigationService] navigateToSelectedDefinition -- ${errorMessage}`, new Error(errorMessage));
-            throw new Error(errorMessage);
-        }
+                const sourceFileExtension = editor.document.fileName.split('.').pop()?.toLowerCase() || '';
+                const position = editor.selection.active;
+                const line = editor.document.lineAt(position.line).text;
+                
+                // Debug log the cursor position and selection context
+                this.logDebug(`[VisbalExt.SymbolNavigationService] navigateToSelectedDefinition -- Starting navigation from position ${position.line}:${position.character}`);
+                this.logDebug(`[VisbalExt.SymbolNavigationService] navigateToSelectedDefinition -- Line content: "${line}"`);
+                this.logDebug(`[VisbalExt.SymbolNavigationService] navigateToSelectedDefinition -- Character at cursor: "${line[position.character] || 'END_OF_LINE'}" (charCode: ${line.charCodeAt(position.character) || 'N/A'})`);
+                this.logDebug(`[VisbalExt.SymbolNavigationService] navigateToSelectedDefinition -- File extension: "${sourceFileExtension}"`);
 
-        try {
-            // Open the document containing the symbol
-            const document = await vscode.workspace.openTextDocument(symbolLocation.filePath);
-            const newEditor = await vscode.window.showTextDocument(document);
-            
-            // Navigate to the symbol position
-            newEditor.revealRange(
-                new vscode.Range(symbolLocation.position, symbolLocation.position), 
-                vscode.TextEditorRevealType.InCenter
-            );
-            
-            // Set the cursor at the symbol
-            newEditor.selection = new vscode.Selection(symbolLocation.position, symbolLocation.position);
-            
-            const fileName = symbolLocation.filePath.fsPath.split(/[/\\]/).pop();
-            const location = symbolLocation.filePath.fsPath === editor.document.uri.fsPath ? 'same file' : fileName;
-            
-            // Show more specific success message for class-prefixed calls
-            let successMessage: string;
-            if (className) {
-                successMessage = `Navigated to ${type} '${symbol}' in ${fileName}`;
-            } else {
-                successMessage = `Navigated to ${type} '${searchContext}' in ${location}`;
+                progress.report({ increment: 20, message: "Extracting symbol information..." });
+
+                // Extract symbol and type from cursor position
+                const symbolInfo = this.extractSymbolFromCursor(editor.document, editor.selection.active);
+                if (!symbolInfo) {
+                    this.logDebug(`[VisbalExt.SymbolNavigationService] navigateToSelectedDefinition -- extractSymbolFromCursor returned null`);
+                    throw new Error('No symbol found at cursor position. Please place cursor on a method, property, class, or other symbol.');
+                }
+                
+                this.logDebug(`[VisbalExt.SymbolNavigationService] navigateToSelectedDefinition -- Successfully extracted symbol: "${symbolInfo.symbol}", type: "${symbolInfo.type}", isThisReference: ${symbolInfo.isThisReference}, className: "${symbolInfo.className || 'N/A'}", variableToTrace: "${symbolInfo.variableToTrace || 'N/A'}"`);
+
+                let { symbol, type, isThisReference, className, variableToTrace } = symbolInfo;
+        
+                // If we have a variable to trace, try to resolve its type asynchronously
+                if (variableToTrace && !className) {
+                    progress.report({ increment: 40, message: `Tracing variable type: ${variableToTrace}...` });
+                    this.logDebug(`[VisbalExt.SymbolNavigationService] navigateToSelectedDefinition -- Tracing variable type for ${variableToTrace}`);
+                    const tracedClassName = await this.traceVariableType(editor.document, variableToTrace);
+                    if (tracedClassName) {
+                        className = tracedClassName;
+                        this.logDebug(`[VisbalExt.SymbolNavigationService] navigateToSelectedDefinition -- Successfully traced ${variableToTrace} -> ${className}`);
+                    } else {
+                        this.logDebug(`[VisbalExt.SymbolNavigationService] navigateToSelectedDefinition -- Could not trace variable type for ${variableToTrace}`);
+                    }
+                }
+        
+                const searchContext = className ? `${className}.${symbol}` : isThisReference ? `this.${symbol}` : symbol;
+                this.logDebug(`[VisbalExt.SymbolNavigationService] navigateToSelectedDefinition -- Searching for ${type} definition: ${searchContext}`);
+                
+                progress.report({ increment: 60, message: `Searching for ${type} definition: ${searchContext}...` });
+
+                // Search for symbol definition
+                const symbolLocation = await this.findSymbolDefinition(symbol, type, sourceFileExtension, editor.document, isThisReference, className);
+                if (!symbolLocation) {
+                    let searchScope = 'workspace files';
+                    let suggestion = '';
+                    
+                    if (className) {
+                        searchScope = `${className}.cls and workspace files`;
+                        suggestion = ` Make sure the ${className} class exists and contains the method '${symbol}'. Check if the class file is in force-app/main/default/classes/ or if it's a standard Salesforce class.`;
+                    } else if (isThisReference) {
+                        searchScope = 'current file and workspace';
+                        suggestion = ` Make sure the method '${symbol}' is defined in this class.`;
+                    } else if (variableToTrace) {
+                        searchScope = `traced variable files`;
+                        suggestion = ` Could not trace the type of variable '${variableToTrace}'. Make sure it's properly declared with a class type.`;
+                    }
+                    
+                    const errorMessage = `${type} definition for '${searchContext}' not found in ${searchScope}.${suggestion}`;
+                    this.logError(`[VisbalExt.SymbolNavigationService] navigateToSelectedDefinition -- ${errorMessage}`, new Error(errorMessage));
+                    throw new Error(errorMessage);
+                }
+
+                progress.report({ increment: 80, message: "Opening definition file..." });
+
+                try {
+                    // Open the document containing the symbol
+                    const document = await vscode.workspace.openTextDocument(symbolLocation.filePath);
+                    const newEditor = await vscode.window.showTextDocument(document);
+                    
+                    progress.report({ increment: 95, message: "Navigating to symbol..." });
+
+                    // Navigate to the symbol position
+                    newEditor.revealRange(
+                        new vscode.Range(symbolLocation.position, symbolLocation.position), 
+                        vscode.TextEditorRevealType.InCenter
+                    );
+                    
+                    // Set the cursor at the symbol
+                    newEditor.selection = new vscode.Selection(symbolLocation.position, symbolLocation.position);
+                    
+                    const fileName = symbolLocation.filePath.fsPath.split(/[/\\]/).pop();
+                    const location = symbolLocation.filePath.fsPath === editor.document.uri.fsPath ? 'same file' : fileName;
+                    
+                    // Show more specific success message for class-prefixed calls
+                    let successMessage: string;
+                    if (className) {
+                        successMessage = `Navigated to ${type} '${symbol}' in ${fileName}`;
+                    } else {
+                        successMessage = `Navigated to ${type} '${searchContext}' in ${location}`;
+                    }
+                    
+                    progress.report({ increment: 100, message: "Navigation complete!" });
+                    
+                    this.logDebug(`[VisbalExt.SymbolNavigationService] navigateToSelectedDefinition -- Successfully navigated to ${type} '${searchContext}' in ${location}`);
+                    vscode.window.showInformationMessage(successMessage);
+                    
+                } catch (error: any) {
+                    this.logError(`[VisbalExt.SymbolNavigationService] Error opening symbol definition file:`, error);
+                    throw new Error(`Could not open file containing ${type} '${searchContext}': ${error.message}`);
+                }
+            } catch (error) {
+                // Re-throw the error to be handled by the calling code
+                throw error;
+            } finally {
+                // Always clear the navigation flag, regardless of success or failure
+                this.isNavigationInProgress = false;
+                this.logDebug(`[VisbalExt.SymbolNavigationService] navigateToSelectedDefinition -- Navigation flag cleared`);
             }
-            
-            this.logDebug(`[VisbalExt.SymbolNavigationService] navigateToSelectedDefinition -- Successfully navigated to ${type} '${searchContext}' in ${location}`);
-            vscode.window.showInformationMessage(successMessage);
-            
-        } catch (error: any) {
-            this.logError(`[VisbalExt.SymbolNavigationService] Error opening symbol definition file:`, error);
-            throw new Error(`Could not open file containing ${type} '${searchContext}': ${error.message}`);
-        }
+        });
     }
 }
