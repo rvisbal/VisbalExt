@@ -577,19 +577,54 @@ export async function activate(context: vscode.ExtensionContext) {
   const auraEnabledReportCommand = vscode.commands.registerCommand('visbal-ext.reportAuraEnabled', async () => {
     try {
       outputChannel.appendLine('[VisbalExt.Extension] reportAuraEnabled -- Starting @AuraEnabled report generation');
+      
+      // Helper function to send progress updates to Traction tab
+      const sendProgressToTraction = (title: string, description: string, percentage?: number) => {
+        try {
+          if (tractionTab && tractionTab.updateProgress) {
+            tractionTab.updateProgress(title, description, percentage);
+          }
+        } catch (e) {
+          // Silently fail if we can't send progress updates
+        }
+      };
+      
       vscode.window.withProgress({
         location: vscode.ProgressLocation.Notification,
         title: "Scanning @AuraEnabled methods and LWC references...",
         cancellable: false
       }, async (progress) => {
         try {
+          // Stage 1: Initialize scanning
+          sendProgressToTraction('Scanning Apex Classes', 'Analyzing @AuraEnabled methods in force-app/main/default/classes...', 25);
+          progress.report({ increment: 25, message: "Scanning Apex classes..." });
+          
+          // Small delay to show progress
+          await new Promise(resolve => setTimeout(resolve, 300));
+          
           const { AuraEnabledService } = await import('./services/auraEnabledService');
+          
+          // Stage 2: Find LWC references
+          sendProgressToTraction('Scanning LWC References', 'Searching for method references in force-app/main/default/lwc...', 50);
+          progress.report({ increment: 25, message: "Scanning LWC references..." });
+          
+          // Small delay to show progress
+          await new Promise(resolve => setTimeout(resolve, 300));
+          
           const resultsByClass = await AuraEnabledService.findAuraEnabledMethods();
           
           if (resultsByClass.size === 0) {
+            sendProgressToTraction('No Results Found', 'No @AuraEnabled methods found that are referenced by Lightning Web Components.', 100);
             vscode.window.showInformationMessage('No @AuraEnabled methods found that are referenced by Lightning Web Components.');
             return;
           }
+          
+          // Stage 3: Build results
+          sendProgressToTraction('Building Reference Tree', 'Organizing results by class and method...', 75);
+          progress.report({ increment: 25, message: "Building reference tree..." });
+          
+          // Small delay to show progress
+          await new Promise(resolve => setTimeout(resolve, 300));
           
           // Calculate totals for the summary
           let totalMethods = 0;
@@ -598,6 +633,13 @@ export async function activate(context: vscode.ExtensionContext) {
             totalMethods += methods.length;
             totalReferences += methods.reduce((sum, method) => sum + method.references.length, 0);
           }
+          
+          // Stage 4: Update UI
+          sendProgressToTraction('Complete', 'Opening References panel...', 100);
+          progress.report({ increment: 25, message: "Opening References panel..." });
+          
+          // Small delay before completion
+          await new Promise(resolve => setTimeout(resolve, 500));
           
           // Update the references view with hierarchical results
           if (referencesView) {
@@ -653,6 +695,7 @@ export async function activate(context: vscode.ExtensionContext) {
             vscode.window.showInformationMessage(`Found ${resultsByClass.size} classes with ${totalMethods} @AuraEnabled methods. See Output panel for details.`);
           }
         } catch (error: any) {
+          sendProgressToTraction('Error', `Failed to generate @AuraEnabled report: ${error.message}`, 0);
           outputChannel.appendLine(`[VisbalExt.Extension] reportAuraEnabled -- Error: ${error.message}`);
           vscode.window.showErrorMessage(`Failed to generate @AuraEnabled report: ${error.message}`);
         }

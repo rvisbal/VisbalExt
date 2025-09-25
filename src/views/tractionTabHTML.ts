@@ -25,6 +25,7 @@ export function getTractionHtml(): string {
             flex-direction: column;
             height: 100vh;
             overflow: hidden;
+            position: relative;
         }
         
         .top-bar {
@@ -70,6 +71,94 @@ export function getTractionHtml(): string {
         .status-success {
             color: var(--vscode-testing-iconPassed);
         }
+
+        .progress-container {
+            position: absolute;
+            top: 50px;
+            left: 0;
+            right: 0;
+            bottom: 30px;
+            display: none;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            padding: 40px 20px;
+            background: var(--vscode-editor-background);
+            border: 1px solid var(--vscode-panel-border);
+            z-index: 1000;
+            border-radius: 8px;
+            margin: 8px;
+        }
+        
+        .progress-container.active {
+            display: flex;
+        }
+        
+        .progress-icon {
+            width: 48px;
+            height: 48px;
+            margin-bottom: 20px;
+            opacity: 0.8;
+        }
+        
+        .loading-spinner {
+            width: 48px;
+            height: 48px;
+            border: 4px solid var(--vscode-progressBar-background);
+            border-top: 4px solid var(--vscode-button-background);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-bottom: 20px;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        .progress-title {
+            font-size: 16px;
+            font-weight: 600;
+            margin-bottom: 8px;
+            color: var(--vscode-foreground);
+            text-align: center;
+        }
+        
+        .progress-description {
+            font-size: 13px;
+            color: var(--vscode-descriptionForeground);
+            text-align: center;
+            line-height: 1.4;
+            max-width: 400px;
+        }
+        
+        .progress-bar {
+            width: 300px;
+            height: 4px;
+            background: var(--vscode-progressBar-background);
+            border-radius: 2px;
+            margin: 16px 0;
+            overflow: hidden;
+        }
+        
+        .progress-bar-fill {
+            height: 100%;
+            background: var(--vscode-button-background);
+            border-radius: 2px;
+            width: 0%;
+            transition: width 0.3s ease;
+            position: relative;
+        }
+        
+        .progress-bar-fill.indeterminate {
+            width: 30%;
+            animation: progress-slide 2s infinite;
+        }
+        
+        @keyframes progress-slide {
+            0% { transform: translateX(-100%); }
+            100% { transform: translateX(1000%); }
+        }
         
         .dropdown-button-group {
             position: relative;
@@ -79,13 +168,13 @@ export function getTractionHtml(): string {
         .dropdown-menu {
             position: absolute;
             top: 100%;
-            left: 0;
+            right: 0;
             min-width: 220px;
             background: var(--vscode-dropdown-background);
             border: 1px solid var(--vscode-dropdown-border);
             border-radius: 4px;
             box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
-            z-index: 1000;
+            z-index: 1001;
             margin-top: 2px;
         }
         
@@ -159,6 +248,16 @@ export function getTractionHtml(): string {
             </div>
         </div>
         
+        <div class="progress-container" id="progress-container">
+            <div class="loading-spinner"></div>
+            <div class="progress-title" id="progress-title">Scanning @AuraEnabled Methods</div>
+            <div class="progress-description" id="progress-description">
+                Searching for @AuraEnabled methods in Apex classes and their references in Lightning Web Components...
+            </div>
+            <div class="progress-bar">
+                <div class="progress-bar-fill indeterminate" id="progress-bar-fill"></div>
+            </div>
+        </div>
         
         <div class="status-message" id="status-bar">
             Ready
@@ -177,6 +276,10 @@ export function getTractionHtml(): string {
             const terminalMainButton = document.getElementById('terminal-main-button');
             const terminalMenu = document.getElementById('terminal-dropdown-menu');
             const statusBar = document.getElementById('status-bar');
+            const progressContainer = document.getElementById('progress-container');
+            const progressTitle = document.getElementById('progress-title');
+            const progressDescription = document.getElementById('progress-description');
+            const progressBarFill = document.getElementById('progress-bar-fill');
             
             
             // Selected org tracking
@@ -191,6 +294,38 @@ export function getTractionHtml(): string {
                 } else if (type === 'success') {
                     statusBar.classList.add('status-success');
                 }
+            }
+            
+            // Progress functions
+            function showProgress(title = 'Processing...', description = '') {
+                console.log('[TractionTab] showProgress called:', title, description);
+                progressTitle.textContent = title;
+                progressDescription.textContent = description;
+                progressContainer.classList.add('active');
+                progressBarFill.classList.add('indeterminate');
+                progressBarFill.style.width = '30%';
+                console.log('[TractionTab] Progress container classes:', progressContainer.className);
+            }
+            
+            function updateProgress(title, description, percentage = null) {
+                console.log('[TractionTab] updateProgress called:', title, description, percentage);
+                if (title) progressTitle.textContent = title;
+                if (description) progressDescription.textContent = description;
+                
+                if (percentage !== null && percentage >= 0 && percentage <= 100) {
+                    progressBarFill.classList.remove('indeterminate');
+                    progressBarFill.style.width = percentage + '%';
+                } else if (!progressBarFill.classList.contains('indeterminate')) {
+                    progressBarFill.classList.add('indeterminate');
+                    progressBarFill.style.width = '30%';
+                }
+            }
+            
+            function hideProgress() {
+                console.log('[TractionTab] hideProgress called');
+                progressContainer.classList.remove('active');
+                progressBarFill.classList.remove('indeterminate');
+                progressBarFill.style.width = '0%';
             }
             
             // Handle org selection with the same logic as other tabs
@@ -266,11 +401,22 @@ export function getTractionHtml(): string {
                 item.addEventListener('click', (e) => {
                     e.stopPropagation();
                     const action = item.dataset.action;
+                    
+                    // Show progress for @AuraEnabled report
+                    if (action === 'auraEnabled') {
+                        showProgress(
+                            'Scanning @AuraEnabled Methods',
+                            'Searching for @AuraEnabled methods in Apex classes and their references in Lightning Web Components...'
+                        );
+                        updateStatus('Starting @AuraEnabled report generation...');
+                    } else {
+                        updateStatus(\`Opening \${item.textContent}...\`);
+                    }
+                    
                     vscode.postMessage({
                         command: 'terminalAction',
                         action: action
                     });
-                    updateStatus(\`Opening \${item.textContent}...\`);
                     terminalMenu.classList.add('hidden');
                 });
             });
@@ -292,6 +438,18 @@ export function getTractionHtml(): string {
                         orgSelector.value = selectedOrg;
                         orgSelector.setAttribute('data-last-selection', selectedOrg);
                         updateStatus(\`Selected org: \${selectedOrg}\`, 'success');
+                        break;
+                    case 'showProgress':
+                        console.log('[TractionTab] Received showProgress message:', message);
+                        showProgress(message.title, message.description);
+                        break;
+                    case 'updateProgress':
+                        console.log('[TractionTab] Received updateProgress message:', message);
+                        updateProgress(message.title, message.description, message.percentage);
+                        break;
+                    case 'hideProgress':
+                        console.log('[TractionTab] Received hideProgress message');
+                        hideProgress();
                         break;
                 }
             });

@@ -289,6 +289,29 @@ export class TractionTab implements vscode.WebviewViewProvider {
         });
     }
 
+    private _showProgress(title: string, description: string) {
+        this._view?.webview.postMessage({
+            command: 'showProgress',
+            title: title,
+            description: description
+        });
+    }
+
+    private _updateProgress(title: string, description: string, percentage?: number) {
+        this._view?.webview.postMessage({
+            command: 'updateProgress',
+            title: title,
+            description: description,
+            percentage: percentage
+        });
+    }
+
+    private _hideProgress() {
+        this._view?.webview.postMessage({
+            command: 'hideProgress'
+        });
+    }
+
     private _flattenOrgGroups(orgGroups: any): SalesforceOrg[] {
         if (!orgGroups) {
             return [];
@@ -311,15 +334,26 @@ export class TractionTab implements vscode.WebviewViewProvider {
 
     private async _handleAuraEnabledReport() {
         try {
-            OrgUtils.logDebug('[VisbalExt.TractionTab] _handleAuraEnabledReport -- Triggering @AuraEnabled report command');
-            this._updateStatus('Generating @AuraEnabled report...', 'info');
+            OrgUtils.logDebug('[VisbalExt.TractionTab] _handleAuraEnabledReport -- Starting @AuraEnabled report generation');
+            
+            // Show initial progress
+            this._showProgress(
+                'Starting @AuraEnabled Scan',
+                'Initializing scan for @AuraEnabled methods and Lightning Web Component references...'
+            );
+            this._updateStatus('Starting @AuraEnabled report generation...', 'info');
             
             // Execute the registered command which handles all the logic
+            // The command itself will send progress updates
             await vscode.commands.executeCommand('visbal-ext.reportAuraEnabled');
             
-            this._updateStatus('@AuraEnabled report completed', 'success');
+            // Only hide progress and show completion when the command actually finishes
+            this._hideProgress();
+            this._updateStatus('@AuraEnabled report completed - check References panel', 'success');
+            
         } catch (error: any) {
-            OrgUtils.logError(`[VisbalExt.TractionTab] _handleAuraEnabledReport -- Error triggering @AuraEnabled report`, error as Error);
+            this._hideProgress();
+            OrgUtils.logError(`[VisbalExt.TractionTab] _handleAuraEnabledReport -- Error generating @AuraEnabled report`, error as Error);
             this._updateStatus(`Failed to generate @AuraEnabled report: ${error.message}`, 'error');
             vscode.window.showErrorMessage(`Failed to generate @AuraEnabled report: ${error.message}`);
         }
@@ -328,5 +362,17 @@ export class TractionTab implements vscode.WebviewViewProvider {
     public refresh(): void {
         OrgUtils.logDebug('[VisbalExt.TractionTab] refresh -- Refreshing traction tab');
         this._refreshOrgList();
+    }
+
+    public updateProgress(title: string, description: string, percentage?: number): void {
+        this._updateProgress(title, description, percentage);
+    }
+
+    public showProgress(title: string, description: string): void {
+        this._showProgress(title, description);
+    }
+
+    public hideProgress(): void {
+        this._hideProgress();
     }
 }
