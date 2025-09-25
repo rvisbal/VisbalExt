@@ -54,74 +54,6 @@ export function getTractionHtml(): string {
             gap: 2px;
         }
         
-        .content {
-            flex: 1;
-            display: flex;
-            flex-direction: column;
-            padding: 16px;
-            overflow: auto;
-        }
-        
-        .info-card {
-            background: var(--vscode-editor-background);
-            border: 1px solid var(--vscode-panel-border);
-            border-radius: 4px;
-            padding: 16px;
-            margin-bottom: 16px;
-        }
-        
-        .info-title {
-            font-size: 14px;
-            font-weight: 600;
-            margin-bottom: 8px;
-            color: var(--vscode-foreground);
-        }
-        
-        .info-description {
-            font-size: 12px;
-            color: var(--vscode-descriptionForeground);
-            line-height: 1.4;
-        }
-        
-        .actions-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-            gap: 12px;
-        }
-        
-        .action-card {
-            background: var(--vscode-input-background);
-            border: 1px solid var(--vscode-input-border);
-            border-radius: 4px;
-            padding: 12px;
-            text-align: center;
-            cursor: pointer;
-            transition: all 0.2s;
-        }
-        
-        .action-card:hover {
-            background: var(--vscode-list-hoverBackground);
-            border-color: var(--vscode-focusBorder);
-        }
-        
-        .action-icon {
-            width: 24px;
-            height: 24px;
-            margin: 0 auto 8px;
-            opacity: 0.8;
-        }
-        
-        .action-title {
-            font-size: 12px;
-            font-weight: 600;
-            margin-bottom: 4px;
-            color: var(--vscode-foreground);
-        }
-        
-        .action-description {
-            font-size: 11px;
-            color: var(--vscode-descriptionForeground);
-        }
         
         .status-message {
             padding: 4px 12px;
@@ -221,46 +153,12 @@ export function getTractionHtml(): string {
                         <div class="dropdown-item" data-action="terminal">Open Terminal</div>
                         <div class="dropdown-item" data-action="powershell">Open PowerShell</div>
                         <div class="dropdown-item" data-action="cmd">Open Command Prompt</div>
+                        <div class="dropdown-item" data-action="auraEnabled">Report @AuraEnabled</div>
                     </div>
                 </div>
             </div>
         </div>
         
-        <div class="content">
-            <div class="info-card">
-                <div class="info-title">Salesforce Development Traction</div>
-                <div class="info-description">
-                    Streamline your Salesforce development workflow with quick access to essential tools and operations.
-                    Select an org from the dropdown above and use the toolbar actions to manage your development environment efficiently.
-                </div>
-            </div>
-            
-            <div class="actions-grid">
-                <div class="action-card" id="action-open-org">
-                    <div class="action-icon globe-icon"></div>
-                    <div class="action-title">Open Org</div>
-                    <div class="action-description">Open the selected Salesforce org in your browser</div>
-                </div>
-                
-                <div class="action-card" id="action-deploy">
-                    <div class="action-icon deploy-icon"></div>
-                    <div class="action-title">Deploy</div>
-                    <div class="action-description">Deploy your changes to the selected org</div>
-                </div>
-                
-                <div class="action-card" id="action-terminal">
-                    <div class="action-icon terminal-icon"></div>
-                    <div class="action-title">Terminal</div>
-                    <div class="action-description">Open terminal with various options</div>
-                </div>
-                
-                <div class="action-card" id="action-refresh">
-                    <div class="action-icon refresh-icon"></div>
-                    <div class="action-title">Refresh Orgs</div>
-                    <div class="action-description">Refresh the organization list</div>
-                </div>
-            </div>
-        </div>
         
         <div class="status-message" id="status-bar">
             Ready
@@ -280,11 +178,6 @@ export function getTractionHtml(): string {
             const terminalMenu = document.getElementById('terminal-dropdown-menu');
             const statusBar = document.getElementById('status-bar');
             
-            // Action cards
-            const actionOpenOrg = document.getElementById('action-open-org');
-            const actionDeploy = document.getElementById('action-deploy');
-            const actionTerminal = document.getElementById('action-terminal');
-            const actionRefresh = document.getElementById('action-refresh');
             
             // Selected org tracking
             let selectedOrg = '';
@@ -340,7 +233,6 @@ export function getTractionHtml(): string {
             }
             
             openOrgButton.addEventListener('click', openOrg);
-            actionOpenOrg.addEventListener('click', openOrg);
             
             // Deploy
             function deploy() {
@@ -356,7 +248,6 @@ export function getTractionHtml(): string {
             }
             
             deployOrgButton.addEventListener('click', deploy);
-            actionDeploy.addEventListener('click', deploy);
             
             // Terminal dropdown
             terminalMainButton.addEventListener('click', (e) => {
@@ -364,10 +255,6 @@ export function getTractionHtml(): string {
                 terminalMenu.classList.toggle('hidden');
             });
             
-            // Terminal action card
-            actionTerminal.addEventListener('click', () => {
-                terminalMenu.classList.toggle('hidden');
-            });
             
             // Close dropdown when clicking outside
             document.addEventListener('click', () => {
@@ -388,11 +275,6 @@ export function getTractionHtml(): string {
                 });
             });
             
-            // Refresh action card
-            actionRefresh.addEventListener('click', () => {
-                vscode.postMessage({ command: 'refreshOrgList' });
-                updateStatus('Refreshing org list...');
-            });
             
             // Handle messages from extension
             window.addEventListener('message', event => {

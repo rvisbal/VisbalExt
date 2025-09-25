@@ -32,6 +32,7 @@ import { JsonViewerService } from './services/jsonViewerService';
 import { StorageService } from './services/storageService';
 import { OrgListCacheService } from './services/orgListCacheService';
 import { ReferencesView } from './views/referencesView';
+import { SymbolReference } from './services/referencesService';
 import { SymbolNavigationService } from './services/symbolNavigationService';
 
 let outputChannel: vscode.OutputChannel;
@@ -571,6 +572,77 @@ export async function activate(context: vscode.ExtensionContext) {
   // Initialize References View (using simple logging to avoid external processes)
   outputChannel.appendLine('[VisbalExt.Extension] activate -- Initializing ReferencesView');
   referencesView = new ReferencesView(context);
+
+  // Register @AuraEnabled report command
+  const auraEnabledReportCommand = vscode.commands.registerCommand('visbal-ext.reportAuraEnabled', async () => {
+    try {
+      outputChannel.appendLine('[VisbalExt.Extension] reportAuraEnabled -- Starting @AuraEnabled report generation');
+      vscode.window.withProgress({
+        location: vscode.ProgressLocation.Notification,
+        title: "Scanning @AuraEnabled methods and LWC references...",
+        cancellable: false
+      }, async (progress) => {
+        try {
+          const { AuraEnabledService } = await import('./services/auraEnabledService');
+          const symbolReferences = await AuraEnabledService.findAuraEnabledMethods();
+          
+          if (symbolReferences.length === 0) {
+            vscode.window.showInformationMessage('No @AuraEnabled methods found that are referenced by Lightning Web Components.');
+            return;
+          }
+          
+          // Create a combined symbol reference for all @AuraEnabled methods
+          const combinedReference: SymbolReference = {
+            symbol: '@AuraEnabled Methods',
+            type: 'Report',
+            contextDescription: `@AuraEnabled Methods (${symbolReferences.length} methods with LWC references)`,
+            references: symbolReferences.flatMap(sr => sr.references)
+          };
+          
+          // Update the references view with the results
+          if (referencesView) {
+            referencesView.getTreeDataProvider().updateReferences(combinedReference);
+            
+            // Show the References panel
+            try {
+              await vscode.commands.executeCommand('workbench.view.extension.visbal-references-container');
+            } catch (error) {
+              console.log('[Extension] Could not open references panel, but results are available');
+            }
+            
+            vscode.window.showInformationMessage(`Found ${symbolReferences.length} @AuraEnabled methods with ${combinedReference.references.length} LWC references. Check the References panel.`);
+          } else {
+            // Fallback: show results in output channel
+            let message = `Found ${symbolReferences.length} @AuraEnabled methods with LWC references:\n\n`;
+            
+            symbolReferences.forEach((sr, index) => {
+              message += `${index + 1}. ${sr.contextDescription} (${sr.references.length} references)\n`;
+              sr.references.forEach(ref => {
+                message += `   - ${ref.fileName}:${ref.position.line + 1}\n`;
+              });
+              message += '\n';
+            });
+            
+            // Show in output channel
+            const auraReportChannel = vscode.window.createOutputChannel('@AuraEnabled Report');
+            auraReportChannel.clear();
+            auraReportChannel.appendLine(message);
+            auraReportChannel.show();
+            
+            vscode.window.showInformationMessage(`Found ${symbolReferences.length} @AuraEnabled methods with LWC references. See Output panel for details.`);
+          }
+        } catch (error: any) {
+          outputChannel.appendLine(`[VisbalExt.Extension] reportAuraEnabled -- Error: ${error.message}`);
+          vscode.window.showErrorMessage(`Failed to generate @AuraEnabled report: ${error.message}`);
+        }
+      });
+    } catch (error: any) {
+      outputChannel.appendLine(`[VisbalExt.Extension] reportAuraEnabled -- Error: ${error.message}`);
+      vscode.window.showErrorMessage(`Failed to generate @AuraEnabled report: ${error.message}`);
+    }
+  });
+
+  context.subscriptions.push(auraEnabledReportCommand);
 
   // Register commands for panel activation (only if respective modules are enabled)
   if (isModuleEnabled('logAnalyzer')) {

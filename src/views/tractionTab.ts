@@ -255,6 +255,10 @@ export class TractionTab implements vscode.WebviewViewProvider {
                     }
                     break;
                     
+                case 'auraEnabled':
+                    await this._handleAuraEnabledReport();
+                    return; // Early return since this doesn't create a terminal
+                    
                 default:
                     terminalName = 'Terminal';
             }
@@ -303,6 +307,22 @@ export class TractionTab implements vscode.WebviewViewProvider {
         }
         
         return orgs;
+    }
+
+    private async _handleAuraEnabledReport() {
+        try {
+            OrgUtils.logDebug('[VisbalExt.TractionTab] _handleAuraEnabledReport -- Triggering @AuraEnabled report command');
+            this._updateStatus('Generating @AuraEnabled report...', 'info');
+            
+            // Execute the registered command which handles all the logic
+            await vscode.commands.executeCommand('visbal-ext.reportAuraEnabled');
+            
+            this._updateStatus('@AuraEnabled report completed', 'success');
+        } catch (error: any) {
+            OrgUtils.logError(`[VisbalExt.TractionTab] _handleAuraEnabledReport -- Error triggering @AuraEnabled report`, error as Error);
+            this._updateStatus(`Failed to generate @AuraEnabled report: ${error.message}`, 'error');
+            vscode.window.showErrorMessage(`Failed to generate @AuraEnabled report: ${error.message}`);
+        }
     }
 
     public refresh(): void {
