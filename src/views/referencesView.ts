@@ -240,6 +240,140 @@ export class ReferencesTreeProvider implements vscode.TreeDataProvider<Reference
     }
 
     /**
+     * Updates the tree with @AuraEnabled method results organized by class -> method -> references
+     */
+    public updateAuraEnabledReferences(resultsByClass: Map<string, SymbolReference[]>): void {
+        this.currentSymbolReference = null; // Clear current reference since this is a special hierarchical view
+        this.rootItems = [];
+
+        if (resultsByClass.size > 0) {
+            // Calculate totals for the root label
+            let totalMethods = 0;
+            let totalReferences = 0;
+            for (const [className, methods] of resultsByClass) {
+                totalMethods += methods.length;
+                totalReferences += methods.reduce((sum, method) => sum + method.references.length, 0);
+            }
+
+            // Create overall root node
+            const overallRootLabel = `@AuraEnabled Methods (${resultsByClass.size} classes, ${totalMethods} methods, ${totalReferences} references)`;
+            const overallRootItem = new ReferenceTreeItem(
+                overallRootLabel,
+                vscode.TreeItemCollapsibleState.Expanded,
+                undefined,
+                'root'
+            );
+
+            // Sort classes by name
+            const sortedClasses = Array.from(resultsByClass.entries()).sort(([a], [b]) => a.localeCompare(b));
+
+            // Create class nodes
+            for (const [className, methods] of sortedClasses) {
+                const classMethodCount = methods.length;
+                const classRefCount = methods.reduce((sum, method) => sum + method.references.length, 0);
+                
+                const classLabel = `📁 ${className}`;
+                const classItem = new ReferenceTreeItem(
+                    classLabel,
+                    vscode.TreeItemCollapsibleState.Expanded,
+                    undefined,
+                    'file' // Use 'file' type for appropriate styling
+                );
+                
+                // Set description to show method and reference counts
+                classItem.description = `${classMethodCount} method${classMethodCount === 1 ? '' : 's'}, ${classRefCount} reference${classRefCount === 1 ? '' : 's'}`;
+
+                // Add command to navigate to class file if we have method definitions
+                const firstMethodWithDef = methods.find(m => (m as any).methodDefinition) as any;
+                if (firstMethodWithDef?.methodDefinition) {
+                    classItem.command = {
+                        title: 'Open Class File',
+                        command: 'visbal-ext.openFile',
+                        arguments: [firstMethodWithDef.methodDefinition.filePath]
+                    };
+                    
+                    // Update tooltip to indicate it's clickable
+                    classItem.tooltip = `Click to open ${className}.cls file`;
+                    
+                    // Set resource URI for better VS Code integration
+                    classItem.resourceUri = firstMethodWithDef.methodDefinition.filePath;
+                }
+
+                // Sort methods by name
+                const sortedMethods = methods.sort((a, b) => a.symbol.localeCompare(b.symbol));
+
+                // Create method nodes
+                for (const method of sortedMethods) {
+                    const methodLabel = `⚡ ${method.contextDescription}`;
+                    
+                    // Create a method tree item with navigation to method definition
+                    const methodItem = new ReferenceTreeItem(
+                        methodLabel,
+                        vscode.TreeItemCollapsibleState.Expanded,
+                        undefined,
+                        'root'
+                    );
+                    
+                    // Set description to show reference count
+                    methodItem.description = `${method.references.length} reference${method.references.length === 1 ? '' : 's'}`;
+
+                    // Add command to navigate to method definition if available
+                    const methodWithDef = method as any;
+                    if (methodWithDef.methodDefinition) {
+                        methodItem.command = {
+                            title: 'Go to Method Definition',
+                            command: 'visbal-ext.goToReference',
+                            arguments: [methodWithDef.methodDefinition.filePath, methodWithDef.methodDefinition.position]
+                        };
+                        
+                        // Update tooltip to indicate it's clickable
+                        methodItem.tooltip = `Click to go to method definition in ${method.className}.cls\n\n${methodWithDef.methodDefinition.lineText.trim()}`;
+                        
+                        // Set resource URI for better VS Code integration
+                        methodItem.resourceUri = methodWithDef.methodDefinition.filePath;
+                        
+                        // Use method icon to indicate it's a clickable method
+                        methodItem.iconPath = new vscode.ThemeIcon('symbol-method', new vscode.ThemeColor('symbolIcon.methodForeground'));
+                    }
+
+                    // Sort references by file name, then by line number
+                    const sortedReferences = method.references.sort((a, b) => {
+                        const fileCompare = a.fileName.localeCompare(b.fileName);
+                        if (fileCompare !== 0) return fileCompare;
+                        return a.position.line - b.position.line;
+                    });
+
+                    // Add reference items under each method
+                    for (const reference of sortedReferences) {
+                        const lineNumber = reference.position.line + 1;
+                        const lineText = reference.lineText.trim();
+                        
+                        // Format reference with file name and line number
+                        const referenceLabel = `${reference.fileName}:${lineNumber} - ${this.formatReferenceLabel(lineText, lineNumber)}`;
+                        
+                        const referenceItem = new ReferenceTreeItem(
+                            referenceLabel,
+                            vscode.TreeItemCollapsibleState.None,
+                            reference,
+                            'reference'
+                        );
+                        
+                        methodItem.addChild(referenceItem);
+                    }
+
+                    classItem.addChild(methodItem);
+                }
+
+                overallRootItem.addChild(classItem);
+            }
+
+            this.rootItems.push(overallRootItem);
+        }
+
+        this._onDidChangeTreeData.fire();
+    }
+
+    /**
      * Clears the references view
      */
     public clearReferences(): void {

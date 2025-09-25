@@ -26,36 +26,60 @@ export class AuraEnabledService {
     
     /**
      * Finds all @AuraEnabled methods in Apex classes and their references in LWC files
+     * Returns results grouped by class for hierarchical display
      */
-    public static async findAuraEnabledMethods(): Promise<SymbolReference[]> {
+    public static async findAuraEnabledMethods(): Promise<Map<string, SymbolReference[]>> {
         const workspaceFolders = vscode.workspace.workspaceFolders;
         if (!workspaceFolders) {
             throw new Error('No workspace folder found');
         }
 
-        const results: SymbolReference[] = [];
+        const resultsByClass = new Map<string, SymbolReference[]>();
         
         // Find all @AuraEnabled methods
         const auraEnabledMethods = await this.scanAuraEnabledMethods();
         
-        // For each method, find references in LWC files
+        // Group methods by class
+        const methodsByClass = new Map<string, AuraEnabledMethod[]>();
         for (const method of auraEnabledMethods) {
-            const references = await this.findLWCReferences(method);
+            if (!methodsByClass.has(method.className)) {
+                methodsByClass.set(method.className, []);
+            }
+            methodsByClass.get(method.className)!.push(method);
+        }
+        
+        // For each class, find references for all its methods
+        for (const [className, methods] of methodsByClass) {
+            const classResults: SymbolReference[] = [];
             
-            if (references.length > 0) {
-                const symbolReference: SymbolReference = {
-                    symbol: method.methodName,
-                    type: '@AuraEnabled Method',
-                    className: method.className,
-                    contextDescription: `${method.className}.${method.methodName}`,
-                    references: references
-                };
+            for (const method of methods) {
+                const references = await this.findLWCReferences(method);
                 
-                results.push(symbolReference);
+                if (references.length > 0) {
+                    const symbolReference: SymbolReference & { methodDefinition?: { filePath: vscode.Uri; position: vscode.Position; lineText: string } } = {
+                        symbol: method.methodName,
+                        type: '@AuraEnabled Method',
+                        className: method.className,
+                        contextDescription: `${method.methodName}()`,
+                        references: references,
+                        methodDefinition: {
+                            filePath: method.filePath,
+                            position: method.position,
+                            lineText: method.lineText
+                        }
+                    };
+                    
+                    classResults.push(symbolReference);
+                }
+            }
+            
+            // Only add classes that have methods with references
+            if (classResults.length > 0) {
+                resultsByClass.set(className, classResults);
             }
         }
         
-        return results;
+        return resultsByClass;
     }
 
     /**
@@ -225,23 +249,45 @@ export class AuraEnabledService {
      * Creates a summary report of all @AuraEnabled methods and their usage
      */
     public static async generateReport(): Promise<string> {
-        const symbolReferences = await this.findAuraEnabledMethods();
+        const resultsByClass = await this.findAuraEnabledMethods();
+        
+        // Calculate totals
+        let totalMethods = 0;
+        let totalReferences = 0;
+        for (const [className, methods] of resultsByClass) {
+            totalMethods += methods.length;
+            totalReferences += methods.reduce((sum, method) => sum + method.references.length, 0);
+        }
         
         let report = `# @AuraEnabled Methods Report\n\n`;
         report += `Generated on: ${new Date().toLocaleString()}\n`;
-        report += `Total @AuraEnabled methods with LWC references: ${symbolReferences.length}\n\n`;
+        report += `Total classes: ${resultsByClass.size}\n`;
+        report += `Total @AuraEnabled methods with LWC references: ${totalMethods}\n`;
+        report += `Total references: ${totalReferences}\n\n`;
         
-        if (symbolReferences.length === 0) {
+        if (resultsByClass.size === 0) {
             report += `No @AuraEnabled methods found that are referenced by Lightning Web Components.\n`;
             return report;
         }
         
-        symbolReferences.forEach((symbolRef, index) => {
-            report += `## ${index + 1}. ${symbolRef.contextDescription}\n\n`;
-            report += `**References (${symbolRef.references.length}):**\n`;
+        // Sort classes by name
+        const sortedClasses = Array.from(resultsByClass.entries()).sort(([a], [b]) => a.localeCompare(b));
+        
+        sortedClasses.forEach(([className, methods], classIndex) => {
+            report += `## ${classIndex + 1}. ${className}\n\n`;
             
-            symbolRef.references.forEach(ref => {
-                report += `- ${ref.fileName}:${ref.position.line + 1} - ${ref.lineText.trim()}\n`;
+            // Sort methods by name
+            const sortedMethods = methods.sort((a, b) => a.symbol.localeCompare(b.symbol));
+            
+            sortedMethods.forEach((method, methodIndex) => {
+                report += `### ${method.contextDescription}\n\n`;
+                report += `**References (${method.references.length}):**\n`;
+                
+                method.references.forEach(ref => {
+                    report += `- ${ref.fileName}:${ref.position.line + 1} - ${ref.lineText.trim()}\n`;
+                });
+                
+                report += `\n`;
             });
             
             report += `\n`;

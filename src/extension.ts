@@ -584,24 +584,42 @@ export async function activate(context: vscode.ExtensionContext) {
       }, async (progress) => {
         try {
           const { AuraEnabledService } = await import('./services/auraEnabledService');
-          const symbolReferences = await AuraEnabledService.findAuraEnabledMethods();
+          const resultsByClass = await AuraEnabledService.findAuraEnabledMethods();
           
-          if (symbolReferences.length === 0) {
+          if (resultsByClass.size === 0) {
             vscode.window.showInformationMessage('No @AuraEnabled methods found that are referenced by Lightning Web Components.');
             return;
           }
           
-          // Create a combined symbol reference for all @AuraEnabled methods
-          const combinedReference: SymbolReference = {
-            symbol: '@AuraEnabled Methods',
-            type: 'Report',
-            contextDescription: `@AuraEnabled Methods (${symbolReferences.length} methods with LWC references)`,
-            references: symbolReferences.flatMap(sr => sr.references)
-          };
+          // Calculate totals for the summary
+          let totalMethods = 0;
+          let totalReferences = 0;
+          for (const [className, methods] of resultsByClass) {
+            totalMethods += methods.length;
+            totalReferences += methods.reduce((sum, method) => sum + method.references.length, 0);
+          }
           
-          // Update the references view with the results
+          // Update the references view with hierarchical results
           if (referencesView) {
-            referencesView.getTreeDataProvider().updateReferences(combinedReference);
+            // Use the custom method to display hierarchical @AuraEnabled results
+            if (referencesView.getTreeDataProvider().updateAuraEnabledReferences) {
+              referencesView.getTreeDataProvider().updateAuraEnabledReferences(resultsByClass);
+            } else {
+              // Fallback to standard method with flattened structure
+              const flattenedReferences: SymbolReference[] = [];
+              for (const [className, methods] of resultsByClass) {
+                flattenedReferences.push(...methods);
+              }
+              
+              const combinedReference: SymbolReference = {
+                symbol: '@AuraEnabled Methods',
+                type: 'Report',
+                contextDescription: `@AuraEnabled Methods (${totalMethods} methods with LWC references)`,
+                references: flattenedReferences.flatMap(sr => sr.references)
+              };
+              
+              referencesView.getTreeDataProvider().updateReferences(combinedReference);
+            }
             
             // Show the References panel
             try {
@@ -610,18 +628,21 @@ export async function activate(context: vscode.ExtensionContext) {
               console.log('[Extension] Could not open references panel, but results are available');
             }
             
-            vscode.window.showInformationMessage(`Found ${symbolReferences.length} @AuraEnabled methods with ${combinedReference.references.length} LWC references. Check the References panel.`);
+            vscode.window.showInformationMessage(`Found ${resultsByClass.size} classes with ${totalMethods} @AuraEnabled methods and ${totalReferences} LWC references. Check the References panel.`);
           } else {
             // Fallback: show results in output channel
-            let message = `Found ${symbolReferences.length} @AuraEnabled methods with LWC references:\n\n`;
+            let message = `Found @AuraEnabled methods with LWC references:\n\n`;
             
-            symbolReferences.forEach((sr, index) => {
-              message += `${index + 1}. ${sr.contextDescription} (${sr.references.length} references)\n`;
-              sr.references.forEach(ref => {
-                message += `   - ${ref.fileName}:${ref.position.line + 1}\n`;
+            for (const [className, methods] of resultsByClass) {
+              message += `📁 ${className}\n`;
+              methods.forEach((method, methodIndex) => {
+                message += `  ├── ${method.contextDescription} (${method.references.length} references)\n`;
+                method.references.forEach(ref => {
+                  message += `      └── ${ref.fileName}:${ref.position.line + 1} - ${ref.lineText.trim()}\n`;
+                });
+                message += '\n';
               });
-              message += '\n';
-            });
+            }
             
             // Show in output channel
             const auraReportChannel = vscode.window.createOutputChannel('@AuraEnabled Report');
@@ -629,7 +650,7 @@ export async function activate(context: vscode.ExtensionContext) {
             auraReportChannel.appendLine(message);
             auraReportChannel.show();
             
-            vscode.window.showInformationMessage(`Found ${symbolReferences.length} @AuraEnabled methods with LWC references. See Output panel for details.`);
+            vscode.window.showInformationMessage(`Found ${resultsByClass.size} classes with ${totalMethods} @AuraEnabled methods. See Output panel for details.`);
           }
         } catch (error: any) {
           outputChannel.appendLine(`[VisbalExt.Extension] reportAuraEnabled -- Error: ${error.message}`);
