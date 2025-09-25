@@ -1183,6 +1183,40 @@ export class OrgUtils {
         }
     }
 
+    public static logWarning(message: string, o?: unknown, o2?: unknown): void {
+        const config = vscode.workspace.getConfiguration('visbal.logging');
+        const saveToFile = config.get<boolean>('saveToFile', true);
+        const displayInConsole = config.get<boolean>('displayInConsole', true);
+        const debugMaxLength = config.get<number>('debugMaxLength', 250);
+    
+        if (saveToFile) {
+            try {
+                const debugFile = OrgUtils.getDebugFile();
+                const timestamp = new Date().toISOString();
+                let logMessage = `WARN:[${timestamp}] ${message}\n`;
+                if (o !== undefined) {
+                    const jsonString = JSON.stringify(o);
+                    logMessage += `WARN:[${timestamp}] ${jsonString.length > debugMaxLength ? jsonString.slice(0, debugMaxLength) + '...' : jsonString}\n`;
+                }
+                if (o2 !== undefined) {
+                    const jsonString = JSON.stringify(o2);
+                    logMessage += `WARN:[${timestamp}] ${jsonString.length > debugMaxLength ? jsonString.slice(0, debugMaxLength) + '...' : jsonString}\n`;
+                }
+                fs.appendFileSync(debugFile, logMessage);
+            } catch (error: any) {
+                console.error('[VisbalExt.OrgUtils] logWarning -- Error logging warning information:', error);
+            }
+        }
+    
+        if (displayInConsole) {
+            if (o !== undefined) {
+                console.warn(`${message}`, o);
+            } else {
+                console.warn(`${message}`);
+            }
+        }
+    }
+    
     // Track last cleanup time to prevent excessive cleanup calls
     private static lastCleanupTime: number = 0;
     private static readonly CLEANUP_INTERVAL = 5 * 60 * 1000; // 5 minutes

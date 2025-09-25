@@ -36,7 +36,8 @@ export class SymbolNavigationService {
         'jsx': ['jsx', 'js'],
         'tsx': ['tsx', 'ts', 'js'],
         'log': ['cls', 'html', 'js', 'css', 'ts'], // Log files can reference any code type
-        'txt': ['cls', 'html', 'js', 'css', 'ts']  // Text files can reference any code type
+        'txt': ['cls', 'html', 'js', 'css', 'ts'], // Text files can reference any code type
+        'md': ['cls', 'html', 'js', 'css', 'ts']   // Markdown files can reference any code type
     };
 
     /**
@@ -296,17 +297,18 @@ export class SymbolNavigationService {
                 
             case 'log':
             case 'txt':
-                // Log and text files - use enhanced class detection for file references
+            case 'md':
+                // Log, text, and markdown files - use enhanced class detection for file references
                 // Check if this appears to be a class reference in a file path
                 if (/^[A-Z][a-zA-Z0-9_]*$/.test(word) && line.includes('.cls')) {
-                    this.logDebug(`[VisbalExt.SymbolNavigationService] determineSymbolType -- Log file class pattern matched for: ${word}`);
+                    this.logDebug(`[VisbalExt.SymbolNavigationService] determineSymbolType -- Log/text/markdown file class pattern matched for: ${word}`);
                     return { symbol: word, type: this.SymbolType.CLASS };
                 }
                 // Check for method calls
                 if (afterWord.startsWith('(') || new RegExp(`\\b${word}\\s*\\(`).test(line)) {
                     return { symbol: word, type: this.SymbolType.FUNCTION };
                 }
-                // For other cases in log files, prefer CLASS if uppercase, otherwise VARIABLE
+                // For other cases in log/text/markdown files, prefer CLASS if uppercase, otherwise VARIABLE
                 if (/^[A-Z][a-zA-Z0-9_]*$/.test(word)) {
                     return { symbol: word, type: this.SymbolType.CLASS };
                 }
@@ -323,13 +325,13 @@ export class SymbolNavigationService {
 
     /**
      * Gets file extensions to search based on source file extension
-     * For log/txt files with class-prefixed calls, prioritize .cls files
+     * For log/txt/md files with class-prefixed calls, prioritize .cls files
      */
     private static getTargetFileExtensions(sourceExtension: string, className?: string): string[] {
         const mappedExtensions = this.FILE_TYPE_MAPPINGS[sourceExtension as keyof typeof this.FILE_TYPE_MAPPINGS] || [sourceExtension];
         
-        // For log/txt files with class-prefixed calls, prioritize .cls files for better performance
-        if ((sourceExtension === 'log' || sourceExtension === 'txt') && className) {
+        // For log/txt/md files with class-prefixed calls, prioritize .cls files for better performance
+        if ((sourceExtension === 'log' || sourceExtension === 'txt' || sourceExtension === 'md') && className) {
             this.logDebug(`[VisbalExt.SymbolNavigationService] getTargetFileExtensions -- Prioritizing .cls files for class-prefixed call: ${className}`);
             return ['cls', ...mappedExtensions.filter(ext => ext !== 'cls')];
         }
@@ -786,9 +788,9 @@ export class SymbolNavigationService {
      */
     private static async findSymbolDefinition(symbol: string, symbolType: string, sourceFileExtension: string, currentDocument?: vscode.TextDocument, isThisReference: boolean = false, className?: string): Promise<{filePath: vscode.Uri, position: vscode.Position} | null> {
         
-        // Special handling for log files: Try direct class file navigation first for CLASS symbols
-        if ((sourceFileExtension === 'log' || sourceFileExtension === 'txt') && symbolType === this.SymbolType.CLASS) {
-            this.logDebug(`[VisbalExt.SymbolNavigationService] findSymbolDefinition -- Log file: Attempting direct navigation to ${symbol}.cls`);
+        // Special handling for log/txt/md files: Try direct class file navigation first for CLASS symbols
+        if ((sourceFileExtension === 'log' || sourceFileExtension === 'txt' || sourceFileExtension === 'md') && symbolType === this.SymbolType.CLASS) {
+            this.logDebug(`[VisbalExt.SymbolNavigationService] findSymbolDefinition -- Log/text/markdown file: Attempting direct navigation to ${symbol}.cls`);
             const directClassResult = await this.searchForDirectClassFile(symbol);
             if (directClassResult) {
                 return directClassResult;

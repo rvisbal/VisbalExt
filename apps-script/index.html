@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>Gestión de Proyectos - GABRIE</title>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+  <?= include('styles'); ?>
+</head>
+<body>
+  <div class="app-container">
+    <!-- Header -->
+    <header class="app-header">
+      <div class="header-content">
+        <h1><i class="fas fa-project-diagram"></i> GABRIE Projects</h1>
+        <p>Sistema de Gestión de Proyectos</p>
+      </div>
+    </header>
+
+    <!-- Search Section -->
+    <section class="search-section">
+      <div class="search-container">
+        <div class="search-box">
+          <i class="fas fa-search search-icon"></i>
+          <input type="text" id="searchInput" placeholder="Buscar proyecto..." autocomplete="off">
+          <button id="clearSearch" class="clear-btn" style="display: none;">
+            <i class="fas fa-times"></i>
+          </button>
+        </div>
+        <div class="search-suggestions" id="searchSuggestions"></div>
+        <div class="search-actions">
+          <button id="searchBtn" class="btn-primary">
+            <i class="fas fa-search"></i> Buscar
+          </button>
+          <button id="addNewBtn" class="btn-secondary">
+            <i class="fas fa-plus"></i> Nuevo
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <!-- Loading Indicator -->
+    <div class="loading" id="loadingIndicator" style="display: none;">
+      <div class="spinner"></div>
+      <p>Buscando proyecto...</p>
+    </div>
+
+    <!-- Results Section -->
+    <section class="results-section" id="resultsSection" style="display: none;">
+      <!-- Project Header -->
+      <div class="project-header">
+        <div class="project-title">
+          <h2 id="projectName"></h2>
+          <div class="project-actions">
+            <button id="editBtn" class="btn-icon" title="Editar proyecto">
+              <i class="fas fa-edit"></i>
+            </button>
+            <button id="refreshBtn" class="btn-icon" title="Actualizar">
+              <i class="fas fa-sync-alt"></i>
+            </button>
+          </div>
+        </div>
+        <div class="project-id" id="projectDepartment"></div>
+      </div>
+
+      <!-- Project Data Tabs -->
+      <div class="tabs-container">
+        <div class="tabs">
+          <button class="tab-btn active" data-tab="general">
+            <i class="fas fa-info-circle"></i> General
+          </button>
+          <button class="tab-btn" data-tab="contractual">
+            <i class="fas fa-file-contract"></i> Contractual
+          </button>
+          <button class="tab-btn" data-tab="technical">
+            <i class="fas fa-cogs"></i> Técnico
+          </button>
+          <button class="tab-btn" data-tab="operational">
+            <i class="fas fa-tasks"></i> Operativo
+          </button>
+        </div>
+
+        <!-- Tab Content -->
+        <div class="tab-content active" id="general">
+          <div class="info-grid">
+            <div class="info-card">
+              <h3><i class="fas fa-users"></i> Usuarios</h3>
+              <div class="info-item">
+                <label>Usuarios Iniciales:</label>
+                <span id="usuariosIniciales"></span>
+              </div>
+              <div class="info-item">
+                <label>Con Novedades:</label>
+                <span id="usuariosNovedades"></span>
+              </div>
+              <div class="info-item">
+                <label>Atendidos:</label>
+                <span id="usuariosAtendidos"></span>
+              </div>
+            </div>
+
+            <div class="info-card">
+              <h3><i class="fas fa-project-diagram"></i> Proyecto</h3>
+              <div class="info-item">
+                <label>Tipo:</label>
+                <span id="tipoProyecto"></span>
+              </div>
+              <div class="info-item">
+                <label>Departamento:</label>
+                <span id="departamento"></span>
+              </div>
+              <div class="info-item">
+                <label>Sostenibilidad:</label>
+                <span id="tipoSostenibilidad"></span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="tab-content" id="contractual">
+          <div class="info-grid">
+            <div class="info-card">
+              <h3><i class="fas fa-file-contract"></i> Contrato</h3>
+              <div class="info-item">
+                <label>Número de Contrato:</label>
+                <span id="numeroContrato"></span>
+              </div>
+              <div class="info-item">
+                <label>Contratante:</label>
+                <span id="contratante"></span>
+              </div>
+              <div class="info-item">
+                <label>Contratista:</label>
+                <span id="contratista"></span>
+              </div>
+              <div class="info-item">
+                <label>Interventoría:</label>
+                <span id="interventoria"></span>
+              </div>
+            </div>
+
+            <div class="info-card">
+              <h3><i class="fas fa-calendar-alt"></i> CEPS</h3>
+              <div class="info-item">
+                <label>CEPS Inicial:</label>
+                <span id="cepsInicial"></span>
+              </div>
+              <div class="info-item">
+                <label>CEPS Vigencia 2024:</label>
+                <span id="ceps2024"></span>
+              </div>
+              <div class="info-item">
+                <label>CEPS Vigencia 2025:</label>
+                <span id="ceps2025"></span>
+              </div>
+              <div class="info-item">
+                <label>Observaciones CEPS:</label>
+                <span id="observacionesCeps"></span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="tab-content" id="technical">
+          <div class="info-grid">
+            <div class="info-card">
+              <h3><i class="fas fa-solar-panel"></i> Equipos</h3>
+              <div class="info-item">
+                <label>Panel:</label>
+                <span id="panel"></span>
+              </div>
+              <div class="info-item">
+                <label>Inversor:</label>
+                <span id="inversor"></span>
+              </div>
+              <div class="info-item">
+                <label>Controlador:</label>
+                <span id="controlador"></span>
+              </div>
+              <div class="info-item">
+                <label>Batería:</label>
+                <span id="bateria"></span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="tab-content" id="operational">
+          <div class="info-grid">
+            <div class="info-card">
+              <h3><i class="fas fa-clipboard-check"></i> Estado Operativo</h3>
+              <div class="info-item">
+                <label>Estado Operativo:</label>
+                <span id="estadoOperativo" class="status-badge"></span>
+              </div>
+              <div class="info-item">
+                <label>Estado de Codificación:</label>
+                <span id="estadoCodificacion" class="status-badge"></span>
+              </div>
+              <div class="info-item">
+                <label>Avance de Recibo:</label>
+                <span id="avanceRecibo"></span>
+              </div>
+            </div>
+
+            <div class="info-card">
+              <h3><i class="fas fa-calendar"></i> Fechas</h3>
+              <div class="info-item">
+                <label>Fecha Inicio Prestación:</label>
+                <span id="fechaInicio"></span>
+              </div>
+              <div class="info-item">
+                <label>Fecha Estimada Inicio:</label>
+                <span id="fechaEstimada"></span>
+              </div>
+            </div>
+
+            <div class="info-card">
+              <h3><i class="fas fa-comments"></i> Observaciones</h3>
+              <div class="info-item">
+                <label>Documentales:</label>
+                <span id="observacionesDocumental"></span>
+              </div>
+              <div class="info-item">
+                <label>Operativas:</label>
+                <span id="observacionesOperativas"></span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- No Results -->
+    <div class="no-results" id="noResults" style="display: none;">
+      <div class="no-results-content">
+        <i class="fas fa-search"></i>
+        <h3>No se encontró el proyecto</h3>
+        <p>Intenta con otro nombre o revisa la ortografía</p>
+        <button id="showAllBtn" class="btn-secondary">
+          <i class="fas fa-list"></i> Ver todos los proyectos
+        </button>
+      </div>
+    </div>
+
+    <!-- Error Message -->
+    <div class="error-message" id="errorMessage" style="display: none;">
+      <div class="error-content">
+        <i class="fas fa-exclamation-triangle"></i>
+        <h3>Error</h3>
+        <p id="errorText"></p>
+        <button id="retryBtn" class="btn-primary">
+          <i class="fas fa-redo"></i> Reintentar
+        </button>
+      </div>
+    </div>
+
+    <!-- Footer -->
+    <footer class="app-footer">
+      <p>&copy; 2024 GABRIE - Sistema de Gestión de Proyectos</p>
+      <p>Desarrollado para optimizar la gestión y seguimiento de proyectos</p>
+    </footer>
+  </div>
+
+  <?= include('scripts'); ?>
+</body>
+</html>

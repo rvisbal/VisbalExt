@@ -717,8 +717,8 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                                     }
                                 }
                                 
-                                // Process logs in background (non-blocking)
-                                this._processTestLogAsync(t, testClass, result.testRunId, currentOrgAlias || '', mainClassMap.size === 0);
+                                // Get log ID only, don't auto-download (user can double-click to download)
+                                this._getTestLogIdAsync(t, testClass, result.testRunId, currentOrgAlias || '');
                             }
                         } catch (error: any) {
                             OrgUtils.logError('[VisbalExt.TestClassExplorerSidePanel] _runTest -- Error processing test result', error as Error);
@@ -849,6 +849,64 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
         } catch (error: any) {
             OrgUtils.logError('[VisbalExt.TestClassExplorerSidePanel] _processTestLogAsync -- Error processing test log', error as Error);
             // Ensure we still update the final status even if log processing fails
+            if (testResult.Outcome === 'Pass' || testResult.Outcome === 'Passed') {
+                this._testRunResultsView.updateMethodStatus(testClass, testResult.MethodName, 'success');
+            } else if (testResult.Outcome === 'Fail' || testResult.Outcome === 'Failed') {
+                this._testRunResultsView.updateMethodStatus(testClass, testResult.MethodName, 'failed');
+            } else if (testResult.Outcome === 'Skip' || testResult.Outcome === 'Skipped') {
+                this._testRunResultsView.updateMethodStatus(testClass, testResult.MethodName, 'skipped');
+            } else if (testResult.Outcome === 'Aborted') {
+                this._testRunResultsView.updateMethodStatus(testClass, testResult.MethodName, 'aborted');
+            }
+        }
+    }
+
+    /**
+     * Get test log ID only (for manual download later) without auto-downloading
+     */
+    private async _getTestLogIdAsync(
+        testResult: any, 
+        testClass: string, 
+        testRunId: string, 
+        currentOrgAlias: string
+    ): Promise<void> {
+        try {
+            OrgUtils.logDebug('[VisbalExt.TestClassExplorerSidePanel] _getTestLogIdAsync -- Getting log ID for', testResult.ApexClass?.Name);
+            
+            let logId = '';
+            
+            // Try to get log ID from test result first
+            if (testResult.Id) {
+                try {
+                    logId = await this._orgUtils.getLogId(testResult.Id, currentOrgAlias);
+                } catch (error) {
+                    OrgUtils.logDebug('[VisbalExt.TestClassExplorerSidePanel] _getTestLogIdAsync -- Error getting log from test ID, trying metadata service');
+                }
+            }
+            
+            // Fallback to metadata service (with timeout)
+            if (!logId) {
+                try {
+                    logId = await this._metadataService.getTestLogId(testRunId, true, currentOrgAlias);
+                } catch (error) {
+                    OrgUtils.logDebug('[VisbalExt.TestClassExplorerSidePanel] _getTestLogIdAsync -- Metadata service failed or timed out');
+                }
+            }
+
+            // Update final status with log ID (but don't download)
+            if (testResult.Outcome === 'Pass' || testResult.Outcome === 'Passed') {
+                this._testRunResultsView.updateMethodStatus(testClass, testResult.MethodName, 'success', logId);
+            } else if (testResult.Outcome === 'Fail' || testResult.Outcome === 'Failed') {
+                this._testRunResultsView.updateMethodStatus(testClass, testResult.MethodName, 'failed', logId);
+            } else if (testResult.Outcome === 'Skip' || testResult.Outcome === 'Skipped') {
+                this._testRunResultsView.updateMethodStatus(testClass, testResult.MethodName, 'skipped', logId);
+            } else if (testResult.Outcome === 'Aborted') {
+                this._testRunResultsView.updateMethodStatus(testClass, testResult.MethodName, 'aborted', logId);
+            }
+            
+        } catch (error: any) {
+            OrgUtils.logError('[VisbalExt.TestClassExplorerSidePanel] _getTestLogIdAsync -- Error getting test log ID', error as Error);
+            // Ensure we still update the final status even if log ID retrieval fails
             if (testResult.Outcome === 'Pass' || testResult.Outcome === 'Passed') {
                 this._testRunResultsView.updateMethodStatus(testClass, testResult.MethodName, 'success');
             } else if (testResult.Outcome === 'Fail' || testResult.Outcome === 'Failed') {
@@ -5643,17 +5701,16 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
     private async _viewTestLog(logId: string, testName: string) {
         try {
             OrgUtils.logDebug('[VisbalExt.TestClassExplorerSidePanel] _viewTestLog -- Viewing test log:', { logId, testName });
-            //
-            //const logContent = await this._sfdxService.getLogContent(logId);
 
             const currentOrgAlias = await this._getOrgAliasForStorage();
             if (currentOrgAlias) {
-                OrgUtils.openLog(logId, this._extensionUri, currentOrgAlias);
+                // OrgUtils.openLog will automatically download the log if it's not cached
+                await OrgUtils.openLog(logId, this._extensionUri, currentOrgAlias);
             }
           
         } catch (error: any) {
-            OrgUtils.logError(`VisbalExt.TestClassExplorerSidePanel] _viewTestLog -- testName:${testName} logId:${logId}   Error viewing test log:`, error);
-            vscode.window.showWarningMessage(`[VisbalExt.TestClassExplorerSidePanel] _viewTestLog --   Could not view log for test ${testName}: ${(error as Error).message}`);
+            OrgUtils.logError(`[VisbalExt.TestClassExplorerSidePanel] _viewTestLog -- testName:${testName} logId:${logId} Error viewing test log:`, error);
+            vscode.window.showWarningMessage(`Could not view log for test ${testName}: ${(error as Error).message}`);
         }
     }
 

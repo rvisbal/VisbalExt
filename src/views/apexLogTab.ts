@@ -9,14 +9,17 @@ import { statusBarService } from '../services/statusBarService';
 import { readFile, unlink } from 'fs/promises';
 import { MetadataService } from '../services/metadataService';
 import { OrgUtils } from '../utils/orgUtils';
-import { SelectedOrg } from '../types/salesforceTypes';
+import { SelectedOrg, ViewId } from '../types/salesforceTypes';
 import { CacheService } from '../services/cacheService';
 import { SalesforceLog } from '../types/salesforceLog';
-import { ViewId } from '../types/salesforceTypes';
 import { SfdxService } from '../services/sfdxService';
 import { OrgListCacheService } from '../services/orgListCacheService';
 import { DEFAULT_LOG_TYPE } from '../constants/salesforceConstants';
 import { LogViewerService } from '../services/logViewerService';
+import { Disposable, EventEmitter, TreeDataProvider, TreeItem, TreeItemCollapsibleState, Uri, ProviderResult } from 'vscode';
+import { LogFilterService } from '../services/logFilterService';
+import { PredefinedFilters } from '../utils/predefinedFilters';
+import { SalesforceApiService } from '../services/salesforceApiService';
 
 const execAsync = promisify(exec);
 
@@ -685,8 +688,8 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
     }
 
     // Add this method to execute commands
-    private async _executeCommand(command: string): Promise<string> {
-        return new Promise<string>((resolve, reject) => {
+    private async _executeCommand(command: string): Promise<any> {
+        return new Promise<any>((resolve, reject) => {
             exec(command, { maxBuffer: 1024 * 1024 * 10 }, (error, stdout, stderr) => {
                 // Log all outputs for debugging
                 OrgUtils.logDebug(`[VisbalExt.apexLogTab.VisbalLogView] _executeCommand -- Command: ${command}`);
@@ -706,9 +709,10 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
                     
                     // Try to parse stdout for JSON error response first
                     let errorMessage = error.message;
+                    let jsonResponse = null;
                     if (stdout && stdout.trim()) {
                         try {
-                            const jsonResponse = JSON.parse(stdout);
+                            jsonResponse = JSON.parse(stdout);
                             if (jsonResponse.message) {
                                 errorMessage = jsonResponse.message;
                                 OrgUtils.logDebug(`[VisbalExt.apexLogTab.VisbalLogView] _executeCommand Parsed JSON error: ${errorMessage}`);
@@ -757,11 +761,21 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
                     if (errors.length > 0) {
                         OrgUtils.logError(`[VisbalExt.apexLogTab.VisbalLogView] _executeCommand stderr errors: ${errors.join('\n')}`, new Error(errors.join('\n')));
                         reject(new Error(errors.join('\n')));
-                        return;
+                        return; // Ensure no further processing if stderr contains errors
                     }
                 }
                 
-                resolve(stdout);
+                // If no error, try to parse stdout as JSON, otherwise return stdout as string
+                if (stdout && stdout.trim()) {
+                    try {
+                        const jsonResponse = JSON.parse(stdout);
+                        resolve(jsonResponse);
+                    } catch (jsonError) {
+                        resolve(stdout);
+                    }
+                } else {
+                    resolve(stdout);
+                }
             });
         });
     }
@@ -1164,48 +1178,67 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
                 // Note: Org authentication validation is skipped here to avoid extra delay.
                 // Authentication errors will be caught during the actual bulk delete operation.
 
-                const bulkDeleteCmd = `sf data delete bulk --sobject ApexLog --file "${tempCsvPath}" --target-org ${selectedOrg?.alias} --json --wait 10 --line-ending LF`;
+                const bulkDeleteCmd = `sf data delete bulk --sobject ApexLog --file \"${tempCsvPath}\" --target-org ${selectedOrg?.alias} --json --wait 10 --line-ending LF`;
                 OrgUtils.logDebug(`[VisbalExt.apexLogTab.VisbalLogView] _deleteServerLogs -- Executing bulk delete: ${bulkDeleteCmd}`);
                 
                 const result = await this._executeCommand(bulkDeleteCmd);
                 OrgUtils.logDebug(`[VisbalExt.apexLogTab.VisbalLogView] _deleteServerLogs -- Bulk delete result:`, result);
                 
-                // Parse the result to get the actual number of deleted records
-                if (result && typeof result === 'string') {
-                    try {
-                        const jsonResult = JSON.parse(result);
-                        if (jsonResult.result && jsonResult.result.numberRecordsProcessed) {
-                            deletedCount = jsonResult.result.numberRecordsProcessed;
-                        } else {
-                            deletedCount = logIds.length; // Assume all deleted if no specific count
+                if (typeof result === 'object' && result !== null) {
+                    if (result.name === 'FailedRecordDetailsError') {
+                        // Specific error for bulk delete failures
+                        const jobId = result.jobId || 'N/A';
+                        const message = result.message || 'Unknown bulk delete error';
+                        const actions = result.actions || [];
+                        
+                        OrgUtils.logError('[VisbalExt.apexLogTab.VisbalLogView] Bulk delete operation failed with FailedRecordDetailsError:', message);
+                        OrgUtils.logError('[VisbalExt.apexLogTab.VisbalLogView] Job ID:', jobId);
+                        OrgUtils.logError('[VisbalExt.apexLogTab.VisbalLogView] Suggested actions:', actions);
+
+                        let userMessage = `Bulk delete operation failed: ${message}. Job ID: ${jobId}.`;
+                        if (actions.length > 0) {
+                            userMessage += '\nSuggested actions:\n' + actions.map((action: string) => `- ${action}`).join('\n');
                         }
+                        vscode.window.showErrorMessage(userMessage);
+                        throw new Error(userMessage);
+                    } else if (result.result && result.result.numberRecordsProcessed) {
+                        deletedCount = result.result.numberRecordsProcessed;
                         operationSuccessful = true;
-                    } catch (parseError) {
-                        OrgUtils.logError('[VisbalExt.apexLogTab.VisbalLogView] Error parsing bulk delete result:', parseError);
-                        deletedCount = logIds.length; // Assume all deleted if parsing fails
-                        operationSuccessful = true; // Still consider successful if command ran without error
+                    } else {
+                        // Generic success but no specific count
+                        deletedCount = logIds.length; // Assume all deleted if no specific count
+                        operationSuccessful = true;
                     }
+                } else if (typeof result === 'string') {
+                    // Fallback for string results (should ideally not happen if --json is used)
+                    OrgUtils.logWarning('[VisbalExt.apexLogTab.VisbalLogView] Unexpected string result from bulk delete command.', result);
+                    deletedCount = logIds.length; // Assume all deleted if parsing fails
+                    operationSuccessful = true; // Still consider successful if command ran without error
                 } else {
-                    deletedCount = logIds.length; // Assume all deleted if no result
-                    operationSuccessful = true;
+                    // If result is null or undefined (e.g., command timed out or failed silently)
+                    throw new Error('Bulk delete command returned an unexpected result or no result.');
                 }
                 
                 OrgUtils.logDebug(`[VisbalExt.apexLogTab.VisbalLogView] _deleteServerLogs -- Successfully bulk deleted ${deletedCount} logs`);
             } catch (error) {
                 OrgUtils.logError('[VisbalExt.apexLogTab.VisbalLogView] Bulk delete operation failed:', error);
                 operationSuccessful = false;
+                
+                let errorMessage = 'Unknown error during bulk delete operation.';
+                if (error instanceof Error) {
+                    errorMessage = error.message;
+                }
+                vscode.window.showErrorMessage(`Failed to delete server logs: ${errorMessage}`);
                 throw error;
             } finally {
-                // Only clean up the temporary CSV file if the operation was successful
-                if (operationSuccessful) {
-                    try {
+                // Always attempt to clean up the temporary CSV file
+                try {
+                    if (fs.existsSync(tempCsvPath)) {
                         fs.unlinkSync(tempCsvPath);
                         OrgUtils.logDebug(`[VisbalExt.apexLogTab.VisbalLogView] Cleaned up temporary CSV file: ${tempCsvPath}`);
-                    } catch (cleanupError) {
-                        OrgUtils.logError('[VisbalExt.apexLogTab.VisbalLogView] Error cleaning up temp CSV file:', cleanupError);
                     }
-                } else {
-                    OrgUtils.logDebug(`[VisbalExt.apexLogTab.VisbalLogView] Preserving CSV file for debugging: ${tempCsvPath}`);
+                } catch (cleanupError) {
+                    OrgUtils.logError('[VisbalExt.apexLogTab.VisbalLogView] Error cleaning up temp CSV file:', cleanupError);
                 }
             }
 
@@ -1335,7 +1368,7 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
                 }
                 */
 
-                const bulkDeleteCmd = `sf data delete bulk --sobject ApexLog --file "${tempCsvPath}" --target-org ${selectedOrg?.alias} --json --wait 10 --line-ending LF`;
+                const bulkDeleteCmd = `sf data delete bulk --sobject ApexLog --file \"${tempCsvPath}\" --target-org ${selectedOrg?.alias} --json --wait 10 --line-ending LF`;
                 OrgUtils.logDebug(`[VisbalExt.apexLogTab.VisbalLogView] _deleteSelectedLogs -- Executing bulk delete for selected logs: ${bulkDeleteCmd}`);
                 
                 const result = await this._executeCommand(bulkDeleteCmd);
@@ -1585,8 +1618,10 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
                 try {
                     OrgUtils.logDebug(`[VisbalExt.apexLogTab.VisbalLogView] _applyDebugConfig --userId: ${userId} -- Trace flag query: ${query}`);
                     const traceFlagResult = await this._executeCommand(`sf data query --query "${query}" --use-tooling-api --target-org ${selectedOrg.alias} --json`);
-                    OrgUtils.logDebug(`[VisbalExt.apexLogTab.VisbalLogView] _applyDebugConfig -8 -- Trace flag query result: ${traceFlagResult}`);
-                    const traceFlagJson = JSON.parse(traceFlagResult);
+                    OrgUtils.logDebug(`[VisbalExt.apexLogTab.VisbalLogView] _applyDebugConfig -8 -- Trace flag query result: ${JSON.stringify(traceFlagResult)}`);
+                    
+                    // _executeCommand already parses JSON, so traceFlagResult is already an object
+                    const traceFlagJson = traceFlagResult;
                     
                     if (traceFlagJson.result && traceFlagJson.result.records && traceFlagJson.result.records.length > 0) {
                         existingTraceFlag = traceFlagJson.result.records[0];
@@ -1598,8 +1633,10 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
                     
                     try {
                         const traceFlagResult = await this._executeCommand(`sfdx force:data:soql:query --query "${query}" --usetoolingapi --target-org ${selectedOrg.alias} --json`);
-                        OrgUtils.logDebug(`[VisbalExt.apexLogTab.VisbalLogView] _applyDebugConfig -11 -- Trace flag query result (old format): ${traceFlagResult}`);
-                        const traceFlagJson = JSON.parse(traceFlagResult);
+                        OrgUtils.logDebug(`[VisbalExt.apexLogTab.VisbalLogView] _applyDebugConfig -11 -- Trace flag query result (old format): ${JSON.stringify(traceFlagResult)}`);
+                        
+                        // _executeCommand already parses JSON, so traceFlagResult is already an object
+                        const traceFlagJson = traceFlagResult;
                         
                         if (traceFlagJson.result && traceFlagJson.result.records && traceFlagJson.result.records.length > 0) {
                             existingTraceFlag = traceFlagJson.result.records[0];
@@ -1673,27 +1710,50 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
                     throw new Error('Failed to update debug level');
                 }
             } else {
-                OrgUtils.logDebug('[VisbalExt.apexLogTab.VisbalLogView] _applyDebugConfig -23 -- Creating new debug level');
+                OrgUtils.logDebug('[VisbalExt.apexLogTab.VisbalLogView] _applyDebugConfig -23 -- Creating or finding debug level');
                 
-                const debugLevelFields = Object.entries(debugLevelValues)
-                    .map(([key, value]) => `${key}=${value}`)
-                    .join(' ');
-                
+                // First, check if a debug level with our name already exists
                 try {
-                    try {
-                          const debugvalues = `DeveloperName=${debugLevelName} MasterLabel=${debugLevelName} ${debugLevelFields}`;
-                          OrgUtils.logDebug(`[VisbalExt.apexLogTab.VisbalLogView] _applyDebugConfig -24 -- Creating debug level with command: ${debugvalues}`);
- 
-                         debugLevelId = await this._sfdxService.createDebugLevel(debugvalues);
+                    const debugLevelQuery = `SELECT Id FROM DebugLevel WHERE DeveloperName='${debugLevelName}'`;
+                    OrgUtils.logDebug(`[VisbalExt.apexLogTab.VisbalLogView] _applyDebugConfig -23.1 -- Checking for existing debug level: ${debugLevelQuery}`);
+                    
+                    const existingDebugLevelResult = await this._executeCommand(`sf data query --query "${debugLevelQuery}" --use-tooling-api --target-org ${selectedOrg.alias} --json`);
+                    OrgUtils.logDebug(`[VisbalExt.apexLogTab.VisbalLogView] _applyDebugConfig -23.2 -- Existing debug level query result: ${JSON.stringify(existingDebugLevelResult)}`);
+                    
+                    const existingDebugLevelJson = existingDebugLevelResult;
+                    
+                    if (existingDebugLevelJson.result && existingDebugLevelJson.result.records && existingDebugLevelJson.result.records.length > 0) {
+                        // Debug level already exists, use its ID
+                        debugLevelId = existingDebugLevelJson.result.records[0].Id;
+                        OrgUtils.logDebug(`[VisbalExt.apexLogTab.VisbalLogView] _applyDebugConfig -23.3 -- Found existing debug level with ID: ${debugLevelId}`);
+                        
+                        // Update the existing debug level with new values
+                        const debugLevelFields = Object.entries(debugLevelValues)
+                            .map(([key, value]) => `${key}=${value}`)
+                            .join(' ');
+                        
+                        const updateDebugLevelCommand = `sf data update record --sobject DebugLevel --record-id ${debugLevelId} --values "${debugLevelFields}" --use-tooling-api --target-org ${selectedOrg.alias} --json`;
+                        OrgUtils.logDebug(`[VisbalExt.apexLogTab.VisbalLogView] _applyDebugConfig -23.4 -- Updating existing debug level: ${updateDebugLevelCommand}`);
+                        
+                        await this._executeCommand(updateDebugLevelCommand);
+                        OrgUtils.logDebug(`[VisbalExt.apexLogTab.VisbalLogView] _applyDebugConfig -23.5 -- Successfully updated existing debug level`);
+                    } else {
+                        // Debug level doesn't exist, create a new one
+                        OrgUtils.logDebug('[VisbalExt.apexLogTab.VisbalLogView] _applyDebugConfig -24 -- Creating new debug level');
+                        
+                        const debugLevelFields = Object.entries(debugLevelValues)
+                            .map(([key, value]) => `${key}=${value}`)
+                            .join(' ');
+                        
+                        const debugvalues = `DeveloperName=${debugLevelName} MasterLabel=${debugLevelName} ${debugLevelFields}`;
+                        OrgUtils.logDebug(`[VisbalExt.apexLogTab.VisbalLogView] _applyDebugConfig -24.1 -- Creating debug level with values: ${debugvalues}`);
          
-                         
-                    } catch (error: any) {
-                        OrgUtils.logError('[VisbalExt.apexLogTab.VisbalLogView] _applyDebugConfig -29 -- Error creating debug level with new CLI format:', error);
-           
+                        debugLevelId = await this._sfdxService.createDebugLevel(debugvalues);
+                        OrgUtils.logDebug(`[VisbalExt.apexLogTab.VisbalLogView] _applyDebugConfig -25 -- Successfully created debug level with ID: ${debugLevelId}`);
                     }
                 } catch (error: any) {
-                    OrgUtils.logError('[VisbalExt.apexLogTab.VisbalLogView] _applyDebugConfig -34 -- Error creating debug level:', error);
-                    throw new Error('Failed to create debug level');
+                    OrgUtils.logError('[VisbalExt.apexLogTab.VisbalLogView] _applyDebugConfig -26 -- Error creating or finding debug level:', error);
+                    throw new Error(`Failed to create or find debug level: ${error.message}`);
                 }
             }
 
@@ -1720,28 +1780,36 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
             if (turnOnDebug) {
                 OrgUtils.logDebug('[VisbalExt.apexLogTab.VisbalLogView] _applyDebugConfig -43 -- Creating trace flag');
                 
+                // Validate that we have a valid debug level ID
+                if (!debugLevelId) {
+                    OrgUtils.logError('[VisbalExt.apexLogTab.VisbalLogView] _applyDebugConfig -43.1 -- Cannot create trace flag: debugLevelId is null or undefined', new Error('Debug level ID is null'));
+                    throw new Error('Cannot create trace flag: Debug level ID is required but was not found or created');
+                }
+                
                 const now = new Date();
                 const expirationDate = new Date(now.getTime() + 24 * 60 * 60 * 1000);
                 const formattedStartDate = now.toISOString();
                 const formattedExpirationDate = expirationDate.toISOString();
                 
-                                try {
-                    try {
-                        const createTraceFlagCommand = `sf data create record --sobject TraceFlag --values "DebugLevelId=${debugLevelId} LogType=${DEFAULT_LOG_TYPE} TracedEntityId=${userId} StartDate=${formattedStartDate} ExpirationDate=${formattedExpirationDate}" --use-tooling-api --target-org ${selectedOrg.alias} --json`;
-                        OrgUtils.logDebug(`[VisbalExt.apexLogTab.VisbalLogView] _applyDebugConfig -44 -- Creating trace flag with command: ${createTraceFlagCommand}`);
-                        
-                        const createTraceFlagResult = await this._executeCommand(createTraceFlagCommand);
-                        OrgUtils.logDebug(`[VisbalExt.apexLogTab.VisbalLogView] _applyDebugConfig -45 -- Create trace flag result: ${createTraceFlagResult}`);
-                        
-                        const createTraceFlagJson = JSON.parse(createTraceFlagResult);
+                try {
+                    const createTraceFlagCommand = `sf data create record --sobject TraceFlag --values "DebugLevelId=${debugLevelId} LogType=${DEFAULT_LOG_TYPE} TracedEntityId=${userId} StartDate=${formattedStartDate} ExpirationDate=${formattedExpirationDate}" --use-tooling-api --target-org ${selectedOrg.alias} --json`;
+                    OrgUtils.logDebug(`[VisbalExt.apexLogTab.VisbalLogView] _applyDebugConfig -44 -- Creating trace flag with command: ${createTraceFlagCommand}`);
+                    
+                    const createTraceFlagResult = await this._executeCommand(createTraceFlagCommand);
+                    OrgUtils.logDebug(`[VisbalExt.apexLogTab.VisbalLogView] _applyDebugConfig -45 -- Create trace flag result: ${JSON.stringify(createTraceFlagResult)}`);
+                    
+                    // _executeCommand already parses JSON, so createTraceFlagResult is already an object
+                    const createTraceFlagJson = createTraceFlagResult;
+                    
+                    if (createTraceFlagJson.result && createTraceFlagJson.result.id) {
                         OrgUtils.logDebug(`[VisbalExt.apexLogTab.VisbalLogView] _applyDebugConfig -46 -- Created trace flag with ID: ${createTraceFlagJson.result.id}`);
-                    } catch (error: any) {
-                        OrgUtils.logError('[VisbalExt.apexLogTab.VisbalLogView] _applyDebugConfig -47 -- Error creating trace flag with new CLI format:', error);
-
+                    } else {
+                        OrgUtils.logError('[VisbalExt.apexLogTab.VisbalLogView] _applyDebugConfig -46.1 -- Trace flag creation result does not contain expected ID', new Error('Invalid trace flag result'));
+                        throw new Error('Trace flag creation did not return expected result');
                     }
                 } catch (error: any) {
-                    OrgUtils.logError('[VisbalExt.apexLogTab.VisbalLogView] _applyDebugConfig -52 -- Error creating trace flag:', error);
-                    throw new Error('Failed to create trace flag');
+                    OrgUtils.logError('[VisbalExt.apexLogTab.VisbalLogView] _applyDebugConfig -47 -- Error creating trace flag:', error);
+                    throw new Error(`Failed to create trace flag: ${error.message}`);
                 }
             }
 

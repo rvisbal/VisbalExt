@@ -36,6 +36,58 @@ import { SymbolNavigationService } from './services/symbolNavigationService';
 
 let outputChannel: vscode.OutputChannel;
 
+// Helper function to check if a method is preceded by @IsTest annotation
+async function isMethodPrecededByIsTestAnnotation(document: vscode.TextDocument, position: vscode.Position, methodName: string): Promise<boolean> {
+    try {
+        const text = document.getText();
+        const lines = text.split('\n');
+        
+        // Find the line with the method declaration
+        let methodLineIndex = -1;
+        for (let i = 0; i < lines.length; i++) {
+            const line = lines[i];
+            // Look for the method name in a method declaration pattern
+            const methodPattern = new RegExp(`\\b(public|private|protected|global)?\\s*(static)?\\s*\\w+\\s+${methodName}\\s*\\(`);
+            if (methodPattern.test(line)) {
+                methodLineIndex = i;
+                break;
+            }
+        }
+        
+        if (methodLineIndex === -1) {
+            return false;
+        }
+        
+        // Look backwards from the method line to find @IsTest annotation
+        // Check up to 10 lines before the method (to account for comments, etc.)
+        for (let i = methodLineIndex - 1; i >= Math.max(0, methodLineIndex - 10); i--) {
+            const line = lines[i].trim();
+            
+            // Skip empty lines and comments
+            if (line === '' || line.startsWith('//') || line.startsWith('/*') || line.startsWith('*')) {
+                continue;
+            }
+            
+            // Check for @IsTest annotation (case insensitive)
+            if (line.toLowerCase().includes('@istest')) {
+                return true;
+            }
+            
+            // If we hit another method or class declaration, stop searching
+            if (line.includes('public ') || line.includes('private ') || line.includes('protected ') || line.includes('global ')) {
+                if (line.includes('class ') || (line.includes('(') && !line.toLowerCase().includes('@istest'))) {
+                    break;
+                }
+            }
+        }
+        
+        return false;
+    } catch (error) {
+        OrgUtils.logDebug(`[VisbalExt.Extension] isMethodPrecededByIsTestAnnotation -- Error: ${error}`);
+        return false;
+    }
+}
+
 // Configuration helper function
 function isModuleEnabled(moduleName: string): boolean {
   const config = vscode.workspace.getConfiguration('visbal');
@@ -192,6 +244,7 @@ export async function activate(context: vscode.ExtensionContext) {
                 vscode.window.showErrorMessage(`Failed to cleanup debug files: ${error}`);
             }
         }),
+        
         vscode.commands.registerCommand('visbal-ext.selectAndRunTestClass', async () => {
             try {
                 const editor = vscode.window.activeTextEditor;
@@ -207,21 +260,33 @@ export async function activate(context: vscode.ExtensionContext) {
                 const position = editor.selection.active;
                 const symbolInfo = SymbolNavigationService.extractSymbolInfo(editor.document, position);
                 
-                if (symbolInfo && symbolInfo.symbol) {
-                    // Check if the cursor is on a test method name
-                    if (symbolInfo.symbol.toLowerCase().includes('test')) {
-                        testMethodName = symbolInfo.symbol;
-                        OrgUtils.logDebug(`[VisbalExt.Extension] selectAndRunTestClass -- Detected test method from cursor: ${testMethodName}`);
-                    }
-                }
-                
                 // Method 2: Get class name from current file name (if it's a test class)
                 const fileName = editor.document.fileName;
                 const fileBaseName = fileName.split(/[\\/]/).pop()?.replace('.cls', '');
+                let isInTestClass = false;
                 
                 if (fileBaseName && (fileBaseName.toLowerCase().includes('test') || fileBaseName.toLowerCase().endsWith('tests'))) {
                     testClassName = fileBaseName;
+                    isInTestClass = true;
                     OrgUtils.logDebug(`[VisbalExt.Extension] selectAndRunTestClass -- Detected test class from filename: ${testClassName}`);
+                }
+                
+                if (symbolInfo && symbolInfo.symbol) {
+                    // If we're in a test class, check if the current symbol is a test method by looking for @IsTest annotation
+                    if (isInTestClass && (symbolInfo.type === 'method' || symbolInfo.type === 'variable')) {
+                        const isTestMethod = await isMethodPrecededByIsTestAnnotation(editor.document, position, symbolInfo.symbol);
+                        if (isTestMethod) {
+                            testMethodName = symbolInfo.symbol;
+                            OrgUtils.logDebug(`[VisbalExt.Extension] selectAndRunTestClass -- Detected test method with @IsTest annotation: ${testMethodName}`);
+                        } else {
+                            OrgUtils.logDebug(`[VisbalExt.Extension] selectAndRunTestClass -- Method ${symbolInfo.symbol} found but no @IsTest annotation detected`);
+                        }
+                    }
+                    // Fallback: Check if the method name explicitly contains 'test' (for backwards compatibility)
+                    else if (symbolInfo.symbol.toLowerCase().includes('test')) {
+                        testMethodName = symbolInfo.symbol;
+                        OrgUtils.logDebug(`[VisbalExt.Extension] selectAndRunTestClass -- Detected test method from cursor (contains 'test'): ${testMethodName}`);
+                    }
                 }
                 
                 // Method 3: Try to extract class name from cursor position (if user has selected a class name)
@@ -242,8 +307,34 @@ export async function activate(context: vscode.ExtensionContext) {
                     }
                 }
                 
+                // Method 5: If we're in a log file, try to extract test class name from log content
+                if (!testClassName && (fileName.endsWith('.log') || fileName.includes('debug'))) {
+                    OrgUtils.logDebug(`[VisbalExt.Extension] selectAndRunTestClass -- In log file, attempting to extract test class from content`);
+                    const document = editor.document;
+                    const currentLine = document.lineAt(position.line).text;
+                    
+                    // Look for patterns like "ClassName.methodName" in log files
+                    const logClassMatch = currentLine.match(/(\w*Test\w*)\./);
+                    if (logClassMatch) {
+                        testClassName = logClassMatch[1];
+                        OrgUtils.logDebug(`[VisbalExt.Extension] selectAndRunTestClass -- Detected test class from log line: ${testClassName}`);
+                        
+                        // Also try to extract method name from the same line
+                        const logMethodMatch = currentLine.match(/\w*Test\w*\.(\w+)/);
+                        if (logMethodMatch && !testMethodName) {
+                            testMethodName = logMethodMatch[1];
+                            OrgUtils.logDebug(`[VisbalExt.Extension] selectAndRunTestClass -- Detected test method from log line: ${testMethodName}`);
+                        }
+                    }
+                }
+                
                 if (!testClassName) {
-                    vscode.window.showErrorMessage('Could not detect a test class. Make sure you are in a test class file or have selected a test class name.');
+                    const fileExtension = fileName.split('.').pop()?.toLowerCase();
+                    if (fileExtension === 'log') {
+                        vscode.window.showErrorMessage('Could not detect a test class from log file. Try opening the actual .cls test file, or place cursor on a line containing "TestClassName.methodName".');
+                    } else {
+                        vscode.window.showErrorMessage('Could not detect a test class. Make sure you are in a test class file (.cls) that contains "Test" in the class name, or have selected a test class name.');
+                    }
                     return;
                 }
                 
@@ -553,15 +644,21 @@ export async function activate(context: vscode.ExtensionContext) {
             const logContent = activeEditor.document.getText();
             const result = logFilterService.applyFilters(logContent, [selectedFilter.filterId]);
             
-            // Create a new document with filtered content
-            const filteredContent = result.filteredLines.map(line => line.content).join('\n');
-            const newDoc = await vscode.workspace.openTextDocument({
-              content: filteredContent,
-              language: 'log'
-            });
+            // Generate unique filename based on original file and filter
+            const originalFileName = activeEditor.document.fileName.split(/[\/\\]/).pop() || 'unknown.log';
+            const baseName = originalFileName.replace(/\.log$/, '');
+            const timestamp = new Date().toISOString().replace(/[:.]/g, '-').split('T')[0] + '_' + new Date().toLocaleTimeString('en-US', { hour12: false }).replace(/:/g, '');
+            const filterName = selectedFilter.label.replace(/[^a-zA-Z0-9]/g, '_');
+            const fileName = `${baseName}_filtered_${filterName}_${timestamp}.log`;
             
-            await vscode.window.showTextDocument(newDoc);
-            statusBarService.showSuccess(`Filter applied: ${result.totalMatches} matches found`);
+            // Save filtered results to .visbal/logs directory
+            const savedFilePath = await logFilterService.saveFilteredResults(result, fileName);
+            
+            // Open the saved file
+            const document = await vscode.workspace.openTextDocument(savedFilePath);
+            await vscode.window.showTextDocument(document);
+            
+            statusBarService.showSuccess(`Filter applied: ${result.totalMatches} matches found and saved to ${fileName}`);
           } catch (error: any) {
             vscode.window.showErrorMessage(`Error applying filter: ${error.message}`);
           }

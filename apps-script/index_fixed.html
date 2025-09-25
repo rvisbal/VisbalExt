@@ -1,0 +1,1151 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>Gestión de Proyectos - GABRIE</title>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+  
+  <style>
+/* Reset and Base Styles */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  min-height: 100vh;
+  color: #333;
+  line-height: 1.6;
+}
+
+.app-container {
+  max-width: 1200px;
+  margin: 0 auto;
+  background: #fff;
+  min-height: 100vh;
+  box-shadow: 0 0 30px rgba(0,0,0,0.1);
+}
+
+/* Header */
+.app-header {
+  background: linear-gradient(135deg, #2c3e50 0%, #34495e 100%);
+  color: white;
+  padding: 2rem 1rem;
+  text-align: center;
+  position: relative;
+  overflow: hidden;
+}
+
+.app-header::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: url("data:image/svg+xml,%3Csvg width='40' height='40' viewBox='0 0 40 40' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='%23ffffff' fill-opacity='0.03'%3E%3Cpath d='M20 20c0 11.046-8.954 20-20 20v-40c11.046 0 20 8.954 20 20z'/%3E%3C/g%3E%3C/svg%3E");
+}
+
+.header-content {
+  position: relative;
+  z-index: 1;
+}
+
+.app-header h1 {
+  font-size: 2.5rem;
+  font-weight: 700;
+  margin-bottom: 0.5rem;
+  text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+}
+
+.app-header p {
+  font-size: 1.1rem;
+  opacity: 0.9;
+  font-weight: 300;
+}
+
+/* Search Section */
+.search-section {
+  padding: 2rem 1rem;
+  background: #f8f9fa;
+  border-bottom: 1px solid #e9ecef;
+}
+
+.search-container {
+  max-width: 600px;
+  margin: 0 auto;
+}
+
+.search-box {
+  position: relative;
+  margin-bottom: 1rem;
+}
+
+.search-box input {
+  width: 100%;
+  padding: 1rem 3rem 1rem 3rem;
+  border: 2px solid #e9ecef;
+  border-radius: 25px;
+  font-size: 1rem;
+  transition: all 0.3s ease;
+  background: white;
+  box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+}
+
+.search-box input:focus {
+  outline: none;
+  border-color: #667eea;
+  box-shadow: 0 4px 20px rgba(102, 126, 234, 0.2);
+}
+
+.search-icon {
+  position: absolute;
+  left: 1rem;
+  top: 50%;
+  transform: translateY(-50%);
+  color: #6c757d;
+  font-size: 1.2rem;
+}
+
+.clear-btn {
+  position: absolute;
+  right: 1rem;
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  color: #6c757d;
+  cursor: pointer;
+  padding: 0.5rem;
+  border-radius: 50%;
+  transition: all 0.3s ease;
+}
+
+.clear-btn:hover {
+  background: #e9ecef;
+  color: #495057;
+}
+
+/* Search Suggestions */
+.search-suggestions {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  background: white;
+  border: 1px solid #e9ecef;
+  border-top: none;
+  border-radius: 0 0 15px 15px;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+  max-height: 300px;
+  overflow-y: auto;
+  z-index: 1000;
+  display: none;
+}
+
+.suggestion-item {
+  padding: 1rem;
+  cursor: pointer;
+  border-bottom: 1px solid #f8f9fa;
+  transition: background-color 0.2s;
+}
+
+.suggestion-item:hover {
+  background: #f8f9fa;
+}
+
+.suggestion-item:last-child {
+  border-bottom: none;
+}
+
+/* Search Actions */
+.search-actions {
+  display: flex;
+  gap: 1rem;
+  justify-content: center;
+}
+
+/* Buttons */
+.btn-primary, .btn-secondary, .btn-icon {
+  padding: 0.75rem 1.5rem;
+  border: none;
+  border-radius: 25px;
+  font-size: 1rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  text-decoration: none;
+}
+
+.btn-primary {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
+}
+
+.btn-primary:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4);
+}
+
+.btn-secondary {
+  background: white;
+  color: #667eea;
+  border: 2px solid #667eea;
+}
+
+.btn-secondary:hover {
+  background: #667eea;
+  color: white;
+  transform: translateY(-2px);
+}
+
+.btn-icon {
+  padding: 0.5rem;
+  border-radius: 50%;
+  background: #f8f9fa;
+  color: #6c757d;
+  font-size: 1rem;
+}
+
+.btn-icon:hover {
+  background: #e9ecef;
+  color: #495057;
+}
+
+/* Loading */
+.loading {
+  text-align: center;
+  padding: 3rem 1rem;
+}
+
+.spinner {
+  width: 50px;
+  height: 50px;
+  border: 4px solid #f3f3f3;
+  border-top: 4px solid #667eea;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  margin: 0 auto 1rem;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+/* Results Section */
+.results-section {
+  padding: 1rem;
+}
+
+.project-header {
+  background: white;
+  padding: 1.5rem;
+  border-radius: 15px;
+  box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+  margin-bottom: 1rem;
+}
+
+.project-title {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 0.5rem;
+}
+
+.project-title h2 {
+  color: #2c3e50;
+  font-size: 1.8rem;
+  font-weight: 600;
+  margin: 0;
+}
+
+.project-actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.project-id {
+  color: #6c757d;
+  font-weight: 500;
+}
+
+/* Tabs */
+.tabs-container {
+  background: white;
+  border-radius: 15px;
+  box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+  overflow: hidden;
+}
+
+.tabs {
+  display: flex;
+  background: #f8f9fa;
+  overflow-x: auto;
+}
+
+.tab-btn {
+  flex: 1;
+  padding: 1rem;
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: #6c757d;
+  transition: all 0.3s ease;
+  white-space: nowrap;
+  min-width: 120px;
+}
+
+.tab-btn.active {
+  background: white;
+  color: #667eea;
+  box-shadow: 0 -2px 0 #667eea inset;
+}
+
+.tab-btn:hover:not(.active) {
+  background: #e9ecef;
+  color: #495057;
+}
+
+.tab-content {
+  padding: 1.5rem;
+  display: none;
+}
+
+.tab-content.active {
+  display: block;
+}
+
+/* Info Grid */
+.info-grid {
+  display: grid;
+  gap: 1.5rem;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+}
+
+.info-card {
+  background: #f8f9fa;
+  padding: 1.5rem;
+  border-radius: 10px;
+  border-left: 4px solid #667eea;
+}
+
+.info-card h3 {
+  color: #2c3e50;
+  font-size: 1.2rem;
+  font-weight: 600;
+  margin-bottom: 1rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.info-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 0.75rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid #e9ecef;
+}
+
+.info-item:last-child {
+  margin-bottom: 0;
+  padding-bottom: 0;
+  border-bottom: none;
+}
+
+.info-item label {
+  font-weight: 500;
+  color: #495057;
+  margin-right: 1rem;
+  min-width: 0;
+  flex-shrink: 0;
+}
+
+.info-item span {
+  color: #6c757d;
+  text-align: right;
+  word-break: break-word;
+  flex: 1;
+}
+
+/* Status Badges */
+.status-badge {
+  padding: 0.25rem 0.75rem;
+  border-radius: 15px;
+  font-size: 0.8rem;
+  font-weight: 500;
+  text-transform: uppercase;
+}
+
+/* No Results & Error */
+.no-results, .error-message {
+  text-align: center;
+  padding: 3rem 1rem;
+  color: #6c757d;
+}
+
+.no-results-content, .error-content {
+  max-width: 400px;
+  margin: 0 auto;
+}
+
+.no-results i, .error-message i {
+  font-size: 4rem;
+  margin-bottom: 1rem;
+  opacity: 0.5;
+}
+
+.error-message i {
+  color: #dc3545;
+}
+
+.no-results h3, .error-message h3 {
+  margin-bottom: 0.5rem;
+  font-size: 1.5rem;
+}
+
+/* App Footer */
+.app-footer {
+  background: #2c3e50;
+  color: white;
+  text-align: center;
+  padding: 2rem 1rem;
+  margin-top: 3rem;
+}
+
+.app-footer p {
+  margin-bottom: 0.5rem;
+  opacity: 0.9;
+}
+
+.app-footer p:last-child {
+  margin-bottom: 0;
+  font-size: 0.9rem;
+  opacity: 0.7;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  .app-header {
+    padding: 1.5rem 1rem;
+  }
+  
+  .app-header h1 {
+    font-size: 2rem;
+  }
+  
+  .search-actions {
+    flex-direction: column;
+  }
+  
+  .btn-primary, .btn-secondary {
+    width: 100%;
+    justify-content: center;
+  }
+  
+  .project-title {
+    flex-direction: column;
+    gap: 1rem;
+  }
+  
+  .project-actions {
+    align-self: flex-start;
+  }
+  
+  .tabs {
+    flex-wrap: wrap;
+  }
+  
+  .tab-btn {
+    min-width: auto;
+    flex: 1 1 50%;
+  }
+  
+  .info-grid {
+    grid-template-columns: 1fr;
+  }
+  
+  .info-item {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.5rem;
+  }
+  
+  .info-item span {
+    text-align: left;
+  }
+}
+  </style>
+</head>
+<body>
+  <div class="app-container">
+    <!-- Header -->
+    <header class="app-header">
+      <div class="header-content">
+        <h1><i class="fas fa-project-diagram"></i> GABRIE Projects</h1>
+        <p>Sistema de Gestión de Proyectos</p>
+      </div>
+    </header>
+
+    <!-- Search Section -->
+    <section class="search-section">
+      <div class="search-container">
+        <div class="search-box">
+          <i class="fas fa-search search-icon"></i>
+          <input type="text" id="searchInput" placeholder="Buscar proyecto..." autocomplete="off">
+          <button id="clearSearch" class="clear-btn" style="display: none;">
+            <i class="fas fa-times"></i>
+          </button>
+        </div>
+        <div class="search-suggestions" id="searchSuggestions"></div>
+        <div class="search-actions">
+          <button id="searchBtn" class="btn-primary">
+            <i class="fas fa-search"></i> Buscar
+          </button>
+          <button id="addNewBtn" class="btn-secondary">
+            <i class="fas fa-plus"></i> Nuevo
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <!-- Loading Indicator -->
+    <div class="loading" id="loadingIndicator" style="display: none;">
+      <div class="spinner"></div>
+      <p>Buscando proyecto...</p>
+    </div>
+
+    <!-- Results Section -->
+    <section class="results-section" id="resultsSection" style="display: none;">
+      <!-- Project Header -->
+      <div class="project-header">
+        <div class="project-title">
+          <h2 id="projectName"></h2>
+          <div class="project-actions">
+            <button id="editBtn" class="btn-icon" title="Editar proyecto">
+              <i class="fas fa-edit"></i>
+            </button>
+            <button id="refreshBtn" class="btn-icon" title="Actualizar">
+              <i class="fas fa-sync-alt"></i>
+            </button>
+          </div>
+        </div>
+        <div class="project-id" id="projectDepartment"></div>
+      </div>
+
+      <!-- Project Data Tabs -->
+      <div class="tabs-container">
+        <div class="tabs">
+          <button class="tab-btn active" data-tab="general">
+            <i class="fas fa-info-circle"></i> General
+          </button>
+          <button class="tab-btn" data-tab="contractual">
+            <i class="fas fa-file-contract"></i> Contractual
+          </button>
+          <button class="tab-btn" data-tab="technical">
+            <i class="fas fa-cogs"></i> Técnico
+          </button>
+          <button class="tab-btn" data-tab="operational">
+            <i class="fas fa-tasks"></i> Operativo
+          </button>
+        </div>
+
+        <!-- Tab Content -->
+        <div class="tab-content active" id="general">
+          <div class="info-grid">
+            <div class="info-card">
+              <h3><i class="fas fa-users"></i> Usuarios</h3>
+              <div class="info-item">
+                <label>Usuarios Iniciales:</label>
+                <span id="usuariosIniciales"></span>
+              </div>
+              <div class="info-item">
+                <label>Con Novedades:</label>
+                <span id="usuariosNovedades"></span>
+              </div>
+              <div class="info-item">
+                <label>Atendidos:</label>
+                <span id="usuariosAtendidos"></span>
+              </div>
+            </div>
+
+            <div class="info-card">
+              <h3><i class="fas fa-project-diagram"></i> Proyecto</h3>
+              <div class="info-item">
+                <label>Tipo:</label>
+                <span id="tipoProyecto"></span>
+              </div>
+              <div class="info-item">
+                <label>Departamento:</label>
+                <span id="departamento"></span>
+              </div>
+              <div class="info-item">
+                <label>Sostenibilidad:</label>
+                <span id="tipoSostenibilidad"></span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="tab-content" id="contractual">
+          <div class="info-grid">
+            <div class="info-card">
+              <h3><i class="fas fa-file-contract"></i> Contrato</h3>
+              <div class="info-item">
+                <label>Número de Contrato:</label>
+                <span id="numeroContrato"></span>
+              </div>
+              <div class="info-item">
+                <label>Contratante:</label>
+                <span id="contratante"></span>
+              </div>
+              <div class="info-item">
+                <label>Contratista:</label>
+                <span id="contratista"></span>
+              </div>
+              <div class="info-item">
+                <label>Interventoría:</label>
+                <span id="interventoria"></span>
+              </div>
+            </div>
+
+            <div class="info-card">
+              <h3><i class="fas fa-calendar-alt"></i> CEPS</h3>
+              <div class="info-item">
+                <label>CEPS Inicial:</label>
+                <span id="cepsInicial"></span>
+              </div>
+              <div class="info-item">
+                <label>CEPS Vigencia 2024:</label>
+                <span id="ceps2024"></span>
+              </div>
+              <div class="info-item">
+                <label>CEPS Vigencia 2025:</label>
+                <span id="ceps2025"></span>
+              </div>
+              <div class="info-item">
+                <label>Observaciones CEPS:</label>
+                <span id="observacionesCeps"></span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="tab-content" id="technical">
+          <div class="info-grid">
+            <div class="info-card">
+              <h3><i class="fas fa-solar-panel"></i> Equipos</h3>
+              <div class="info-item">
+                <label>Panel:</label>
+                <span id="panel"></span>
+              </div>
+              <div class="info-item">
+                <label>Inversor:</label>
+                <span id="inversor"></span>
+              </div>
+              <div class="info-item">
+                <label>Controlador:</label>
+                <span id="controlador"></span>
+              </div>
+              <div class="info-item">
+                <label>Batería:</label>
+                <span id="bateria"></span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="tab-content" id="operational">
+          <div class="info-grid">
+            <div class="info-card">
+              <h3><i class="fas fa-clipboard-check"></i> Estado Operativo</h3>
+              <div class="info-item">
+                <label>Estado Operativo:</label>
+                <span id="estadoOperativo" class="status-badge"></span>
+              </div>
+              <div class="info-item">
+                <label>Estado de Codificación:</label>
+                <span id="estadoCodificacion" class="status-badge"></span>
+              </div>
+              <div class="info-item">
+                <label>Avance de Recibo:</label>
+                <span id="avanceRecibo"></span>
+              </div>
+            </div>
+
+            <div class="info-card">
+              <h3><i class="fas fa-calendar"></i> Fechas</h3>
+              <div class="info-item">
+                <label>Fecha Inicio Prestación:</label>
+                <span id="fechaInicio"></span>
+              </div>
+              <div class="info-item">
+                <label>Fecha Estimada Inicio:</label>
+                <span id="fechaEstimada"></span>
+              </div>
+            </div>
+
+            <div class="info-card">
+              <h3><i class="fas fa-comments"></i> Observaciones</h3>
+              <div class="info-item">
+                <label>Documentales:</label>
+                <span id="observacionesDocumental"></span>
+              </div>
+              <div class="info-item">
+                <label>Operativas:</label>
+                <span id="observacionesOperativas"></span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- No Results -->
+    <div class="no-results" id="noResults" style="display: none;">
+      <div class="no-results-content">
+        <i class="fas fa-search"></i>
+        <h3>No se encontró el proyecto</h3>
+        <p>Intenta con otro nombre o revisa la ortografía</p>
+        <button id="showAllBtn" class="btn-secondary">
+          <i class="fas fa-list"></i> Ver todos los proyectos
+        </button>
+      </div>
+    </div>
+
+    <!-- Error Message -->
+    <div class="error-message" id="errorMessage" style="display: none;">
+      <div class="error-content">
+        <i class="fas fa-exclamation-triangle"></i>
+        <h3>Error</h3>
+        <p id="errorText"></p>
+        <button id="retryBtn" class="btn-primary">
+          <i class="fas fa-redo"></i> Reintentar
+        </button>
+      </div>
+    </div>
+
+    <!-- Footer -->
+    <footer class="app-footer">
+      <p>&copy; 2024 GABRIE - Sistema de Gestión de Proyectos</p>
+      <p>Desarrollado para optimizar la gestión y seguimiento de proyectos</p>
+    </footer>
+  </div>
+
+  <script>
+// Global variables
+let currentProject = null;
+let allProjects = [];
+let sheetHeaders = [];
+
+// Initialize the application
+document.addEventListener('DOMContentLoaded', function() {
+  initializeApp();
+});
+
+/**
+ * Initialize the application
+ */
+function initializeApp() {
+  bindEventListeners();
+  loadProjectsList();
+  loadSheetHeaders();
+  
+  // Focus on search input
+  document.getElementById('searchInput').focus();
+}
+
+/**
+ * Bind all event listeners
+ */
+function bindEventListeners() {
+  // Search functionality
+  document.getElementById('searchBtn').addEventListener('click', handleSearch);
+  document.getElementById('searchInput').addEventListener('keypress', function(e) {
+    if (e.key === 'Enter') {
+      handleSearch();
+    }
+  });
+  document.getElementById('searchInput').addEventListener('input', handleSearchInput);
+  document.getElementById('clearSearch').addEventListener('click', clearSearch);
+  
+  // Project actions
+  document.getElementById('editBtn').addEventListener('click', editProject);
+  document.getElementById('refreshBtn').addEventListener('click', refreshProject);
+  document.getElementById('addNewBtn').addEventListener('click', showAddProjectModal);
+  document.getElementById('showAllBtn').addEventListener('click', showAllProjects);
+  document.getElementById('retryBtn').addEventListener('click', handleSearch);
+  
+  // Tab functionality
+  document.querySelectorAll('.tab-btn').forEach(btn => {
+    btn.addEventListener('click', function() {
+      switchTab(this.dataset.tab);
+    });
+  });
+}
+
+/**
+ * Handle search input changes for suggestions
+ */
+function handleSearchInput() {
+  const input = document.getElementById('searchInput');
+  const clearBtn = document.getElementById('clearSearch');
+  const suggestions = document.getElementById('searchSuggestions');
+  
+  if (input.value.length > 0) {
+    clearBtn.style.display = 'block';
+    showSuggestions(input.value);
+  } else {
+    clearBtn.style.display = 'none';
+    hideSuggestions();
+  }
+}
+
+/**
+ * Show search suggestions
+ */
+function showSuggestions(query) {
+  const suggestions = document.getElementById('searchSuggestions');
+  
+  if (!allProjects || allProjects.length === 0) {
+    hideSuggestions();
+    return;
+  }
+  
+  const filtered = allProjects
+    .filter(project => project.toLowerCase().includes(query.toLowerCase()))
+    .slice(0, 8);
+  
+  if (filtered.length === 0) {
+    hideSuggestions();
+    return;
+  }
+  
+  suggestions.innerHTML = filtered
+    .map(project => `<div class="suggestion-item" onclick="selectSuggestion('${project.replace(/'/g, "\\'")}')">${project}</div>`)
+    .join('');
+  
+  suggestions.style.display = 'block';
+}
+
+/**
+ * Hide search suggestions
+ */
+function hideSuggestions() {
+  document.getElementById('searchSuggestions').style.display = 'none';
+}
+
+/**
+ * Select a suggestion
+ */
+function selectSuggestion(project) {
+  document.getElementById('searchInput').value = project;
+  hideSuggestions();
+  handleSearch();
+}
+
+/**
+ * Clear search input
+ */
+function clearSearch() {
+  document.getElementById('searchInput').value = '';
+  document.getElementById('clearSearch').style.display = 'none';
+  hideSuggestions();
+  hideAllSections();
+  document.getElementById('searchInput').focus();
+}
+
+/**
+ * Handle search functionality
+ */
+function handleSearch() {
+  const searchTerm = document.getElementById('searchInput').value.trim();
+  
+  if (!searchTerm) {
+    showError('Por favor ingresa un nombre de proyecto para buscar');
+    return;
+  }
+  
+  showLoading();
+  hideSuggestions();
+  
+  google.script.run
+    .withSuccessHandler(handleSearchSuccess)
+    .withFailureHandler(handleSearchError)
+    .searchProject(searchTerm);
+}
+
+/**
+ * Handle successful search
+ */
+function handleSearchSuccess(result) {
+  hideLoading();
+  
+  if (result.error) {
+    showError(result.error);
+    return;
+  }
+  
+  if (!result.found) {
+    showNoResults();
+    return;
+  }
+  
+  currentProject = result;
+  displayProject(result.data);
+}
+
+/**
+ * Handle search error
+ */
+function handleSearchError(error) {
+  hideLoading();
+  showError('Error al buscar el proyecto: ' + error.message);
+  console.error('Search error:', error);
+}
+
+/**
+ * Display project data
+ */
+function displayProject(data) {
+  hideAllSections();
+  
+  // Set project header
+  document.getElementById('projectName').textContent = data.PROYECTOS || 'Sin nombre';
+  document.getElementById('projectDepartment').textContent = data.DEPARTAMENTO || 'Sin departamento';
+  
+  // General tab
+  setElementText('usuariosIniciales', data['USUARIOS INICIALES']);
+  setElementText('usuariosNovedades', data['USUARIOS CON NOVEDADES']);
+  setElementText('usuariosAtendidos', data['USUARIOS ATENDIDOS']);
+  setElementText('tipoProyecto', data['TIPO DE PROYECTO']);
+  setElementText('departamento', data.DEPARTAMENTO);
+  setElementText('tipoSostenibilidad', data['TIPO DE SOSTENIBILIDAD']);
+  
+  // Contractual tab
+  setElementText('numeroContrato', data['NUMERO DE CONTRATO DE OBRA']);
+  setElementText('contratante', data.CONTRATANTE);
+  setElementText('contratista', data.CONTRATISTA);
+  setElementText('interventoria', data.INTEVENTORIA);
+  setElementText('cepsInicial', data['CEPS INICIAL']);
+  setElementText('ceps2024', data['CEPS VIGENCIA 2024']);
+  setElementText('ceps2025', data['CEPS VIGENCIA 2025']);
+  setElementText('observacionesCeps', data['OBSERVACION CEPS']);
+  
+  // Technical tab
+  setElementText('panel', data.PANEL);
+  setElementText('inversor', data.INVERSOR);
+  setElementText('controlador', data.CONTROLADOR);
+  setElementText('bateria', data.BATERIA);
+  
+  // Operational tab
+  setStatusBadge('estadoOperativo', data['ESTADO OPERATIVO']);
+  setStatusBadge('estadoCodificacion', data['ESTADO DE CODIFICACION']);
+  setElementText('avanceRecibo', data['AVANCE DE RECIBO']);
+  setElementText('fechaInicio', formatDate(data['FECHA DE INICIO DE PRESTACIÓN']));
+  setElementText('fechaEstimada', formatDate(data['FECHA ESTIMADA DE INICIO DE PRESTACIÓN']));
+  setElementText('observacionesDocumental', data['OBSERVACIONES DOCUMENTAL']);
+  setElementText('observacionesOperativas', data['OBSERVACIONES OPERATIVAS']);
+  
+  document.getElementById('resultsSection').style.display = 'block';
+}
+
+/**
+ * Set element text with fallback
+ */
+function setElementText(elementId, value) {
+  const element = document.getElementById(elementId);
+  if (element) {
+    element.textContent = value || 'N/A';
+  }
+}
+
+/**
+ * Set status badge with appropriate styling
+ */
+function setStatusBadge(elementId, value) {
+  const element = document.getElementById(elementId);
+  if (element) {
+    element.textContent = value || 'N/A';
+    
+    // Add appropriate CSS class based on status
+    element.className = 'status-badge';
+    if (value) {
+      const lowerValue = value.toLowerCase();
+      if (lowerValue.includes('aprobado') || lowerValue.includes('activo') || lowerValue.includes('completado')) {
+        element.style.background = '#d4edda';
+        element.style.color = '#155724';
+      } else if (lowerValue.includes('pendiente') || lowerValue.includes('proceso')) {
+        element.style.background = '#fff3cd';
+        element.style.color = '#856404';
+      } else if (lowerValue.includes('rechazado') || lowerValue.includes('cancelado') || lowerValue.includes('inactivo')) {
+        element.style.background = '#f8d7da';
+        element.style.color = '#721c24';
+      }
+    }
+  }
+}
+
+/**
+ * Format date for display
+ */
+function formatDate(dateString) {
+  if (!dateString) return 'N/A';
+  
+  try {
+    const date = new Date(dateString);
+    if (isNaN(date.getTime())) return dateString;
+    
+    return date.toLocaleDateString('es-ES', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric'
+    });
+  } catch (error) {
+    return dateString;
+  }
+}
+
+/**
+ * Switch between tabs
+ */
+function switchTab(tabName) {
+  // Update tab buttons
+  document.querySelectorAll('.tab-btn').forEach(btn => {
+    btn.classList.remove('active');
+  });
+  document.querySelector(`[data-tab="${tabName}"]`).classList.add('active');
+  
+  // Update tab content
+  document.querySelectorAll('.tab-content').forEach(content => {
+    content.classList.remove('active');
+  });
+  document.getElementById(tabName).classList.add('active');
+}
+
+/**
+ * Edit current project
+ */
+function editProject() {
+  alert('Función de edición próximamente');
+}
+
+/**
+ * Refresh current project
+ */
+function refreshProject() {
+  if (!currentProject) return;
+  
+  const projectName = currentProject.data.PROYECTOS;
+  if (projectName) {
+    document.getElementById('searchInput').value = projectName;
+    handleSearch();
+  }
+}
+
+/**
+ * Show add new project modal
+ */
+function showAddProjectModal() {
+  alert('Función de agregar proyecto próximamente');
+}
+
+/**
+ * Show all projects
+ */
+function showAllProjects() {
+  if (allProjects && allProjects.length > 0) {
+    const suggestions = document.getElementById('searchSuggestions');
+    suggestions.innerHTML = allProjects
+      .slice(0, 20)
+      .map(project => `<div class="suggestion-item" onclick="selectSuggestion('${project.replace(/'/g, "\\'")}')">${project}</div>`)
+      .join('');
+    suggestions.style.display = 'block';
+  }
+}
+
+/**
+ * Load projects list for suggestions
+ */
+function loadProjectsList() {
+  google.script.run
+    .withSuccessHandler(function(projects) {
+      allProjects = projects || [];
+    })
+    .withFailureHandler(function(error) {
+      console.error('Error loading projects:', error);
+    })
+    .getAllProjects();
+}
+
+/**
+ * Load sheet headers for dynamic form
+ */
+function loadSheetHeaders() {
+  google.script.run
+    .withSuccessHandler(function(headers) {
+      sheetHeaders = headers || [];
+    })
+    .withFailureHandler(function(error) {
+      console.error('Error loading headers:', error);
+    })
+    .getSheetHeaders();
+}
+
+/**
+ * Show loading indicator
+ */
+function showLoading() {
+  hideAllSections();
+  document.getElementById('loadingIndicator').style.display = 'block';
+}
+
+/**
+ * Hide loading indicator
+ */
+function hideLoading() {
+  document.getElementById('loadingIndicator').style.display = 'none';
+}
+
+/**
+ * Show no results
+ */
+function showNoResults() {
+  hideAllSections();
+  document.getElementById('noResults').style.display = 'block';
+}
+
+/**
+ * Show error message
+ */
+function showError(message) {
+  hideAllSections();
+  document.getElementById('errorText').textContent = message;
+  document.getElementById('errorMessage').style.display = 'block';
+}
+
+/**
+ * Hide all sections
+ */
+function hideAllSections() {
+  document.getElementById('loadingIndicator').style.display = 'none';
+  document.getElementById('resultsSection').style.display = 'none';
+  document.getElementById('noResults').style.display = 'none';
+  document.getElementById('errorMessage').style.display = 'none';
+}
+  </script>
+</body>
+</html>

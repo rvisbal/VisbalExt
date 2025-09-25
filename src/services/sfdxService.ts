@@ -1783,14 +1783,25 @@ if (!items.isEmpty()) {
                 if (!fs.existsSync('.visbal')) {
                     fs.mkdirSync('.visbal');
                 }
-                const queryFilePath = '.visbal/query.txt';
-                //delete the query.txt file if it exists
-                if (fs.existsSync(queryFilePath)) {
-                    fs.unlinkSync(queryFilePath);
-                }
+                // Use unique filename to prevent race conditions between concurrent queries
+                const timestamp = Date.now();
+                const randomSuffix = Math.floor(Math.random() * 10000);
+                const queryFilePath = `.visbal/query_${timestamp}_${randomSuffix}.txt`;
+                
                 //write the query into a file and add this command
                 fs.writeFileSync(queryFilePath, query);
                 command += ` --file ${queryFilePath}`;
+                
+                // Clean up the query file after the command completes (in a setTimeout to avoid blocking)
+                setTimeout(() => {
+                    try {
+                        if (fs.existsSync(queryFilePath)) {
+                            fs.unlinkSync(queryFilePath);
+                        }
+                    } catch (error) {
+                        OrgUtils.logDebug(`[VisbalExt.SfdxService] executeSoqlQuery -- Failed to clean up query file: ${queryFilePath}`);
+                    }
+                }, 5000); // Clean up after 5 seconds
             }
             else {
                 command += ` --query "${query}"`;

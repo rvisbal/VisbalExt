@@ -678,7 +678,7 @@ export class LogFilterService {
             },
             {
                 id: 'builtin-user-debug-with-dml-soql',
-                name: 'User Debug with DML & soql',
+                name: 'User Debug with DML & SOQL',
                 description: 'Shows DEBUG, DML & SOQL',
                 isActive: false,
                 isBuiltIn: true,
