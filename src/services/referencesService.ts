@@ -64,13 +64,13 @@ export class ReferencesService {
             throw new Error('No symbol found at cursor position. Please place cursor on a method, property, class, or other symbol.');
         }
 
-        const { symbol, type, className } = symbolInfo;
+        const { symbol, type, className, annotations } = symbolInfo;
         const searchContext = className ? `${className}.${symbol}` : symbol;
         
         OrgUtils.logDebug(`[VisbalExt.ReferencesService] findAllReferences -- Found symbol: ${searchContext} (type: ${type})`);
 
         // Step 2: Search for all references to this symbol
-        const references = await this.searchForReferences(symbol, type, className, editor);
+        const references = await this.searchForReferences(symbol, type, className, editor, annotations);
 
         return {
             symbol,
@@ -84,7 +84,7 @@ export class ReferencesService {
     /**
      * Identifies the symbol at the cursor position using existing navigation logic
      */
-    private static async identifySymbolFromCursor(editor: vscode.TextEditor): Promise<{symbol: string, type: string, className?: string} | null> {
+    private static async identifySymbolFromCursor(editor: vscode.TextEditor): Promise<{symbol: string, type: string, className?: string, annotations?: string[]} | null> {
         const position = editor.selection.active;
         
         try {
@@ -98,7 +98,8 @@ export class ReferencesService {
             return {
                 symbol: symbolInfo.symbol,
                 type: symbolInfo.type,
-                className: symbolInfo.className
+                className: symbolInfo.className,
+                annotations: symbolInfo.annotations
             };
         } catch (error) {
             OrgUtils.logError('[VisbalExt.ReferencesService] identifySymbolFromCursor -- Error identifying symbol:', error);
@@ -114,7 +115,8 @@ export class ReferencesService {
         symbol: string,
         symbolType: string,
         className?: string,
-        currentEditor?: vscode.TextEditor
+        currentEditor?: vscode.TextEditor,
+        annotations?: string[]
     ): Promise<ReferenceLocation[]> {
         
         const references: ReferenceLocation[] = [];
@@ -129,7 +131,7 @@ export class ReferencesService {
         }
         
         // Step 2: Search in workspace files
-        const workspaceRefs = await this.searchInWorkspace(symbol, symbolType, className, currentEditor?.document.uri);
+        const workspaceRefs = await this.searchInWorkspace(symbol, symbolType, className, currentEditor?.document.uri, annotations);
         references.push(...workspaceRefs);
         
         OrgUtils.logDebug(`[VisbalExt.ReferencesService] searchForReferences -- Found ${references.length} total references before deduplication`);
@@ -207,6 +209,61 @@ export class ReferencesService {
     }
 
     /**
+     * Searches for references to Apex methods in LWC JavaScript/TypeScript files
+     */
+    private static async searchInLwcFileContent(
+        fileContent: string,
+        filePath: string,
+        symbol: string,
+        symbolType: string
+    ): Promise<ReferenceLocation[]> {
+        const references: ReferenceLocation[] = [];
+        const lines = fileContent.split('\n');
+        const processedLines = new Set<number>(); // Track lines we've already found matches on
+        
+        // Create search patterns specific to LWC usage of Apex methods
+        const lwcSearchPatterns = this.createLwcSearchPatterns(symbol, symbolType);
+        
+        for (let lineIndex = 0; lineIndex < lines.length; lineIndex++) {
+            const lineText = lines[lineIndex];
+            
+            // Skip if we've already found a reference on this line
+            if (processedLines.has(lineIndex)) {
+                continue;
+            }
+            
+            // Check all patterns, but only keep the first match per line
+            for (const pattern of lwcSearchPatterns) {
+                const regex = new RegExp(pattern.regex);
+                const match = regex.exec(lineText);
+                
+                if (match) {
+                    const matchStart = match.index;
+                    const position = new vscode.Position(lineIndex, matchStart);
+                    
+                    // Get context lines
+                    const contextBefore = lineIndex > 0 ? lines[lineIndex - 1] : '';
+                    const contextAfter = lineIndex < lines.length - 1 ? lines[lineIndex + 1] : '';
+                    
+                    references.push({
+                        filePath: vscode.Uri.file(filePath),
+                        position,
+                        lineText: lineText.trim(),
+                        fileName: filePath.split(/[\/\\]/).pop() || filePath,
+                        contextBefore: contextBefore.trim(),
+                        contextAfter: contextAfter.trim()
+                    });
+                    
+                    processedLines.add(lineIndex);
+                    break; // Only one match per line
+                }
+            }
+        }
+        
+        return references;
+    }
+
+    /**
      * Searches for references in raw file content (Node.js file reading)
      */
     private static async searchInFileContent(
@@ -270,7 +327,8 @@ export class ReferencesService {
         symbol: string,
         symbolType: string,
         className?: string,
-        excludeUri?: vscode.Uri
+        excludeUri?: vscode.Uri,
+        annotations?: string[]
     ): Promise<ReferenceLocation[]> {
         
         if (!vscode.workspace.workspaceFolders) {
@@ -321,6 +379,52 @@ export class ReferencesService {
             }
         } catch (error) {
             OrgUtils.logError(`[VisbalExt.ReferencesService] searchInWorkspace -- Error accessing classes directory:`, error);
+        }
+        
+        // Search in LWC files if the method has @AuraEnabled annotation
+        const hasAuraEnabled = annotations && annotations.includes('AuraEnabled');
+        if (hasAuraEnabled && symbolType === 'method') {
+            OrgUtils.logDebug(`[VisbalExt.ReferencesService] searchInWorkspace -- Method has @AuraEnabled annotation, searching in LWC components`);
+            
+            const lwcPath = 'force-app/main/default/lwc';
+            const lwcDir = path.join(workspaceFolder.uri.fsPath, lwcPath);
+            
+            try {
+                const fs = await import('fs');
+                const fsPromises = fs.promises;
+                
+                if (await this.directoryExists(lwcDir)) {
+                    const lwcComponents = await fsPromises.readdir(lwcDir);
+                    
+                    for (const componentName of lwcComponents) {
+                        const componentDir = path.join(lwcDir, componentName);
+                        const componentStat = await fsPromises.stat(componentDir);
+                        
+                        if (componentStat.isDirectory()) {
+                            const componentFiles = await fsPromises.readdir(componentDir);
+                            const jsFiles = componentFiles.filter(file => 
+                                file.endsWith('.js') || file.endsWith('.ts')
+                            );
+                            
+                            for (const fileName of jsFiles) {
+                                const filePath = path.join(componentDir, fileName);
+                                
+                                try {
+                                    const fileContent = await fsPromises.readFile(filePath, 'utf8');
+                                    const fileRefs = await this.searchInLwcFileContent(fileContent, filePath, symbol, symbolType);
+                                    references.push(...fileRefs);
+                                } catch (error) {
+                                    OrgUtils.logError(`[VisbalExt.ReferencesService] searchInWorkspace -- Error reading LWC file ${filePath}:`, error);
+                                }
+                            }
+                        }
+                    }
+                } else {
+                    OrgUtils.logDebug(`[VisbalExt.ReferencesService] searchInWorkspace -- LWC directory not found: ${lwcDir}`);
+                }
+            } catch (error) {
+                OrgUtils.logError(`[VisbalExt.ReferencesService] searchInWorkspace -- Error accessing LWC directory:`, error);
+            }
         }
         
         return references;
@@ -431,6 +535,62 @@ export class ReferencesService {
                     { regex: `\\b${escapedSymbol}\\b`, description: 'Variable usage' }
                 );
                 break;
+        }
+        
+        return patterns;
+    }
+
+    /**
+     * Creates search patterns for LWC JavaScript/TypeScript files when looking for Apex method references
+     */
+    private static createLwcSearchPatterns(symbol: string, symbolType: string): Array<{regex: string, description: string}> {
+        const patterns: Array<{regex: string, description: string}> = [];
+        
+        // Escape special regex characters in symbol name
+        const escapedSymbol = symbol.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        
+        if (symbolType === 'method') {
+            // Common patterns for calling Apex methods in LWC:
+            
+            // 1. Import pattern: import methodName from '@salesforce/apex/ClassName.methodName'
+            patterns.push({ 
+                regex: `import\\s+\\w*\\s*from\\s+['""]@salesforce/apex/\\w+\\.${escapedSymbol}['\""]`, 
+                description: 'Apex method import in LWC' 
+            });
+            
+            // 2. Direct method call: methodName() or this.methodName()
+            patterns.push({ 
+                regex: `\\b${escapedSymbol}\\s*\\(`, 
+                description: 'Direct method call' 
+            });
+            patterns.push({ 
+                regex: `this\\.\\s*${escapedSymbol}\\s*\\(`, 
+                description: 'Method call on this' 
+            });
+            
+            // 3. Method assignment: const result = methodName or let result = methodName
+            patterns.push({ 
+                regex: `(?:const|let|var)\\s+\\w+\\s*=\\s*${escapedSymbol}\\b`, 
+                description: 'Method assignment' 
+            });
+            
+            // 4. Promise/async patterns: await methodName() or .then() chains
+            patterns.push({ 
+                regex: `await\\s+${escapedSymbol}\\s*\\(`, 
+                description: 'Async method call' 
+            });
+            
+            // 5. Method reference in strings or comments (for wire services)
+            patterns.push({ 
+                regex: `['""]\\w*\\.${escapedSymbol}['\""]`, 
+                description: 'Method reference in string' 
+            });
+            
+            // 6. Wire service pattern: @wire(methodName, {...})
+            patterns.push({ 
+                regex: `@wire\\s*\\(\\s*${escapedSymbol}\\s*,`, 
+                description: 'Wire service usage' 
+            });
         }
         
         return patterns;

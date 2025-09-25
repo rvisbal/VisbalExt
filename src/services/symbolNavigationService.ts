@@ -52,6 +52,37 @@ export class SymbolNavigationService {
     }
 
     /**
+     * Detects annotations (like @AuraEnabled) above a method
+     */
+    private static detectAnnotations(document: vscode.TextDocument, methodLineNumber: number): string[] {
+        const annotations: string[] = [];
+        
+        // Look backwards from the method line to find annotations
+        for (let i = methodLineNumber - 1; i >= Math.max(0, methodLineNumber - 10); i--) {
+            const line = document.lineAt(i).text.trim();
+            
+            // Skip empty lines and comments
+            if (!line || line.startsWith('//') || line.startsWith('/*') || line.startsWith('*')) {
+                continue;
+            }
+            
+            // Check for annotation pattern @AnnotationName
+            const annotationMatch = line.match(/^@([A-Za-z][A-Za-z0-9_]*)/);
+            if (annotationMatch) {
+                annotations.push(annotationMatch[1]);
+                continue;
+            }
+            
+            // If we hit a non-annotation, non-empty, non-comment line, stop looking
+            if (!line.startsWith('@')) {
+                break;
+            }
+        }
+        
+        return annotations;
+    }
+
+    /**
      * Manually extracts a word from a line when VS Code's word detection fails
      */
     private static extractWordManually(line: string, character: number): {word: string, start: number, end: number} | null {
@@ -88,7 +119,7 @@ export class SymbolNavigationService {
     /**
      * Extracts the symbol and its type from the current cursor position
      */
-    private static extractSymbolFromCursor(document: vscode.TextDocument, position: vscode.Position): {symbol: string, type: string, isThisReference: boolean, className?: string, variableToTrace?: string} | null {
+    private static extractSymbolFromCursor(document: vscode.TextDocument, position: vscode.Position): {symbol: string, type: string, isThisReference: boolean, className?: string, variableToTrace?: string, annotations?: string[]} | null {
         let wordRange = document.getWordRangeAtPosition(position);
         let word: string;
         
@@ -159,13 +190,24 @@ export class SymbolNavigationService {
                 if (/^[a-z]/.test(variableName)) {
                     // Store variable name for async resolution during navigation
                     this.logDebug(`[VisbalExt.SymbolNavigationService] extractSymbolFromCursor -- Variable ${variableName} will be traced during navigation for ${word}`);
+                    
+                    // Detect annotations for methods (only in .cls/.apex files)
+                    let annotations: string[] = [];
+                    if (symbolInfo.type === this.SymbolType.METHOD && (fileExtension === 'cls' || fileExtension === 'apex')) {
+                        annotations = this.detectAnnotations(document, position.line);
+                        if (annotations.length > 0) {
+                            this.logDebug(`[VisbalExt.SymbolNavigationService] extractSymbolFromCursor -- Found annotations: ${annotations.join(', ')} for method: ${word}`);
+                        }
+                    }
+                    
                     // Return variableName as a marker for later async resolution
                     return { 
                         symbol: word, 
                         type: symbolInfo.type, 
                         isThisReference, 
                         className: undefined,
-                        variableToTrace: variableName
+                        variableToTrace: variableName,
+                        annotations
                     };
                 } else {
                     // Looks like a class name (starts with uppercase), treat as direct class reference
@@ -185,7 +227,16 @@ export class SymbolNavigationService {
             }
         }
         
-        return { ...symbolInfo, isThisReference, className };
+        // Detect annotations for methods (only in .cls/.apex files)
+        let annotations: string[] = [];
+        if (symbolInfo.type === this.SymbolType.METHOD && (fileExtension === 'cls' || fileExtension === 'apex')) {
+            annotations = this.detectAnnotations(document, position.line);
+            if (annotations.length > 0) {
+                this.logDebug(`[VisbalExt.SymbolNavigationService] extractSymbolFromCursor -- Found annotations: ${annotations.join(', ')} for method: ${word}`);
+            }
+        }
+        
+        return { ...symbolInfo, isThisReference, className, annotations };
     }
 
     /**
@@ -1132,7 +1183,7 @@ export class SymbolNavigationService {
     /**
      * Extracts symbol information from the current cursor position (public method for references feature)
      */
-    public static extractSymbolInfo(document: vscode.TextDocument, position: vscode.Position): {symbol: string, type: string, isThisReference: boolean, className?: string} | null {
+    public static extractSymbolInfo(document: vscode.TextDocument, position: vscode.Position): {symbol: string, type: string, isThisReference: boolean, className?: string, annotations?: string[]} | null {
         return this.extractSymbolFromCursor(document, position);
     }
 

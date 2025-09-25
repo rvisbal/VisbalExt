@@ -1778,6 +1778,7 @@ if (!items.isEmpty()) {
             
             //if query includes breakpoint, new line, or other special characters then use the advance query
             const advanceQuery = query.includes('breakpoint') || query.includes('\n') || query.includes(' ') || query.includes('(') || query.length > 200;
+            let queryFilePath: string | null = null;
             if (advanceQuery)  {
                 // Ensure .visbal directory exists
                 if (!fs.existsSync('.visbal')) {
@@ -1786,22 +1787,11 @@ if (!items.isEmpty()) {
                 // Use unique filename to prevent race conditions between concurrent queries
                 const timestamp = Date.now();
                 const randomSuffix = Math.floor(Math.random() * 10000);
-                const queryFilePath = `.visbal/query_${timestamp}_${randomSuffix}.txt`;
+                queryFilePath = `.visbal/query_${timestamp}_${randomSuffix}.txt`;
                 
                 //write the query into a file and add this command
                 fs.writeFileSync(queryFilePath, query);
                 command += ` --file ${queryFilePath}`;
-                
-                // Clean up the query file after the command completes (in a setTimeout to avoid blocking)
-                setTimeout(() => {
-                    try {
-                        if (fs.existsSync(queryFilePath)) {
-                            fs.unlinkSync(queryFilePath);
-                        }
-                    } catch (error) {
-                        OrgUtils.logDebug(`[VisbalExt.SfdxService] executeSoqlQuery -- Failed to clean up query file: ${queryFilePath}`);
-                    }
-                }, 5000); // Clean up after 5 seconds
             }
             else {
                 command += ` --query "${query}"`;
@@ -1817,31 +1807,46 @@ if (!items.isEmpty()) {
             }
             command += ' --json';
             OrgUtils.logDebug(`[VisbalExt.SfdxService] executeSoqlQuery -- Final command: ${command}`);
-            const resultStr = await this._executeCommand(command);
-            const result = JSON.parse(resultStr.stdout);
             
-            if (result.status === 0 && result.result) {
-                OrgUtils.logDebug('[VisbalExt.SfdxService] executeSoqlQuery -- SOQL query executed successfully');
-                return result.result.records || [];
-            } else {
-                // Extract the actual error message from the result
-                let errorMessage = result.message || 'Failed to execute SOQL query';
-                if (result.result && result.result.error) {
-                    errorMessage = result.result.error;
-                } else if (result.error && result.error.message) {
-                    errorMessage = result.error.message;
-                }
+            try {
+                const resultStr = await this._executeCommand(command);
+                const result = JSON.parse(resultStr.stdout);
                 
-                // Format common error messages to be more user-friendly
-                if (errorMessage.includes('INVALID_TYPE')) {
-                    errorMessage = 'Invalid object type or field in query. Please check your SOQL syntax.';
-                } else if (errorMessage.includes('INVALID_FIELD')) {
-                    errorMessage = 'One or more fields in your query do not exist on the object. Please verify the field names.';
-                } else if (errorMessage.includes('MALFORMED_QUERY')) {
-                    errorMessage = 'The SOQL query syntax is invalid. Please check your query format.';
+                if (result.status === 0 && result.result) {
+                    OrgUtils.logDebug('[VisbalExt.SfdxService] executeSoqlQuery -- SOQL query executed successfully');
+                    return result.result.records || [];
+                } else {
+                    // Extract the actual error message from the result
+                    let errorMessage = result.message || 'Failed to execute SOQL query';
+                    if (result.result && result.result.error) {
+                        errorMessage = result.result.error;
+                    } else if (result.error && result.error.message) {
+                        errorMessage = result.error.message;
+                    }
+                    
+                    // Format common error messages to be more user-friendly
+                    if (errorMessage.includes('INVALID_TYPE')) {
+                        errorMessage = 'Invalid object type or field in query. Please check your SOQL syntax.';
+                    } else if (errorMessage.includes('INVALID_FIELD')) {
+                        errorMessage = 'One or more fields in your query do not exist on the object. Please verify the field names.';
+                    } else if (errorMessage.includes('MALFORMED_QUERY')) {
+                        errorMessage = 'The SOQL query syntax is invalid. Please check your query format.';
+                    }
+                    
+                    throw new Error(errorMessage);
                 }
-                
-                throw new Error(errorMessage);
+            } finally {
+                // Clean up the query file if it was created
+                if (queryFilePath) {
+                    try {
+                        if (fs.existsSync(queryFilePath)) {
+                            fs.unlinkSync(queryFilePath);
+                            OrgUtils.logDebug(`[VisbalExt.SfdxService] executeSoqlQuery -- Cleaned up query file: ${queryFilePath}`);
+                        }
+                    } catch (cleanupError) {
+                        OrgUtils.logDebug(`[VisbalExt.SfdxService] executeSoqlQuery -- Failed to clean up query file: ${queryFilePath}`, cleanupError);
+                    }
+                }
             }
         } catch (error: any) {
             // If we get a "sObject type not supported" error and weren't using tooling API, retry with tooling API
