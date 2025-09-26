@@ -423,6 +423,12 @@
         "icon": "$(references)"
       },
       {
+        "command": "visbal-ext.reloadAuraEnabledFromCache",
+        "title": "Reload @AuraEnabled Report from Cache",
+        "category": "Visbal",
+        "icon": "$(database)"
+      },
+      {
         "command": "visbal-ext.openFile",
         "title": "Open File",
         "category": "Visbal",
@@ -470,6 +476,11 @@
           "command": "visbal-ext.clearReferences",
           "when": "view == referencesView",
           "group": "navigation@2"
+        },
+        {
+          "command": "visbal-ext.reloadAuraEnabledFromCache",
+          "when": "view == referencesView",
+          "group": "navigation@3"
         }
       ],
       "editor/title": [

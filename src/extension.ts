@@ -574,9 +574,9 @@ export async function activate(context: vscode.ExtensionContext) {
   referencesView = new ReferencesView(context);
 
   // Register @AuraEnabled report command
-  const auraEnabledReportCommand = vscode.commands.registerCommand('visbal-ext.reportAuraEnabled', async () => {
+  const auraEnabledReportCommand = vscode.commands.registerCommand('visbal-ext.reportAuraEnabled', async (source?: string) => {
     try {
-      outputChannel.appendLine('[VisbalExt.Extension] reportAuraEnabled -- Starting @AuraEnabled report generation');
+      outputChannel.appendLine(`[VisbalExt.Extension] reportAuraEnabled -- Starting @AuraEnabled report generation (source: ${source || 'unknown'})`);
       
       // Helper function to send progress updates to Traction tab
       const sendProgressToTraction = (title: string, description: string, percentage?: number) => {
@@ -588,6 +588,55 @@ export async function activate(context: vscode.ExtensionContext) {
           // Silently fail if we can't send progress updates
         }
       };
+      
+      // Check if we should use cache (only if not from traction tab)
+      const shouldUseCache = source !== 'traction';
+      
+      if (shouldUseCache) {
+        // Try to load from cache first
+        const { AuraEnabledService } = await import('./services/auraEnabledService');
+        const cacheInfo = AuraEnabledService.getCacheInfo();
+        
+        if (cacheInfo.exists) {
+          outputChannel.appendLine('[VisbalExt.Extension] reportAuraEnabled -- Using cached results');
+          
+          const resultsByClass = AuraEnabledService.loadFromCache();
+          
+          if (resultsByClass && resultsByClass.size > 0) {
+            // Calculate totals for the summary
+            let totalMethods = 0;
+            let totalReferences = 0;
+            for (const [className, methods] of resultsByClass) {
+              totalMethods += methods.length;
+              totalReferences += methods.reduce((sum, method) => sum + method.references.length, 0);
+            }
+            
+            // Update the references view with hierarchical results
+            if (referencesView) {
+              if (referencesView.getTreeDataProvider().updateAuraEnabledReferences) {
+                referencesView.getTreeDataProvider().updateAuraEnabledReferences(resultsByClass);
+              }
+              
+              // Show the References panel - only if not already visible
+              try {
+                // Don't force show the panel if it's already being used
+                console.log('[VisbalExt.Extension] Loading cached results, References panel should already be visible');
+              } catch (error) {
+                console.log('[VisbalExt.Extension] Error with references panel handling:', error);
+              }
+              
+              const cacheDate = new Date(cacheInfo.timestamp!).toLocaleString();
+              vscode.window.showInformationMessage(`Loaded cached @AuraEnabled report: ${resultsByClass.size} classes, ${totalMethods} methods, ${totalReferences} references (cached: ${cacheDate})`);
+            }
+            
+            return; // Exit early with cached results
+          }
+        }
+        
+        outputChannel.appendLine('[VisbalExt.Extension] reportAuraEnabled -- No cache found or cache empty, proceeding with fresh scan');
+      } else {
+        outputChannel.appendLine('[VisbalExt.Extension] reportAuraEnabled -- Source is traction tab, forcing fresh scan and cache update');
+      }
       
       vscode.window.withProgress({
         location: vscode.ProgressLocation.Notification,
@@ -602,6 +651,7 @@ export async function activate(context: vscode.ExtensionContext) {
           // Small delay to show progress
           await new Promise(resolve => setTimeout(resolve, 300));
           
+          // Import AuraEnabledService
           const { AuraEnabledService } = await import('./services/auraEnabledService');
           
           // Stage 2: Find LWC references
@@ -663,11 +713,17 @@ export async function activate(context: vscode.ExtensionContext) {
               referencesView.getTreeDataProvider().updateReferences(combinedReference);
             }
             
-            // Show the References panel
+            // Show the References panel - use a safer approach
             try {
-              await vscode.commands.executeCommand('workbench.view.extension.visbal-references-container');
+              // Only try to show the panel if we're coming from Traction tab (fresh scan)
+              if (source === 'traction') {
+                await vscode.commands.executeCommand('workbench.view.extension.visbal-references-container');
+                console.log('[VisbalExt.Extension] Opened References panel after fresh scan');
+              } else {
+                console.log('[VisbalExt.Extension] Skipping panel show command - results loaded to existing view');
+              }
             } catch (error) {
-              console.log('[Extension] Could not open references panel, but results are available');
+              console.log('[VisbalExt.Extension] Could not open references panel, but results are available:', error);
             }
             
             vscode.window.showInformationMessage(`Found ${resultsByClass.size} classes with ${totalMethods} @AuraEnabled methods and ${totalReferences} LWC references. Check the References panel.`);

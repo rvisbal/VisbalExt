@@ -345,7 +345,8 @@ export class TractionTab implements vscode.WebviewViewProvider {
             
             // Execute the registered command which handles all the logic
             // The command itself will send progress updates
-            await vscode.commands.executeCommand('visbal-ext.reportAuraEnabled');
+            // Pass 'traction' as source to force fresh scan and cache update
+            await vscode.commands.executeCommand('visbal-ext.reportAuraEnabled', 'traction');
             
             // Only hide progress and show completion when the command actually finishes
             this._hideProgress();

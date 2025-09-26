@@ -20,10 +20,135 @@ export interface AuraEnabledMethod {
 }
 
 /**
+ * Cache interface for storing @AuraEnabled results
+ */
+interface AuraEnabledCache {
+    timestamp: number;
+    version: string;
+    resultsByClass: Record<string, SymbolReference[]>;
+}
+
+/**
  * Service for finding @AuraEnabled methods and their LWC references
  */
 export class AuraEnabledService {
+    private static readonly CACHE_FILE = '.visbal/cache/auraEnabled.json';
+    private static readonly CACHE_VERSION = '1.0.0';
     
+    /**
+     * Gets the cache file path
+     */
+    private static getCacheFilePath(): string {
+        const workspaceFolders = vscode.workspace.workspaceFolders;
+        if (!workspaceFolders) {
+            throw new Error('No workspace folder found');
+        }
+        return path.join(workspaceFolders[0].uri.fsPath, this.CACHE_FILE);
+    }
+
+    /**
+     * Ensures the cache directory exists
+     */
+    private static ensureCacheDirectory(): void {
+        const workspaceFolders = vscode.workspace.workspaceFolders;
+        if (!workspaceFolders) {
+            return;
+        }
+        const cacheDir = path.join(workspaceFolders[0].uri.fsPath, '.visbal', 'cache');
+        if (!fs.existsSync(cacheDir)) {
+            fs.mkdirSync(cacheDir, { recursive: true });
+        }
+    }
+
+    /**
+     * Saves results to cache
+     */
+    private static saveToCache(resultsByClass: Map<string, SymbolReference[]>): void {
+        try {
+            this.ensureCacheDirectory();
+            const cacheFilePath = this.getCacheFilePath();
+            
+            // Convert Map to plain object for JSON serialization
+            const resultsObject: Record<string, SymbolReference[]> = {};
+            for (const [className, methods] of resultsByClass) {
+                resultsObject[className] = methods;
+            }
+            
+            const cache: AuraEnabledCache = {
+                timestamp: Date.now(),
+                version: this.CACHE_VERSION,
+                resultsByClass: resultsObject
+            };
+            
+            fs.writeFileSync(cacheFilePath, JSON.stringify(cache, null, 2), 'utf8');
+            console.log(`[VisbalExt.AuraEnabledService] Saved cache to: ${cacheFilePath}`);
+        } catch (error) {
+            console.error('[AuraEnabledService] Error saving cache:', error);
+        }
+    }
+
+    /**
+     * Loads results from cache
+     */
+    public static loadFromCache(): Map<string, SymbolReference[]> | null {
+        try {
+            const cacheFilePath = this.getCacheFilePath();
+            
+            if (!fs.existsSync(cacheFilePath)) {
+                console.log('[VisbalExt.AuraEnabledService] No cache file found');
+                return null;
+            }
+            
+            const cacheContent = fs.readFileSync(cacheFilePath, 'utf8');
+            const cache: AuraEnabledCache = JSON.parse(cacheContent);
+            
+            // Check cache version
+            if (cache.version !== this.CACHE_VERSION) {
+                console.log('[VisbalExt.AuraEnabledService] Cache version mismatch, ignoring cache');
+                return null;
+            }
+            
+            // Convert plain object back to Map
+            const resultsByClass = new Map<string, SymbolReference[]>();
+            for (const [className, methods] of Object.entries(cache.resultsByClass)) {
+                resultsByClass.set(className, methods);
+            }
+            
+            console.log(`[VisbalExt.AuraEnabledService] Loaded cache from: ${cacheFilePath} (${resultsByClass.size} classes)`);
+            return resultsByClass;
+        } catch (error) {
+            console.error('[AuraEnabledService] Error loading cache:', error);
+            return null;
+        }
+    }
+
+    /**
+     * Gets cache info (timestamp, size, etc.)
+     */
+    public static getCacheInfo(): { exists: boolean; timestamp?: number; size?: number; classes?: number } {
+        try {
+            const cacheFilePath = this.getCacheFilePath();
+            
+            if (!fs.existsSync(cacheFilePath)) {
+                return { exists: false };
+            }
+            
+            const stats = fs.statSync(cacheFilePath);
+            const cacheContent = fs.readFileSync(cacheFilePath, 'utf8');
+            const cache: AuraEnabledCache = JSON.parse(cacheContent);
+            
+            return {
+                exists: true,
+                timestamp: cache.timestamp,
+                size: stats.size,
+                classes: Object.keys(cache.resultsByClass).length
+            };
+        } catch (error) {
+            console.error('[AuraEnabledService] Error getting cache info:', error);
+            return { exists: false };
+        }
+    }
+
     /**
      * Finds all @AuraEnabled methods in Apex classes and their references in LWC files
      * Returns results grouped by class for hierarchical display
@@ -73,13 +198,16 @@ export class AuraEnabledService {
                 }
             }
             
-            // Only add classes that have methods with references
-            if (classResults.length > 0) {
-                resultsByClass.set(className, classResults);
-            }
+        // Only add classes that have methods with references
+        if (classResults.length > 0) {
+            resultsByClass.set(className, classResults);
         }
-        
-        return resultsByClass;
+    }
+    
+    // Save results to cache
+    this.saveToCache(resultsByClass);
+    
+    return resultsByClass;
     }
 
     /**
@@ -95,7 +223,7 @@ export class AuraEnabledService {
         const classesPath = path.join(workspaceFolders[0].uri.fsPath, 'force-app', 'main', 'default', 'classes');
         
         if (!fs.existsSync(classesPath)) {
-            console.log(`[AuraEnabledService] Classes directory not found: ${classesPath}`);
+            console.log(`[VisbalExt.AuraEnabledService] Classes directory not found: ${classesPath}`);
             return [];
         }
 
@@ -134,7 +262,7 @@ export class AuraEnabledService {
                     }
                 }
             } catch (error) {
-                console.error(`[AuraEnabledService] Error reading class file ${filePath}:`, error);
+                console.error(`[VisbalExt.AuraEnabledService] Error reading class file ${filePath}:`, error);
             }
         }
         
@@ -154,7 +282,7 @@ export class AuraEnabledService {
         const lwcPath = path.join(workspaceFolders[0].uri.fsPath, 'force-app', 'main', 'default', 'lwc');
         
         if (!fs.existsSync(lwcPath)) {
-            console.log(`[AuraEnabledService] LWC directory not found: ${lwcPath}`);
+            console.log(`[VisbalExt.AuraEnabledService] LWC directory not found: ${lwcPath}`);
             return [];
         }
 
