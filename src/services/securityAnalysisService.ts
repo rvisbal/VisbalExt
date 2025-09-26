@@ -214,12 +214,35 @@ export class SecurityAnalysisService {
                 throw new Error('No workspace folders found');
             }
 
-            // Find all relevant files
-            const apexFiles = await vscode.workspace.findFiles('**/*.{cls,trigger}', '**/node_modules/**');
-            const jsFiles = await vscode.workspace.findFiles('**/*.{js,ts}', '**/node_modules/**');
-            const htmlFiles = await vscode.workspace.findFiles('**/*.{html,css}', '**/node_modules/**');
+            // Find all relevant files, excluding Salesforce CLI cache and focusing on source directories
+            const excludePattern = '{**/node_modules/**,**/.sfdx/**,**/dist/**,**/out/**,**/build/**}';
             
-            const allFiles = [...apexFiles, ...jsFiles, ...htmlFiles];
+            // Focus on Salesforce project structure - force-app is the standard directory
+            let allApexFiles = await vscode.workspace.findFiles('force-app/**/*.{cls,trigger}', excludePattern);
+            
+            // If no files found in force-app, try other common Salesforce directories
+            if (allApexFiles.length === 0) {
+                const srcApexFiles = await vscode.workspace.findFiles('src/**/*.{cls,trigger}', excludePattern);
+                allApexFiles = srcApexFiles;
+            }
+            
+            // If still no files, fallback to broader search but still exclude .sfdx and cache directories
+            if (allApexFiles.length === 0) {
+                const fallbackApexFiles = await vscode.workspace.findFiles('**/*.{cls,trigger}', excludePattern);
+                allApexFiles = fallbackApexFiles;
+            }
+            
+            console.log(`[SecurityAnalysis] Found ${allApexFiles.length} Apex files to analyze`);
+            if (allApexFiles.length > 0) {
+                console.log(`[SecurityAnalysis] Sample file paths:`, allApexFiles.slice(0, 3).map(f => f.fsPath));
+            }
+            
+            const jsFiles = await vscode.workspace.findFiles('force-app/**/*.{js,ts}', excludePattern);
+            const htmlFiles = await vscode.workspace.findFiles('force-app/**/*.{html,css}', excludePattern);
+            
+            const allFiles = [...allApexFiles, ...jsFiles, ...htmlFiles];
+            
+            console.log(`[SecurityAnalysis] Total files to scan: ${allFiles.length} (${allApexFiles.length} Apex, ${jsFiles.length} JS/TS, ${htmlFiles.length} HTML/CSS)`);
 
             for (const file of allFiles) {
                 const filePath = file.fsPath;
@@ -227,9 +250,11 @@ export class SecurityAnalysisService {
                 const fileIssues = await this.analyzeFile(filePath);
                 issues.push(...fileIssues);
             }
+            
+            console.log(`[SecurityAnalysis] Scan complete: ${issues.length} issues found across ${scannedFiles.length} files`);
 
         } catch (error) {
-            console.error('Error during workspace analysis:', error);
+            console.error('[SecurityAnalysis] Error during workspace analysis:', error);
         }
 
         const highSeverityCount = issues.filter(i => i.severity === 'HIGH').length;

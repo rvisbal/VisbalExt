@@ -228,7 +228,7 @@ export function getTractionHtml(): string {
             display: flex;
             justify-content: space-between;
             align-items: center;
-            padding: 12px 16px;
+            padding: 8px 12px;
             background: var(--vscode-titleBar-activeBackground);
             border-bottom: 1px solid var(--vscode-panel-border);
         }
@@ -236,14 +236,14 @@ export function getTractionHtml(): string {
         .security-report-title {
             display: flex;
             align-items: center;
-            gap: 8px;
+            gap: 6px;
             font-weight: 600;
             color: var(--vscode-titleBar-activeForeground);
-            font-size: 14px;
+            font-size: 13px;
         }
         
         .shield-icon {
-            font-size: 16px;
+            font-size: 14px;
         }
         
         .close-report-button {
@@ -264,17 +264,17 @@ export function getTractionHtml(): string {
         
         .security-summary {
             display: flex;
-            justify-content: space-around;
-            padding: 16px;
+            justify-content: space-between;
+            padding: 8px 20px;
+            gap: 16px;
             background: var(--vscode-sideBar-background);
-            border-bottom: 1px solid var(--vscode-panel-border);
         }
         
         .summary-item {
             text-align: center;
-            padding: 8px 12px;
-            border-radius: 6px;
-            min-width: 60px;
+            padding: 4px 8px;
+            border-radius: 4px;
+            min-width: 50px;
         }
         
         .summary-item.high-severity {
@@ -300,14 +300,14 @@ export function getTractionHtml(): string {
         
         .severity-count {
             display: block;
-            font-size: 24px;
+            font-size: 18px;
             font-weight: bold;
-            margin-bottom: 4px;
+            margin-bottom: 2px;
         }
         
         .severity-label {
             display: block;
-            font-size: 11px;
+            font-size: 10px;
             text-transform: uppercase;
             opacity: 0.8;
         }
@@ -315,17 +315,31 @@ export function getTractionHtml(): string {
         .security-filters {
             display: flex;
             gap: 16px;
-            padding: 12px 16px;
+            padding: 6px 12px;
             background: var(--vscode-sideBar-background);
             border-bottom: 1px solid var(--vscode-panel-border);
+            flex-wrap: wrap;
+        }
+        
+        .filter-group {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .filter-group-title {
+            font-size: 11px;
+            font-weight: 600;
+            color: var(--vscode-foreground);
+            margin-right: 4px;
         }
         
         .security-filters label {
             display: flex;
             align-items: center;
-            gap: 6px;
+            gap: 4px;
             cursor: pointer;
-            font-size: 12px;
+            font-size: 11px;
         }
         
         .filter-label.high {
@@ -340,18 +354,28 @@ export function getTractionHtml(): string {
             color: #28a745;
         }
         
+        .filter-label.category {
+            color: var(--vscode-foreground);
+        }
+        
+        .filter-count {
+            color: var(--vscode-descriptionForeground);
+            font-weight: normal;
+            font-size: 10px;
+        }
+        
         .security-issues-list {
             flex: 1;
             overflow-y: auto;
-            padding: 8px;
+            padding: 4px 6px;
         }
         
         .security-issue {
             background: var(--vscode-list-inactiveSelectionBackground);
             border: 1px solid var(--vscode-panel-border);
-            border-radius: 6px;
-            margin-bottom: 8px;
-            padding: 12px;
+            border-radius: 4px;
+            margin-bottom: 6px;
+            padding: 8px 10px;
             cursor: pointer;
             transition: background-color 0.2s ease;
         }
@@ -368,19 +392,19 @@ export function getTractionHtml(): string {
             display: flex;
             justify-content: space-between;
             align-items: flex-start;
-            margin-bottom: 8px;
+            margin-bottom: 4px;
         }
         
         .issue-title {
             font-weight: 600;
             color: var(--vscode-foreground);
-            font-size: 13px;
+            font-size: 12px;
         }
         
         .issue-severity {
-            padding: 2px 8px;
-            border-radius: 12px;
-            font-size: 10px;
+            padding: 1px 6px;
+            border-radius: 10px;
+            font-size: 9px;
             font-weight: 600;
             text-transform: uppercase;
         }
@@ -401,34 +425,34 @@ export function getTractionHtml(): string {
         }
         
         .issue-location {
-            font-size: 11px;
+            font-size: 10px;
             color: var(--vscode-descriptionForeground);
-            margin-bottom: 6px;
+            margin-bottom: 3px;
         }
         
         .issue-description {
-            font-size: 12px;
+            font-size: 11px;
             color: var(--vscode-foreground);
-            margin-bottom: 8px;
-            line-height: 1.4;
+            margin-bottom: 4px;
+            line-height: 1.3;
         }
         
         .issue-code {
             background: var(--vscode-textCodeBlock-background);
             border: 1px solid var(--vscode-panel-border);
-            border-radius: 4px;
-            padding: 8px;
+            border-radius: 3px;
+            padding: 6px;
             font-family: var(--vscode-editor-font-family);
-            font-size: 11px;
+            font-size: 10px;
             color: var(--vscode-editor-foreground);
             white-space: pre-wrap;
-            margin-bottom: 8px;
-            max-height: 150px;
+            margin-bottom: 4px;
+            max-height: 120px;
             overflow-y: auto;
         }
         
         .issue-recommendation {
-            font-size: 11px;
+            font-size: 10px;
             color: var(--vscode-textLink-foreground);
             font-style: italic;
         }
@@ -496,41 +520,70 @@ export function getTractionHtml(): string {
                     <span class="icon shield-icon">🛡️</span>
                     Security Analysis Report
                 </div>
+                <div class="security-summary">
+                    <div class="summary-item high-severity">
+                        <span class="severity-count" id="high-count">0</span>
+                        <span class="severity-label">High</span>
+                    </div>
+                    <div class="summary-item medium-severity">
+                        <span class="severity-count" id="medium-count">0</span>
+                        <span class="severity-label">Medium</span>
+                    </div>
+                    <div class="summary-item low-severity">
+                        <span class="severity-count" id="low-count">0</span>
+                        <span class="severity-label">Low</span>
+                    </div>
+                    <div class="summary-item total">
+                        <span class="severity-count" id="total-count">0</span>
+                        <span class="severity-label">Total Issues</span>
+                    </div>
+                </div>
                 <button class="close-report-button" id="close-security-report" title="Close Report">&times;</button>
             </div>
             
-            <div class="security-summary">
-                <div class="summary-item high-severity">
-                    <span class="severity-count" id="high-count">0</span>
-                    <span class="severity-label">High</span>
-                </div>
-                <div class="summary-item medium-severity">
-                    <span class="severity-count" id="medium-count">0</span>
-                    <span class="severity-label">Medium</span>
-                </div>
-                <div class="summary-item low-severity">
-                    <span class="severity-count" id="low-count">0</span>
-                    <span class="severity-label">Low</span>
-                </div>
-                <div class="summary-item total">
-                    <span class="severity-count" id="total-count">0</span>
-                    <span class="severity-label">Total Issues</span>
-                </div>
-            </div>
-            
             <div class="security-filters">
-                <label>
-                    <input type="checkbox" id="filter-high" checked>
-                    <span class="filter-label high">High Severity</span>
-                </label>
-                <label>
-                    <input type="checkbox" id="filter-medium" checked>
-                    <span class="filter-label medium">Medium Severity</span>
-                </label>
-                <label>
-                    <input type="checkbox" id="filter-low" checked>
-                    <span class="filter-label low">Low Severity</span>
-                </label>
+                <div class="filter-group">
+                    <span class="filter-group-title">Severity:</span>
+                    <label>
+                        <input type="checkbox" id="filter-high" checked>
+                        <span class="filter-label high">High</span>
+                    </label>
+                    <label>
+                        <input type="checkbox" id="filter-medium" checked>
+                        <span class="filter-label medium">Medium</span>
+                    </label>
+                    <label>
+                        <input type="checkbox" id="filter-low" checked>
+                        <span class="filter-label low">Low</span>
+                    </label>
+                </div>
+                <div class="filter-group" id="category-filter-group">
+                    <span class="filter-group-title">Category:</span>
+                    <label id="filter-crud-fls-label" style="display: none;">
+                        <input type="checkbox" id="filter-crud-fls" checked>
+                        <span class="filter-label category">CRUD/FLS <span class="filter-count" id="count-crud-fls">(0)</span></span>
+                    </label>
+                    <label id="filter-dml-loops-label" style="display: none;">
+                        <input type="checkbox" id="filter-dml-loops" checked>
+                        <span class="filter-label category">DML Loops <span class="filter-count" id="count-dml-loops">(0)</span></span>
+                    </label>
+                    <label id="filter-soql-injection-label" style="display: none;">
+                        <input type="checkbox" id="filter-soql-injection" checked>
+                        <span class="filter-label category">SOQL Injection <span class="filter-count" id="count-soql-injection">(0)</span></span>
+                    </label>
+                    <label id="filter-sharing-label" style="display: none;">
+                        <input type="checkbox" id="filter-sharing" checked>
+                        <span class="filter-label category">Sharing <span class="filter-count" id="count-sharing">(0)</span></span>
+                    </label>
+                    <label id="filter-ui-security-label" style="display: none;">
+                        <input type="checkbox" id="filter-ui-security" checked>
+                        <span class="filter-label category">UI Security <span class="filter-count" id="count-ui-security">(0)</span></span>
+                    </label>
+                    <label id="filter-general-label" style="display: none;">
+                        <input type="checkbox" id="filter-general" checked>
+                        <span class="filter-label category">General <span class="filter-count" id="count-general">(0)</span></span>
+                    </label>
+                </div>
             </div>
             
             <div class="security-issues-list" id="security-issues-list">
@@ -571,6 +624,31 @@ export function getTractionHtml(): string {
             const filterHighCheckbox = document.getElementById('filter-high');
             const filterMediumCheckbox = document.getElementById('filter-medium');
             const filterLowCheckbox = document.getElementById('filter-low');
+            
+            // Category filter elements
+            const filterCrudFlsCheckbox = document.getElementById('filter-crud-fls');
+            const filterDmlLoopsCheckbox = document.getElementById('filter-dml-loops');
+            const filterSoqlInjectionCheckbox = document.getElementById('filter-soql-injection');
+            const filterSharingCheckbox = document.getElementById('filter-sharing');
+            const filterUiSecurityCheckbox = document.getElementById('filter-ui-security');
+            const filterGeneralCheckbox = document.getElementById('filter-general');
+            
+            // Category filter labels (for showing/hiding)
+            const filterCrudFlsLabel = document.getElementById('filter-crud-fls-label');
+            const filterDmlLoopsLabel = document.getElementById('filter-dml-loops-label');
+            const filterSoqlInjectionLabel = document.getElementById('filter-soql-injection-label');
+            const filterSharingLabel = document.getElementById('filter-sharing-label');
+            const filterUiSecurityLabel = document.getElementById('filter-ui-security-label');
+            const filterGeneralLabel = document.getElementById('filter-general-label');
+            const categoryFilterGroup = document.getElementById('category-filter-group');
+            
+            // Category count elements
+            const countCrudFls = document.getElementById('count-crud-fls');
+            const countDmlLoops = document.getElementById('count-dml-loops');
+            const countSoqlInjection = document.getElementById('count-soql-injection');
+            const countSharing = document.getElementById('count-sharing');
+            const countUiSecurity = document.getElementById('count-ui-security');
+            const countGeneral = document.getElementById('count-general');
             
             
             // Selected org tracking
@@ -634,6 +712,28 @@ export function getTractionHtml(): string {
                 lowCountElement.textContent = report.lowSeverityCount;
                 totalCountElement.textContent = report.totalIssues;
                 
+                // Calculate category counts
+                const categoryCounts = {
+                    'crud-fls': 0,
+                    'dml-loops': 0,
+                    'soql-injection': 0,
+                    'sharing': 0,
+                    'ui-security': 0,
+                    'general': 0
+                };
+                
+                if (report.issues && report.issues.length > 0) {
+                    report.issues.forEach(issue => {
+                        const categoryKey = issue.category.toLowerCase().replace('_', '-');
+                        if (categoryCounts.hasOwnProperty(categoryKey)) {
+                            categoryCounts[categoryKey]++;
+                        }
+                    });
+                }
+                
+                // Update category filters visibility and counts
+                updateCategoryFilters(categoryCounts);
+                
                 // Clear existing issues
                 securityIssuesList.innerHTML = '';
                 
@@ -654,10 +754,44 @@ export function getTractionHtml(): string {
                 securityReportContainer.classList.remove('hidden');
             }
             
+            function updateCategoryFilters(categoryCounts) {
+                // Category filter mapping
+                const categoryFilters = [
+                    { key: 'crud-fls', label: filterCrudFlsLabel, count: countCrudFls },
+                    { key: 'dml-loops', label: filterDmlLoopsLabel, count: countDmlLoops },
+                    { key: 'soql-injection', label: filterSoqlInjectionLabel, count: countSoqlInjection },
+                    { key: 'sharing', label: filterSharingLabel, count: countSharing },
+                    { key: 'ui-security', label: filterUiSecurityLabel, count: countUiSecurity },
+                    { key: 'general', label: filterGeneralLabel, count: countGeneral }
+                ];
+                
+                let hasVisibleCategories = false;
+                
+                categoryFilters.forEach(filter => {
+                    const count = categoryCounts[filter.key] || 0;
+                    filter.count.textContent = \`(\${count})\`;
+                    
+                    if (count > 0) {
+                        filter.label.style.display = 'flex';
+                        hasVisibleCategories = true;
+                    } else {
+                        filter.label.style.display = 'none';
+                    }
+                });
+                
+                // Show/hide the entire category filter group
+                if (hasVisibleCategories) {
+                    categoryFilterGroup.style.display = 'flex';
+                } else {
+                    categoryFilterGroup.style.display = 'none';
+                }
+            }
+            
             function createSecurityIssueElement(issue, index) {
                 const issueDiv = document.createElement('div');
                 issueDiv.className = \`security-issue severity-\${issue.severity.toLowerCase()}\`;
                 issueDiv.dataset.severity = issue.severity.toLowerCase();
+                issueDiv.dataset.category = issue.category.toLowerCase().replace('_', '-');
                 
                 const fileName = issue.file.split(/[\\/]/).pop();
                 const relativeFile = issue.file.replace(/.*[\\/]src[\\/]/, 'src/');
@@ -689,18 +823,39 @@ export function getTractionHtml(): string {
             }
             
             function filterSecurityIssues() {
+                // Severity filters
                 const showHigh = filterHighCheckbox.checked;
                 const showMedium = filterMediumCheckbox.checked;
                 const showLow = filterLowCheckbox.checked;
                 
+                // Category filters
+                const showCrudFls = filterCrudFlsCheckbox.checked;
+                const showDmlLoops = filterDmlLoopsCheckbox.checked;
+                const showSoqlInjection = filterSoqlInjectionCheckbox.checked;
+                const showSharing = filterSharingCheckbox.checked;
+                const showUiSecurity = filterUiSecurityCheckbox.checked;
+                const showGeneral = filterGeneralCheckbox.checked;
+                
                 const issues = securityIssuesList.querySelectorAll('.security-issue');
                 issues.forEach(issue => {
                     const severity = issue.dataset.severity;
-                    const shouldShow = (severity === 'high' && showHigh) ||
-                                     (severity === 'medium' && showMedium) ||
-                                     (severity === 'low' && showLow);
+                    const category = issue.dataset.category;
                     
-                    if (shouldShow) {
+                    // Check severity
+                    const severityMatch = (severity === 'high' && showHigh) ||
+                                         (severity === 'medium' && showMedium) ||
+                                         (severity === 'low' && showLow);
+                    
+                    // Check category  
+                    const categoryMatch = (category === 'crud-fls' && showCrudFls) ||
+                                         (category === 'dml-loops' && showDmlLoops) ||
+                                         (category === 'soql-injection' && showSoqlInjection) ||
+                                         (category === 'sharing' && showSharing) ||
+                                         (category === 'ui-security' && showUiSecurity) ||
+                                         (category === 'general' && showGeneral);
+                    
+                    // Show only if both severity and category match
+                    if (severityMatch && categoryMatch) {
                         issue.classList.remove('hidden');
                     } else {
                         issue.classList.add('hidden');
@@ -711,6 +866,18 @@ export function getTractionHtml(): string {
             function closeSecurityReport() {
                 securityReportContainer.classList.add('hidden');
                 currentSecurityReport = null;
+                
+                // Reset category filters to hidden state
+                const categoryLabels = [
+                    filterCrudFlsLabel, filterDmlLoopsLabel, filterSoqlInjectionLabel,
+                    filterSharingLabel, filterUiSecurityLabel, filterGeneralLabel
+                ];
+                
+                categoryLabels.forEach(label => {
+                    if (label) label.style.display = 'none';
+                });
+                
+                categoryFilterGroup.style.display = 'none';
             }
             
             // Handle org selection with the same logic as other tabs
@@ -838,6 +1005,14 @@ export function getTractionHtml(): string {
             filterHighCheckbox.addEventListener('change', filterSecurityIssues);
             filterMediumCheckbox.addEventListener('change', filterSecurityIssues);
             filterLowCheckbox.addEventListener('change', filterSecurityIssues);
+            
+            // Category filter event handlers
+            filterCrudFlsCheckbox.addEventListener('change', filterSecurityIssues);
+            filterDmlLoopsCheckbox.addEventListener('change', filterSecurityIssues);
+            filterSoqlInjectionCheckbox.addEventListener('change', filterSecurityIssues);
+            filterSharingCheckbox.addEventListener('change', filterSecurityIssues);
+            filterUiSecurityCheckbox.addEventListener('change', filterSecurityIssues);
+            filterGeneralCheckbox.addEventListener('change', filterSecurityIssues);
             
             
             // Handle messages from extension
