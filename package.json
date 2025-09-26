@@ -1,7 +1,7 @@
 {
   "name": "visbal-ext",
   "displayName": "Visbal Extension",
-  "version": "1.2.6",
+  "version": "1.2.7",
   "publisher": "visbal",
   "icon": "media/icon.png",
   "description": "A Visual Studio Code extension for Salesforce development with enhanced test execution and log analysis capabilities",
@@ -260,6 +260,12 @@
         "title": "V: Show Git History for File",
         "category": "Visbal",
         "icon": "$(history)"
+      },
+      {
+        "command": "visbal-ext.reportSecurityIssuesForFile",
+        "title": "V: Report Security Issues for File",
+        "category": "Visbal",
+        "icon": "$(security)"
       },
       {
         "command": "visbal-ext.selectTestMethod",

@@ -34,6 +34,7 @@ import { OrgListCacheService } from './services/orgListCacheService';
 import { ReferencesView } from './views/referencesView';
 import { SymbolReference } from './services/referencesService';
 import { SymbolNavigationService } from './services/symbolNavigationService';
+import { SecurityAnalysisService } from './services/securityAnalysisService';
 
 let outputChannel: vscode.OutputChannel;
 
@@ -1262,6 +1263,80 @@ context.subscriptions.push(
       } catch (error: any) {
         OrgUtils.logError('[VisbalExt.Extension] Error navigating to selected definition:', error);
         vscode.window.showErrorMessage(`Could not navigate to selected definition: ${error.message}`);
+      }
+    })
+  );
+
+  // Command to run security analysis on current file
+  context.subscriptions.push(
+    vscode.commands.registerCommand('visbal-ext.reportSecurityIssuesForFile', async () => {
+      try {
+        OrgUtils.logDebug('[VisbalExt.Extension] reportSecurityIssuesForFile -- Starting security analysis for current file');
+        
+        const activeEditor = vscode.window.activeTextEditor;
+        if (!activeEditor) {
+          vscode.window.showWarningMessage('No active file to analyze. Please open a file and try again.');
+          return;
+        }
+
+        const securityService = SecurityAnalysisService.getInstance();
+        
+        // Show progress notification
+        await vscode.window.withProgress({
+          location: vscode.ProgressLocation.Notification,
+          title: "Security Analysis",
+          cancellable: false
+        }, async (progress) => {
+          progress.report({ increment: 0, message: "Analyzing current file..." });
+          
+          const issues = await securityService.analyzeCurrentFile();
+          
+          progress.report({ increment: 100, message: "Analysis complete" });
+          
+          if (issues.length === 0) {
+            vscode.window.showInformationMessage('🎉 No security issues found in the current file!');
+          } else {
+            const highCount = issues.filter(i => i.severity === 'HIGH').length;
+            const mediumCount = issues.filter(i => i.severity === 'MEDIUM').length;
+            const lowCount = issues.filter(i => i.severity === 'LOW').length;
+            
+            const message = `Security analysis completed: ${issues.length} issues found (${highCount} high, ${mediumCount} medium, ${lowCount} low). Check the Traction tab for details.`;
+            
+            if (highCount > 0) {
+              vscode.window.showWarningMessage(message, 'View Report').then(selection => {
+                if (selection === 'View Report') {
+                  vscode.commands.executeCommand('visbal-traction.focus');
+                }
+              });
+            } else {
+              vscode.window.showInformationMessage(message, 'View Report').then(selection => {
+                if (selection === 'View Report') {
+                  vscode.commands.executeCommand('visbal-traction.focus');
+                }
+              });
+            }
+
+            // Trigger the traction tab to show the security report
+            if (tractionTab) {
+              const report = {
+                totalIssues: issues.length,
+                highSeverityCount: highCount,
+                mediumSeverityCount: mediumCount,
+                lowSeverityCount: lowCount,
+                issues,
+                scannedFiles: [activeEditor.document.uri.fsPath],
+                scanTime: new Date()
+              };
+              
+              // Send the report to the traction tab
+              tractionTab.displaySecurityReport(report);
+            }
+          }
+        });
+
+      } catch (error: any) {
+        OrgUtils.logError('[VisbalExt.Extension] Error during security analysis:', error);
+        vscode.window.showErrorMessage(`Security analysis failed: ${error.message}`);
       }
     })
   );

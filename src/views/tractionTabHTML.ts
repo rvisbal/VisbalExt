@@ -203,6 +203,235 @@ export function getTractionHtml(): string {
             display: flex;
             align-items: center;
         }
+        
+        /* Security Report Styles */
+        .security-report-container {
+            position: absolute;
+            top: 50px;
+            left: 0;
+            right: 0;
+            bottom: 30px;
+            background: var(--vscode-editor-background);
+            border: 1px solid var(--vscode-panel-border);
+            margin: 8px;
+            border-radius: 8px;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+        
+        .security-report-container.hidden {
+            display: none;
+        }
+        
+        .security-report-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px 16px;
+            background: var(--vscode-titleBar-activeBackground);
+            border-bottom: 1px solid var(--vscode-panel-border);
+        }
+        
+        .security-report-title {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-weight: 600;
+            color: var(--vscode-titleBar-activeForeground);
+            font-size: 14px;
+        }
+        
+        .shield-icon {
+            font-size: 16px;
+        }
+        
+        .close-report-button {
+            background: none;
+            border: none;
+            color: var(--vscode-titleBar-activeForeground);
+            cursor: pointer;
+            font-size: 18px;
+            padding: 4px 8px;
+            border-radius: 4px;
+            opacity: 0.8;
+        }
+        
+        .close-report-button:hover {
+            background: var(--vscode-toolbar-hoverBackground);
+            opacity: 1;
+        }
+        
+        .security-summary {
+            display: flex;
+            justify-content: space-around;
+            padding: 16px;
+            background: var(--vscode-sideBar-background);
+            border-bottom: 1px solid var(--vscode-panel-border);
+        }
+        
+        .summary-item {
+            text-align: center;
+            padding: 8px 12px;
+            border-radius: 6px;
+            min-width: 60px;
+        }
+        
+        .summary-item.high-severity {
+            background: rgba(255, 99, 99, 0.1);
+            border: 1px solid rgba(255, 99, 99, 0.3);
+        }
+        
+        .summary-item.medium-severity {
+            background: rgba(255, 193, 7, 0.1);
+            border: 1px solid rgba(255, 193, 7, 0.3);
+        }
+        
+        .summary-item.low-severity {
+            background: rgba(40, 167, 69, 0.1);
+            border: 1px solid rgba(40, 167, 69, 0.3);
+        }
+        
+        .summary-item.total {
+            background: var(--vscode-button-background);
+            color: var(--vscode-button-foreground);
+            border: 1px solid var(--vscode-button-border);
+        }
+        
+        .severity-count {
+            display: block;
+            font-size: 24px;
+            font-weight: bold;
+            margin-bottom: 4px;
+        }
+        
+        .severity-label {
+            display: block;
+            font-size: 11px;
+            text-transform: uppercase;
+            opacity: 0.8;
+        }
+        
+        .security-filters {
+            display: flex;
+            gap: 16px;
+            padding: 12px 16px;
+            background: var(--vscode-sideBar-background);
+            border-bottom: 1px solid var(--vscode-panel-border);
+        }
+        
+        .security-filters label {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            cursor: pointer;
+            font-size: 12px;
+        }
+        
+        .filter-label.high {
+            color: #ff6363;
+        }
+        
+        .filter-label.medium {
+            color: #ffc107;
+        }
+        
+        .filter-label.low {
+            color: #28a745;
+        }
+        
+        .security-issues-list {
+            flex: 1;
+            overflow-y: auto;
+            padding: 8px;
+        }
+        
+        .security-issue {
+            background: var(--vscode-list-inactiveSelectionBackground);
+            border: 1px solid var(--vscode-panel-border);
+            border-radius: 6px;
+            margin-bottom: 8px;
+            padding: 12px;
+            cursor: pointer;
+            transition: background-color 0.2s ease;
+        }
+        
+        .security-issue:hover {
+            background: var(--vscode-list-hoverBackground);
+        }
+        
+        .security-issue.hidden {
+            display: none;
+        }
+        
+        .issue-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 8px;
+        }
+        
+        .issue-title {
+            font-weight: 600;
+            color: var(--vscode-foreground);
+            font-size: 13px;
+        }
+        
+        .issue-severity {
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 10px;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+        
+        .issue-severity.high {
+            background: #ff6363;
+            color: white;
+        }
+        
+        .issue-severity.medium {
+            background: #ffc107;
+            color: black;
+        }
+        
+        .issue-severity.low {
+            background: #28a745;
+            color: white;
+        }
+        
+        .issue-location {
+            font-size: 11px;
+            color: var(--vscode-descriptionForeground);
+            margin-bottom: 6px;
+        }
+        
+        .issue-description {
+            font-size: 12px;
+            color: var(--vscode-foreground);
+            margin-bottom: 8px;
+            line-height: 1.4;
+        }
+        
+        .issue-code {
+            background: var(--vscode-textCodeBlock-background);
+            border: 1px solid var(--vscode-panel-border);
+            border-radius: 4px;
+            padding: 8px;
+            font-family: var(--vscode-editor-font-family);
+            font-size: 11px;
+            color: var(--vscode-editor-foreground);
+            white-space: pre-wrap;
+            margin-bottom: 8px;
+            max-height: 150px;
+            overflow-y: auto;
+        }
+        
+        .issue-recommendation {
+            font-size: 11px;
+            color: var(--vscode-textLink-foreground);
+            font-style: italic;
+        }
     </style>
 </head>
 <body>
@@ -243,6 +472,8 @@ export function getTractionHtml(): string {
                         <div class="dropdown-item" data-action="powershell">Open PowerShell</div>
                         <div class="dropdown-item" data-action="cmd">Open Command Prompt</div>
                         <div class="dropdown-item" data-action="auraEnabled">Report @AuraEnabled</div>
+                        <div class="dropdown-item" data-action="securityScanWorkspace">Security Report - Workspace</div>
+                        <div class="dropdown-item" data-action="securityScanCurrent">Security Report - Current File</div>
                     </div>
                 </div>
             </div>
@@ -256,6 +487,54 @@ export function getTractionHtml(): string {
             </div>
             <div class="progress-bar">
                 <div class="progress-bar-fill indeterminate" id="progress-bar-fill"></div>
+            </div>
+        </div>
+
+        <div class="security-report-container hidden" id="security-report-container">
+            <div class="security-report-header">
+                <div class="security-report-title">
+                    <span class="icon shield-icon">🛡️</span>
+                    Security Analysis Report
+                </div>
+                <button class="close-report-button" id="close-security-report" title="Close Report">&times;</button>
+            </div>
+            
+            <div class="security-summary">
+                <div class="summary-item high-severity">
+                    <span class="severity-count" id="high-count">0</span>
+                    <span class="severity-label">High</span>
+                </div>
+                <div class="summary-item medium-severity">
+                    <span class="severity-count" id="medium-count">0</span>
+                    <span class="severity-label">Medium</span>
+                </div>
+                <div class="summary-item low-severity">
+                    <span class="severity-count" id="low-count">0</span>
+                    <span class="severity-label">Low</span>
+                </div>
+                <div class="summary-item total">
+                    <span class="severity-count" id="total-count">0</span>
+                    <span class="severity-label">Total Issues</span>
+                </div>
+            </div>
+            
+            <div class="security-filters">
+                <label>
+                    <input type="checkbox" id="filter-high" checked>
+                    <span class="filter-label high">High Severity</span>
+                </label>
+                <label>
+                    <input type="checkbox" id="filter-medium" checked>
+                    <span class="filter-label medium">Medium Severity</span>
+                </label>
+                <label>
+                    <input type="checkbox" id="filter-low" checked>
+                    <span class="filter-label low">Low Severity</span>
+                </label>
+            </div>
+            
+            <div class="security-issues-list" id="security-issues-list">
+                <!-- Security issues will be populated here -->
             </div>
         </div>
         
@@ -281,9 +560,24 @@ export function getTractionHtml(): string {
             const progressDescription = document.getElementById('progress-description');
             const progressBarFill = document.getElementById('progress-bar-fill');
             
+            // Security report elements
+            const securityReportContainer = document.getElementById('security-report-container');
+            const closeSecurityReportButton = document.getElementById('close-security-report');
+            const highCountElement = document.getElementById('high-count');
+            const mediumCountElement = document.getElementById('medium-count');
+            const lowCountElement = document.getElementById('low-count');
+            const totalCountElement = document.getElementById('total-count');
+            const securityIssuesList = document.getElementById('security-issues-list');
+            const filterHighCheckbox = document.getElementById('filter-high');
+            const filterMediumCheckbox = document.getElementById('filter-medium');
+            const filterLowCheckbox = document.getElementById('filter-low');
+            
             
             // Selected org tracking
             let selectedOrg = '';
+            
+            // Security report state
+            let currentSecurityReport = null;
             
             // Update status
             function updateStatus(message, type = 'info') {
@@ -326,6 +620,97 @@ export function getTractionHtml(): string {
                 progressContainer.classList.remove('active');
                 progressBarFill.classList.remove('indeterminate');
                 progressBarFill.style.width = '0%';
+            }
+            
+            // Security report functions
+            function displaySecurityReport(report) {
+                console.log('[TractionTab] displaySecurityReport called:', report);
+                
+                currentSecurityReport = report;
+                
+                // Update summary counts
+                highCountElement.textContent = report.highSeverityCount;
+                mediumCountElement.textContent = report.mediumSeverityCount;
+                lowCountElement.textContent = report.lowSeverityCount;
+                totalCountElement.textContent = report.totalIssues;
+                
+                // Clear existing issues
+                securityIssuesList.innerHTML = '';
+                
+                // Add issues
+                if (report.issues && report.issues.length > 0) {
+                    report.issues.forEach((issue, index) => {
+                        const issueElement = createSecurityIssueElement(issue, index);
+                        securityIssuesList.appendChild(issueElement);
+                    });
+                } else {
+                    const noIssuesElement = document.createElement('div');
+                    noIssuesElement.className = 'no-issues-message';
+                    noIssuesElement.innerHTML = '<p style="text-align: center; padding: 20px; color: var(--vscode-descriptionForeground);">🎉 No security issues found!</p>';
+                    securityIssuesList.appendChild(noIssuesElement);
+                }
+                
+                // Show the security report container
+                securityReportContainer.classList.remove('hidden');
+            }
+            
+            function createSecurityIssueElement(issue, index) {
+                const issueDiv = document.createElement('div');
+                issueDiv.className = \`security-issue severity-\${issue.severity.toLowerCase()}\`;
+                issueDiv.dataset.severity = issue.severity.toLowerCase();
+                
+                const fileName = issue.file.split(/[\\/]/).pop();
+                const relativeFile = issue.file.replace(/.*[\\/]src[\\/]/, 'src/');
+                
+                issueDiv.innerHTML = \`
+                    <div class="issue-header">
+                        <div class="issue-title">\${issue.title}</div>
+                        <div class="issue-severity \${issue.severity.toLowerCase()}">\${issue.severity}</div>
+                    </div>
+                    <div class="issue-location">
+                        📁 \${relativeFile} • Line \${issue.line}:\${issue.column}
+                    </div>
+                    <div class="issue-description">\${issue.description}</div>
+                    <div class="issue-code">\${issue.code}</div>
+                    <div class="issue-recommendation">💡 \${issue.recommendation}</div>
+                \`;
+                
+                // Add click handler to navigate to issue
+                issueDiv.addEventListener('click', () => {
+                    vscode.postMessage({
+                        command: 'navigateToIssue',
+                        filePath: issue.file,
+                        line: issue.line,
+                        column: issue.column
+                    });
+                });
+                
+                return issueDiv;
+            }
+            
+            function filterSecurityIssues() {
+                const showHigh = filterHighCheckbox.checked;
+                const showMedium = filterMediumCheckbox.checked;
+                const showLow = filterLowCheckbox.checked;
+                
+                const issues = securityIssuesList.querySelectorAll('.security-issue');
+                issues.forEach(issue => {
+                    const severity = issue.dataset.severity;
+                    const shouldShow = (severity === 'high' && showHigh) ||
+                                     (severity === 'medium' && showMedium) ||
+                                     (severity === 'low' && showLow);
+                    
+                    if (shouldShow) {
+                        issue.classList.remove('hidden');
+                    } else {
+                        issue.classList.add('hidden');
+                    }
+                });
+            }
+            
+            function closeSecurityReport() {
+                securityReportContainer.classList.add('hidden');
+                currentSecurityReport = null;
             }
             
             // Handle org selection with the same logic as other tabs
@@ -402,24 +787,57 @@ export function getTractionHtml(): string {
                     e.stopPropagation();
                     const action = item.dataset.action;
                     
-                    // Show progress for @AuraEnabled report
-                    if (action === 'auraEnabled') {
+                    // Handle security scan actions
+                    if (action === 'securityScanWorkspace') {
+                        showProgress(
+                            'Security Analysis in Progress',
+                            'Scanning all workspace files for security vulnerabilities and compliance issues...'
+                        );
+                        updateStatus('Starting workspace security analysis...');
+                        vscode.postMessage({
+                            command: 'runSecurityScan',
+                            scanType: 'workspace'
+                        });
+                    } else if (action === 'securityScanCurrent') {
+                        showProgress(
+                            'Security Analysis in Progress',
+                            'Scanning current file for security vulnerabilities and compliance issues...'
+                        );
+                        updateStatus('Starting current file security analysis...');
+                        vscode.postMessage({
+                            command: 'runSecurityScan',
+                            scanType: 'current'
+                        });
+                    } else if (action === 'auraEnabled') {
+                        // Show progress for @AuraEnabled report
                         showProgress(
                             'Scanning @AuraEnabled Methods',
                             'Searching for @AuraEnabled methods in Apex classes and their references in Lightning Web Components...'
                         );
                         updateStatus('Starting @AuraEnabled report generation...');
+                        vscode.postMessage({
+                            command: 'terminalAction',
+                            action: action
+                        });
                     } else {
                         updateStatus(\`Opening \${item.textContent}...\`);
+                        vscode.postMessage({
+                            command: 'terminalAction',
+                            action: action
+                        });
                     }
                     
-                    vscode.postMessage({
-                        command: 'terminalAction',
-                        action: action
-                    });
                     terminalMenu.classList.add('hidden');
                 });
             });
+            
+            // Security report event handlers
+            closeSecurityReportButton.addEventListener('click', closeSecurityReport);
+            
+            // Filter event handlers
+            filterHighCheckbox.addEventListener('change', filterSecurityIssues);
+            filterMediumCheckbox.addEventListener('change', filterSecurityIssues);
+            filterLowCheckbox.addEventListener('change', filterSecurityIssues);
             
             
             // Handle messages from extension
@@ -450,6 +868,10 @@ export function getTractionHtml(): string {
                     case 'hideProgress':
                         console.log('[TractionTab] Received hideProgress message');
                         hideProgress();
+                        break;
+                    case 'displaySecurityReport':
+                        console.log('[TractionTab] Received displaySecurityReport message:', message);
+                        displaySecurityReport(message.report);
                         break;
                 }
             });

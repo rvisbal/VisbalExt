@@ -4,6 +4,7 @@ import { OrgUtils } from '../utils/orgUtils';
 import { SalesforceOrg } from '../types/salesforceTypes';
 import { ViewId } from '../types/salesforceTypes';
 import { getTractionHtml } from './tractionTabHTML';
+import { SecurityAnalysisService, SecurityReport } from '../services/securityAnalysisService';
 import * as path from 'path';
 
 export class TractionTab implements vscode.WebviewViewProvider {
@@ -14,10 +15,12 @@ export class TractionTab implements vscode.WebviewViewProvider {
     private _error: string = '';
     private _orgs: SalesforceOrg[] = [];
     private _selectedOrg: string = '';
+    private _securityAnalysisService: SecurityAnalysisService;
 
     constructor(private readonly _context: vscode.ExtensionContext) {
         const cachePath = OrgUtils.getCachePath();
         this._orgListCacheService = new OrgListCacheService(cachePath);
+        this._securityAnalysisService = SecurityAnalysisService.getInstance();
     }
 
     public resolveWebviewView(
@@ -56,6 +59,12 @@ export class TractionTab implements vscode.WebviewViewProvider {
                     break;
                 case 'terminalAction':
                     await this._handleTerminalAction(message.action);
+                    break;
+                case 'runSecurityScan':
+                    await this._handleSecurityScan(message.scanType);
+                    break;
+                case 'navigateToIssue':
+                    await this._navigateToSecurityIssue(message.filePath, message.line, message.column);
                     break;
             }
         });
@@ -357,6 +366,80 @@ export class TractionTab implements vscode.WebviewViewProvider {
             OrgUtils.logError(`[VisbalExt.TractionTab] _handleAuraEnabledReport -- Error generating @AuraEnabled report`, error as Error);
             this._updateStatus(`Failed to generate @AuraEnabled report: ${error.message}`, 'error');
             vscode.window.showErrorMessage(`Failed to generate @AuraEnabled report: ${error.message}`);
+        }
+    }
+
+    private async _handleSecurityScan(scanType: string) {
+        try {
+            OrgUtils.logDebug(`[VisbalExt.TractionTab] _handleSecurityScan -- Starting security scan: ${scanType}`);
+            
+            this._showProgress(
+                'Security Analysis in Progress',
+                'Scanning files for security vulnerabilities and compliance issues...'
+            );
+            this._updateStatus('Starting security analysis...', 'info');
+            
+            let report: SecurityReport;
+            
+            if (scanType === 'workspace') {
+                report = await this._securityAnalysisService.analyzeWorkspace();
+            } else if (scanType === 'current') {
+                const issues = await this._securityAnalysisService.analyzeCurrentFile();
+                const activeEditor = vscode.window.activeTextEditor;
+                report = {
+                    totalIssues: issues.length,
+                    highSeverityCount: issues.filter(i => i.severity === 'HIGH').length,
+                    mediumSeverityCount: issues.filter(i => i.severity === 'MEDIUM').length,
+                    lowSeverityCount: issues.filter(i => i.severity === 'LOW').length,
+                    issues,
+                    scannedFiles: activeEditor ? [activeEditor.document.uri.fsPath] : [],
+                    scanTime: new Date()
+                };
+            } else {
+                throw new Error(`Unknown scan type: ${scanType}`);
+            }
+            
+            this._hideProgress();
+            
+            // Display the security report in the webview
+            this.displaySecurityReport(report);
+            
+            const summaryMessage = `Security scan completed: ${report.totalIssues} issues found (${report.highSeverityCount} high, ${report.mediumSeverityCount} medium, ${report.lowSeverityCount} low)`;
+            this._updateStatus(summaryMessage, report.highSeverityCount > 0 ? 'error' : 'success');
+            
+        } catch (error: any) {
+            this._hideProgress();
+            OrgUtils.logError(`[VisbalExt.TractionTab] _handleSecurityScan -- Error during security scan: ${scanType}`, error as Error);
+            this._updateStatus(`Failed to run security scan: ${error.message}`, 'error');
+            vscode.window.showErrorMessage(`Failed to run security scan: ${error.message}`);
+        }
+    }
+
+    public displaySecurityReport(report: SecurityReport) {
+        this._view?.webview.postMessage({
+            command: 'displaySecurityReport',
+            report: report
+        });
+    }
+
+    private async _navigateToSecurityIssue(filePath: string, line: number, column: number) {
+        try {
+            OrgUtils.logDebug(`[VisbalExt.TractionTab] _navigateToSecurityIssue -- Navigating to ${filePath}:${line}:${column}`);
+            
+            const document = await vscode.workspace.openTextDocument(filePath);
+            const editor = await vscode.window.showTextDocument(document);
+            
+            // Navigate to the specific line and column
+            const position = new vscode.Position(line - 1, column - 1); // VS Code uses 0-based indexing
+            editor.selection = new vscode.Selection(position, position);
+            editor.revealRange(new vscode.Range(position, position), vscode.TextEditorRevealType.InCenter);
+            
+            this._updateStatus(`Navigated to ${path.basename(filePath)}:${line}:${column}`, 'success');
+            
+        } catch (error: any) {
+            OrgUtils.logError(`[VisbalExt.TractionTab] _navigateToSecurityIssue -- Error navigating to issue`, error as Error);
+            this._updateStatus(`Failed to navigate to issue: ${error.message}`, 'error');
+            vscode.window.showErrorMessage(`Failed to navigate to issue: ${error.message}`);
         }
     }
 
