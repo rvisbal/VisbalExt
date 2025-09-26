@@ -35,6 +35,7 @@ import { ReferencesView } from './views/referencesView';
 import { SymbolReference } from './services/referencesService';
 import { SymbolNavigationService } from './services/symbolNavigationService';
 import { SecurityAnalysisService } from './services/securityAnalysisService';
+import { UnusedCodeService, UnusedCodeReport } from './services/unusedCodeService';
 
 let outputChannel: vscode.OutputChannel;
 
@@ -1345,6 +1346,171 @@ context.subscriptions.push(
       } catch (error: any) {
         OrgUtils.logError('[VisbalExt.Extension] Error during security analysis:', error);
         vscode.window.showErrorMessage(`Security analysis failed: ${error.message}`);
+      }
+    })
+  );
+
+  // Register unused code analysis commands
+  context.subscriptions.push(
+    vscode.commands.registerCommand('visbal-ext.analyzeUnusedCodeWorkspace', async () => {
+      try {
+        OrgUtils.logDebug('[VisbalExt.Extension] Starting workspace unused code analysis');
+        const unusedCodeService = UnusedCodeService.getInstance();
+        
+        // Show progress notification
+        await vscode.window.withProgress({
+          location: vscode.ProgressLocation.Notification,
+          title: "Unused Code Analysis",
+          cancellable: false
+        }, async (progress) => {
+          progress.report({ increment: 0, message: "Scanning workspace for unused code..." });
+          
+          // Set up progress callback
+          unusedCodeService.setProgressCallback((message: string, percentage?: number) => {
+            progress.report({ 
+              increment: percentage ? percentage - (progress as any).lastReported : 10, 
+              message: message 
+            });
+            (progress as any).lastReported = percentage || (progress as any).lastReported || 0;
+          });
+          
+          const report = await unusedCodeService.analyzeWorkspace({
+            includePrivateMembers: true,
+            includeTestMethods: false,
+            includeAuraEnabledMethods: false,
+            includeWebServiceMethods: false
+          });
+          
+          progress.report({ increment: 100, message: "Analysis complete" });
+          
+          // Display results
+          await vscode.commands.executeCommand('visbal-ext.displayUnusedCodeInReferences', report);
+          
+          const message = `Found ${report.unusedCount} unused symbols in ${report.scannedFiles.length} files`;
+          if (report.unusedCount > 0) {
+            const selection = await vscode.window.showInformationMessage(
+              message,
+              'View Results',
+              'Dismiss'
+            );
+            
+            if (selection === 'View Results') {
+              await vscode.commands.executeCommand('workbench.view.extension.visbal-references-container');
+            }
+          } else {
+            vscode.window.showInformationMessage('No unused code found! 🎉');
+          }
+        });
+
+      } catch (error: any) {
+        OrgUtils.logError('[VisbalExt.Extension] Error during unused code analysis:', error);
+        vscode.window.showErrorMessage(`Unused code analysis failed: ${error.message}`);
+      }
+    })
+  );
+
+  context.subscriptions.push(
+    vscode.commands.registerCommand('visbal-ext.analyzeUnusedCodeCurrentFile', async () => {
+      try {
+        OrgUtils.logDebug('[VisbalExt.Extension] Starting current file unused code analysis');
+        const unusedCodeService = UnusedCodeService.getInstance();
+        
+        // Check if we have an active editor
+        const activeEditor = vscode.window.activeTextEditor;
+        if (!activeEditor) {
+          vscode.window.showWarningMessage('No active file to analyze. Please open a Salesforce Apex file (.cls).');
+          return;
+        }
+        
+        // Check if it's an Apex file
+        if (!activeEditor.document.fileName.endsWith('.cls')) {
+          vscode.window.showWarningMessage('Please open a Salesforce Apex class file (.cls) to analyze.');
+          return;
+        }
+        
+        // Check if it's a test file and warn the user
+        const fileName = activeEditor.document.fileName.split(/[\/\\]/).pop() || '';
+        if (fileName.toLowerCase().includes('test.cls')) {
+          vscode.window.showInformationMessage('Test files are excluded from unused code analysis as they contain test-specific methods.');
+          return;
+        }
+        
+        // Check if the file content contains @isTest annotation (test class)
+        const fileContent = activeEditor.document.getText();
+        const isTestClass = /@istest\s+(?:(?:public|private|global)\s+)?(?:virtual\s+|abstract\s+)?class\s+/i.test(fileContent) ||
+                            /@(testVisible|testSetup)/i.test(fileContent) ||
+                            /class\s+\w*test(?:\s|$)/i.test(fileContent);
+        
+        if (isTestClass) {
+          vscode.window.showInformationMessage('Test classes are excluded from unused code analysis as they contain test-specific methods.');
+          return;
+        }
+        
+        // Show progress notification
+        await vscode.window.withProgress({
+          location: vscode.ProgressLocation.Notification,
+          title: "Unused Code Analysis",
+          cancellable: false
+        }, async (progress) => {
+          progress.report({ increment: 0, message: "Analyzing current file..." });
+          
+          // Set up progress callback
+          unusedCodeService.setProgressCallback((message: string, percentage?: number) => {
+            progress.report({ 
+              increment: percentage ? percentage - (progress as any).lastReported : 10, 
+              message: message 
+            });
+            (progress as any).lastReported = percentage || (progress as any).lastReported || 0;
+          });
+          
+          const symbols = await unusedCodeService.analyzeCurrentFile({
+            includePrivateMembers: true,
+            includeTestMethods: false,
+            includeAuraEnabledMethods: false,
+            includeWebServiceMethods: false
+          });
+          
+          progress.report({ increment: 100, message: "Analysis complete" });
+          
+          // Create report structure
+          const report: UnusedCodeReport = {
+            totalSymbols: 0, // Will be calculated by service
+            unusedCount: symbols.length,
+            unusedMethods: symbols.filter(s => s.type === 'method').length,
+            unusedProperties: symbols.filter(s => s.type === 'property').length,
+            unusedClasses: symbols.filter(s => s.type === 'class').length,
+            unusedVariables: symbols.filter(s => s.type === 'variable').length,
+            symbols,
+            scannedFiles: [activeEditor.document.uri.fsPath],
+            scanTime: new Date(),
+            excludedFiles: [],
+            excludedSymbols: 0
+          };
+          
+          // Display results
+          await vscode.commands.executeCommand('visbal-ext.displayUnusedCodeInReferences', report);
+          
+          const fileName = activeEditor.document.fileName.split(/[\/\\]/).pop();
+          const message = `Found ${report.unusedCount} unused symbols in ${fileName}`;
+          
+          if (report.unusedCount > 0) {
+            const selection = await vscode.window.showInformationMessage(
+              message,
+              'View Results',
+              'Dismiss'
+            );
+            
+            if (selection === 'View Results') {
+              await vscode.commands.executeCommand('workbench.view.extension.visbal-references-container');
+            }
+          } else {
+            vscode.window.showInformationMessage(`No unused code found in ${fileName}! 🎉`);
+          }
+        });
+
+      } catch (error: any) {
+        OrgUtils.logError('[VisbalExt.Extension] Error during current file unused code analysis:', error);
+        vscode.window.showErrorMessage(`Unused code analysis failed: ${error.message}`);
       }
     })
   );

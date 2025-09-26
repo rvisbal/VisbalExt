@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
 import { ReferencesService, ReferenceLocation, SymbolReference } from '../services/referencesService';
+import { UnusedCodeReport, UnusedSymbol } from '../services/unusedCodeService';
 import * as OrgUtilsModule from '../utils/orgUtils';
 const OrgUtils = OrgUtilsModule.OrgUtils;
 
@@ -376,6 +377,235 @@ export class ReferencesTreeProvider implements vscode.TreeDataProvider<Reference
     }
 
     /**
+     * Updates the tree with unused code analysis results organized by file -> symbol type -> symbols
+     */
+    public updateUnusedCodeResults(report: UnusedCodeReport): void {
+        this.currentSymbolReference = null; // Clear current reference since this is a special report view
+        this.rootItems = [];
+
+        if (report.symbols.length > 0) {
+            // Create overall root node
+            const excludedInfo = report.excludedFiles.length > 0 ? `, ${report.excludedFiles.length} test files excluded` : '';
+            const overallRootLabel = `🧹 Unused Code Analysis (${report.unusedCount} unused, ${report.scannedFiles.length} files scanned${excludedInfo})`;
+            const overallRootItem = new ReferenceTreeItem(
+                overallRootLabel,
+                vscode.TreeItemCollapsibleState.Expanded,
+                undefined,
+                'root'
+            );
+
+            // Group symbols by file
+            const fileGroups = new Map<string, UnusedSymbol[]>();
+            for (const symbol of report.symbols) {
+                const filePath = symbol.filePath;
+                if (!fileGroups.has(filePath)) {
+                    fileGroups.set(filePath, []);
+                }
+                fileGroups.get(filePath)!.push(symbol);
+            }
+
+            // Sort files by name
+            const sortedFileGroups = Array.from(fileGroups.entries()).sort(([a], [b]) => 
+                a.split(/[\/\\]/).pop()!.localeCompare(b.split(/[\/\\]/).pop()!)
+            );
+
+            // Create file nodes
+            for (const [filePath, symbols] of sortedFileGroups) {
+                const fileName = symbols[0].fileName;
+                const symbolCount = symbols.length;
+                
+                const fileLabel = `📄 ${fileName}`;
+                const fileItem = new ReferenceTreeItem(
+                    fileLabel,
+                    vscode.TreeItemCollapsibleState.Expanded,
+                    {
+                        filePath: vscode.Uri.file(filePath),
+                        position: new vscode.Position(0, 0),
+                        lineText: '',
+                        fileName: fileName,
+                        contextBefore: '',
+                        contextAfter: ''
+                    },
+                    'file'
+                );
+                
+                // Set description to show unused symbol count
+                fileItem.description = `${symbolCount} unused symbol${symbolCount === 1 ? '' : 's'}`;
+
+                // Group symbols by type within the file
+                const typeGroups = new Map<string, UnusedSymbol[]>();
+                for (const symbol of symbols) {
+                    if (!typeGroups.has(symbol.type)) {
+                        typeGroups.set(symbol.type, []);
+                    }
+                    typeGroups.get(symbol.type)!.push(symbol);
+                }
+
+                // Sort types by priority (methods first, then properties, etc.)
+                const typeOrder = { method: 1, property: 2, class: 3, variable: 4 };
+                const sortedTypeGroups = Array.from(typeGroups.entries()).sort(([a], [b]) => 
+                    (typeOrder[a as keyof typeof typeOrder] || 5) - (typeOrder[b as keyof typeof typeOrder] || 5)
+                );
+
+                // Create type group nodes within each file
+                for (const [symbolType, typeSymbols] of sortedTypeGroups) {
+                    const typeIcon = this.getSymbolTypeIcon(symbolType);
+                    const typeLabel = `${typeIcon} ${symbolType.charAt(0).toUpperCase() + symbolType.slice(1)}s`;
+                    
+                    const typeGroupItem = new ReferenceTreeItem(
+                        typeLabel,
+                        vscode.TreeItemCollapsibleState.Expanded,
+                        undefined,
+                        'root'
+                    );
+                    
+                    // Set description to show count
+                    typeGroupItem.description = `${typeSymbols.length} unused`;
+                    typeGroupItem.iconPath = new vscode.ThemeIcon(this.getSymbolTypeIconName(symbolType));
+
+                    // Sort symbols by line number
+                    typeSymbols.sort((a, b) => a.position.line - b.position.line);
+
+                    // Add unused symbols under each type group
+                    for (const symbol of typeSymbols) {
+                        const lineNumber = symbol.position.line + 1;
+                        const symbolLabel = this.formatUnusedSymbolLabel(symbol);
+                        
+                        const symbolItem = new ReferenceTreeItem(
+                            symbolLabel,
+                            vscode.TreeItemCollapsibleState.None,
+                            {
+                                filePath: vscode.Uri.file(symbol.filePath),
+                                position: symbol.position,
+                                lineText: symbol.lineText,
+                                fileName: symbol.fileName,
+                                contextBefore: symbol.contextBefore,
+                                contextAfter: symbol.contextAfter
+                            },
+                            'reference'
+                        );
+                        
+                        // Enhanced tooltip with unused symbol details
+                        symbolItem.tooltip = this.buildUnusedSymbolTooltip(symbol);
+                        
+                        typeGroupItem.addChild(symbolItem);
+                    }
+
+                    fileItem.addChild(typeGroupItem);
+                }
+
+                overallRootItem.addChild(fileItem);
+            }
+
+            this.rootItems.push(overallRootItem);
+        }
+
+        this._onDidChangeTreeData.fire();
+    }
+
+    /**
+     * Gets the appropriate icon emoji for different symbol types
+     */
+    private getSymbolTypeIcon(symbolType: string): string {
+        switch (symbolType) {
+            case 'method': return '⚡';
+            case 'property': return '🔧';
+            case 'class': return '📦';
+            case 'variable': return '📋';
+            default: return '❓';
+        }
+    }
+
+    /**
+     * Gets the appropriate VS Code icon name for different symbol types
+     */
+    private getSymbolTypeIconName(symbolType: string): string {
+        switch (symbolType) {
+            case 'method': return 'symbol-method';
+            case 'property': return 'symbol-property';
+            case 'class': return 'symbol-class';
+            case 'variable': return 'symbol-variable';
+            default: return 'symbol-misc';
+        }
+    }
+
+    /**
+     * Formats the label for an unused symbol
+     */
+    private formatUnusedSymbolLabel(symbol: UnusedSymbol): string {
+        let label = symbol.symbol;
+        
+        // Add visibility indicators
+        if (symbol.isPublic) {
+            label = `🌐 ${label}`;
+        } else {
+            label = `🔒 ${label}`;
+        }
+        
+        // Add static indicator
+        if (symbol.isStatic) {
+            label = `${label} [static]`;
+        }
+        
+        // Add test indicator
+        if (symbol.isTest) {
+            label = `${label} [test]`;
+        }
+        
+        // Add line number
+        label = `${label} :${symbol.position.line + 1}`;
+        
+        return label;
+    }
+
+    /**
+     * Builds an informative tooltip for unused symbols
+     */
+    private buildUnusedSymbolTooltip(symbol: UnusedSymbol): string {
+        const lineNumber = symbol.position.line + 1;
+        const fileName = symbol.fileName;
+        
+        let tooltip = `🧹 Unused ${symbol.type}: ${symbol.symbol}\n`;
+        tooltip += `📍 ${fileName}:${lineNumber}\n\n`;
+        
+        // Add symbol details
+        if (symbol.className) {
+            tooltip += `📦 Class: ${symbol.className}\n`;
+        }
+        
+        tooltip += `👁️ Visibility: ${symbol.isPublic ? 'Public' : 'Private'}\n`;
+        
+        if (symbol.isStatic) {
+            tooltip += `⚡ Static: Yes\n`;
+        }
+        
+        if (symbol.isTest) {
+            tooltip += `🧪 Test Symbol: Yes\n`;
+        }
+        
+        if (symbol.annotations && symbol.annotations.length > 0) {
+            tooltip += `🏷️ Annotations: @${symbol.annotations.join(', @')}\n`;
+        }
+        
+        tooltip += `\n💡 Reason: ${symbol.reason}\n\n`;
+        
+        // Add context lines if available
+        if (symbol.contextBefore) {
+            tooltip += `${lineNumber - 1}: ${symbol.contextBefore}\n`;
+        }
+        
+        tooltip += `▶ ${lineNumber}: ${symbol.lineText}\n`;
+        
+        if (symbol.contextAfter) {
+            tooltip += `${lineNumber + 1}: ${symbol.contextAfter}\n`;
+        }
+        
+        tooltip += '\n🖱️ Click to navigate to this symbol';
+        
+        return tooltip;
+    }
+
+    /**
      * Clears the references view
      */
     public clearReferences(): void {
@@ -497,6 +727,17 @@ export class ReferencesView {
             }
         });
 
+        // Command to display unused code analysis results
+        const displayUnusedCodeCommand = vscode.commands.registerCommand('visbal-ext.displayUnusedCodeInReferences', async (report: UnusedCodeReport) => {
+            OrgUtils.logDebug('[VisbalExt.ReferencesView] Display unused code command executed');
+            try {
+                await this.displayUnusedCodeResults(report);
+            } catch (error) {
+                console.error('[VisbalExt.ReferencesView] Error displaying unused code:', error);
+                vscode.window.showErrorMessage(`Failed to display unused code results: ${error}`);
+            }
+        });
+
         context.subscriptions.push(
             findReferencesCommand,
             goToReferenceCommand,
@@ -505,6 +746,7 @@ export class ReferencesView {
             showReferencesPanelCommand,
             openFileCommand,
             reloadAuraEnabledCommand,
+            displayUnusedCodeCommand,
             this.treeView,
             this.statusBarItem
         );
@@ -807,6 +1049,50 @@ export class ReferencesView {
             this.statusBarItem.hide();
             console.error('[VisbalExt.ReferencesView] reloadAuraEnabledFromCache -- Error:', error);
             vscode.window.showErrorMessage(`Could not load @AuraEnabled report from cache: ${error.message}`);
+        }
+    }
+
+    /**
+     * Display unused code analysis results in the References panel
+     */
+    public async displayUnusedCodeResults(report: UnusedCodeReport): Promise<void> {
+        try {
+            OrgUtils.logDebug(`[VisbalExt.ReferencesView] displayUnusedCodeResults -- Displaying ${report.unusedCount} unused symbols`);
+            
+            // Show progress in status bar
+            this.statusBarItem.text = "$(loading~spin) Loading unused code results...";
+            this.statusBarItem.show();
+
+            // Update the tree view with unused code results
+            this.treeDataProvider.updateUnusedCodeResults(report);
+
+            // Show the References panel
+            try {
+                await vscode.commands.executeCommand('workbench.view.extension.visbal-references-container');
+                
+                // Reveal the first item for better UX
+                setTimeout(() => {
+                    const children = this.treeDataProvider.getChildren();
+                    if (children.length > 0) {
+                        this.treeView.reveal(children[0], { expand: true, focus: true, select: true });
+                    }
+                }, 200);
+            } catch (error) {
+                OrgUtils.logDebug('[VisbalExt.ReferencesView] Could not show references panel:', error);
+            }
+
+            // Show success message
+            const excludedInfo = report.excludedFiles.length > 0 ? ` (${report.excludedFiles.length} test files excluded)` : '';
+            const message = `Unused code analysis complete: Found ${report.unusedCount} unused symbols in ${report.scannedFiles.length} files${excludedInfo}`;
+            vscode.window.showInformationMessage(message);
+
+            this.statusBarItem.hide();
+            OrgUtils.logDebug('[VisbalExt.ReferencesView] displayUnusedCodeResults -- Display completed successfully');
+
+        } catch (error: any) {
+            this.statusBarItem.hide();
+            console.error('[VisbalExt.ReferencesView] displayUnusedCodeResults -- Error:', error);
+            vscode.window.showErrorMessage(`Could not display unused code results: ${error.message}`);
         }
     }
 }

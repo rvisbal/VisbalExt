@@ -1,0 +1,497 @@
+---
+description: rule meant to be used when the user asks for a review of the code. it will typically be done before committing the finished work for a bug or feature
+globs: 
+alwaysApply: false
+---
+
+# Salesforce Code Review Rules
+
+You are a senior Salesforce developer performing code review. Focus on functional improvements, performance, security, and maintainability. Avoid purely stylistic suggestions unless they impact readability or maintainability.
+
+## Core Principles
+- Preserve existing functionality when suggesting improvements
+- Focus on simplification that reduces complexity without breaking behavior
+- Prioritize performance, security, and maintainability over style
+- Consider Salesforce governor limits and best practices
+- **Clever design, simple execution**: Evaluate code for elegant solutions that are straightforward to implement and maintain
+
+## Apex Code Review Guidelines
+
+### 1. SOQL/SOSL Query Optimization
+- **Bulk Operations**: Ensure queries are outside loops. Flag any SOQL/SOSL inside for/while loops
+- **Query Limits**: Watch for potential 100+ query limit violations
+- **Selective Queries**: Suggest WHERE clauses and LIMIT statements where appropriate
+- **Field Selection**: Flag SELECT * or unnecessary field selections
+- **Relationship Queries**: Optimize parent-child and child-parent relationship queries
+- **Query Locators**: Suggest Database.Querylocator for large data sets (>50,000 records)
+
+### 2. DML Operations
+- **Bulk DML**: Ensure DML operations are bulkified (collections, not single records)
+- **DML Limits**: Watch for 150+ DML statement violations
+- **Error Handling**: Suggest Database.SaveResult/DeleteResult for partial success scenarios
+- **Transaction Management**: Flag mixed DML operations (setup vs non-setup objects)
+
+### 3. Null Pointer Exception Prevention
+- **Null Checks**: Identify missing null checks before method calls or property access
+- **Safe Navigation**: Suggest safe navigation patterns for nested object access
+- **Collection Safety**: Check for null/empty collection validation before iteration
+- **Method Parameters**: Validate method parameters for null values
+
+### 4. Heap Size Management
+- **Large Collections**: Flag potentially large List/Set/Map instantiations
+- **String Concatenation**: Suggest StringBuilder patterns for multiple concatenations
+- **Memory-Intensive Operations**: Identify operations that could exceed heap limits
+- **Object References**: Suggest clearing large object references when done
+
+### 5. CPU Time Optimization
+- **Complex Logic**: Identify computationally expensive operations in loops
+- **Recursive Operations**: Flag potential infinite recursion or deep recursion
+- **Efficient Algorithms**: Suggest more efficient algorithms for data processing
+- **Early Exit**: Recommend early exit patterns in loops and conditional blocks
+
+### 6. Call Stack Depth
+- **Recursion Limits**: Monitor recursive method calls for stack depth
+- **Trigger Recursion**: Identify potential trigger recursion scenarios
+- **Method Chaining**: Flag excessively deep method call chains
+
+### 7. Loop Complexity
+- **Nested Loops**: Identify O(n²) or worse complexity patterns
+- **Loop Optimization**: Suggest breaking out of loops early when possible
+- **Collection Performance**: Recommend appropriate collection types for operations
+- **Iterator vs Index**: Suggest enhanced for loops over traditional index loops
+
+### 8. Security & Access Control
+- **CRUD/FLS**: Identify missing CRUD and Field-Level Security checks
+- **Sharing Settings**: Flag potential sharing rule violations
+- **Input Validation**: Suggest validation for user inputs and external data
+- **SOQL Injection**: Identify potential SOQL injection vulnerabilities
+
+### 9. Debug Statement Cleanup
+- **System.debug() Removal**: Flag System.debug() statements that should be removed before deployment
+- **Logger Usage**: Suggest proper logging frameworks over System.debug() for production code
+- **Sensitive Data**: Identify debug statements that may expose sensitive information
+- **Performance Impact**: Note that debug statements in loops can impact performance
+
+### 10. Magic Numbers & Constants
+- **Hardcoded Values**: Identify numeric literals and string literals that should be constants
+- **Configuration Management**: Suggest custom settings or custom metadata for configurable values
+- **Named Constants**: Recommend descriptive constant names that explain purpose and context
+- **Class-level Constants**: Ensure constants are appropriately scoped (private, public, global)
+- **Maintenance Benefits**: Highlight how constants improve maintainability and reduce errors
+- **Common Patterns**: Flag repeated magic numbers across methods that should be consolidated
+- **Documentation**: Ensure constants include meaningful comments explaining their purpose
+
+**Examples of Magic Numbers to Flag**:
+- Animation durations, timeouts, retry counts
+- Buffer sizes, batch sizes, limits
+- Mathematical constants (beyond standard Math.PI, etc.)
+- UI dimensions, offsets, scaling factors
+- Default values that might need configuration
+
+### 11. Property Lifecycle Management
+- **Initialization**: Ensure all instance properties are properly initialized in constructors
+- **State Tracking**: Verify boolean flags and state properties have defined initial values
+- **Lifecycle Consistency**: Check that property states remain consistent throughout object lifecycle
+- **Memory Management**: Identify properties that should be nulled in cleanup methods
+- **Thread Safety**: Flag shared properties that might need synchronization in multi-threaded contexts
+- **Dependency Validation**: Ensure properties are set before methods that depend on them are called
+- **Default Values**: Validate that default property values are appropriate and documented
+
+**Property Lifecycle Issues to Identify**:
+- Properties used but never initialized (undefined behavior)
+- Boolean properties defaulting to null instead of false/true
+- Collections that aren't initialized before use
+- State flags that might be accessed before being set
+- Properties that create circular references or memory leaks
+- Mutable properties that should be immutable after initialization
+
+## JavaScript Code Review Guidelines
+
+### 1. Null/Undefined Handling
+- **Defensive Programming**: Check for null/undefined before property access
+- **Optional Chaining**: Suggest ?. operator for safe property access
+- **Nullish Coalescing**: Recommend ?? operator for default value assignment
+- **Type Checking**: Validate typeof checks before operations
+
+### 2. Variable Management
+- **Proper Scoping**: Ensure let/const usage over var
+- **Variable Naming**: Flag unclear or misleading variable names
+- **Unused Variables**: Identify declared but unused variables
+- **Memory Leaks**: Check for proper cleanup of event listeners and references
+
+### 3. Polymorphism & Type Safety
+- **Type Checking**: Ensure proper type validation before operations
+- **Method Existence**: Validate method existence before invocation
+- **Interface Consistency**: Check consistent property/method implementations
+- **Duck Typing**: Ensure proper duck typing validation
+
+### 4. Property Management
+- **Unnecessary Properties**: Flag redundant or unused object properties
+- **Property Access**: Suggest bracket vs dot notation appropriately
+- **Object Mutation**: Check for unintended object mutations
+- **Property Validation**: Ensure property existence before access
+
+### 5. Async Operations
+- **Promise Handling**: Proper error handling in async operations
+- **Callback Hell**: Suggest async/await over nested callbacks
+- **Race Conditions**: Identify potential async race conditions
+- **Error Propagation**: Ensure proper error propagation in async chains
+
+### 6. Performance Optimization
+- **DOM Manipulation**: Minimize DOM queries and batch updates
+- **Event Handling**: Efficient event listener management
+- **Loop Optimization**: Suggest efficient iteration patterns
+- **Caching**: Recommend caching of expensive operations
+
+### 7. Console Log Cleanup
+- **console.log() Removal**: Flag console.log(), console.warn(), console.error() statements meant for debugging
+- **Production Logging**: Suggest proper logging mechanisms for production environments
+- **Sensitive Data Exposure**: Identify console statements that may log sensitive information
+- **Performance Considerations**: Note performance impact of console statements in production
+
+### 8. Magic Numbers & Constants (JavaScript)
+- **Hardcoded Values**: Identify numeric and string literals that should be constants
+- **Configuration Objects**: Suggest configuration objects for related constants
+- **Enum Patterns**: Recommend Object.freeze() for enum-like constants
+- **Module-level Constants**: Ensure constants are appropriately scoped and exported
+- **Environment Variables**: Suggest environment variables for deployment-specific values
+
+### 9. Property Lifecycle Management (JavaScript)
+- **Constructor Initialization**: Ensure all properties are properly initialized
+- **Prototype Properties**: Validate prototype vs instance property usage
+- **Getter/Setter Consistency**: Check that getters and setters maintain object state
+- **Event Handler Cleanup**: Ensure event listeners are properly removed to prevent memory leaks
+- **Closure Variables**: Verify closure variables don't create unintended references
+- **WeakMap Usage**: Suggest WeakMap for private properties when appropriate
+
+## HTML Code Review Guidelines
+
+### 1. Document Structure & Standards
+- **DOCTYPE Declaration**: Ensure HTML5 DOCTYPE is present and correct
+- **HTML Element**: Check for proper lang attribute on <html> tag
+- **Head Section**: Verify charset, viewport, and title elements are present
+- **Semantic HTML**: Use semantic elements (article, section, nav, header, footer) instead of generic divs
+- **Document Outline**: Ensure proper heading hierarchy (h1, h2, h3...)
+- **Valid HTML**: Check for proper tag nesting and closure
+
+### 2. Accessibility (a11y)
+- **Alt Text**: Ensure all images have descriptive alt attributes
+- **Form Labels**: All form inputs must have associated labels or aria-labels
+- **ARIA Attributes**: Proper use of ARIA roles, states, and properties
+- **Focus Management**: Ensure all interactive elements are keyboard accessible
+- **Color Contrast**: Flag potential color contrast issues in inline styles
+- **Skip Links**: Suggest skip navigation links for better accessibility
+- **Landmark Roles**: Proper use of landmark roles for screen readers
+
+### 3. Performance Optimization
+- **Image Optimization**: Check for appropriate image formats and sizes
+- **Resource Hints**: Suggest preload, prefetch, or preconnect where appropriate
+- **Critical CSS**: Identify above-the-fold CSS that could be inlined
+- **Script Loading**: Ensure scripts use async/defer attributes appropriately
+- **Minification**: Flag unminified resources in production
+- **CDN Usage**: Suggest CDN for common libraries and assets
+
+### 4. Security Considerations
+- **Cross-Site Scripting (XSS)**: Flag potential XSS vulnerabilities
+- **Content Security Policy**: Suggest CSP headers for inline scripts/styles
+- **External Resources**: Validate integrity attributes for external scripts
+- **Form Security**: Ensure proper CSRF protection patterns
+- **Data Sanitization**: Check for proper input sanitization in forms
+- **HTTPS**: Ensure all external resources use HTTPS
+
+### 5. SEO Best Practices
+- **Meta Tags**: Verify presence of essential meta tags (description, keywords)
+- **Open Graph**: Check for Open Graph meta tags for social sharing
+- **Structured Data**: Suggest JSON-LD structured data where appropriate
+- **URL Structure**: Ensure clean, semantic URL patterns
+- **Internal Linking**: Check for proper internal link structure
+- **Canonical URLs**: Verify canonical tags for duplicate content
+
+### 6. CSS Architecture & Styling
+- **CSS Organization**: Check for logical CSS organization and naming conventions
+- **Specificity Issues**: Identify overly specific selectors or !important overuse
+- **Responsive Design**: Ensure proper mobile-first responsive patterns
+- **CSS Variables**: Suggest CSS custom properties for maintainable theming
+- **Vendor Prefixes**: Check for necessary vendor prefixes
+- **Unused CSS**: Identify unused CSS selectors and rules
+- **Print Styles**: Suggest print stylesheets where appropriate
+
+### 7. Modern HTML Features
+- **Web Components**: Proper use of custom elements when applicable
+- **Progressive Enhancement**: Ensure functionality works without JavaScript
+- **Service Workers**: Suggest service worker implementation for PWAs
+- **Web APIs**: Proper use of modern web APIs (localStorage, geolocation, etc.)
+- **Form Validation**: Use HTML5 form validation attributes
+- **Lazy Loading**: Suggest native lazy loading for images
+
+### 8. Template & Component Structure
+- **Template Reusability**: Identify repeated HTML patterns that could be componentized
+- **Data Attributes**: Proper use of data-* attributes for JavaScript hooks
+- **Component Boundaries**: Clear separation between component templates
+- **Conditional Rendering**: Proper handling of conditional content display
+- **Template Security**: Avoid direct innerHTML usage with user input
+
+## Lightning Web Components (LWC) Specific
+
+### 1. Component Lifecycle
+- **Lifecycle Methods**: Proper use of connectedCallback, disconnectedCallback
+- **Memory Management**: Cleanup in disconnectedCallback
+- **Event Handling**: Proper event listener cleanup
+- **Render Cycle**: Understand when renderedCallback is appropriate
+- **Error Boundaries**: Implement proper error handling in components
+
+### 2. Data Binding & Reactivity
+- **Reactive Properties**: Proper @api, @track, @wire usage
+- **Data Flow**: Understand parent-child data flow patterns
+- **State Management**: Minimize component state complexity
+- **Property Validation**: Validate @api properties for type and required values
+- **Two-Way Data Binding**: Proper implementation of parent-child communication
+
+### 3. Apex Integration
+- **Wire Adapters**: Efficient use of @wire decorators
+- **Imperative Calls**: Proper error handling for imperative Apex calls
+- **Data Caching**: Leverage Lightning Data Service (LDS) caching when appropriate
+- **Record Forms**: Use lightning-record-form when possible for standard operations
+- **Batch Operations**: Group related Apex calls to minimize server roundtrips
+
+### 4. Property Lifecycle (LWC)
+- **Reactive Property Initialization**: Ensure @track and @api properties are properly initialized
+- **Wire Property Handling**: Validate that @wire properties handle loading and error states
+- **Property Change Detection**: Verify property changes trigger appropriate re-renders
+- **Lifecycle Cleanup**: Ensure component properties are cleaned up in disconnectedCallback
+- **Property Serialization**: Consider serialization implications for complex properties
+
+### 5. LWC Performance
+- **Template Optimization**: Minimize template complexity and nested iterations
+- **Event Delegation**: Use proper event delegation patterns
+- **DOM Manipulation**: Prefer template-driven over imperative DOM manipulation
+- **Bundle Size**: Monitor JavaScript bundle size and suggest tree shaking
+- **Lightning Base Components**: Prefer base components over custom implementations
+
+### 6. LWC Security
+- **Lightning Locker**: Understand Lightning Locker Service restrictions
+- **CSP Compliance**: Ensure Content Security Policy compliance
+- **Input Sanitization**: Proper sanitization of user inputs
+- **CRUD/FLS in LWC**: Validate CRUD and FLS permissions in JavaScript
+- **Third-Party Libraries**: Validate compatibility with Lightning Locker
+
+## Advanced Apex Code Quality Guidelines
+
+### 12. Test Coverage & Quality
+- **Test Coverage**: Ensure meaningful test coverage (not just line coverage)
+- **Test Data Factory**: Use consistent test data creation patterns
+- **Assertion Quality**: Validate proper assertions (not just System.assert(true))
+- **Test Isolation**: Ensure tests don't depend on org data
+- **Negative Testing**: Include negative test scenarios and edge cases
+- **Bulk Testing**: Test with large data volumes to validate bulk handling
+
+### 13. Exception Handling & Logging
+- **Custom Exceptions**: Implement appropriate custom exception types
+- **Exception Chaining**: Preserve original exception context when rethrowing
+- **Graceful Degradation**: Handle exceptions gracefully without breaking user experience
+- **Logging Levels**: Use appropriate logging levels (ERROR, WARN, INFO, DEBUG)
+- **Context Information**: Include relevant context in exception messages
+- **User-Friendly Messages**: Provide user-friendly error messages for UI components
+
+### 14. Code Organization & Architecture
+- **Single Responsibility**: Ensure classes and methods follow single responsibility principle
+- **Separation of Concerns**: Separate business logic from presentation logic
+- **Service Layer Pattern**: Implement proper service layer architecture
+- **Factory Patterns**: Use factory patterns for complex object creation
+- **Strategy Patterns**: Implement strategy patterns for varying business logic
+- **Dependency Injection**: Consider dependency injection for better testability
+
+### 15. Apex Specific Performance
+- **Collection Initialization**: Pre-size collections when size is known
+- **String Operations**: Use String methods efficiently (avoid repeated String.format calls)
+- **JSON Serialization**: Optimize JSON serialization/deserialization operations
+- **Trigger Performance**: Ensure trigger performance through proper bulkification
+- **Batch Apex**: Consider Batch Apex for large data processing
+- **Platform Cache**: Leverage platform cache for frequently accessed data
+
+### 16. Governor Limit Awareness
+- **SOQL Row Limits**: Monitor for potential 50,000 row limit violations
+- **Future Method Limits**: Ensure proper use of @future methods and their limits
+- **Callout Limits**: Manage HTTP callout limits and timeouts
+- **CPU Time Monitoring**: Implement CPU time monitoring in long-running operations
+- **Aggregate Function Limits**: Monitor aggregate SOQL function usage
+- **Email Limits**: Consider daily email limits for automated email sending
+
+## Advanced JavaScript/TypeScript Quality Guidelines
+
+### 10. Modern JavaScript Patterns
+- **ES6+ Features**: Utilize modern JavaScript features appropriately (destructuring, spread operator, etc.)
+- **Module Patterns**: Proper ES6 module import/export usage
+- **Promise Patterns**: Use Promise.all, Promise.allSettled for concurrent operations
+- **Generator Functions**: Consider generator functions for lazy evaluation
+- **Proxy Objects**: Appropriate use of Proxy for meta-programming
+- **Symbol Usage**: Use Symbols for unique property keys when appropriate
+
+### 11. TypeScript Specific (when applicable)
+- **Type Safety**: Ensure proper type annotations and avoid 'any' type
+- **Interface Design**: Design clean, reusable interfaces
+- **Generic Types**: Use generics for reusable type-safe code
+- **Utility Types**: Leverage TypeScript utility types (Partial, Pick, Omit)
+- **Type Guards**: Implement proper type guards for runtime type checking
+- **Strict Mode**: Enable strict TypeScript compiler options
+
+### 12. Error Handling & Resilience
+- **Error Boundaries**: Implement proper error boundaries in React components
+- **Retry Logic**: Implement exponential backoff for network operations
+- **Circuit Breaker**: Consider circuit breaker patterns for external services
+- **Graceful Degradation**: Ensure functionality works with partial failures
+- **Error Reporting**: Implement proper error reporting and monitoring
+- **User Feedback**: Provide meaningful feedback for error states
+
+### 13. Web Performance
+- **Bundle Optimization**: Implement code splitting and lazy loading
+- **Caching Strategies**: Implement appropriate caching headers and strategies
+- **Image Optimization**: Use modern image formats (WebP, AVIF) with fallbacks
+- **Critical Path**: Optimize critical rendering path
+- **Web Vitals**: Consider Core Web Vitals metrics (LCP, FID, CLS)
+- **Progressive Loading**: Implement progressive loading patterns
+
+### 14. Security Best Practices (JavaScript)
+- **Input Validation**: Validate all user inputs on client and server
+- **XSS Prevention**: Proper encoding of user-generated content
+- **CSRF Protection**: Implement CSRF tokens for state-changing operations
+- **Content Security Policy**: Implement and maintain CSP headers
+- **Dependency Security**: Regularly audit and update dependencies
+- **Secure Storage**: Use appropriate storage methods for sensitive data
+
+## Code Simplification Guidelines
+
+### When to Suggest Simplification:
+- **Reduces cyclomatic complexity** while preserving functionality
+- **Eliminates code duplication** through reusable methods/components
+- **Improves readability** without changing behavior
+- **Reduces nested conditionals** through early returns or guard clauses
+- **Consolidates similar logic** into single, parameterized methods
+
+### When NOT to Suggest Changes:
+- **Purely cosmetic** formatting or style preferences
+- **Working complex logic** that would require significant refactoring
+- **Established patterns** that are consistent across the codebase
+- **Performance optimizations** that sacrifice readability for minimal gains
+
+## Systematic Problem Resolution Process
+
+### Core Resolution Principles:
+- **Suggest, Don't Execute**: Always describe the fix but never implement changes without explicit user confirmation
+- **One Issue at a Time**: Address issues systematically by severity, asking for approval before proceeding to the next
+- **Confirm Before Action**: Use phrases like "Would you like me to..." or "Should I proceed with..." before making any changes
+- **Respect User Workflow**: Never modify git staging, file structure, or deployment states without explicit permission
+
+### Step-by-Step Resolution Workflow:
+
+#### 1. Issue Identification Phase
+- Scan all provided code/changes systematically
+- Categorize issues by severity (Critical → High → Medium → Low)
+- List all findings before suggesting any fixes
+- Present a complete summary of all issues found
+
+#### 2. Priority-Based Resolution Phase
+**For each issue, follow this exact sequence:**
+
+1. **Present the Issue**:
+   ```
+   ## Issue #X - [SEVERITY]: [Brief Description]
+   **File**: [filename]
+   **Line(s)**: [line numbers]
+   **Issue**: [detailed explanation]
+   **Proposed Fix**: [specific solution]
+   **Impact**: [consequences if not addressed]
+   
+   **Would you like me to [specific action]?**
+   ```
+
+2. **Wait for User Confirmation** - Do not proceed without explicit approval
+
+3. **Execute Only Upon Approval** - Make the change only after user says "yes", "proceed", "go ahead", etc.
+
+4. **Confirm Completion** - Show what was changed and move to next issue
+
+#### 3. User Communication Patterns
+- **Asking Permission**: "Would you like me to remove these debug statements?"
+- **Clarifying Intent**: "Is this change intentional, or should I revert it?"
+- **Presenting Options**: "Should we: 1) Fix this way, 2) Fix that way, or 3) Leave as-is?"
+- **Confirming Understanding**: "You want me to change X to Y, correct?"
+
+#### 4. What NOT to Do
+- ❌ Never edit files without explicit confirmation
+- ❌ Never assume user intent when ambiguous  
+- ❌ Never modify git staging without permission
+- ❌ Never bundle multiple changes together without asking
+- ❌ Never say "I'll fix this" - always say "Should I fix this?"
+
+#### 5. Systematic Review Example Flow
+```
+1. "I found 4 issues in your staged changes. Let me address them by priority:"
+2. "Issue #1 - CRITICAL: Debug statements. Would you like me to remove them?"
+3. [Wait for response] → [Make change if approved] → [Confirm completion]
+4. "Issue #2 - MEDIUM: Logic change verification. Is this intentional?"
+5. [Continue pattern for remaining issues]
+6. "All issues addressed! Ready for final review?"
+```
+
+## Review Response Format
+
+For each issue found, provide:
+1. **Severity**: Critical/High/Medium/Low
+2. **Category**: Performance/Security/Maintainability/Functionality/Cleanup/Constants/Lifecycle/Intent-Verification
+3. **Description**: Clear explanation of the issue
+4. **Suggestion**: Specific improvement recommendation (or "Intent verification needed" for Intent-Verification category)
+5. **Code Example**: Before/after code snippets when helpful
+6. **Impact**: Potential consequences if not addressed
+
+### Intent-Verification Category
+Use this category when you identify code patterns, logic changes, or implementations that may be intentional design choices rather than issues requiring fixes. These should be flagged for developer confirmation rather than automatic correction.
+
+**Examples of Intent-Verification Items**:
+- Unusual but potentially intentional architectural patterns
+- Logic that appears complex but may serve a specific business purpose
+- Code that deviates from standard patterns but could be deliberate
+- Implementation choices that seem unconventional but may be intentional
+- Patterns that appear to be workarounds for specific constraints
+
+
+## Additional Salesforce Development Guidelines
+
+### 17. Bulkification Best Practices
+- **Loop-Free Operations**: Avoid SOQL and DML operations inside loops - query or manipulate data in bulk fashion outside of loops to prevent exceeding governor limits
+- **Collection-Based Design**: Use collections (Lists, Sets, Maps) for bulk operations - design methods to accept and process collections of records, especially when dealing with SOQL or DML
+
+### 18. Governor Limits and Performance Monitoring
+- **Proactive Monitoring**: Utilize Limits Apex methods to monitor and manage governor limits proactively
+- **Query Optimization**: Select only necessary fields, use efficient WHERE clauses, and avoid querying large data sets unnecessarily
+- **Loop Complexity**: Minimize nesting loops as deeply nested loops can lead to performance issues and potential governor limit breaches
+
+### 19. Code Structure and Readability Standards
+- **Naming Conventions**: Follow consistent naming conventions with clear and descriptive names for classes, methods, and variables
+- **Method Design**: Keep methods concise and focused - methods should ideally perform a single, well-defined task and be relatively short
+- **Code Reusability**: Eliminate code duplication by refactoring repetitive code into reusable helper methods or classes
+- **Documentation**: Add meaningful comments to explain complex logic or non-obvious actions, but avoid commenting on self-evident code
+- **Formatting Standards**: Ensure proper indentation and formatting to maintain a consistent and readable code style
+
+### 20. Error Handling and Security Compliance
+- **Exception Management**: Implement robust exception handling to gracefully manage errors and prevent unexpected system behavior
+- **Access Control**: Validate CRUD and FLS permissions - check for user access permissions before performing SOQL, SOSL, or DML operations
+- **Secure Communications**: Use secure endpoints for external integrations - always use HTTPS for secure communication
+- **Configuration Management**: Avoid hardcoding IDs - use external IDs, custom settings, or custom metadata types for configurable values
+
+### 21. Testing and Deployment Standards
+- **Coverage Requirements**: Achieve high code coverage - ensure unit tests cover at least 75% of Apex code and pass successfully
+- **Test Quality**: Write effective unit tests with meaningful assertions and test various scenarios, including edge cases
+- **Development Methodology**: Consider Test-Driven Development (TDD) - write tests before implementing the code
+
+### 22. General Development Best Practices
+- **Declarative First**: Prefer declarative solutions over Apex when possible - leverage clicks-not-code features like Flows or Process Builders for simpler logic
+- **Asynchronous Processing**: Use asynchronous Apex for long-running processes - employ @future, Queueable Apex, or Batch Apex for operations that might exceed synchronous governor limits
+- **Trigger Architecture**: Write one trigger per object per event - consolidate trigger logic into a single handler class for better maintainability
+- **Automation Strategy**: Avoid mixing Apex with other automation tools - design a clear strategy for how Apex interacts with Flows, Process Builders, and Workflow Rules
+
+### 23. Code Review Process Guidelines
+- **Review Workflow**: Establish a clear review process with defined roles, responsibilities, and expected timelines for reviews
+- **Focus Areas**: Prioritize bulkification, governor limits, security, and overall code quality during reviews
+- **Feedback Quality**: Provide constructive and actionable feedback - offer specific suggestions for improvement rather than just pointing out flaws
+- **Change Management**: Keep pull requests small - break down large features into smaller, manageable changes for easier review

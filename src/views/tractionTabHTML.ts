@@ -560,6 +560,8 @@ export function getTractionHtml(): string {
                         <div class="dropdown-item" data-action="auraEnabled">Report @AuraEnabled</div>
                         <div class="dropdown-item" data-action="securityScanWorkspace">Security Report - Workspace</div>
                         <div class="dropdown-item" data-action="securityScanCurrent">Security Report - Current File</div>
+                        <div class="dropdown-item" data-action="codeReviewCurrent">Code Review - Current File</div>
+                        <div class="dropdown-item" data-action="nonReferenceMethods">Report Non Reference Methods</div>
                     </div>
                 </div>
             </div>
@@ -787,12 +789,19 @@ export function getTractionHtml(): string {
                 console.log('[TractionTab] displaySecurityReport called:', report);
                 
                 currentSecurityReport = report;
+                currentCodeReviewReport = null; // Clear code review state
                 
                 // Update summary counts
                 highCountElement.textContent = report.highSeverityCount;
                 mediumCountElement.textContent = report.mediumSeverityCount;
                 lowCountElement.textContent = report.lowSeverityCount;
                 totalCountElement.textContent = report.totalIssues;
+                
+                // Update the report title for security
+                const reportTitle = document.querySelector('.security-report-title');
+                if (reportTitle) {
+                    reportTitle.innerHTML = '<span class="icon shield-icon">🛡️</span> Security Analysis Report';
+                }
                 
                 // Calculate category counts
                 const categoryCounts = {
@@ -812,6 +821,9 @@ export function getTractionHtml(): string {
                         }
                     });
                 }
+                
+                // Hide code review filters and show security filters
+                hideCodeReviewFilters();
                 
                 // Update category filters visibility and counts
                 updateCategoryFilters(categoryCounts);
@@ -834,6 +846,12 @@ export function getTractionHtml(): string {
                 
                 // Show the security report container
                 securityReportContainer.classList.remove('hidden');
+            }
+            
+            function hideCodeReviewFilters() {
+                const categoryFilterGroup = document.getElementById('category-filter-group');
+                const codeReviewFilters = categoryFilterGroup.querySelectorAll('.code-review-filter');
+                codeReviewFilters.forEach(filter => filter.remove());
             }
             
             function updateCategoryFilters(categoryCounts) {
@@ -905,6 +923,12 @@ export function getTractionHtml(): string {
             }
             
             function filterSecurityIssues() {
+                // Check if we're in code review mode
+                if (currentCodeReviewReport) {
+                    filterCodeReviewIssues();
+                    return;
+                }
+                
                 // Severity filters
                 const showHigh = filterHighCheckbox.checked;
                 const showMedium = filterMediumCheckbox.checked;
@@ -948,6 +972,7 @@ export function getTractionHtml(): string {
             function closeSecurityReport() {
                 securityReportContainer.classList.add('hidden');
                 currentSecurityReport = null;
+                currentCodeReviewReport = null;
                 
                 // Reset category filters to hidden state
                 const categoryLabels = [
@@ -959,13 +984,19 @@ export function getTractionHtml(): string {
                     if (label) label.style.display = 'none';
                 });
                 
+                // Hide code review filters
+                hideCodeReviewFilters();
+                
                 categoryFilterGroup.style.display = 'none';
             }
             
             function exportSecurityReport(format) {
-                if (!currentSecurityReport) {
-                    console.error('No security report available for export');
-                    updateStatus('No security report available for export', 'error');
+                const currentReport = currentCodeReviewReport || currentSecurityReport;
+                const reportType = currentCodeReviewReport ? 'code review' : 'security';
+                
+                if (!currentReport) {
+                    console.error(\`No \${reportType} report available for export\`);
+                    updateStatus(\`No \${reportType} report available for export\`, 'error');
                     return;
                 }
                 
@@ -977,17 +1008,23 @@ export function getTractionHtml(): string {
                     command: 'exportSecurityReport',
                     format: format,
                     data: {
-                        ...currentSecurityReport,
+                        ...currentReport,
                         issues: filteredIssues,
                         exportTimestamp: new Date().toISOString(),
-                        totalFilteredIssues: filteredIssues.length
+                        totalFilteredIssues: filteredIssues.length,
+                        reportType: reportType
                     }
                 });
                 
-                updateStatus('Exporting security report as ' + format.toUpperCase() + '...', 'info');
+                updateStatus(\`Exporting \${reportType} report as \` + format.toUpperCase() + '...', 'info');
             }
             
             function getFilteredSecurityIssues() {
+                // Handle code review export
+                if (currentCodeReviewReport) {
+                    return getFilteredCodeReviewIssues();
+                }
+                
                 if (!currentSecurityReport) return [];
                 
                 const showHigh = filterHighCheckbox.checked;
@@ -1016,6 +1053,262 @@ export function getTractionHtml(): string {
                     
                     return severityMatch && categoryMatch;
                 });
+            }
+
+            function getFilteredCodeReviewIssues() {
+                if (!currentCodeReviewReport) return [];
+                
+                const showHigh = filterHighCheckbox.checked;
+                const showMedium = filterMediumCheckbox.checked;
+                const showLow = filterLowCheckbox.checked;
+                
+                // Get enabled code review categories
+                const codeReviewFilters = document.querySelectorAll('.code-review-filter input[type="checkbox"]');
+                const enabledCategories = new Set();
+                
+                codeReviewFilters.forEach(checkbox => {
+                    if (checkbox.checked) {
+                        const categoryKey = checkbox.id.replace('filter-', '');
+                        enabledCategories.add(categoryKey);
+                    }
+                });
+                
+                return currentCodeReviewReport.issues.filter(issue => {
+                    // Map critical to high for filtering
+                    const severityForFilter = issue.severity === 'Critical' ? 'High' : issue.severity;
+                    
+                    // Check severity filter
+                    const severityMatch = (severityForFilter === 'High' && showHigh) ||
+                                        (severityForFilter === 'Medium' && showMedium) ||
+                                        (severityForFilter === 'Low' && showLow);
+                    
+                    // Check category filter - map to 'other' if not in predefined categories
+                    const categoryKey = issue.category.toLowerCase().replace(/[^a-z0-9]/g, '-');
+                    const predefinedCategories = ['performance', 'security', 'maintainability', 'functionality', 'cleanup', 'constants', 'lifecycle', 'intent-verification'];
+                    const filterKey = predefinedCategories.includes(categoryKey) ? categoryKey : 'other';
+                    const categoryMatch = enabledCategories.has(filterKey);
+                    
+                    return severityMatch && categoryMatch;
+                });
+            }
+
+            // Code review report state
+            let currentCodeReviewReport = null;
+
+            // Code review report functions
+            function displayCodeReviewReport(report) {
+                console.log('[TractionTab] displayCodeReviewReport called:', report);
+                
+                currentCodeReviewReport = report;
+                
+                // Update summary counts using code review severity levels
+                highCountElement.textContent = report.criticalSeverityCount || 0; // Map Critical to High display
+                mediumCountElement.textContent = report.highSeverityCount + (report.mediumSeverityCount || 0);
+                lowCountElement.textContent = report.lowSeverityCount;
+                totalCountElement.textContent = report.totalIssues;
+                
+                // Calculate category counts for code review
+                const codeReviewCategoryCounts = {
+                    'performance': 0,
+                    'security': 0,
+                    'maintainability': 0,
+                    'functionality': 0,
+                    'cleanup': 0,
+                    'constants': 0,
+                    'lifecycle': 0,
+                    'intent-verification': 0,
+                    'other': 0
+                };
+                
+                if (report.issues && report.issues.length > 0) {
+                    report.issues.forEach(issue => {
+                        const categoryKey = issue.category.toLowerCase().replace(/[^a-z0-9]/g, '-');
+                        if (codeReviewCategoryCounts.hasOwnProperty(categoryKey)) {
+                            codeReviewCategoryCounts[categoryKey]++;
+                        } else {
+                            // Assign to "other" category if it doesn't match any predefined category
+                            codeReviewCategoryCounts['other']++;
+                        }
+                    });
+                }
+                
+                // Update the report title for code review
+                const reportTitle = document.querySelector('.security-report-title');
+                if (reportTitle) {
+                    reportTitle.innerHTML = '<span class="icon shield-icon">🔍</span> Code Review Report';
+                }
+                
+                // Update category filters for code review
+                updateCodeReviewCategoryFilters(codeReviewCategoryCounts);
+                
+                // Clear existing issues
+                securityIssuesList.innerHTML = '';
+                
+                // Add issues using code review format
+                if (report.issues && report.issues.length > 0) {
+                    report.issues.forEach((issue, index) => {
+                        const issueElement = createCodeReviewIssueElement(issue, index);
+                        securityIssuesList.appendChild(issueElement);
+                    });
+                } else {
+                    const noIssuesElement = document.createElement('div');
+                    noIssuesElement.className = 'no-issues-message';
+                    noIssuesElement.innerHTML = '<p style="text-align: center; padding: 20px; color: var(--vscode-descriptionForeground);">🎉 No code review issues found!</p>';
+                    securityIssuesList.appendChild(noIssuesElement);
+                }
+                
+                // Show the security report container (reusing for code review)
+                securityReportContainer.classList.remove('hidden');
+            }
+
+            function updateCodeReviewCategoryFilters(categoryCounts) {
+                // Hide security-specific filters
+                filterCrudFlsLabel.style.display = 'none';
+                filterDmlLoopsLabel.style.display = 'none';
+                filterSoqlInjectionLabel.style.display = 'none';
+                filterSharingLabel.style.display = 'none';
+                filterUiSecurityLabel.style.display = 'none';
+                filterGeneralLabel.style.display = 'none';
+                
+                // Create or update code review category filters
+                const categoryFilterGroup = document.getElementById('category-filter-group');
+                
+                // Remove existing code review filters first
+                const existingCodeReviewFilters = categoryFilterGroup.querySelectorAll('.code-review-filter');
+                existingCodeReviewFilters.forEach(filter => filter.remove());
+                
+                // Add code review category filters
+                const codeReviewCategories = [
+                    { key: 'performance', label: 'Performance', count: categoryCounts.performance },
+                    { key: 'security', label: 'Security/CRUD', count: categoryCounts.security },
+                    { key: 'maintainability', label: 'Code Quality', count: categoryCounts.maintainability },
+                    { key: 'functionality', label: 'Error Handling', count: categoryCounts.functionality },
+                    { key: 'cleanup', label: 'Debug/Cleanup', count: categoryCounts.cleanup },
+                    { key: 'constants', label: 'Constants', count: categoryCounts.constants },
+                    { key: 'lifecycle', label: 'Lifecycle', count: categoryCounts.lifecycle },
+                    { key: 'intent-verification', label: 'Verification', count: categoryCounts['intent-verification'] },
+                    { key: 'other', label: 'Other', count: categoryCounts.other }
+                ];
+                
+                let hasVisibleCategories = false;
+                
+                codeReviewCategories.forEach(category => {
+                    if (category.count > 0) {
+                        hasVisibleCategories = true;
+                        
+                        const label = document.createElement('label');
+                        label.className = 'code-review-filter';
+                        label.id = \`filter-\${category.key}-label\`;
+                        label.style.display = 'flex';
+                        
+                        const checkbox = document.createElement('input');
+                        checkbox.type = 'checkbox';
+                        checkbox.id = \`filter-\${category.key}\`;
+                        checkbox.checked = true;
+                        checkbox.addEventListener('change', filterCodeReviewIssues);
+                        
+                        const span = document.createElement('span');
+                        span.className = 'filter-label category';
+                        span.innerHTML = \`\${category.label} <span class="filter-count">(\${category.count})</span>\`;
+                        
+                        label.appendChild(checkbox);
+                        label.appendChild(span);
+                        categoryFilterGroup.appendChild(label);
+                    }
+                });
+                
+                // Show/hide the entire category filter group
+                if (hasVisibleCategories) {
+                    categoryFilterGroup.style.display = 'flex';
+                } else {
+                    categoryFilterGroup.style.display = 'none';
+                }
+            }
+
+            function filterCodeReviewIssues() {
+                // Severity filters
+                const showHigh = filterHighCheckbox.checked;
+                const showMedium = filterMediumCheckbox.checked;
+                const showLow = filterLowCheckbox.checked;
+                
+                // Get all code review category filters
+                const codeReviewFilters = document.querySelectorAll('.code-review-filter input[type="checkbox"]');
+                const enabledCategories = new Set();
+                
+                codeReviewFilters.forEach(checkbox => {
+                    if (checkbox.checked) {
+                        const categoryKey = checkbox.id.replace('filter-', '');
+                        enabledCategories.add(categoryKey);
+                    }
+                });
+                
+                const issues = securityIssuesList.querySelectorAll('.security-issue');
+                issues.forEach(issue => {
+                    const severity = issue.dataset.severity;
+                    const category = issue.dataset.category;
+                    
+                    // Check severity
+                    const severityMatch = (severity === 'high' && showHigh) ||
+                                         (severity === 'medium' && showMedium) ||
+                                         (severity === 'low' && showLow);
+                    
+                    // Check category
+                    const categoryMatch = enabledCategories.has(category);
+                    
+                    // Show only if both severity and category match
+                    if (severityMatch && categoryMatch) {
+                        issue.classList.remove('hidden');
+                    } else {
+                        issue.classList.add('hidden');
+                    }
+                });
+            }
+
+            function createCodeReviewIssueElement(issue, index) {
+                const issueDiv = document.createElement('div');
+                // Map code review severities to security severity classes for styling
+                let severityClass = issue.severity.toLowerCase();
+                if (severityClass === 'critical') severityClass = 'high';
+                
+                // Map category to dataset, fallback to 'other' if not in predefined list
+                const categoryKey = issue.category.toLowerCase().replace(/[^a-z0-9]/g, '-');
+                const predefinedCategories = ['performance', 'security', 'maintainability', 'functionality', 'cleanup', 'constants', 'lifecycle', 'intent-verification'];
+                const datasetCategory = predefinedCategories.includes(categoryKey) ? categoryKey : 'other';
+                
+                issueDiv.className = \`security-issue severity-\${severityClass}\`;
+                issueDiv.dataset.severity = severityClass;
+                issueDiv.dataset.category = datasetCategory;
+                
+                const fileName = issue.file.split(/[\\/]/).pop();
+                const relativeFile = issue.file.replace(/.*[\\/]src[\\/]/, 'src/');
+                
+                issueDiv.innerHTML = \`
+                    <div class="issue-header">
+                        <div class="issue-title">\${issue.title}</div>
+                        <div class="issue-severity \${severityClass}">\${issue.severity}</div>
+                    </div>
+                    <div class="issue-location">
+                        📁 \${relativeFile} • Line \${issue.line}:\${issue.column}
+                    </div>
+                    <div class="issue-description">\${issue.description}</div>
+                    <div class="issue-code">\${issue.code}</div>
+                    <div class="issue-recommendation">💡 \${issue.suggestion}</div>
+                    <div class="issue-impact" style="font-size: 10px; color: var(--vscode-descriptionForeground); margin-top: 4px;">
+                        🎯 Impact: \${issue.impact}
+                    </div>
+                \`;
+                
+                // Add click handler to navigate to issue
+                issueDiv.addEventListener('click', () => {
+                    vscode.postMessage({
+                        command: 'navigateToIssue',
+                        filePath: issue.file,
+                        line: issue.line,
+                        column: issue.column
+                    });
+                });
+                
+                return issueDiv;
             }
             
             // Handle org selection with the same logic as other tabs
@@ -1111,6 +1404,16 @@ export function getTractionHtml(): string {
                         updateStatus('Starting current file security analysis...');
                         vscode.postMessage({
                             command: 'runSecurityScan',
+                            scanType: 'current'
+                        });
+                    } else if (action === 'codeReviewCurrent') {
+                        showProgress(
+                            'Code Review in Progress',
+                            'Analyzing current file for code quality, maintainability, and best practices...'
+                        );
+                        updateStatus('Starting current file code review...');
+                        vscode.postMessage({
+                            command: 'runCodeReview',
                             scanType: 'current'
                         });
                     } else if (action === 'auraEnabled') {
@@ -1219,6 +1522,10 @@ export function getTractionHtml(): string {
                     case 'displaySecurityReport':
                         console.log('[TractionTab] Received displaySecurityReport message:', message);
                         displaySecurityReport(message.report);
+                        break;
+                    case 'displayCodeReviewReport':
+                        console.log('[TractionTab] Received displayCodeReviewReport message:', message);
+                        displayCodeReviewReport(message.report);
                         break;
                 }
             });

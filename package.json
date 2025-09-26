@@ -1,7 +1,7 @@
 {
   "name": "visbal-ext",
   "displayName": "Visbal Extension",
-  "version": "1.2.7",
+  "version": "1.2.8",
   "publisher": "visbal",
   "icon": "media/icon.png",
   "description": "A Visual Studio Code extension for Salesforce development with enhanced test execution and log analysis capabilities",
@@ -445,6 +445,24 @@
         "title": "V: Select and Run Test",
         "category": "Visbal",
         "icon": "$(play)"
+      },
+      {
+        "command": "visbal-ext.analyzeUnusedCodeWorkspace",
+        "title": "V: Analyze Unused Code (Workspace)",
+        "category": "Visbal",
+        "icon": "$(search-view-icon)"
+      },
+      {
+        "command": "visbal-ext.analyzeUnusedCodeCurrentFile",
+        "title": "V: Analyze Unused Code (Current File)",
+        "category": "Visbal",
+        "icon": "$(file-code)"
+      },
+      {
+        "command": "visbal-ext.displayUnusedCodeInReferences",
+        "title": "Display Unused Code in References Panel",
+        "category": "Visbal",
+        "icon": "$(references)"
       }
     ],
     "menus": {
@@ -553,6 +571,11 @@
           "group": "1_visbal"
         },
         {
+          "command": "visbal-ext.analyzeUnusedCodeCurrentFile",
+          "when": "editorTextFocus && resourceExtname == .cls",
+          "group": "2_analysis"
+        },
+        {
           "command": "visbal-ext.openJsonInViewer",
           "when": "resourceExtname == .json",
           "group": "2_json"
@@ -622,6 +645,11 @@
       {
         "command": "visbal-ext.selectAndRunTestClass",
         "key": "ctrl+shift+t",
+        "when": "!inDebugMode"
+      },
+      {
+        "command": "visbal-ext.analyzeUnusedCodeWorkspace",
+        "key": "ctrl+shift+u",
         "when": "!inDebugMode"
       }
     ],

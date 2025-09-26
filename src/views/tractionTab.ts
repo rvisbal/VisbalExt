@@ -5,6 +5,8 @@ import { SalesforceOrg } from '../types/salesforceTypes';
 import { ViewId } from '../types/salesforceTypes';
 import { getTractionHtml } from './tractionTabHTML';
 import { SecurityAnalysisService, SecurityReport } from '../services/securityAnalysisService';
+import { UnusedCodeService, UnusedCodeReport } from '../services/unusedCodeService';
+import { CodeReviewService, CodeReviewReport } from '../services/codeReviewService';
 import * as path from 'path';
 
 export class TractionTab implements vscode.WebviewViewProvider {
@@ -16,11 +18,15 @@ export class TractionTab implements vscode.WebviewViewProvider {
     private _orgs: SalesforceOrg[] = [];
     private _selectedOrg: string = '';
     private _securityAnalysisService: SecurityAnalysisService;
+    private _unusedCodeService: UnusedCodeService;
+    private _codeReviewService: CodeReviewService;
 
     constructor(private readonly _context: vscode.ExtensionContext) {
         const cachePath = OrgUtils.getCachePath();
         this._orgListCacheService = new OrgListCacheService(cachePath);
         this._securityAnalysisService = SecurityAnalysisService.getInstance();
+        this._unusedCodeService = UnusedCodeService.getInstance();
+        this._codeReviewService = CodeReviewService.getInstance();
     }
 
     public resolveWebviewView(
@@ -68,6 +74,12 @@ export class TractionTab implements vscode.WebviewViewProvider {
                     break;
                 case 'exportSecurityReport':
                     await this._handleSecurityReportExport(message.format, message.data);
+                    break;
+                case 'runUnusedCodeAnalysis':
+                    await this._handleUnusedCodeAnalysis(message.analysisType);
+                    break;
+                case 'runCodeReview':
+                    await this._handleCodeReview(message.scanType);
                     break;
             }
         });
@@ -271,6 +283,10 @@ export class TractionTab implements vscode.WebviewViewProvider {
                     await this._handleAuraEnabledReport();
                     return; // Early return since this doesn't create a terminal
                     
+                case 'nonReferenceMethods':
+                    await this._handleUnusedCodeAnalysis('workspace');
+                    return; // Early return since this doesn't create a terminal
+                    
                 default:
                     terminalName = 'Terminal';
             }
@@ -418,6 +434,60 @@ export class TractionTab implements vscode.WebviewViewProvider {
         }
     }
 
+    private async _handleCodeReview(scanType: string) {
+        try {
+            OrgUtils.logDebug(`[VisbalExt.TractionTab] _handleCodeReview -- Starting code review: ${scanType}`);
+            
+            this._showProgress(
+                'Code Review in Progress',
+                'Analyzing code for quality, maintainability, and best practices...'
+            );
+            this._updateStatus('Starting code review...', 'info');
+            
+            let report: CodeReviewReport;
+            
+            if (scanType === 'workspace') {
+                report = await this._codeReviewService.analyzeWorkspace();
+            } else if (scanType === 'current') {
+                const issues = await this._codeReviewService.analyzeCurrentFile();
+                const activeEditor = vscode.window.activeTextEditor;
+                report = {
+                    totalIssues: issues.length,
+                    criticalSeverityCount: issues.filter(i => i.severity === 'Critical').length,
+                    highSeverityCount: issues.filter(i => i.severity === 'High').length,
+                    mediumSeverityCount: issues.filter(i => i.severity === 'Medium').length,
+                    lowSeverityCount: issues.filter(i => i.severity === 'Low').length,
+                    issues,
+                    scannedFiles: activeEditor ? [activeEditor.document.uri.fsPath] : [],
+                    scanTime: new Date()
+                };
+            } else {
+                throw new Error(`Unknown scan type: ${scanType}`);
+            }
+            
+            this._hideProgress();
+            
+            // Display the code review report in the webview
+            this.displayCodeReviewReport(report);
+            
+            const summaryMessage = `Code review completed: ${report.totalIssues} issues found (${report.criticalSeverityCount} critical, ${report.highSeverityCount} high, ${report.mediumSeverityCount} medium, ${report.lowSeverityCount} low)`;
+            this._updateStatus(summaryMessage, report.criticalSeverityCount > 0 || report.highSeverityCount > 0 ? 'error' : 'success');
+            
+        } catch (error: any) {
+            this._hideProgress();
+            OrgUtils.logError(`[VisbalExt.TractionTab] _handleCodeReview -- Error during code review: ${scanType}`, error as Error);
+            this._updateStatus(`Failed to run code review: ${error.message}`, 'error');
+            vscode.window.showErrorMessage(`Failed to run code review: ${error.message}`);
+        }
+    }
+
+    public displayCodeReviewReport(report: CodeReviewReport) {
+        this._view?.webview.postMessage({
+            command: 'displayCodeReviewReport',
+            report: report
+        });
+    }
+
     public displaySecurityReport(report: SecurityReport) {
         this._view?.webview.postMessage({
             command: 'displaySecurityReport',
@@ -512,6 +582,85 @@ export class TractionTab implements vscode.WebviewViewProvider {
             OrgUtils.logError(`[VisbalExt.TractionTab] _handleSecurityReportExport -- Error exporting report`, error as Error);
             this._updateStatus(`Failed to export report: ${error.message}`, 'error');
             vscode.window.showErrorMessage(`Failed to export security report: ${error.message}`);
+        }
+    }
+
+    private async _handleUnusedCodeAnalysis(analysisType: string) {
+        try {
+            OrgUtils.logDebug(`[VisbalExt.TractionTab] _handleUnusedCodeAnalysis -- Starting unused code analysis: ${analysisType}`);
+            
+            this._showProgress(
+                'Unused Code Analysis in Progress',
+                'Scanning codebase for unused methods, properties, and classes...'
+            );
+            this._updateStatus('Starting unused code analysis...', 'info');
+            
+            // Initialize service if needed
+            UnusedCodeService.initialize();
+            
+            // Set up progress callback
+            this._unusedCodeService.setProgressCallback((message: string, percentage?: number) => {
+                this._updateProgress('Analyzing Code', message, percentage);
+            });
+            
+            let report: UnusedCodeReport;
+            
+            if (analysisType === 'workspace') {
+                report = await this._unusedCodeService.analyzeWorkspace({
+                    includePrivateMembers: true,
+                    includeTestMethods: false,
+                    includeAuraEnabledMethods: false,
+                    includeWebServiceMethods: false
+                });
+            } else if (analysisType === 'current') {
+                const symbols = await this._unusedCodeService.analyzeCurrentFile();
+                const activeEditor = vscode.window.activeTextEditor;
+                report = {
+                    totalSymbols: 0, // Will be calculated by service
+                    unusedCount: symbols.length,
+                    unusedMethods: symbols.filter(s => s.type === 'method').length,
+                    unusedProperties: symbols.filter(s => s.type === 'property').length,
+                    unusedClasses: symbols.filter(s => s.type === 'class').length,
+                    unusedVariables: symbols.filter(s => s.type === 'variable').length,
+                    symbols,
+                    scannedFiles: activeEditor ? [activeEditor.document.uri.fsPath] : [],
+                    scanTime: new Date(),
+                    excludedFiles: [],
+                    excludedSymbols: 0
+                };
+            } else {
+                throw new Error(`Unknown analysis type: ${analysisType}`);
+            }
+            
+            this._hideProgress();
+            
+            // Display the unused code report in the webview and references panel
+            await this.displayUnusedCodeReport(report);
+            
+            const excludedInfo = report.excludedFiles.length > 0 ? ` (${report.excludedFiles.length} test files excluded)` : '';
+            const summaryMessage = `Unused code analysis completed: Found ${report.unusedCount} unused symbols in ${report.scannedFiles.length} files${excludedInfo} (${report.unusedMethods} methods, ${report.unusedProperties} properties, ${report.unusedClasses} classes, ${report.unusedVariables} variables)`;
+            this._updateStatus(summaryMessage, report.unusedCount > 0 ? 'info' : 'success');
+            
+        } catch (error: any) {
+            this._hideProgress();
+            OrgUtils.logError(`[VisbalExt.TractionTab] _handleUnusedCodeAnalysis -- Error during unused code analysis: ${analysisType}`, error as Error);
+            this._updateStatus(`Failed to run unused code analysis: ${error.message}`, 'error');
+            vscode.window.showErrorMessage(`Failed to run unused code analysis: ${error.message}`);
+        }
+    }
+
+    public async displayUnusedCodeReport(report: UnusedCodeReport) {
+        // Display in webview
+        this._view?.webview.postMessage({
+            command: 'displayUnusedCodeReport',
+            report: report
+        });
+        
+        // Also display in References panel using the existing command
+        try {
+            await vscode.commands.executeCommand('visbal-ext.displayUnusedCodeInReferences', report);
+        } catch (error) {
+            OrgUtils.logError('[VisbalExt.TractionTab] displayUnusedCodeReport -- Error displaying in references panel:', error);
         }
     }
 

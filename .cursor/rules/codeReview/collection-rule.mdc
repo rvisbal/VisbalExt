@@ -1,0 +1,85 @@
+---
+description: Rule meant to register and aggregate interactions to further improve and generate rules meant for development
+globs: 
+alwaysApply: true
+---
+# Collection Rule: AI Interaction Documentation
+
+## Objective
+Document AI interactions that are unsuccessful, require multiple iterations, or can be improved to enhance future prompt formulation and rule development. Focus on capturing general patterns and insights rather than specific technical details, with the goal of accumulating data to generate better prompting strategies.
+
+## Core Principles
+- **Classification**: AI determines appropriate categorization to minimize file proliferation
+- **Focus**: Capture high-level patterns and workflows, not granular technical specifics
+- **Preservation**: Maintain historical integrity of existing records
+
+## Implementation Steps
+
+### 1. Continuous Monitoring
+Track conversation flow and identify when interactions become iterative or problematic.
+
+### 2. Trigger Identification
+Record interactions when:
+- A conversation enters a debugging loop requiring 3+ iterations
+- Multiple attempts are needed to achieve the desired outcome
+- Significant prompt refinement is required
+- Context switching occurs due to unresolved issues
+
+### 3. Folder Structure
+- Create a root-level folder named "Cursor Log" if it doesn't exist
+- Use this folder exclusively for interaction records
+
+### 4. Recording Process
+- Document the complete conversation arc once a topic reaches resolution or natural conclusion
+- Include problem identification, iteration process, and final outcome
+- Optional: Add improvement suggestions for future reference
+
+### 5. File Management
+- Before creating new files, check existing files in "Cursor Log" for appropriate categories
+- Consolidate related topics into existing files when possible
+- Create new files only when no suitable category exists
+
+### 6. Record Format
+Each entry should include:
+- **Date**: Record creation date
+- **LLM Model**: AI model used (e.g., Claude Sonnet 4, GPT-4, Gemini 2.5)
+- **Action Intent**: Primary goal (debug file, create function, build feature, technical inquiry, etc.)
+- **Iteration Count**: Number of back-and-forth exchanges required
+- **Prompt Challenges**: Difficulties in understanding or formulating effective prompts
+- **Outcome Status**: 
+  - Resolved (satisfactory result achieved)
+  - Unresolved (abandoned or incomplete)
+  - Context-switched (moved to different topic)
+- **Key Insights**: Lessons learned or patterns identified
+
+### 7. Data Integrity
+- Never modify existing records without explicit authorization
+- Preserve all historical documentation for pattern analysis
+- Append new insights to existing records only when directly related
+
+## Ask Mode Limitations & Adaptations
+
+### When File System Access is Restricted:
+- **Trigger Recognition**: AI will still monitor and identify qualifying interactions
+- **User Notification**: When a conversation meets logging criteria, AI will alert the user
+- **Ready-to-Paste Format**: AI will provide formatted log entries that users can manually save
+- **Suggested Categorization**: AI will recommend appropriate file names and categories
+- **Deferred Documentation**: AI will remind users to document when switching to a mode with file access
+
+### Ask Mode Workflow:
+1. **Identify Qualifying Interaction**: Monitor for trigger conditions as normal
+2. **Alert User**: "This interaction qualifies for documentation under our collection rule"
+3. **Provide Formatted Entry**: Present ready-to-paste log entry in markdown format
+4. **Category Suggestion**: Recommend file name/category based on interaction type
+5. **Manual Save Reminder**: Prompt user to save to "Cursor Log" folder when possible
+
+### Sample Ask Mode Alert:
+🔔 Collection Rule Trigger: This interaction qualifies for documentation
+📁 Suggested Category: [filename-suggestion.md]
+📝 Ready-to-paste log entry provided below
+
+## Success Metrics
+- Reduced iteration cycles for similar future tasks
+- Improved prompt effectiveness over time
+- Better identification of AI limitations and strengths
+- Enhanced rule formulation based on documented patterns
