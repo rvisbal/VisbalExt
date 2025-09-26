@@ -442,13 +442,14 @@ export function getTractionHtml(): string {
             border: 1px solid var(--vscode-panel-border);
             border-radius: 3px;
             padding: 6px;
-            font-family: var(--vscode-editor-font-family);
-            font-size: 10px;
+            font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+            font-size: 11px;
             color: var(--vscode-editor-foreground);
             white-space: pre-wrap;
             margin-bottom: 4px;
             max-height: 120px;
             overflow-y: auto;
+            line-height: 1.4;
         }
         
         .issue-recommendation {
