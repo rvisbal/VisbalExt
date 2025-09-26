@@ -590,6 +590,14 @@ export async function activate(context: vscode.ExtensionContext) {
         }
       };
       
+      // When called from traction tab, always force fresh scan and clear any existing cache
+      if (source === 'traction') {
+        outputChannel.appendLine('[VisbalExt.Extension] reportAuraEnabled -- Traction tab request: forcing fresh scan and clearing cache');
+        const { AuraEnabledService } = await import('./services/auraEnabledService');
+        // Clear any existing cache to ensure completely fresh results
+        AuraEnabledService.clearCache();
+      }
+      
       // Check if we should use cache (only if not from traction tab)
       const shouldUseCache = source !== 'traction';
       

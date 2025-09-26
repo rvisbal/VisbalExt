@@ -152,6 +152,25 @@ export class AuraEnabledService {
     }
 
     /**
+     * Clears the cache file if it exists
+     */
+    public static clearCache(): void {
+        try {
+            const cacheFilePath = this.getCacheFilePath();
+            
+            if (fs.existsSync(cacheFilePath)) {
+                fs.unlinkSync(cacheFilePath);
+                OrgUtils.logDebug(`[VisbalExt.AuraEnabledService] Cache file deleted: ${cacheFilePath}`);
+            } else {
+                OrgUtils.logDebug(`[VisbalExt.AuraEnabledService] No cache file found to delete: ${cacheFilePath}`);
+            }
+        } catch (error) {
+            console.error('[AuraEnabledService] Error clearing cache:', error);
+            OrgUtils.logError('[VisbalExt.AuraEnabledService] Error clearing cache:', error as Error);
+        }
+    }
+
+    /**
      * Finds all @AuraEnabled methods in Apex classes and their references in LWC files
      * Returns results grouped by class for hierarchical display
      */

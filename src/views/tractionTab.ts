@@ -350,10 +350,10 @@ export class TractionTab implements vscode.WebviewViewProvider {
             
             // Show initial progress
             this._showProgress(
-                'Starting @AuraEnabled Scan',
-                'Initializing scan for @AuraEnabled methods and Lightning Web Component references...'
+                'Starting Fresh @AuraEnabled Scan',
+                'Running fresh scan for @AuraEnabled methods and Lightning Web Component references (cache cleared)...'
             );
-            this._updateStatus('Starting @AuraEnabled report generation...', 'info');
+            this._updateStatus('Starting fresh @AuraEnabled report generation (cache cleared)...', 'info');
             
             // Execute the registered command which handles all the logic
             // The command itself will send progress updates

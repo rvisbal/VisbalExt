@@ -12,7 +12,7 @@
   - Detects static vs instance methods
   - Shows public accessibility information
 - **Interactive Results Panel**: Navigate directly from the report to method definitions and their LWC references
-- **Smart Caching**: Results are cached for improved performance on subsequent scans
+- **Smart Caching with Fresh Scan Option**: When accessed via Traction Tab, always performs fresh scan and clears cache for most up-to-date results
 - **Progress Tracking**: Real-time progress updates during analysis with detailed status messages
 
 *Access via: Traction Tab → Terminal Dropdown → "Report @AuraEnabled"*

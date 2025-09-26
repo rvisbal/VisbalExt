@@ -567,9 +567,9 @@ export function getTractionHtml(): string {
         
         <div class="progress-container" id="progress-container">
             <div class="loading-spinner"></div>
-            <div class="progress-title" id="progress-title">Scanning @AuraEnabled Methods</div>
+            <div class="progress-title" id="progress-title">Fresh @AuraEnabled Scan</div>
             <div class="progress-description" id="progress-description">
-                Searching for @AuraEnabled methods in Apex classes and their references in Lightning Web Components...
+                Running fresh scan for @AuraEnabled methods in Apex classes and their references in Lightning Web Components (cache cleared)...
             </div>
             <div class="progress-bar">
                 <div class="progress-bar-fill indeterminate" id="progress-bar-fill"></div>
@@ -1116,10 +1116,10 @@ export function getTractionHtml(): string {
                     } else if (action === 'auraEnabled') {
                         // Show progress for @AuraEnabled report
                         showProgress(
-                            'Scanning @AuraEnabled Methods',
-                            'Searching for @AuraEnabled methods in Apex classes and their references in Lightning Web Components...'
+                            'Fresh @AuraEnabled Scan',
+                            'Running fresh scan for @AuraEnabled methods in Apex classes and their references in Lightning Web Components (cache cleared)...'
                         );
-                        updateStatus('Starting @AuraEnabled report generation...');
+                        updateStatus('Starting fresh @AuraEnabled report generation (cache cleared)...');
                         vscode.postMessage({
                             command: 'terminalAction',
                             action: action
