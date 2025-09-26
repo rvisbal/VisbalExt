@@ -2,6 +2,7 @@ import * as vscode from 'vscode';
 import * as fs from 'fs';
 import * as path from 'path';
 import { ReferenceLocation, SymbolReference } from './referencesService';
+import { OrgUtils } from '../utils/orgUtils';
 
 /**
  * Represents an @AuraEnabled method found in Apex classes
@@ -81,7 +82,7 @@ export class AuraEnabledService {
             };
             
             fs.writeFileSync(cacheFilePath, JSON.stringify(cache, null, 2), 'utf8');
-            console.log(`[VisbalExt.AuraEnabledService] Saved cache to: ${cacheFilePath}`);
+            OrgUtils.logDebug(`[VisbalExt.AuraEnabledService] Saved cache to: ${cacheFilePath}`);
         } catch (error) {
             console.error('[AuraEnabledService] Error saving cache:', error);
         }
@@ -95,7 +96,7 @@ export class AuraEnabledService {
             const cacheFilePath = this.getCacheFilePath();
             
             if (!fs.existsSync(cacheFilePath)) {
-                console.log('[VisbalExt.AuraEnabledService] No cache file found');
+                OrgUtils.logDebug('[VisbalExt.AuraEnabledService] No cache file found');
                 return null;
             }
             
@@ -104,7 +105,7 @@ export class AuraEnabledService {
             
             // Check cache version
             if (cache.version !== this.CACHE_VERSION) {
-                console.log('[VisbalExt.AuraEnabledService] Cache version mismatch, ignoring cache');
+                OrgUtils.logDebug('[VisbalExt.AuraEnabledService] Cache version mismatch, ignoring cache');
                 return null;
             }
             
@@ -114,7 +115,7 @@ export class AuraEnabledService {
                 resultsByClass.set(className, methods);
             }
             
-            console.log(`[VisbalExt.AuraEnabledService] Loaded cache from: ${cacheFilePath} (${resultsByClass.size} classes)`);
+            OrgUtils.logDebug(`[VisbalExt.AuraEnabledService] Loaded cache from: ${cacheFilePath} (${resultsByClass.size} classes)`);
             return resultsByClass;
         } catch (error) {
             console.error('[AuraEnabledService] Error loading cache:', error);
@@ -223,7 +224,7 @@ export class AuraEnabledService {
         const classesPath = path.join(workspaceFolders[0].uri.fsPath, 'force-app', 'main', 'default', 'classes');
         
         if (!fs.existsSync(classesPath)) {
-            console.log(`[VisbalExt.AuraEnabledService] Classes directory not found: ${classesPath}`);
+            OrgUtils.logDebug(`[VisbalExt.AuraEnabledService] Classes directory not found: ${classesPath}`);
             return [];
         }
 
@@ -282,7 +283,7 @@ export class AuraEnabledService {
         const lwcPath = path.join(workspaceFolders[0].uri.fsPath, 'force-app', 'main', 'default', 'lwc');
         
         if (!fs.existsSync(lwcPath)) {
-            console.log(`[VisbalExt.AuraEnabledService] LWC directory not found: ${lwcPath}`);
+            OrgUtils.logDebug(`[VisbalExt.AuraEnabledService] LWC directory not found: ${lwcPath}`);
             return [];
         }
 

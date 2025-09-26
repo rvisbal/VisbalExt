@@ -988,7 +988,7 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                 // Add all tests to the results view
                 for (const [className, methodNames] of classesWithMethods.entries()) {
                     OrgUtils.logDebug('[VisbalExt.TestClassExplorerSidePanel] _runSelectedTests -- Adding test run', className, methodNames);
-                    console.log(`[VisbalExt.TestClassExplorerSidePanel] _runSelectedTests -- Adding test run -- className:${className} --methodNames: `, methodNames);
+                    OrgUtils.logDebug(`[VisbalExt.TestClassExplorerSidePanel] _runSelectedTests -- Adding test run -- className:${className} --methodNames: `, methodNames);
                     this._testRunResultsView.addTestRun(className, methodNames);
                 }
 
@@ -4744,7 +4744,7 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                         } else if (!selectedOrg && defaultOrg) {
                             // Auto-select the default org if no org is currently selected
                             orgDropdown.value = defaultOrg;
-                            console.log('[VisbalExt.TestClassExplorerSidePanel] Auto-selected default org:', defaultOrg);
+                            OrgUtils.logDebug('[VisbalExt.TestClassExplorerSidePanel] Auto-selected default org:', defaultOrg);
                             
                             // Notify the backend about the auto-selection
                             setTimeout(() => {
@@ -4791,7 +4791,7 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                         
                         if (selectedOrg) {
                             showLoading('Setting selected organization...');
-                            console.log('[VisbalExt.TestClassExplorerSidePanel] handleOrgSelection -- Org selected -- Details:', selectedOrg);
+                            OrgUtils.logDebug('[VisbalExt.TestClassExplorerSidePanel] handleOrgSelection -- Org selected -- Details:', selectedOrg);
                             // Store the selection
                             orgDropdown.setAttribute('data-last-selection', selectedOrg);
                             
@@ -5757,7 +5757,7 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
         try {
             OrgUtils.logDebug('[VisbalExt.TestClassExplorerView] rerunAllTests -- Starting rerun of all tests');
             const testRuns = this._testRunResultsView.getProvider().getTestRuns();
-            console.log('[VisbalExt.TestClassExplorerView] rerunAllTests -- testRuns', testRuns);
+            OrgUtils.logDebug('[VisbalExt.TestClassExplorerView] rerunAllTests -- testRuns', testRuns);
             
             if (testRuns.size === 0) {
                 vscode.window.showInformationMessage('No tests to rerun');
@@ -5810,7 +5810,7 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
         try {
             OrgUtils.logDebug('[VisbalExt.TestClassExplorerView] rerunFailedTests -- Starting rerun of failed tests');
             const testRuns = this._testRunResultsView.getProvider().getTestRuns();
-            console.log('[VisbalExt.TestClassExplorerView] rerunFailedTests -- testRuns', testRuns);
+            OrgUtils.logDebug('[VisbalExt.TestClassExplorerView] rerunFailedTests -- testRuns', testRuns);
             
             if (testRuns.size === 0) {
                 vscode.window.showInformationMessage('No tests to rerun');

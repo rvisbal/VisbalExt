@@ -751,7 +751,7 @@ export class TestRunningTaskView {
     public async rerunAllTests() {
         OrgUtils.logDebug('[VisbalExt.TestRunningTaskView] rerunAllTests -- Starting rerun of all tests');
         const testRuns = this.provider.getTestRuns();
-        console.log('[VisbalExt.TestRunningTaskView] rerunAllTests -- testRuns', testRuns);
+        OrgUtils.logDebug('[VisbalExt.TestRunningTaskView] rerunAllTests -- testRuns', testRuns);
         if (testRuns.size === 0) {
             vscode.window.showInformationMessage('No tests to rerun');
             return;

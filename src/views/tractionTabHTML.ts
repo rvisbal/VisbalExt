@@ -246,20 +246,81 @@ export function getTractionHtml(): string {
             font-size: 14px;
         }
         
+        .report-actions {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+        
+        .export-report-button,
         .close-report-button {
             background: none;
             border: none;
             color: var(--vscode-titleBar-activeForeground);
             cursor: pointer;
-            font-size: 18px;
+            font-size: 14px;
             padding: 4px 8px;
             border-radius: 4px;
             opacity: 0.8;
+            display: flex;
+            align-items: center;
+            gap: 4px;
         }
         
+        .export-report-button {
+            font-size: 12px;
+            border: 1px solid var(--vscode-titleBar-activeForeground);
+            opacity: 0.7;
+        }
+        
+        .export-report-button:hover,
         .close-report-button:hover {
             background: var(--vscode-toolbar-hoverBackground);
             opacity: 1;
+        }
+        
+        .close-report-button {
+            font-size: 18px;
+        }
+        
+        .export-dropdown {
+            position: relative;
+            display: inline-block;
+        }
+        
+        .export-dropdown-content {
+            display: none;
+            position: absolute;
+            right: 0;
+            top: 100%;
+            background: var(--vscode-dropdown-background);
+            border: 1px solid var(--vscode-dropdown-border);
+            border-radius: 4px;
+            min-width: 120px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+            z-index: 1001;
+        }
+        
+        .export-dropdown-content.show {
+            display: block;
+        }
+        
+        .export-option {
+            padding: 8px 12px;
+            cursor: pointer;
+            font-size: 12px;
+            color: var(--vscode-dropdown-foreground);
+            border: none;
+            background: none;
+            width: 100%;
+            text-align: left;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        
+        .export-option:hover {
+            background: var(--vscode-list-hoverBackground);
         }
         
         .security-summary {
@@ -539,7 +600,25 @@ export function getTractionHtml(): string {
                         <span class="severity-label">Total Issues</span>
                     </div>
                 </div>
-                <button class="close-report-button" id="close-security-report" title="Close Report">&times;</button>
+                <div class="report-actions">
+                    <div class="export-dropdown">
+                        <button class="export-report-button" id="export-security-report" title="Export Report">
+                            <span>📥</span> Export
+                        </button>
+                        <div class="export-dropdown-content" id="export-dropdown-content">
+                            <button class="export-option" data-format="csv">
+                                <span>📊</span> Export as CSV
+                            </button>
+                            <button class="export-option" data-format="json">
+                                <span>📋</span> Export as JSON
+                            </button>
+                            <button class="export-option" data-format="html">
+                                <span>🌐</span> Export as HTML Report
+                            </button>
+                        </div>
+                    </div>
+                    <button class="close-report-button" id="close-security-report" title="Close Report">&times;</button>
+                </div>
             </div>
             
             <div class="security-filters">
@@ -617,6 +696,8 @@ export function getTractionHtml(): string {
             // Security report elements
             const securityReportContainer = document.getElementById('security-report-container');
             const closeSecurityReportButton = document.getElementById('close-security-report');
+            const exportSecurityReportButton = document.getElementById('export-security-report');
+            const exportDropdownContent = document.getElementById('export-dropdown-content');
             const highCountElement = document.getElementById('high-count');
             const mediumCountElement = document.getElementById('medium-count');
             const lowCountElement = document.getElementById('low-count');
@@ -881,6 +962,62 @@ export function getTractionHtml(): string {
                 categoryFilterGroup.style.display = 'none';
             }
             
+            function exportSecurityReport(format) {
+                if (!currentSecurityReport) {
+                    console.error('No security report available for export');
+                    updateStatus('No security report available for export', 'error');
+                    return;
+                }
+                
+                // Get filtered issues (only currently visible ones)
+                const filteredIssues = getFilteredSecurityIssues();
+                
+                // Send export request to extension
+                vscode.postMessage({
+                    command: 'exportSecurityReport',
+                    format: format,
+                    data: {
+                        ...currentSecurityReport,
+                        issues: filteredIssues,
+                        exportTimestamp: new Date().toISOString(),
+                        totalFilteredIssues: filteredIssues.length
+                    }
+                });
+                
+                updateStatus('Exporting security report as ' + format.toUpperCase() + '...', 'info');
+            }
+            
+            function getFilteredSecurityIssues() {
+                if (!currentSecurityReport) return [];
+                
+                const showHigh = filterHighCheckbox.checked;
+                const showMedium = filterMediumCheckbox.checked;
+                const showLow = filterLowCheckbox.checked;
+                const showCrudFls = filterCrudFlsCheckbox.checked;
+                const showDmlLoops = filterDmlLoopsCheckbox.checked;
+                const showSoqlInjection = filterSoqlInjectionCheckbox.checked;
+                const showSharing = filterSharingCheckbox.checked;
+                const showUiSecurity = filterUiSecurityCheckbox.checked;
+                const showGeneral = filterGeneralCheckbox.checked;
+                
+                return currentSecurityReport.issues.filter(issue => {
+                    // Check severity filter
+                    const severityMatch = (issue.severity === 'HIGH' && showHigh) ||
+                                        (issue.severity === 'MEDIUM' && showMedium) ||
+                                        (issue.severity === 'LOW' && showLow);
+                    
+                    // Check category filter
+                    const categoryMatch = (issue.category === 'CRUD_FLS' && showCrudFls) ||
+                                        (issue.category === 'DML_LOOPS' && showDmlLoops) ||
+                                        (issue.category === 'SOQL_INJECTION' && showSoqlInjection) ||
+                                        (issue.category === 'SHARING' && showSharing) ||
+                                        (issue.category === 'UI_SECURITY' && showUiSecurity) ||
+                                        (issue.category === 'GENERAL' && showGeneral);
+                    
+                    return severityMatch && categoryMatch;
+                });
+            }
+            
             // Handle org selection with the same logic as other tabs
             orgSelector.addEventListener('change', () => {
                 selectedOrg = orgSelector.value;
@@ -1002,6 +1139,40 @@ export function getTractionHtml(): string {
             // Security report event handlers
             closeSecurityReportButton.addEventListener('click', closeSecurityReport);
             
+            // Export functionality
+            if (exportSecurityReportButton && exportDropdownContent) {
+                exportSecurityReportButton.addEventListener('click', () => {
+                    console.log('Export button clicked, toggling dropdown');
+                    exportDropdownContent.classList.toggle('show');
+                });
+                
+                // Close dropdown when clicking outside
+                document.addEventListener('click', (event) => {
+                    if (!exportSecurityReportButton.contains(event.target) && !exportDropdownContent.contains(event.target)) {
+                        exportDropdownContent.classList.remove('show');
+                    }
+                });
+                
+                // Handle export option clicks
+                const exportOptions = document.querySelectorAll('.export-option');
+                console.log('Found export options:', exportOptions.length);
+                exportOptions.forEach(option => {
+                    option.addEventListener('click', (event) => {
+                        console.log('Export option clicked:', event.currentTarget.dataset.format);
+                        event.preventDefault();
+                        event.stopPropagation();
+                        const format = event.currentTarget.dataset.format;
+                        exportSecurityReport(format);
+                        exportDropdownContent.classList.remove('show');
+                    });
+                });
+            } else {
+                console.error('Export elements not found:', {
+                    exportButton: !!exportSecurityReportButton,
+                    exportDropdown: !!exportDropdownContent
+                });
+            }
+            
             // Filter event handlers
             filterHighCheckbox.addEventListener('change', filterSecurityIssues);
             filterMediumCheckbox.addEventListener('change', filterSecurityIssues);
@@ -1054,8 +1225,8 @@ export function getTractionHtml(): string {
             
             // Update org list UI with the same logic as other tabs
             function updateOrgListUI(orgs, fromCache = false, backendSelectedOrg = null) {
-                console.log('[VisbalExt.TractionTab] updateOrgListUI -- Updating org list UI with data:', orgs);
-                console.log('[VisbalExt.TractionTab] updateOrgListUI -- Backend selected org:', backendSelectedOrg);
+                OrgUtils.logDebug('[VisbalExt.TractionTab] updateOrgListUI -- Updating org list UI with data:', orgs);
+                OrgUtils.logDebug('[VisbalExt.TractionTab] updateOrgListUI -- Backend selected org:', backendSelectedOrg);
                 
                 // Clear existing options
                 orgSelector.innerHTML = '';
@@ -1123,13 +1294,13 @@ export function getTractionHtml(): string {
                         // Use the backend-provided selected org
                         orgSelector.value = backendSelectedOrg;
                         selectedOrg = backendSelectedOrg; // Update global selectedOrg variable
-                        console.log('[VisbalExt.TractionTab] Set selected org from backend:', backendSelectedOrg);
+                        OrgUtils.logDebug('[VisbalExt.TractionTab] Set selected org from backend:', backendSelectedOrg);
                         updateStatus('Selected org: ' + backendSelectedOrg, 'success');
                     } else if (!selectedOrg && defaultOrg) {
                         // Auto-select the default org if no org is currently selected
                         orgSelector.value = defaultOrg;
                         selectedOrg = defaultOrg; // Update global selectedOrg variable
-                        console.log('[VisbalExt.TractionTab] Auto-selected default org:', defaultOrg);
+                        OrgUtils.logDebug('[VisbalExt.TractionTab] Auto-selected default org:', defaultOrg);
                         
                         // Notify the backend about the auto-selection
                         setTimeout(() => {

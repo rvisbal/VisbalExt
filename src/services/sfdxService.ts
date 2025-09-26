@@ -66,7 +66,7 @@ export class SfdxService {
 
             child_process.exec(command, options, (error, stdout, stderr) => {
                 OrgUtils.logDebug(`[VisbalExt.SfdxService] _executeCommand command:${command} `);
-                console.log(`[VisbalExt.SfdxService] _executeCommand command:${command} -- stdout:`, OrgUtils.parseResultJson(stdout));
+                OrgUtils.logDebug(`[VisbalExt.SfdxService] _executeCommand command:${command} -- stdout:`, OrgUtils.parseResultJson(stdout));
                 
                 if (error) {
                     // If we have stdout even with an error, we might want to use it

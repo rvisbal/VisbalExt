@@ -499,7 +499,7 @@ return `<!DOCTYPE html>
                 }
                 
                 if (selectedOrg) {
-                    console.log('[VisbalExt.htmlTemplate] handleOrgSelection -- Org selected -- Details:', selectedOrg);
+                    OrgUtils.logDebug('[VisbalExt.htmlTemplate] handleOrgSelection -- Org selected -- Details:', selectedOrg);
                     // Store the selection
                     orgDropdown.setAttribute('data-last-selection', selectedOrg);
                     vscode.postMessage({
@@ -803,7 +803,7 @@ return `<!DOCTYPE html>
                 } else if (!selectedOrg && defaultOrg) {
                     // Auto-select the default org if no org is currently selected
                     orgDropdown.value = defaultOrg;
-                    console.log('[VisbalExt.ExecuteApexTab] Auto-selected default org:', defaultOrg);
+                    OrgUtils.logDebug('[VisbalExt.ExecuteApexTab] Auto-selected default org:', defaultOrg);
                     
                     // Notify the backend about the auto-selection
                     setTimeout(() => {
@@ -843,7 +843,7 @@ return `<!DOCTYPE html>
                 
                 if (selectedOrg) {
                     startLoading('Setting selected org...');
-                    console.log('[VisbalExt.htmlTemplate] handleOrgSelection -- Org selected -- Details:', selectedOrg);
+                    OrgUtils.logDebug('[VisbalExt.htmlTemplate] handleOrgSelection -- Org selected -- Details:', selectedOrg);
                     // Store the selection
                     orgDropdown.setAttribute('data-last-selection', selectedOrg);
                     vscode.postMessage({

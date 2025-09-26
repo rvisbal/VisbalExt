@@ -106,35 +106,35 @@ export class LogFilterService {
      * Deletes a filter
      */
     public deleteFilter(filterId: string): boolean {
-        console.log('[VisbalExt.LogFilterService] _deleteFilter ENTRY - filterId:', filterId);
-        console.log('[VisbalExt.LogFilterService] _deleteFilter ENTRY - typeof filterId:', typeof filterId);
-        console.log('[VisbalExt.LogFilterService] _deleteFilter ENTRY - filters map size:', this.filters.size);
-        console.log('[VisbalExt.LogFilterService] _deleteFilter ENTRY - filters map keys:', Array.from(this.filters.keys()));
+        OrgUtils.logDebug('[VisbalExt.LogFilterService] _deleteFilter ENTRY - filterId:', filterId);
+        OrgUtils.logDebug('[VisbalExt.LogFilterService] _deleteFilter ENTRY - typeof filterId:', typeof filterId);
+        OrgUtils.logDebug('[VisbalExt.LogFilterService] _deleteFilter ENTRY - filters map size:', this.filters.size);
+        OrgUtils.logDebug('[VisbalExt.LogFilterService] _deleteFilter ENTRY - filters map keys:', Array.from(this.filters.keys()));
         
         const filter = this.filters.get(filterId);
-        console.log('[VisbalExt.LogFilterService] _deleteFilter - found filter:', filter);
+        OrgUtils.logDebug('[VisbalExt.LogFilterService] _deleteFilter - found filter:', filter);
         
         if (!filter) {
-            console.log('[VisbalExt.LogFilterService] _deleteFilter - filter not found, returning false');
+            OrgUtils.logDebug('[VisbalExt.LogFilterService] _deleteFilter - filter not found, returning false');
             return false;
         }
 
         if (filter.isBuiltIn) {
-            console.log('[VisbalExt.LogFilterService] _deleteFilter - cannot delete built-in filter');
+            OrgUtils.logDebug('[VisbalExt.LogFilterService] _deleteFilter - cannot delete built-in filter');
             OrgUtils.logError(`[VisbalExt.LogFilterService] _deleteFilter -- Cannot delete built-in filter: ${filterId}`, new Error('Cannot delete built-in filter'));
             return false;
         }
 
-        console.log('[VisbalExt.LogFilterService] _deleteFilter - deleting filter from map');
+        OrgUtils.logDebug('[VisbalExt.LogFilterService] _deleteFilter - deleting filter from map');
         this.filters.delete(filterId);
         
-        console.log('[VisbalExt.LogFilterService] _deleteFilter - updating stats');
+        OrgUtils.logDebug('[VisbalExt.LogFilterService] _deleteFilter - updating stats');
         this.updateStats();
         
-        console.log('[VisbalExt.LogFilterService] _deleteFilter - saving to storage');
+        OrgUtils.logDebug('[VisbalExt.LogFilterService] _deleteFilter - saving to storage');
         this.saveFiltersToStorage();
 
-        console.log('[VisbalExt.LogFilterService] _deleteFilter - operation successful');
+        OrgUtils.logDebug('[VisbalExt.LogFilterService] _deleteFilter - operation successful');
         OrgUtils.logDebug(`[VisbalExt.LogFilterService] _deleteFilter -- Deleted filter: ${filter.name} (${filterId})`);
         return true;
     }

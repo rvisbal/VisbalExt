@@ -66,6 +66,9 @@ export class TractionTab implements vscode.WebviewViewProvider {
                 case 'navigateToIssue':
                     await this._navigateToSecurityIssue(message.filePath, message.line, message.column);
                     break;
+                case 'exportSecurityReport':
+                    await this._handleSecurityReportExport(message.format, message.data);
+                    break;
             }
         });
 
@@ -442,6 +445,75 @@ export class TractionTab implements vscode.WebviewViewProvider {
             vscode.window.showErrorMessage(`Failed to navigate to issue: ${error.message}`);
         }
     }
+    
+    private async _handleSecurityReportExport(format: string, data: any) {
+        try {
+            OrgUtils.logDebug(`[VisbalExt.TractionTab] _handleSecurityReportExport -- Exporting security report as ${format}`);
+            
+            // Get workspace folder for saving the file
+            const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
+            if (!workspaceFolder) {
+                throw new Error('No workspace folder found');
+            }
+            
+            let content: string;
+            let extension: string;
+            let fileName: string;
+            
+            const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+            
+            switch (format) {
+                case 'csv':
+                    content = this._generateCSVReport(data);
+                    extension = 'csv';
+                    fileName = `security-report-${timestamp}.csv`;
+                    break;
+                    
+                case 'json':
+                    content = this._generateJSONReport(data);
+                    extension = 'json';
+                    fileName = `security-report-${timestamp}.json`;
+                    break;
+                    
+                case 'html':
+                    content = this._generateHTMLReport(data);
+                    extension = 'html';
+                    fileName = `security-report-${timestamp}.html`;
+                    break;
+                    
+                default:
+                    throw new Error(`Unsupported export format: ${format}`);
+            }
+            
+            // Show save dialog
+            const saveUri = await vscode.window.showSaveDialog({
+                defaultUri: vscode.Uri.joinPath(workspaceFolder.uri, fileName),
+                filters: {
+                    [`${format.toUpperCase()} Files`]: [extension],
+                    'All Files': ['*']
+                }
+            });
+            
+            if (saveUri) {
+                await vscode.workspace.fs.writeFile(saveUri, Buffer.from(content, 'utf8'));
+                
+                this._updateStatus(`Security report exported to ${path.basename(saveUri.fsPath)}`, 'success');
+                vscode.window.showInformationMessage(
+                    `Security report exported successfully!`, 
+                    'Open File'
+                ).then(selection => {
+                    if (selection === 'Open File') {
+                        vscode.commands.executeCommand('vscode.open', saveUri);
+                    }
+                });
+            }
+            
+        } catch (error: any) {
+            OrgUtils.logError(`[VisbalExt.TractionTab] _handleSecurityReportExport -- Error exporting report`, error as Error);
+            this._updateStatus(`Failed to export report: ${error.message}`, 'error');
+            vscode.window.showErrorMessage(`Failed to export security report: ${error.message}`);
+        }
+    }
 
     public refresh(): void {
         OrgUtils.logDebug('[VisbalExt.TractionTab] refresh -- Refreshing traction tab');
@@ -458,5 +530,197 @@ export class TractionTab implements vscode.WebviewViewProvider {
 
     public hideProgress(): void {
         this._hideProgress();
+    }
+    
+    private _generateCSVReport(data: any): string {
+        const { issues, totalIssues, highSeverityCount, mediumSeverityCount, lowSeverityCount, scanTime, exportTimestamp } = data;
+        
+        // CSV Header
+        const headers = [
+            'Category', 'Severity', 'Title', 'Description', 'File', 'Line', 'Column', 
+            'Code Snippet', 'Recommendation', 'Rule Source'
+        ];
+        
+        let csv = headers.join(',') + '\n';
+        
+        // Add summary row
+        csv += `"Summary","INFO","Security Report Summary","Total Issues: ${totalIssues}, High: ${highSeverityCount}, Medium: ${mediumSeverityCount}, Low: ${lowSeverityCount}","","","","Scanned on: ${new Date(scanTime).toLocaleString()}","Export Date: ${new Date(exportTimestamp).toLocaleString()}",""\n`;
+        
+        // Add issues
+        issues.forEach((issue: any) => {
+            const row = [
+                this._escapeCSVField(issue.category),
+                this._escapeCSVField(issue.severity),
+                this._escapeCSVField(issue.title),
+                this._escapeCSVField(issue.description),
+                this._escapeCSVField(path.basename(issue.file)),
+                issue.line.toString(),
+                issue.column.toString(),
+                this._escapeCSVField(issue.code.replace(/\n/g, ' | ')),
+                this._escapeCSVField(issue.recommendation),
+                this._escapeCSVField(issue.ruleSource)
+            ];
+            csv += row.join(',') + '\n';
+        });
+        
+        return csv;
+    }
+    
+    private _generateJSONReport(data: any): string {
+        const reportData = {
+            ...data,
+            metadata: {
+                generatedBy: 'Visbal Extension Security Analysis',
+                extensionVersion: vscode.extensions.getExtension('visbal-ext')?.packageJSON.version || 'unknown',
+                vscodeVersion: vscode.version
+            }
+        };
+        
+        return JSON.stringify(reportData, null, 2);
+    }
+    
+    private _generateHTMLReport(data: any): string {
+        const { issues, totalIssues, highSeverityCount, mediumSeverityCount, lowSeverityCount, scanTime, exportTimestamp } = data;
+        
+        const severityColors = {
+            'HIGH': '#d73027',
+            'MEDIUM': '#fc8d59',
+            'LOW': '#fee08b'
+        };
+        
+        const categoryIcons = {
+            'CRUD_FLS': '🔒',
+            'DML_LOOPS': '🔄',
+            'SOQL_INJECTION': '💉',
+            'SHARING': '🤝',
+            'UI_SECURITY': '🖥️',
+            'GENERAL': '⚠️'
+        };
+        
+        let html = `<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Security Analysis Report</title>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; margin: 0; padding: 20px; background: #f5f5f5; }
+        .container { max-width: 1200px; margin: 0 auto; background: white; padding: 30px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+        .header { border-bottom: 2px solid #e0e0e0; padding-bottom: 20px; margin-bottom: 30px; }
+        .title { color: #333; font-size: 28px; margin: 0; display: flex; align-items: center; gap: 10px; }
+        .summary { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px; margin: 20px 0; }
+        .summary-card { padding: 20px; border-radius: 6px; text-align: center; }
+        .summary-card.high { background: #ffebee; border-left: 4px solid #d73027; }
+        .summary-card.medium { background: #fff3e0; border-left: 4px solid #fc8d59; }
+        .summary-card.low { background: #fffbf0; border-left: 4px solid #fee08b; }
+        .summary-card.total { background: #f3f4f6; border-left: 4px solid #6b7280; }
+        .summary-number { font-size: 32px; font-weight: bold; margin: 0; }
+        .summary-label { font-size: 14px; color: #666; margin: 5px 0 0 0; }
+        .metadata { background: #f8f9fa; padding: 15px; border-radius: 6px; margin: 20px 0; font-size: 14px; color: #666; }
+        .issues-section { margin-top: 30px; }
+        .issue { border: 1px solid #e0e0e0; border-radius: 6px; margin: 10px 0; overflow: hidden; }
+        .issue-header { padding: 15px; background: #f8f9fa; display: flex; justify-content: space-between; align-items: center; }
+        .issue-title { font-weight: 600; display: flex; align-items: center; gap: 8px; }
+        .severity-badge { padding: 4px 8px; border-radius: 4px; color: white; font-size: 12px; font-weight: 600; }
+        .issue-content { padding: 15px; }
+        .issue-description { color: #555; margin: 5px 0; }
+        .issue-location { color: #666; font-size: 14px; margin: 5px 0; }
+        .issue-code { background: #f1f3f4; padding: 10px; border-radius: 4px; font-family: monospace; font-size: 14px; white-space: pre-wrap; margin: 10px 0; }
+        .issue-recommendation { background: #e8f5e8; padding: 10px; border-radius: 4px; border-left: 4px solid #4caf50; margin: 10px 0; }
+        .filter-section { margin: 20px 0; display: flex; gap: 10px; flex-wrap: wrap; }
+        .filter-btn { padding: 8px 16px; border: 1px solid #ddd; background: white; border-radius: 20px; cursor: pointer; }
+        .filter-btn.active { background: #007acc; color: white; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1 class="title">🛡️ Security Analysis Report</h1>
+            <div class="metadata">
+                <strong>Scan Date:</strong> ${new Date(scanTime).toLocaleString()} | 
+                <strong>Export Date:</strong> ${new Date(exportTimestamp).toLocaleString()} | 
+                <strong>Total Files Scanned:</strong> ${data.scannedFiles?.length || 'N/A'}
+            </div>
+        </div>
+        
+        <div class="summary">
+            <div class="summary-card high">
+                <div class="summary-number" style="color: #d73027;">${highSeverityCount}</div>
+                <div class="summary-label">High Severity</div>
+            </div>
+            <div class="summary-card medium">
+                <div class="summary-number" style="color: #fc8d59;">${mediumSeverityCount}</div>
+                <div class="summary-label">Medium Severity</div>
+            </div>
+            <div class="summary-card low">
+                <div class="summary-number" style="color: #fee08b;">${lowSeverityCount}</div>
+                <div class="summary-label">Low Severity</div>
+            </div>
+            <div class="summary-card total">
+                <div class="summary-number">${totalIssues}</div>
+                <div class="summary-label">Total Issues</div>
+            </div>
+        </div>
+        
+        <div class="issues-section">
+            <h2>Issues Found (${totalIssues})</h2>`;
+            
+        issues.forEach((issue: any, index: number) => {
+            const severityColor = severityColors[issue.severity as keyof typeof severityColors] || '#666';
+            const categoryIcon = categoryIcons[issue.category as keyof typeof categoryIcons] || '❓';
+            
+            html += `
+            <div class="issue">
+                <div class="issue-header">
+                    <div class="issue-title">
+                        <span>${categoryIcon}</span>
+                        ${issue.title}
+                    </div>
+                    <div class="severity-badge" style="background-color: ${severityColor};">
+                        ${issue.severity}
+                    </div>
+                </div>
+                <div class="issue-content">
+                    <div class="issue-description">${issue.description}</div>
+                    <div class="issue-location">📁 ${path.basename(issue.file)} • Line ${issue.line}:${issue.column}</div>
+                    <div class="issue-code">${this._escapeHtml(issue.code)}</div>
+                    <div class="issue-recommendation">
+                        <strong>💡 Recommendation:</strong> ${issue.recommendation}
+                    </div>
+                </div>
+            </div>`;
+        });
+        
+        html += `
+        </div>
+        
+        <div style="margin-top: 40px; text-align: center; color: #666; font-size: 14px;">
+            Generated by Visbal Extension Security Analysis | ${new Date().toLocaleString()}
+        </div>
+    </div>
+</body>
+</html>`;
+        
+        return html;
+    }
+    
+    private _escapeCSVField(field: string): string {
+        if (typeof field !== 'string') {
+            field = String(field);
+        }
+        // Escape double quotes and wrap in quotes if contains comma, newline, or quote
+        if (field.includes(',') || field.includes('\n') || field.includes('"')) {
+            return '"' + field.replace(/"/g, '""') + '"';
+        }
+        return field;
+    }
+    
+    private _escapeHtml(text: string): string {
+        return text
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#x27;');
     }
 }

@@ -556,7 +556,7 @@ export class OrgTable {
                         e.preventDefault();
                         const alias = target.getAttribute('data-alias');
                         const username = target.getAttribute('data-username');
-                        console.log('[VisbalExt.OrgTable] Delete button clicked - alias:', alias, 'username:', username);
+                        OrgUtils.logDebug('[VisbalExt.OrgTable] Delete button clicked - alias:', alias, 'username:', username);
                         showDeleteConfirmation(alias, username);
                     }
                 });
@@ -597,7 +597,7 @@ export class OrgTable {
 
                 // Show delete confirmation dialog
                 function showDeleteConfirmation(alias, username) {
-                    console.log('[VisbalExt.OrgTable] showDeleteConfirmation - alias:', alias, 'username:', username);
+                    OrgUtils.logDebug('[VisbalExt.OrgTable] showDeleteConfirmation - alias:', alias, 'username:', username);
                     pendingDeleteOrg = { alias, username };
                     document.getElementById('deleteOrgAlias').textContent = alias || '(No alias)';
                     document.getElementById('deleteOrgUsername').textContent = username || '(No username)';
@@ -650,18 +650,18 @@ export class OrgTable {
                 // Handle confirm delete button
                 document.getElementById('confirmDeleteBtn').addEventListener('click', () => {
                     if (pendingDeleteOrg) {
-                        console.log('[VisbalExt.OrgTable] Confirm delete clicked - sending message to extension:', pendingDeleteOrg);
+                        OrgUtils.logDebug('[VisbalExt.OrgTable] Confirm delete clicked - sending message to extension:', pendingDeleteOrg);
                         showStatus('Deleting scratch org...', 'loading');
                         const deleteMessage = { 
                             command: 'deleteOrg', 
                             alias: pendingDeleteOrg.alias,
                             username: pendingDeleteOrg.username
                         };
-                        console.log('[VisbalExt.OrgTable] Sending message:', deleteMessage);
+                        OrgUtils.logDebug('[VisbalExt.OrgTable] Sending message:', deleteMessage);
                         vscode.postMessage(deleteMessage);
                         hideDeleteConfirmation();
                     } else {
-                        console.log('[VisbalExt.OrgTable] ERROR: No pending delete org found!');
+                        OrgUtils.logDebug('[VisbalExt.OrgTable] ERROR: No pending delete org found!');
                     }
                 });
 
@@ -706,28 +706,28 @@ export class OrgTable {
                 // Handle messages from extension
                 window.addEventListener('message', event => {
                     const message = event.data;
-                    console.log('[VisbalExt.OrgTable] Received message from extension:', message);
+                    OrgUtils.logDebug('[VisbalExt.OrgTable] Received message from extension:', message);
                     switch (message.command) {
                         case 'updateOrgsHtml':
-                            console.log('[VisbalExt.OrgTable] Updating orgs HTML');
+                            OrgUtils.logDebug('[VisbalExt.OrgTable] Updating orgs HTML');
                             document.getElementById('orgsTableBody').innerHTML = message.html;
                             // Scroll position is automatically handled by the state-based system
                             break;
                         case 'updateOrgList':
-                            console.log('[VisbalExt.OrgTable] Updating org list, count:', message.orgs?.length || 0);
+                            OrgUtils.logDebug('[VisbalExt.OrgTable] Updating org list, count:', message.orgs?.length || 0);
                             const orgListChanged = JSON.stringify(currentOrgs) !== JSON.stringify(message.orgs);
-                            console.log('[VisbalExt.OrgTable] Org list data changed:', orgListChanged);
+                            OrgUtils.logDebug('[VisbalExt.OrgTable] Org list data changed:', orgListChanged);
                             currentOrgs = message.orgs;
                             // Only trigger HTML update if the org list actually changed
                             if (orgListChanged) {
-                                console.log('[VisbalExt.OrgTable] Org data changed, updating HTML');
+                                OrgUtils.logDebug('[VisbalExt.OrgTable] Org data changed, updating HTML');
                                 requestUpdate();
                             } else {
-                                console.log('[VisbalExt.OrgTable] Org data unchanged, skipping HTML update to preserve scroll');
+                                OrgUtils.logDebug('[VisbalExt.OrgTable] Org data unchanged, skipping HTML update to preserve scroll');
                             }
                             break;
                         case 'deleteStatus':
-                            console.log('[VisbalExt.OrgTable] Delete status received - success:', message.success, 'message:', message.message);
+                            OrgUtils.logDebug('[VisbalExt.OrgTable] Delete status received - success:', message.success, 'message:', message.message);
                             if (message.success) {
                                 showStatus(message.message || 'Scratch org deleted successfully!', 'success');
                             } else {
@@ -735,7 +735,7 @@ export class OrgTable {
                             }
                             break;
                         default:
-                            console.log('[VisbalExt.OrgTable] Unknown message command:', message.command);
+                            OrgUtils.logDebug('[VisbalExt.OrgTable] Unknown message command:', message.command);
                     }
                 });
             </script>

@@ -621,9 +621,9 @@ export async function activate(context: vscode.ExtensionContext) {
               // Show the References panel - only if not already visible
               try {
                 // Don't force show the panel if it's already being used
-                console.log('[VisbalExt.Extension] Loading cached results, References panel should already be visible');
+                OrgUtils.logDebug('[VisbalExt.Extension] Loading cached results, References panel should already be visible');
               } catch (error) {
-                console.log('[VisbalExt.Extension] Error with references panel handling:', error);
+                OrgUtils.logDebug('[VisbalExt.Extension] Error with references panel handling:', error);
               }
               
               const cacheDate = new Date(cacheInfo.timestamp!).toLocaleString();
@@ -719,12 +719,12 @@ export async function activate(context: vscode.ExtensionContext) {
               // Only try to show the panel if we're coming from Traction tab (fresh scan)
               if (source === 'traction') {
                 await vscode.commands.executeCommand('workbench.view.extension.visbal-references-container');
-                console.log('[VisbalExt.Extension] Opened References panel after fresh scan');
+                OrgUtils.logDebug('[VisbalExt.Extension] Opened References panel after fresh scan');
               } else {
-                console.log('[VisbalExt.Extension] Skipping panel show command - results loaded to existing view');
+                OrgUtils.logDebug('[VisbalExt.Extension] Skipping panel show command - results loaded to existing view');
               }
             } catch (error) {
-              console.log('[VisbalExt.Extension] Could not open references panel, but results are available:', error);
+              OrgUtils.logDebug('[VisbalExt.Extension] Could not open references panel, but results are available:', error);
             }
             
             vscode.window.showInformationMessage(`Found ${resultsByClass.size} classes with ${totalMethods} @AuraEnabled methods and ${totalReferences} LWC references. Check the References panel.`);

@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import * as fs from 'fs';
 import * as path from 'path';
+import { OrgUtils } from '../utils/orgUtils';
 
 export interface SecurityIssue {
     id: string;
@@ -259,7 +260,7 @@ export class SecurityAnalysisService {
                     
                     // Debug logging for CRUD_FLS category to understand filtering
                     if (category === 'CRUD_FLS' && matchCount > 0) {
-                        console.log(`[SecurityAnalysis] ${rule.title} in ${path.basename(filePath)}: ${matchCount} matches, ${exemptCount} exempted, ${permissionCheckCount} with permission checks, ${matchCount - exemptCount - permissionCheckCount} flagged`);
+                        OrgUtils.logDebug(`[VisbalExt.SecurityAnalysis] ${rule.title} in ${path.basename(filePath)}: ${matchCount} matches, ${exemptCount} exempted, ${permissionCheckCount} with permission checks, ${matchCount - exemptCount - permissionCheckCount} flagged`);
                     }
                 }
             }
@@ -305,7 +306,7 @@ export class SecurityAnalysisService {
             
             console.log(`[SecurityAnalysis] Found ${allApexFiles.length} Apex files to analyze`);
             if (allApexFiles.length > 0) {
-                console.log(`[SecurityAnalysis] Sample file paths:`, allApexFiles.slice(0, 3).map(f => f.fsPath));
+                OrgUtils.logDebug(`[VisbalExt.SecurityAnalysis] Sample file paths:`, allApexFiles.slice(0, 3).map(f => f.fsPath));
             }
             
             const jsFiles = await vscode.workspace.findFiles('force-app/**/*.{js,ts}', excludePattern);
@@ -313,7 +314,7 @@ export class SecurityAnalysisService {
             
             const allFiles = [...allApexFiles, ...jsFiles, ...htmlFiles];
             
-            console.log(`[SecurityAnalysis] Total files to scan: ${allFiles.length} (${allApexFiles.length} Apex, ${jsFiles.length} JS/TS, ${htmlFiles.length} HTML/CSS)`);
+            OrgUtils.logDebug(`[VisbalExt.SecurityAnalysis] Total files to scan: ${allFiles.length} (${allApexFiles.length} Apex, ${jsFiles.length} JS/TS, ${htmlFiles.length} HTML/CSS)`);
 
             for (const file of allFiles) {
                 const filePath = file.fsPath;
@@ -322,10 +323,10 @@ export class SecurityAnalysisService {
                 issues.push(...fileIssues);
             }
             
-            console.log(`[SecurityAnalysis] Scan complete: ${issues.length} issues found across ${scannedFiles.length} files`);
+            OrgUtils.logDebug(`[VisbalExt.SecurityAnalysis] Scan complete: ${issues.length} issues found across ${scannedFiles.length} files`);
 
         } catch (error) {
-            console.error('[SecurityAnalysis] Error during workspace analysis:', error);
+            console.error('[VisbalExt.SecurityAnalysis] Error during workspace analysis:', error);
         }
 
         const highSeverityCount = issues.filter(i => i.severity === 'HIGH').length;

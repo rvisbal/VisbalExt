@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
 import { ReferencesService, ReferenceLocation, SymbolReference } from '../services/referencesService';
+import { OrgUtils } from '../utils/orgUtils';
 
 /**
  * Tree item for displaying reference results
@@ -486,7 +487,7 @@ export class ReferencesView {
 
         // Command to reload @AuraEnabled report from cache
         const reloadAuraEnabledCommand = vscode.commands.registerCommand('visbal-ext.reloadAuraEnabledFromCache', async () => {
-            console.log('[VisbalExt.ReferencesView] Reload @AuraEnabled command executed');
+            OrgUtils.logDebug('[VisbalExt.ReferencesView] Reload @AuraEnabled command executed');
             try {
                 await this.reloadAuraEnabledFromCache();
             } catch (error) {
@@ -551,7 +552,7 @@ export class ReferencesView {
                 }, 200); // Increased timeout to allow panel to load properly
             } catch (error) {
                 // Fallback: try the custom show panel command
-                console.log('[VisbalExt.References] Direct panel activation failed, trying custom command');
+                OrgUtils.logDebug('[VisbalExt.References] Direct panel activation failed, trying custom command');
                 try {
                     await vscode.commands.executeCommand('visbal-ext.showReferencesPanel');
                     setTimeout(() => {
@@ -561,7 +562,7 @@ export class ReferencesView {
                         }
                     }, 100);
                 } catch (fallbackError) {
-                    console.log('[VisbalExt.References] All panel activation attempts failed, references still available in tree');
+                    OrgUtils.logDebug('[VisbalExt.References] All panel activation attempts failed, references still available in tree');
                 }
             }
 
@@ -722,7 +723,7 @@ export class ReferencesView {
      */
     public async reloadAuraEnabledFromCache(): Promise<void> {
         try {
-            console.log('[VisbalExt.ReferencesView] reloadAuraEnabledFromCache -- Starting cache reload');
+            OrgUtils.logDebug('[VisbalExt.ReferencesView] reloadAuraEnabledFromCache -- Starting cache reload');
             
             // Show progress in status bar
             this.statusBarItem.text = "$(loading~spin) Loading @AuraEnabled report from cache...";
@@ -733,10 +734,10 @@ export class ReferencesView {
             
             // Get cache info first
             const cacheInfo = AuraEnabledService.getCacheInfo();
-            console.log('[VisbalExt.ReferencesView] reloadAuraEnabledFromCache -- Cache info:', cacheInfo);
+            OrgUtils.logDebug('[VisbalExt.ReferencesView] reloadAuraEnabledFromCache -- Cache info:', cacheInfo);
             
             if (!cacheInfo.exists) {
-                console.log('[VisbalExt.ReferencesView] reloadAuraEnabledFromCache -- No cache found');
+                OrgUtils.logDebug('[VisbalExt.ReferencesView] reloadAuraEnabledFromCache -- No cache found');
                 vscode.window.showInformationMessage(
                     'No cached @AuraEnabled report found. Please run a new scan from the Traction tab first.',
                     'Open Traction Tab'
@@ -750,21 +751,21 @@ export class ReferencesView {
             }
 
             // Load results from cache
-            console.log('[VisbalExt.ReferencesView] reloadAuraEnabledFromCache -- Loading from cache');
+            OrgUtils.logDebug('[VisbalExt.ReferencesView] reloadAuraEnabledFromCache -- Loading from cache');
             const resultsByClass = AuraEnabledService.loadFromCache();
             
             if (!resultsByClass || resultsByClass.size === 0) {
-                console.log('[VisbalExt.ReferencesView] reloadAuraEnabledFromCache -- Cache load failed or empty');
+                OrgUtils.logDebug('[VisbalExt.ReferencesView] reloadAuraEnabledFromCache -- Cache load failed or empty');
                 vscode.window.showWarningMessage('Failed to load cached @AuraEnabled report or cache is empty.');
                 this.statusBarItem.hide();
                 return;
             }
 
-            console.log(`[VisbalExt.ReferencesView] reloadAuraEnabledFromCache -- Loaded ${resultsByClass.size} classes from cache`);
+            OrgUtils.logDebug(`[VisbalExt.ReferencesView] reloadAuraEnabledFromCache -- Loaded ${resultsByClass.size} classes from cache`);
 
             // Update the references view with hierarchical results
             if (this.treeDataProvider.updateAuraEnabledReferences) {
-                console.log('[VisbalExt.ReferencesView] reloadAuraEnabledFromCache -- Updating tree view');
+                OrgUtils.logDebug('[VisbalExt.ReferencesView] reloadAuraEnabledFromCache -- Updating tree view');
                 this.treeDataProvider.updateAuraEnabledReferences(resultsByClass);
             } else {
                 console.warn('[VisbalExt.ReferencesView] reloadAuraEnabledFromCache -- updateAuraEnabledReferences method not available');
@@ -782,13 +783,13 @@ export class ReferencesView {
             setTimeout(async () => {
                 try {
                     const children = this.treeDataProvider.getChildren();
-                    console.log(`[VisbalExt.ReferencesView] reloadAuraEnabledFromCache -- Tree has ${children.length} root items`);
+                    OrgUtils.logDebug(`[VisbalExt.ReferencesView] reloadAuraEnabledFromCache -- Tree has ${children.length} root items`);
                     if (children.length > 0) {
                         await this.treeView.reveal(children[0], { expand: true, focus: false, select: false });
-                        console.log('[VisbalExt.ReferencesView] reloadAuraEnabledFromCache -- Tree item revealed');
+                        OrgUtils.logDebug('[VisbalExt.ReferencesView] reloadAuraEnabledFromCache -- Tree item revealed');
                     }
                 } catch (error) {
-                    console.log('[VisbalExt.ReferencesView] reloadAuraEnabledFromCache -- Could not reveal tree items:', error);
+                    OrgUtils.logDebug('[VisbalExt.ReferencesView] reloadAuraEnabledFromCache -- Could not reveal tree items:', error);
                 }
             }, 100);
 
@@ -799,7 +800,7 @@ export class ReferencesView {
             );
 
             this.statusBarItem.hide();
-            console.log('[VisbalExt.ReferencesView] reloadAuraEnabledFromCache -- Cache reload completed successfully');
+            OrgUtils.logDebug('[VisbalExt.ReferencesView] reloadAuraEnabledFromCache -- Cache reload completed successfully');
 
         } catch (error: any) {
             this.statusBarItem.hide();

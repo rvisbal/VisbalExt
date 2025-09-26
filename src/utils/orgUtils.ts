@@ -1267,7 +1267,7 @@ export class OrgUtils {
                             if (fs.existsSync(filePath)) {
                                 fs.unlinkSync(filePath);
                                 // Only log successful deletions, don't call logDebug to avoid recursion
-                                console.log(`[VisbalExt.OrgUtils] archiveDebugLog -- Deleted old debug file: ${file} (older than ${deleteDebugLogsOlderThan} days)`);
+                                OrgUtils.logDebug(`[VisbalExt.OrgUtils] archiveDebugLog -- Deleted old debug file: ${file} (older than ${deleteDebugLogsOlderThan} days)`);
                             }
                         }
                     } catch (fileError: any) {
@@ -1335,7 +1335,7 @@ export class OrgUtils {
                             if (fs.existsSync(filePath)) {
                                 fs.unlinkSync(filePath);
                                 deletedCount++;
-                                console.log(`[VisbalExt.OrgUtils] cleanupOldDebugFiles -- Deleted old debug file: ${file} (older than ${deleteDebugLogsOlderThan} days)`);
+                                OrgUtils.logDebug(`[VisbalExt.OrgUtils] cleanupOldDebugFiles -- Deleted old debug file: ${file} (older than ${deleteDebugLogsOlderThan} days)`);
                             } else {
                                 skippedCount++;
                             }

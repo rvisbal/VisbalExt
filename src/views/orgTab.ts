@@ -32,7 +32,7 @@ export class OrgTabView implements vscode.WebviewViewProvider {
     };
     this._render();
     webviewView.webview.onDidReceiveMessage(async (message) => {
-      console.log('[VisbalExt.OrgTab] resolveWebviewView -- Received message:', message);
+      OrgUtils.logDebug('[VisbalExt.OrgTab] resolveWebviewView -- Received message:', message);
       switch (message.command) {
         case 'refreshOrgList':
           await this._refreshOrgList();
@@ -49,7 +49,7 @@ export class OrgTabView implements vscode.WebviewViewProvider {
           }
           break;
         case 'deleteOrg':
-          console.log('[VisbalExt.OrgTab] resolveWebviewView -- Delete org message received:', { alias: message.alias, username: message.username });
+          OrgUtils.logDebug('[VisbalExt.OrgTab] resolveWebviewView -- Delete org message received:', { alias: message.alias, username: message.username });
           OrgUtils.logDebug(`[VisbalExt.OrgTab] resolveWebviewView -- Delete org message received: alias=${message.alias}, username=${message.username}`);
           await this._handleOrgDeletion(webviewView.webview, message.alias, message.username);
           break;
