@@ -2,7 +2,8 @@ import * as vscode from 'vscode';
 import * as fs from 'fs';
 import * as path from 'path';
 import { ReferenceLocation, SymbolReference } from './referencesService';
-import { OrgUtils } from '../utils/orgUtils';
+import * as OrgUtilsModule from '../utils/orgUtils';
+const OrgUtils = OrgUtilsModule.OrgUtils;
 
 /**
  * Represents an @AuraEnabled method found in Apex classes

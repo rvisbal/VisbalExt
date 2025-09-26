@@ -1,7 +1,8 @@
 import * as vscode from 'vscode';
 import * as fs from 'fs';
 import * as path from 'path';
-import { OrgUtils } from '../utils/orgUtils';
+import * as OrgUtilsModule from '../utils/orgUtils';
+const OrgUtils = OrgUtilsModule.OrgUtils;
 
 export interface SecurityIssue {
     id: string;

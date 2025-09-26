@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import { ReferencesService, ReferenceLocation, SymbolReference } from '../services/referencesService';
-import { OrgUtils } from '../utils/orgUtils';
+import * as OrgUtilsModule from '../utils/orgUtils';
+const OrgUtils = OrgUtilsModule.OrgUtils;
 
 /**
  * Tree item for displaying reference results
