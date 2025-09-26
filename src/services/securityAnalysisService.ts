@@ -6,7 +6,7 @@ const OrgUtils = OrgUtilsModule.OrgUtils;
 
 export interface SecurityIssue {
     id: string;
-    category: 'CRUD_FLS' | 'DML_LOOPS' | 'SOQL_INJECTION' | 'SHARING' | 'UI_SECURITY' | 'GENERAL';
+    category: 'CRUD_FLS' | 'DML_LOOPS' | 'SOQL_INJECTION' | 'SHARING' | 'TRANSACTION_LIMITS' | 'XSS_CSRF' | 'UI_SECURITY' | 'GENERAL';
     severity: 'HIGH' | 'MEDIUM' | 'LOW';
     title: string;
     description: string;
@@ -63,8 +63,24 @@ export class SecurityAnalysisService {
                 severity: 'MEDIUM' as const,
                 title: 'SOQL Query without FLS Check or User Mode',
                 description: 'SOQL query detected without field-level security checks or WITH USER_MODE',
-                recommendation: 'Check field accessibility using Schema.DescribeFieldResult.isAccessible() or use WITH USER_MODE',
-                ruleSource: 'FLS.md'
+                recommendation: 'Check field accessibility using Schema.DescribeFieldResult.isAccessible() or use WITH USER_MODE ',
+                ruleSource: 'write-secure-apex-controllers.md'
+            },
+            {
+                pattern: /\[\s*SELECT\s+[^]]*WITH\s+SECURITY_ENFORCED[^]]*\]/gi,
+                severity: 'LOW' as const,
+                title: 'WITH SECURITY_ENFORCED Usage - Consider WITH USER_MODE',
+                description: 'Query uses WITH SECURITY_ENFORCED which is less preferred than WITH USER_MODE',
+                recommendation: 'Consider using WITH USER_MODE instead of WITH SECURITY_ENFORCED for better security enforcement',
+                ruleSource: 'write-secure-apex-controllers.md'
+            },
+            {
+                pattern: /Database\.\w+\s*\([^)]+\)(?!.*AccessLevel\.USER_MODE)(?!.*stripInaccessible)/gi,
+                severity: 'MEDIUM' as const,
+                title: 'Database Method without User Mode or stripInaccessible',
+                description: 'Database method call without AccessLevel.USER_MODE or stripInaccessible() usage',
+                recommendation: 'Use AccessLevel.USER_MODE parameter or Security.stripInaccessible() for field-level security',
+                ruleSource: 'write-secure-apex-controllers.md'
             }
         ],
         DML_LOOPS: [
@@ -79,12 +95,20 @@ export class SecurityAnalysisService {
         ],
         SOQL_INJECTION: [
             {
-                pattern: /\[\s*SELECT\s+[^]]*\+[^]]*\](?!.*String\.escapeSingleQuotes)/gi,
+                pattern: /\[\s*SELECT\s+[^]]*\+[^]]*\](?!.*String\.escapeSingleQuotes)(?!.*:\w+)/gi,
                 severity: 'HIGH' as const,
                 title: 'Potential SOQL Injection without Sanitization',
-                description: 'String concatenation detected in SOQL query without proper sanitization',
+                description: 'String concatenation detected in SOQL query without proper sanitization or bind variables',
                 recommendation: 'Use bind variables (:variable) instead of string concatenation, or sanitize with String.escapeSingleQuotes()',
-                ruleSource: 'SOQL_Injections.md'
+                ruleSource: 'mitigate-soql-injection.md'
+            },
+            {
+                pattern: /Database\.query\s*\(\s*[^)]*\+[^)]*\)(?!.*String\.escapeSingleQuotes)(?!.*escapeSingleQuotes)/gi,
+                severity: 'HIGH' as const,
+                title: 'Dynamic Database.query without Sanitization',
+                description: 'Dynamic Database.query() with string concatenation without proper sanitization',
+                recommendation: 'Use static SOQL with bind variables, or apply String.escapeSingleQuotes() for dynamic queries',
+                ruleSource: 'mitigate-soql-injection.md'
             },
             {
                 pattern: /String\.format\s*\([^)]*SELECT[^)]*\)(?!.*String\.escapeSingleQuotes)/gi,
@@ -92,7 +116,7 @@ export class SecurityAnalysisService {
                 title: 'Dynamic SOQL Query without Sanitization',
                 description: 'Dynamic SOQL query construction detected without proper input sanitization',
                 recommendation: 'Validate inputs and use String.escapeSingleQuotes() or proper escaping mechanisms',
-                ruleSource: 'SOQL_Injections.md'
+                ruleSource: 'secure-codeing-sql-injection.md'
             },
             {
                 pattern: /getWhereClause\s*\([^)]*\)(?!.*validateWhereClause)/gi,
@@ -101,24 +125,40 @@ export class SecurityAnalysisService {
                 description: 'getWhereClause() called without subsequent validateWhereClause() validation',
                 recommendation: 'Always call SoqlQuerySanitizer.validateWhereClause() after getWhereClause()',
                 ruleSource: 'SOQL_Injections.md'
+            },
+            {
+                pattern: /WHERE\s+[\w.]+\s*=\s*[^:][^'\s]+(?!.*String\.valueOf\s*\()(?!.*Integer\.valueOf\s*\()/gi,
+                severity: 'MEDIUM' as const,
+                title: 'Potential Type Casting Issue in SOQL',
+                description: 'SOQL WHERE clause with variable that may need type casting for security',
+                recommendation: 'Use type casting with Integer.valueOf() or String.valueOf() for non-string inputs to prevent injection',
+                ruleSource: 'mitigate-soql-injection.md'
+            },
+            {
+                pattern: /SELECT\s+[\w,\s*]+\s+FROM\s+[^WHERE\]]*\+[^WHERE\]]*(?!.*allowedFields|.*allowedObjects)/gi,
+                severity: 'MEDIUM' as const,
+                title: 'Dynamic Object/Field Selection without Allowlisting',
+                description: 'Dynamic object or field selection without allowlisting validation',
+                recommendation: 'Implement allowlisting to validate user-supplied object and field names against known safe values',
+                ruleSource: 'mitigate-soql-injection.md'
             }
         ],
         SHARING: [
             {
-                pattern: /(?:global|public)\s+class\s+\w+(?:\s+extends\s+\w+)?\s*\{(?!.*with\s+sharing|without\s+sharing)/gi,
+                pattern: /(?:global|public)\s+class\s+\w+(?:\s+extends\s+\w+)?\s*\{(?!.*with\s+sharing|without\s+sharing|inherited\s+sharing)/gi,
                 severity: 'MEDIUM' as const,
                 title: 'Global/Public Class Missing Sharing Declaration',
-                description: 'Global or public class found without explicit sharing declaration',
-                recommendation: 'Add "with sharing" keyword for entry point classes (Controllers, @AuraEnabled, WebService)',
-                ruleSource: 'Sharing.md'
+                description: 'Global or public class found without explicit sharing declaration (with sharing, without sharing, or inherited sharing)',
+                recommendation: 'Add "with sharing" for entry point classes, "without sharing" for system operations, or "inherited sharing" for flexible context',
+                ruleSource: 'write-secure-apex-controllers.md'
             },
             {
-                pattern: /@AuraEnabled\s+(?:public|global|static)(?!.*(?:Profile|PermissionSet|hasAccess|canRead|canCreate|canUpdate|canDelete))/gi,
+                pattern: /@AuraEnabled\s+(?:public|global|static)(?!.*(?:Profile|PermissionSet|hasAccess|canRead|canCreate|canUpdate|canDelete|with\s+sharing))/gi,
                 severity: 'HIGH' as const,
                 title: '@AuraEnabled Method without Access Control',
-                description: '@AuraEnabled method accessible to all users without proper access control checks',
+                description: '@AuraEnabled method accessible to all users without proper access control checks or sharing declaration',
                 recommendation: 'Ensure class uses "with sharing" and implement proper access control checks using Profile, PermissionSet, or permission methods',
-                ruleSource: 'Sharing.md'
+                ruleSource: 'write-secure-apex-controllers.md'
             },
             {
                 pattern: /(?:global|public)\s+(?:with|without)\s+sharing\s+class\s+\w+\s+implements\s+\w*Batch\w*/gi,
@@ -126,7 +166,123 @@ export class SecurityAnalysisService {
                 title: 'Batch Class Sharing Context',
                 description: 'Batch class with sharing declaration - verify if this is the intended behavior',
                 recommendation: 'Review if batch class should run with or without sharing based on business requirements',
-                ruleSource: 'security.md'
+                ruleSource: 'write-secure-apex-controllers.md'
+            },
+            {
+                pattern: /class\s+\w+\s*\{(?!.*with\s+sharing|without\s+sharing|inherited\s+sharing)[\s\S]*?(?:@AuraEnabled|@WebService|@RemoteAction)/gi,
+                severity: 'HIGH' as const,
+                title: 'Entry Point Class Missing Sharing Declaration',
+                description: 'Class with entry point annotations must have explicit sharing declaration',
+                recommendation: 'Add "with sharing" keyword to enforce user permissions and sharing rules',
+                ruleSource: 'write-secure-apex-controllers.md'
+            },
+            {
+                pattern: /inherited\s+sharing\s+class(?!.*(?:AppExchange|flexible|runtime))/gi,
+                severity: 'LOW' as const,
+                title: 'Inherited Sharing Usage Verification',
+                description: 'inherited sharing detected - verify this is intentional for flexible sharing context',
+                recommendation: 'Ensure inherited sharing is used intentionally for classes that need flexible sharing context',
+                ruleSource: 'write-secure-apex-controllers.md'
+            },
+            {
+                pattern: /@WebService\s+(?:public|global|static)(?!.*with\s+sharing)/gi,
+                severity: 'HIGH' as const,
+                title: '@WebService Method without Sharing Declaration',
+                description: '@WebService method without explicit sharing context',
+                recommendation: 'Add "with sharing" to class declaration to enforce user permissions in web services',
+                ruleSource: 'write-secure-apex-controllers.md'
+            },
+            {
+                pattern: /@RemoteAction\s+(?:public|global|static)(?!.*with\s+sharing)/gi,
+                severity: 'HIGH' as const,
+                title: '@RemoteAction Method without Sharing Declaration',
+                description: '@RemoteAction method without explicit sharing context',
+                recommendation: 'Add "with sharing" to class declaration to enforce user permissions in remote actions',
+                ruleSource: 'write-secure-apex-controllers.md'
+            }
+        ],
+        TRANSACTION_LIMITS: [
+            {
+                pattern: /for\s*\([^)]+\)\s*\{[^}]*(?:Database\.query|Database\.countQuery|\[\s*SELECT)\s*[\s\S]*?\}/gi,
+                severity: 'HIGH' as const,
+                title: 'SOQL Query Inside Loop',
+                description: 'SOQL query found inside a loop which may cause governor limit violations',
+                recommendation: 'Move SOQL queries outside loops and use collections to process data efficiently',
+                ruleSource: 'apex-transactions.md'
+            },
+            {
+                pattern: /while\s*\([^)]+\)\s*\{[^}]*(?:insert|update|delete|upsert|Database\.\w+)\s*[\s\S]*?\}/gi,
+                severity: 'HIGH' as const,
+                title: 'DML or Database Operation in While Loop',
+                description: 'DML or database operation in while loop may cause governor limit violations',
+                recommendation: 'Use batch processing or collections to avoid governor limits in iterative operations',
+                ruleSource: 'apex-transactions.md'
+            },
+            {
+                pattern: /recursive\s+(?:method|call|function)(?!.*(?:guard|limit|counter|depth))/gi,
+                severity: 'MEDIUM' as const,
+                title: 'Potential Recursive Operation without Limits',
+                description: 'Recursive operation detected without apparent guard conditions',
+                recommendation: 'Implement recursion guards, depth limits, and consider iterative alternatives',
+                ruleSource: 'apex-transactions.md'
+            },
+            {
+                pattern: /\[\s*SELECT\s+[^]]*\s+LIMIT\s+([5-9]\d{3,}|\d{5,})[^]]*\]/gi,
+                severity: 'MEDIUM' as const,
+                title: 'Large SOQL Query Limit',
+                description: 'SOQL query with very large LIMIT clause may cause performance issues',
+                recommendation: 'Consider using smaller limits with pagination or evaluate if all records are needed',
+                ruleSource: 'apex-transactions.md'
+            }
+        ],
+        XSS_CSRF: [
+            {
+                pattern: /\{\!\$Request\.[^}]*\}(?!.*SUBSTITUTE|.*HTMLENCODE)/gi,
+                severity: 'HIGH' as const,
+                title: 'Unescaped Request Parameter in Formula',
+                description: 'Request parameter used in formula expression without proper escaping',
+                recommendation: 'Use SUBSTITUTE() or HTMLENCODE() to escape user input in formula expressions',
+                ruleSource: 'securing-guidelines.md'
+            },
+            {
+                pattern: /<apex:\w+\s+[^>]*escape\s*=\s*["']false["'][^>]*>/gi,
+                severity: 'HIGH' as const,
+                title: 'Disabled XSS Protection in Visualforce',
+                description: 'Visualforce component with escape="false" disables XSS protection',
+                recommendation: 'Remove escape="false" or ensure all data is properly sanitized before display',
+                ruleSource: 'securing-guidelines.md'
+            },
+            {
+                pattern: /document\.write\s*\([^)]*\$\{[^}]*\}[^)]*\)/gi,
+                severity: 'HIGH' as const,
+                title: 'Dynamic Content in document.write',
+                description: 'document.write() with dynamic content can enable XSS attacks',
+                recommendation: 'Use safe DOM manipulation methods instead of document.write() with user input',
+                ruleSource: 'securing-guidelines.md'
+            },
+            {
+                pattern: /innerHTML\s*=\s*[^;]*\+[^;]*(?!.*(?:sanitize|escape|encode))/gi,
+                severity: 'HIGH' as const,
+                title: 'Dynamic innerHTML without Sanitization',
+                description: 'innerHTML assignment with concatenated content without sanitization',
+                recommendation: 'Sanitize or escape dynamic content before assigning to innerHTML, or use textContent',
+                ruleSource: 'securing-guidelines.md'
+            },
+            {
+                pattern: /<apex:includeScript[^>]+value\s*=\s*["']\{!\$[^}]*\}["'][^>]*>/gi,
+                severity: 'HIGH' as const,
+                title: 'Dynamic Script Inclusion via Formula',
+                description: 'apex:includeScript with dynamic value from formula expression',
+                recommendation: 'Never use user-controlled input for script sources, use static script references',
+                ruleSource: 'securing-guidelines.md'
+            },
+            {
+                pattern: /<form[^>]*action\s*=\s*["'][^"']*\{![^}]*\}[^"']*["'][^>]*(?!.*(?:token|csrf))/gi,
+                severity: 'MEDIUM' as const,
+                title: 'Form Action with Dynamic URL without CSRF Protection',
+                description: 'Form with dynamic action URL may be vulnerable to CSRF attacks',
+                recommendation: 'Implement CSRF protection tokens or use standard Salesforce controllers',
+                ruleSource: 'securing-guidelines.md'
             }
         ],
         UI_SECURITY: [
@@ -139,20 +295,52 @@ export class SecurityAnalysisService {
                 ruleSource: 'UI_Security_considerations.md'
             },
             {
-                pattern: /System\.debug\s*\([^)]*(?:password|token|secret|key|credential|auth|api[_\s]?key)[^)]*\)/gi,
+                pattern: /System\.debug\s*\([^)]*(?:password|token|secret|key|credential|auth|api[_\s]?key|ssn|social.security|credit.card|financial)[^)]*\)/gi,
                 severity: 'HIGH' as const,
                 title: 'Sensitive Information in Debug',
                 description: 'Potential sensitive information exposure in debug statements',
-                recommendation: 'Never expose sensitive data in debug statements',
-                ruleSource: 'UI_Security_considerations.md'
+                recommendation: 'Never expose sensitive data in debug statements, use sanitized data for debugging',
+                ruleSource: 'information-leakage.md'
             },
             {
-                pattern: /(?:console\.log|alert)\s*\([^)]*(?:password|token|secret|key|credential)[^)]*\)/gi,
+                pattern: /(?:console\.log|alert)\s*\([^)]*(?:password|token|secret|key|credential|ssn|social.security|credit.card)[^)]*\)/gi,
                 severity: 'HIGH' as const,
                 title: 'Sensitive Information in JavaScript Debug',
                 description: 'Potential sensitive information exposure in JavaScript debug/alert statements',
                 recommendation: 'Never expose sensitive data in console.log or alert statements',
-                ruleSource: 'UI_Security_considerations.md'
+                ruleSource: 'information-leakage.md'
+            },
+            {
+                pattern: /(?:email|log|message)\s*[.=]\s*[^;]*(?:password|ssn|social.security|credit.card|account.number|routing.number)[^;]*/gi,
+                severity: 'HIGH' as const,
+                title: 'PII Data in Email or Log Messages',
+                description: 'Personally identifiable information detected in email or log messages',
+                recommendation: 'Remove or mask PII data before logging or sending emails',
+                ruleSource: 'information-leakage.md'
+            },
+            {
+                pattern: /SELECT\s+[^FROM]*(?:password|ssn|social_security_number|credit_card|account_number|financial)[^FROM]*FROM/gi,
+                severity: 'MEDIUM' as const,
+                title: 'Sensitive Field Selection in SOQL',
+                description: 'SOQL query selecting potentially sensitive fields',
+                recommendation: 'Ensure proper access controls and consider if sensitive fields are necessary for the operation',
+                ruleSource: 'information-leakage.md'
+            },
+            {
+                pattern: /\{!\$User\.(Email|Phone|Address|PersonalInfo)[^}]*\}(?!.*(?:mask|redact|sanitize))/gi,
+                severity: 'MEDIUM' as const,
+                title: 'User Personal Information Exposure',
+                description: 'User personal information displayed without masking or sanitization',
+                recommendation: 'Mask or sanitize personal information before display, especially in Experience Cloud sites',
+                ruleSource: 'enforce-object-field-permission.md'
+            },
+            {
+                pattern: /throw\s+new\s+\w*Exception\s*\([^)]*(?:SELECT|FROM|WHERE)[^)]*\)/gi,
+                severity: 'MEDIUM' as const,
+                title: 'Database Query Information in Exception',
+                description: 'Exception message contains database query information',
+                recommendation: 'Sanitize exception messages to avoid exposing database structure or sensitive data',
+                ruleSource: 'information-leakage.md'
             }
         ],
         GENERAL: [
@@ -193,7 +381,7 @@ export class SecurityAnalysisService {
             const fileExtension = path.extname(filePath).toLowerCase();
             
             // Only analyze relevant file types
-            if (!['.cls', '.trigger', '.js', '.ts', '.html', '.css'].includes(fileExtension)) {
+            if (!['.cls', '.trigger', '.js', '.ts', '.html', '.css', '.page', '.component'].includes(fileExtension)) {
                 return issues;
             }
 
@@ -204,11 +392,14 @@ export class SecurityAnalysisService {
             let relevantCategories: (keyof typeof this.securityRules)[] = [];
             
             if (['.cls', '.trigger'].includes(fileExtension)) {
-                relevantCategories = ['CRUD_FLS', 'DML_LOOPS', 'SOQL_INJECTION', 'SHARING', 'GENERAL'];
+                relevantCategories = ['CRUD_FLS', 'DML_LOOPS', 'SOQL_INJECTION', 'SHARING', 'TRANSACTION_LIMITS', 'UI_SECURITY', 'GENERAL'];
             } else if (['.js', '.ts'].includes(fileExtension)) {
-                relevantCategories = ['UI_SECURITY'];
+                relevantCategories = ['UI_SECURITY', 'XSS_CSRF'];
             } else if (['.html', '.css'].includes(fileExtension)) {
-                relevantCategories = ['UI_SECURITY'];
+                relevantCategories = ['UI_SECURITY', 'XSS_CSRF'];
+            } else if (fileExtension === '.page' || fileExtension === '.component') {
+                // Visualforce pages and components
+                relevantCategories = ['XSS_CSRF', 'UI_SECURITY'];
             }
 
             for (const category of relevantCategories) {
@@ -312,10 +503,11 @@ export class SecurityAnalysisService {
             
             const jsFiles = await vscode.workspace.findFiles('force-app/**/*.{js,ts}', excludePattern);
             const htmlFiles = await vscode.workspace.findFiles('force-app/**/*.{html,css}', excludePattern);
+            const visualforceFiles = await vscode.workspace.findFiles('force-app/**/*.{page,component}', excludePattern);
             
-            const allFiles = [...allApexFiles, ...jsFiles, ...htmlFiles];
+            const allFiles = [...allApexFiles, ...jsFiles, ...htmlFiles, ...visualforceFiles];
             
-            OrgUtils.logDebug(`[VisbalExt.SecurityAnalysis] Total files to scan: ${allFiles.length} (${allApexFiles.length} Apex, ${jsFiles.length} JS/TS, ${htmlFiles.length} HTML/CSS)`);
+            OrgUtils.logDebug(`[VisbalExt.SecurityAnalysis] Total files to scan: ${allFiles.length} (${allApexFiles.length} Apex, ${jsFiles.length} JS/TS, ${htmlFiles.length} HTML/CSS, ${visualforceFiles.length} Visualforce)`);
 
             for (const file of allFiles) {
                 const filePath = file.fsPath;
@@ -433,11 +625,16 @@ export class SecurityAnalysisService {
     private removeComments(content: string, fileExtension: string): string {
         if (['.cls', '.trigger', '.js', '.ts'].includes(fileExtension)) {
             return this.removeApexJavaScriptComments(content);
-        } else if (['.html'].includes(fileExtension)) {
-            // Remove HTML comments (<!-- ... -->) but preserve line breaks
-            return content.replace(/<!--[\s\S]*?-->/g, (match) => 
+        } else if (['.html', '.page', '.component'].includes(fileExtension)) {
+            // Remove HTML comments (<!-- ... -->) and potentially Apex/JavaScript comments in Visualforce
+            let processed = content.replace(/<!--[\s\S]*?-->/g, (match) => 
                 ' '.repeat(match.length - (match.match(/\n/g) || []).length) + '\n'.repeat((match.match(/\n/g) || []).length)
             );
+            // For Visualforce files, also remove JavaScript comments within <script> tags
+            if (['.page', '.component'].includes(fileExtension)) {
+                processed = this.removeApexJavaScriptComments(processed);
+            }
+            return processed;
         } else if (['.css'].includes(fileExtension)) {
             // Remove CSS comments (/* ... */) but preserve line breaks
             return content.replace(/\/\*[\s\S]*?\*\//g, (match) => 

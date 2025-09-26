@@ -2,10 +2,10 @@
 
 All notable changes to the "Visbal Extension" will be documented in this file.
 
-## [1.2.7] - 2025-09-24
+## [1.2.7] - 2025-09-26
 
 ### Added
-- Latest improvements and bug fixes
+- Latest Security Analysis
 
 ## [1.2.6] - 2025-09-24
 
