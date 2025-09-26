@@ -62,16 +62,22 @@ export class OrgListCacheService {
             const cache = this.readCache();
             
             if (!cache) {
+                OrgUtils.logDebug('[VisbalExt.OrgListCacheService] getCachedOrgList -- No cache found, will fetch fresh data');
                 return null;
             }
 
             // Check if cache is older than 1 hour
             const cacheAge = Date.now() - cache.timestamp;
-            if (cacheAge > (3600000 * 24)) { // 1 hour in milliseconds
-                OrgUtils.logDebug('[VisbalExt.OrgListCacheService] getCachedOrgList -- Cache is too old, returning null');
+            const cacheAgeMinutes = Math.floor(cacheAge / 60000);
+            OrgUtils.logDebug(`[VisbalExt.OrgListCacheService] getCachedOrgList -- Cache age: ${cacheAgeMinutes} minutes`);
+            
+            if (cacheAge > 3600000) { // 1 hour in milliseconds (3600 seconds * 1000 ms)
+                OrgUtils.logDebug('[VisbalExt.OrgListCacheService] getCachedOrgList -- Cache is too old (>60min), returning null to trigger fresh fetch');
                 return null;
             }
 
+            OrgUtils.logDebug('[VisbalExt.OrgListCacheService] getCachedOrgList -- Using valid cache data');
+            OrgUtils.logDebug(`[VisbalExt.OrgListCacheService] getCachedOrgList -- Cache contains: ${JSON.stringify(cache.orgs, null, 2)}`);
             return cache;
         } catch (error: any) {
             OrgUtils.logError('[VisbalExt.OrgListCacheService] getCachedOrgList -- Error getting cached org list:', error);

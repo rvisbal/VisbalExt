@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
 import { OrgListCacheService } from '../services/orgListCacheService';
 import { OrgUtils } from '../utils/orgUtils';
-import { OrgGroups, SalesforceOrg } from '../types/salesforceTypes';
+import { OrgGroups, SalesforceOrg, ViewId } from '../types/salesforceTypes';
 import { getOrgTabHtml } from './orgTabHtml';
 import { OrgTable } from '../components/OrgTable';
 import { statusBarService } from '../services/statusBarService';
@@ -72,7 +72,17 @@ export class OrgTabView implements vscode.WebviewViewProvider {
     this._isLoading = true;
     this._error = '';
     this._render();
+    
     try {
+      await OrgUtils.loadOrgListForView(
+        this._orgListCacheService,
+        this._context,
+        undefined, // No webview for orgTab
+        '[VisbalExt.OrgTabView]',
+        ViewId.ORG_TAB
+      );
+      
+      // Get the updated cache after load
       const cache = await this._orgListCacheService.getCachedOrgList();
       this._orgs = this._flattenOrgGroups(cache?.orgs);
       this._isLoading = false;

@@ -491,7 +491,6 @@ export function getHtmlForWebview(): string {
                     
                     if (selectedOrg) {
                         startLoading('Setting selected organization...');
-                        OrgUtils.logDebug('[VisbalExt.htmlTemplate] handleOrgSelection -- Org selected -- Details:', selectedOrg);
                         // Store the selection
                         orgDropdown.setAttribute('data-last-selection', selectedOrg);
                         vscode.postMessage({
@@ -763,8 +762,6 @@ export function getHtmlForWebview(): string {
 
                 function updateOrgListUI(orgs, fromCache = false, selectedOrg = null) {
                    // _updateOrgListUI(orgDropdown, orgs, fromCache , selectedOrg);
-                    OrgUtils.logDebug('[VisbalExt.soqPanel] updateOrgListUI Updating org list UI with data:', orgs);
-                    OrgUtils.logDebug('[VisbalExt.soqPanel] updateOrgListUI Selected org:', selectedOrg);
                     
                     // Clear existing options
                     orgDropdown.innerHTML = '';
@@ -827,7 +824,6 @@ export function getHtmlForWebview(): string {
                     } else if (!selectedOrg && defaultOrg) {
                         // Auto-select the default org if no org is currently selected
                         orgDropdown.value = defaultOrg;
-                        OrgUtils.logDebug('[VisbalExt.SoqlTab] Auto-selected default org:', defaultOrg);
                         
                         // Notify the backend about the auto-selection
                         setTimeout(() => {
@@ -867,7 +863,6 @@ export function getHtmlForWebview(): string {
                     }
                     
                     if (selectedOrg) {
-                        OrgUtils.logDebug('[VisbalExt.htmlTemplate] handleOrgSelection -- Org selected -- Details:', selectedOrg);
                         // Store the selection
                         orgDropdown.setAttribute('data-last-selection', selectedOrg);
                         vscode.postMessage({

@@ -70,10 +70,22 @@ export class AuraEnabledService {
             this.ensureCacheDirectory();
             const cacheFilePath = this.getCacheFilePath();
             
-            // Convert Map to plain object for JSON serialization
-            const resultsObject: Record<string, SymbolReference[]> = {};
+            // Convert Map to plain object for JSON serialization, handling URIs properly
+            const resultsObject: Record<string, any[]> = {};
             for (const [className, methods] of resultsByClass) {
-                resultsObject[className] = methods;
+                resultsObject[className] = methods.map(method => ({
+                    ...method,
+                    // Convert URIs in references to string paths for serialization
+                    references: method.references.map(ref => ({
+                        ...ref,
+                        filePath: ref.filePath.fsPath // Store as string path
+                    })),
+                    // Handle methodDefinition if it exists
+                    methodDefinition: (method as any).methodDefinition ? {
+                        ...(method as any).methodDefinition,
+                        filePath: (method as any).methodDefinition.filePath.fsPath
+                    } : undefined
+                }));
             }
             
             const cache: AuraEnabledCache = {
@@ -110,10 +122,25 @@ export class AuraEnabledService {
                 return null;
             }
             
-            // Convert plain object back to Map
+            // Convert plain object back to Map, reconstructing URIs properly
             const resultsByClass = new Map<string, SymbolReference[]>();
             for (const [className, methods] of Object.entries(cache.resultsByClass)) {
-                resultsByClass.set(className, methods);
+                const reconstructedMethods = methods.map((method: any) => ({
+                    ...method,
+                    // Convert string paths back to vscode.Uri objects
+                    references: method.references.map((ref: any) => ({
+                        ...ref,
+                        filePath: vscode.Uri.file(ref.filePath), // Convert back to URI
+                        position: new vscode.Position(ref.position.line, ref.position.character) // Ensure position is a proper Position object
+                    })),
+                    // Handle methodDefinition if it exists
+                    methodDefinition: method.methodDefinition ? {
+                        ...method.methodDefinition,
+                        filePath: vscode.Uri.file(method.methodDefinition.filePath),
+                        position: new vscode.Position(method.methodDefinition.position.line, method.methodDefinition.position.character)
+                    } : undefined
+                }));
+                resultsByClass.set(className, reconstructedMethods);
             }
             
             OrgUtils.logDebug(`[VisbalExt.AuraEnabledService] Loaded cache from: ${cacheFilePath} (${resultsByClass.size} classes)`);

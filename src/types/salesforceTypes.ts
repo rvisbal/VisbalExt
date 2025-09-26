@@ -6,7 +6,8 @@ export enum ViewId {
     EXECUTE_APEX = 'executeApex',
     TEST_EXPLORER = 'testExplorer',
     SOQL = 'soql',
-    TRACTION = 'traction'
+    TRACTION = 'traction',
+    ORG_TAB = 'orgTab'
 }
 
 /**

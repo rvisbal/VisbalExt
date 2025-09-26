@@ -1532,8 +1532,6 @@ export function getTractionHtml(): string {
             
             // Update org list UI with the same logic as other tabs
             function updateOrgListUI(orgs, fromCache = false, backendSelectedOrg = null) {
-                OrgUtils.logDebug('[VisbalExt.TractionTab] updateOrgListUI -- Updating org list UI with data:', orgs);
-                OrgUtils.logDebug('[VisbalExt.TractionTab] updateOrgListUI -- Backend selected org:', backendSelectedOrg);
                 
                 // Clear existing options
                 orgSelector.innerHTML = '';
@@ -1601,13 +1599,11 @@ export function getTractionHtml(): string {
                         // Use the backend-provided selected org
                         orgSelector.value = backendSelectedOrg;
                         selectedOrg = backendSelectedOrg; // Update global selectedOrg variable
-                        OrgUtils.logDebug('[VisbalExt.TractionTab] Set selected org from backend:', backendSelectedOrg);
                         updateStatus('Selected org: ' + backendSelectedOrg, 'success');
                     } else if (!selectedOrg && defaultOrg) {
                         // Auto-select the default org if no org is currently selected
                         orgSelector.value = defaultOrg;
                         selectedOrg = defaultOrg; // Update global selectedOrg variable
-                        OrgUtils.logDebug('[VisbalExt.TractionTab] Auto-selected default org:', defaultOrg);
                         
                         // Notify the backend about the auto-selection
                         setTimeout(() => {

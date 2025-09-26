@@ -4744,7 +4744,6 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                         } else if (!selectedOrg && defaultOrg) {
                             // Auto-select the default org if no org is currently selected
                             orgDropdown.value = defaultOrg;
-                            OrgUtils.logDebug('[VisbalExt.TestClassExplorerSidePanel] Auto-selected default org:', defaultOrg);
                             
                             // Notify the backend about the auto-selection
                             setTimeout(() => {
@@ -4791,7 +4790,6 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                         
                         if (selectedOrg) {
                             showLoading('Setting selected organization...');
-                            OrgUtils.logDebug('[VisbalExt.TestClassExplorerSidePanel] handleOrgSelection -- Org selected -- Details:', selectedOrg);
                             // Store the selection
                             orgDropdown.setAttribute('data-last-selection', selectedOrg);
                             

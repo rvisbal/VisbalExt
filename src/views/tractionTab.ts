@@ -34,6 +34,7 @@ export class TractionTab implements vscode.WebviewViewProvider {
         context: vscode.WebviewViewResolveContext,
         _token: vscode.CancellationToken
     ): void {
+        OrgUtils.logDebug('[VisbalExt.TractionTab] resolveWebviewView -- BEGIN: Resolving webview view');
         this._view = webviewView;
         webviewView.webview.options = {
             enableScripts: true,
@@ -41,6 +42,7 @@ export class TractionTab implements vscode.WebviewViewProvider {
         };
 
         webviewView.webview.html = getTractionHtml();
+        OrgUtils.logDebug('[VisbalExt.TractionTab] resolveWebviewView -- Webview HTML set, now loading org list');
 
         webviewView.webview.onDidReceiveMessage(async (message) => {
             OrgUtils.logDebug(`[VisbalExt.TractionTab] resolveWebviewView -- Received message: ${message.command}`, message);
@@ -85,36 +87,38 @@ export class TractionTab implements vscode.WebviewViewProvider {
         });
 
         // Initial load
+        OrgUtils.logDebug('[VisbalExt.TractionTab] resolveWebviewView -- Starting initial org list load');
         this._loadOrgList();
+        OrgUtils.logDebug('[VisbalExt.TractionTab] resolveWebviewView -- COMPLETE: Webview resolved, org list loading initiated');
     }
 
     private async _loadOrgList() {
+        OrgUtils.logDebug('[VisbalExt.TractionTab] _loadOrgList -- BEGIN: Starting org list load');
         this._isLoading = true;
         this._error = '';
         
         try {
+            OrgUtils.logDebug('[VisbalExt.TractionTab] _loadOrgList -- Calling loadOrgListForView utility');
+            // Use the standardized utility for loading org list
+            await OrgUtils.loadOrgListForView(
+                this._orgListCacheService,
+                this._context,
+                this._view?.webview,
+                '[VisbalExt.TractionTab]',
+                ViewId.TRACTION
+            );
+            
+            OrgUtils.logDebug('[VisbalExt.TractionTab] _loadOrgList -- loadOrgListForView completed, getting cache for local processing');
+            // Get the updated cache after load for local processing
             const cache = await this._orgListCacheService.getCachedOrgList();
-            const orgGroups = cache?.orgs;
-            this._orgs = this._flattenOrgGroups(orgGroups);
+            this._orgs = this._flattenOrgGroups(cache?.orgs);
             this._isLoading = false;
             
-            // Get the view-specific selected org
-            const viewSpecificOrg = await OrgUtils.getSelectedOrgForView(ViewId.TRACTION);
-            const selectedOrgAlias = viewSpecificOrg?.alias || this._selectedOrg;
-            
-            // Send the org groups in the same format as other tabs
-            this._view?.webview.postMessage({
-                command: 'updateOrgList',
-                orgs: orgGroups,
-                fromCache: true,
-                selectedOrg: selectedOrgAlias
-            });
-            
-            OrgUtils.logDebug(`[VisbalExt.TractionTab] _loadOrgList -- Loaded ${this._orgs.length} orgs, selected: ${selectedOrgAlias}`);
+            OrgUtils.logDebug(`[VisbalExt.TractionTab] _loadOrgList -- COMPLETE: Loaded ${this._orgs.length} orgs using standard utility`);
         } catch (error: any) {
             this._isLoading = false;
             this._error = error?.message || 'Failed to load orgs.';
-            OrgUtils.logError(`[VisbalExt.TractionTab] _loadOrgList -- Error loading orgs`, error as Error);
+            OrgUtils.logError(`[VisbalExt.TractionTab] _loadOrgList -- ERROR: Error loading orgs`, error as Error);
             
             this._updateStatus(this._error, 'error');
         }

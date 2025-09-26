@@ -626,6 +626,26 @@ export class ReferencesTreeProvider implements vscode.TreeDataProvider<Reference
     }
 
     /**
+     * Gets the parent of a tree item (required for reveal functionality)
+     */
+    getParent(element: ReferenceTreeItem): ReferenceTreeItem | null {
+        // Search through root items and their children to find the parent
+        for (const rootItem of this.rootItems) {
+            if (rootItem.children.includes(element)) {
+                return rootItem;
+            }
+            
+            // Search in nested children
+            for (const child of rootItem.children) {
+                if (child.children.includes(element)) {
+                    return child;
+                }
+            }
+        }
+        return null;
+    }
+
+    /**
      * Formats the reference label for better visual presentation
      */
     private formatReferenceLabel(lineText: string, lineNumber: number): string {
@@ -831,20 +851,48 @@ export class ReferencesView {
             this.statusBarItem.text = "$(loading~spin) Opening reference...";
             this.statusBarItem.show();
 
+            // Validate that the file path is a proper URI
+            if (!filePath || !filePath.fsPath) {
+                throw new Error('Invalid file path provided');
+            }
+
             // Use showTextDocument directly with URI and selection to avoid workspace operations
             const editor = await vscode.window.showTextDocument(filePath, {
                 selection: new vscode.Range(position, position),
                 viewColumn: vscode.ViewColumn.One
             });
             
-            // Enhanced cursor positioning with word selection
-            const wordRange = editor.document.getWordRangeAtPosition(position);
+            // Validate position against document bounds
+            const document = editor.document;
+            const lineCount = document.lineCount;
+            const validatedPosition = new vscode.Position(
+                Math.min(position.line, lineCount - 1),
+                position.character >= 0 ? position.character : 0
+            );
+            
+            // Get the line to validate character position
+            const line = document.lineAt(validatedPosition.line);
+            const finalPosition = new vscode.Position(
+                validatedPosition.line,
+                Math.min(validatedPosition.character, line.text.length)
+            );
+            
+            // Enhanced cursor positioning with word selection - with proper error handling
+            let wordRange: vscode.Range | undefined;
+            try {
+                wordRange = document.getWordRangeAtPosition(finalPosition);
+            } catch (error) {
+                // If getWordRangeAtPosition fails, we'll proceed without word selection
+                console.warn('[VisbalExt.ReferencesView] Could not get word range at position:', error);
+                wordRange = undefined;
+            }
+            
             if (wordRange) {
                 editor.selection = new vscode.Selection(wordRange.start, wordRange.end);
                 editor.revealRange(wordRange, vscode.TextEditorRevealType.InCenterIfOutsideViewport);
             } else {
-                editor.selection = new vscode.Selection(position, position);
-                editor.revealRange(new vscode.Range(position, position), vscode.TextEditorRevealType.InCenterIfOutsideViewport);
+                editor.selection = new vscode.Selection(finalPosition, finalPosition);
+                editor.revealRange(new vscode.Range(finalPosition, finalPosition), vscode.TextEditorRevealType.InCenterIfOutsideViewport);
             }
 
             // Brief highlight effect (if supported by the theme)
@@ -870,7 +918,7 @@ export class ReferencesView {
 
         } catch (error: any) {
             this.statusBarItem.hide();
-            console.error('[VisbalExt.ReferencesView] goToReference -- Error:', error);
+            OrgUtils.logDebug('[VisbalExt.ReferencesView] goToReference -- Error:', error);
             vscode.window.showErrorMessage(`Could not navigate to reference: ${error.message}`);
         }
     }

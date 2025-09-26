@@ -87,7 +87,7 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
         if (!this._hasIntitialized) {
             this._hasIntitialized = true;
             this._checkDownloadedLogs();
-            OrgUtils.logDebug('[VisbalExt.apexLogTab.VisbalLogView] init -- _refreshOrgList');
+            OrgUtils.logDebug('[VisbalExt.apexLogTab.VisbalLogView] init -- _loadOrgList');
             this._metadataService = new MetadataService(this._sfdxService);
             this._loadOrgList();
         }
@@ -114,6 +114,10 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
         // Set the HTML content
         webviewView.webview.html = this._getWebviewContent();
         OrgUtils.logDebug('[VisbalExt.apexLogTab.VisbalLogView] resolveWebviewView -- Webview HTML content set');
+        
+        // Initialize the view (load org list, etc.)
+        OrgUtils.logDebug('[VisbalExt.apexLogTab.VisbalLogView] resolveWebviewView -- Calling init() to load org list');
+        this.init();
 
         // Handle messages from the webview
         webviewView.webview.onDidReceiveMessage(async (message) => {
@@ -128,7 +132,9 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
                     await this._refreshOrgList();
                     break;
                 case 'loadOrgList':
+                    OrgUtils.logDebug('[VisbalExt.apexLogTab.VisbalLogView] onDidReceiveMessage -- Received loadOrgList command');
                     await this._loadOrgList();
+                    OrgUtils.logDebug('[VisbalExt.apexLogTab.VisbalLogView] onDidReceiveMessage -- loadOrgList completed');
                     break;
                 case 'setDefaultOrg':
                     await this._setDefaultOrg(message.orgUsername);
@@ -208,6 +214,9 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
                 case 'deployOrg':
                     OrgUtils.logDebug('[VisbalExt.apexLogTab.VisbalLogView] resolveWebviewView -- Deploy Org command received');
                     await this._deployOrg();
+                    break;
+                case 'debugLog':
+                    OrgUtils.logDebug(message.message);
                     break;
                 case 'runGulp': 
                     OrgUtils.logDebug('[VisbalExt.apexLogTab.VisbalLogView] resolveWebviewView -- Running gulp');

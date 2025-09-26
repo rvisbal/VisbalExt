@@ -499,7 +499,6 @@ return `<!DOCTYPE html>
                 }
                 
                 if (selectedOrg) {
-                    OrgUtils.logDebug('[VisbalExt.htmlTemplate] handleOrgSelection -- Org selected -- Details:', selectedOrg);
                     // Store the selection
                     orgDropdown.setAttribute('data-last-selection', selectedOrg);
                     vscode.postMessage({
@@ -562,6 +561,10 @@ return `<!DOCTYPE html>
             // Initialize
             updateCharCount();
             updateLineNumbers();
+            
+            // Request initial org list
+            console.log('[VisbalExt.ExecuteApexTab] Initializing - requesting org list');
+            vscode.postMessage({ command: 'loadOrgList' });
             
             // Handle textarea input
             textarea.addEventListener('input', (e) => {
@@ -650,7 +653,10 @@ return `<!DOCTYPE html>
                         break;
                     case 'updateOrgList':
                         updateOrgListUI(message.orgs || {}, message.fromCache, message.selectedOrg);
-
+                        break;
+                    case 'updateStatus':
+                        console.log('[VisbalExt.ExecuteApexTab] Status update:', message.message, message.type);
+                        // Show status message to user - you could display this in the UI if needed
                         break;
                     case 'refreshComplete':
                         stopLoading();
@@ -803,7 +809,6 @@ return `<!DOCTYPE html>
                 } else if (!selectedOrg && defaultOrg) {
                     // Auto-select the default org if no org is currently selected
                     orgDropdown.value = defaultOrg;
-                    OrgUtils.logDebug('[VisbalExt.ExecuteApexTab] Auto-selected default org:', defaultOrg);
                     
                     // Notify the backend about the auto-selection
                     setTimeout(() => {
@@ -843,7 +848,6 @@ return `<!DOCTYPE html>
                 
                 if (selectedOrg) {
                     startLoading('Setting selected org...');
-                    OrgUtils.logDebug('[VisbalExt.htmlTemplate] handleOrgSelection -- Org selected -- Details:', selectedOrg);
                     // Store the selection
                     orgDropdown.setAttribute('data-last-selection', selectedOrg);
                     vscode.postMessage({

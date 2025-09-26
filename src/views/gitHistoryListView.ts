@@ -297,7 +297,6 @@ export class GitHistoryListView {
                     vscode.window.showErrorMessage('Could not determine repository URL.');
                 }
             } catch (error: any) {
-                OrgUtils.logError('[VisbalExt.GitHistoryListView] _openCommitInBrowser -- Error:', error);
                 vscode.window.showErrorMessage('Failed to open commit in browser.');
             }
         }

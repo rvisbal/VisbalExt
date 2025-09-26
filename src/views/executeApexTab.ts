@@ -20,13 +20,14 @@ export class ExecuteApexTab implements vscode.WebviewViewProvider {
     private _apexFiles: string[] = [];
 
     constructor(private readonly _context: vscode.ExtensionContext) {
-        OrgUtils.logDebug('[VisbalExt.ExecuteApexTab] Initializing ExecuteApexTab');
+        OrgUtils.logDebug('[VisbalExt.ExecuteApexTab] constructor -- Initializing ExecuteApexTab');
         this._sfdxService = new SfdxService();
         this._metadataService = new MetadataService(this._sfdxService);
         
         const cachePath = OrgUtils.getCachePath();
         this._orgListCacheService = new OrgListCacheService(cachePath);
         this._loadApexFiles();
+        OrgUtils.logDebug('[VisbalExt.ExecuteApexTab] constructor -- ExecuteApexTab initialization complete');
     }
 
     private async _loadApexFiles() {
@@ -129,15 +130,17 @@ export class ExecuteApexTab implements vscode.WebviewViewProvider {
         context: vscode.WebviewViewResolveContext,
         token: vscode.CancellationToken
     ): void | Thenable<void> {
-        OrgUtils.logDebug('[VisbalExt.ExecuteApexTab] resolveWebviewView -- Resolving webview view');
+        OrgUtils.logDebug('[VisbalExt.ExecuteApexTab] resolveWebviewView -- BEGIN: Resolving webview view');
         this._view = webviewView;
         webviewView.webview.options = {
             enableScripts: true,
             localResourceRoots: []
         };
         webviewView.webview.html = getHtmlForWebview();
+        OrgUtils.logDebug('[VisbalExt.ExecuteApexTab] resolveWebviewView -- Webview HTML set, now loading org list');
         this._loadOrgList();
         this._loadApexFiles();
+        OrgUtils.logDebug('[VisbalExt.ExecuteApexTab] resolveWebviewView -- COMPLETE: Webview resolved, org list and files loaded');
         webviewView.webview.onDidReceiveMessage(async (message) => {
             OrgUtils.logDebug(`[VisbalExt.ExecuteApexTab] resolveWebviewView -- Received message: ${message.command}`);
             switch (message.command) {

@@ -1501,10 +1501,14 @@ export class OrgUtils {
         viewId?: ViewId
     ): Promise<void> {
         try {
-            OrgUtils.logDebug(`${loggerPrefix} loadOrgListForView -- Loading org list`);
+            OrgUtils.logDebug(`${loggerPrefix} loadOrgListForView -- Loading org list ${webview}`);
             
-            // Show progress in status bar
+            // Show progress in status bar and webview
             statusBarService.showProgress('Loading Salesforce organizations...');
+            webview?.postMessage({
+                command: 'startLoading',
+                message: 'Loading organizations...'
+            });
             
             // Try to get from cache first
             const cachedData = await orgListCacheService.getCachedOrgList();
@@ -1513,42 +1517,82 @@ export class OrgUtils {
             if (cachedData) {
                 OrgUtils.logDebug(`${loggerPrefix} loadOrgListForView -- Using cached org list`);
                 orgs = cachedData.orgs;
+                OrgUtils.logDebug(`${loggerPrefix} loadOrgListForView -- Cached orgs assigned, starting status update`);
                 statusBarService.showSuccess('Organization list loaded from cache');
+                OrgUtils.logDebug(`${loggerPrefix} loadOrgListForView -- Status bar updated, sending updateStatus to webview`);
+                webview?.postMessage({
+                    command: 'updateStatus',
+                    message: 'Loaded from cache',
+                    type: 'success'
+                });
+                OrgUtils.logDebug(`${loggerPrefix} loadOrgListForView -- updateStatus message sent, proceeding to org selection logic`);
             } else {
-                OrgUtils.logDebug(`${loggerPrefix} loadOrgListForView -- Fetching fresh org list`);
+                OrgUtils.logDebug(`${loggerPrefix} loadOrgListForView -- No valid cache found, fetching fresh org list from Salesforce CLI`);
+                statusBarService.showProgress('Fetching fresh organization list from Salesforce...');
+                webview?.postMessage({
+                    command: 'updateStatus',
+                    message: 'No cache found. Fetching fresh data from Salesforce...',
+                    type: 'info'
+                });
+                
                 orgs = await OrgUtils.listOrgs();
-                // Save to cache
-                OrgUtils.logDebug(`${loggerPrefix} loadOrgListForView -- Saving org list to cache`, orgs);
-                await orgListCacheService.saveOrgList(orgs);
-                statusBarService.showSuccess('Organization list loaded successfully');
+                const totalOrgs = Object.values(orgs).flat().length;
+                OrgUtils.logDebug(`${loggerPrefix} loadOrgListForView -- Successfully fetched ${totalOrgs} orgs, saving to cache`);
+                
+                if (totalOrgs === 0) {
+                    OrgUtils.logDebug(`${loggerPrefix} loadOrgListForView -- WARNING: No orgs found even after fresh fetch from CLI`);
+                    statusBarService.showError('No Salesforce organizations found. Please ensure you have authenticated orgs.');
+                    webview?.postMessage({
+                        command: 'updateStatus',
+                        message: 'No organizations found. Please authenticate with Salesforce CLI.',
+                        type: 'error'
+                    });
+                } else {
+                    // Save to cache
+                    await orgListCacheService.saveOrgList(orgs);
+                    statusBarService.showSuccess(`Organization list fetched and cached successfully (${totalOrgs} orgs)`);
+                    webview?.postMessage({
+                        command: 'updateStatus',
+                        message: `Fresh data loaded and cached (${totalOrgs} orgs)`,
+                        type: 'success'
+                    });
+                }
             }
 
+            OrgUtils.logDebug(`${loggerPrefix} loadOrgListForView -- Starting org selection logic, viewId: ${viewId}`);
             let alias = null;
             // Get the selected org (view-specific if viewId provided, otherwise global)
             let selectedOrg = null;
             if (viewId) {
+                OrgUtils.logDebug(`${loggerPrefix} loadOrgListForView -- Getting view-specific org for ${viewId}`);
                 const viewSpecificOrg = await OrgUtils.getSelectedOrgForView(viewId);
                 selectedOrg = viewSpecificOrg;
                 OrgUtils.logDebug(`${loggerPrefix} loadOrgListForView -- View-specific selected org for ${viewId}:`, selectedOrg);
                 alias = selectedOrg?.alias;
 
                 if (selectedOrg == null) {
+                    OrgUtils.logDebug(`${loggerPrefix} loadOrgListForView -- No view-specific org, getting default from config`);
                     //get the alis set as a default project
                     alias = await OrgUtils.getDefaultTargetOrgFromConfig();
+                    OrgUtils.logDebug(`${loggerPrefix} loadOrgListForView -- Default config org: ${alias}`);
                 }
             } else {
+                OrgUtils.logDebug(`${loggerPrefix} loadOrgListForView -- Getting global selected org`);
                 selectedOrg = await OrgUtils.getSelectedOrg();
                 OrgUtils.logDebug(`${loggerPrefix} loadOrgListForView -- Global selected org:`, selectedOrg);
                 alias = selectedOrg?.alias;
             }
+            OrgUtils.logDebug(`${loggerPrefix} loadOrgListForView -- Final alias selected: ${alias}`);
 
             // Send the categorized orgs to the webview
+            OrgUtils.logDebug(`${loggerPrefix} loadOrgListForView -- Sending updateOrgList to webview with ${Object.values(orgs).flat().length} orgs, selectedOrg: ${alias}`);
             webview?.postMessage({
                 command: 'updateOrgList',
                 orgs: orgs,
                 fromCache: !!cachedData,
                 selectedOrg: alias
             });
+            OrgUtils.logDebug(`${loggerPrefix} loadOrgListForView -- updateOrgList message sent to webview`);
         } catch (error: any) {
             OrgUtils.logError(`${loggerPrefix} loadOrgListForView -- Error loading org list:`, error);
             statusBarService.showError(`Error loading organization list: ${error.message}`);
