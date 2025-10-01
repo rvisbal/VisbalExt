@@ -107,7 +107,7 @@ export async function activate(context: vscode.ExtensionContext) {
   const sfdxService = new SfdxService();
   const cachePath = OrgUtils.getCachePath();
   const orgListCacheService = new OrgListCacheService(cachePath);
-  OrgUtils.initialize([], context, sfdxService, orgListCacheService);
+  OrgUtils.initialize([], context, sfdxService, orgListCacheService, outputChannel);
 
   OrgUtils.logDebug('[VisbalExt.Extension] activate -- Activating extension');
 
@@ -116,10 +116,9 @@ export async function activate(context: vscode.ExtensionContext) {
     const alias = await OrgUtils.getCurrentOrgAlias();
     const userId = await OrgUtils.getCurrentUserId(alias);
     OrgUtils.logDebug(`[VisbalExt.Extension] activate -- Org found - alias: ${alias}, userId: ${userId}`);
-    outputChannel.appendLine(`[VisbalExt.Extension] activate -- Connected to org: ${alias}`);
+
   } catch (error: any) {
-    OrgUtils.logDebug('[VisbalExt.Extension] activate -- No default org set or connection failed');
-    outputChannel.appendLine('[VisbalExt.Extension] activate -- No default org configured - some features may be limited');
+    OrgUtils.logDebug('[VisbalExt.Extension] activate -- No default org configured - some features may be limited');
     statusBarService.showMessage('No Salesforce org configured', 'warning');
   }
   
@@ -141,7 +140,7 @@ export async function activate(context: vscode.ExtensionContext) {
 
   // Initialize debug console view
   OrgUtils.logDebug('[VisbalExt.Extension] activate -- Initializing DebugConsoleView: Initialize debug console view');
-  outputChannel.appendLine('[VisbalExt.Extension] activate -- Initializing DebugConsoleView');
+  
   const debugConsoleView = new DebugConsoleView(context.extensionUri);
 
   // Register the clear console command
@@ -174,12 +173,10 @@ export async function activate(context: vscode.ExtensionContext) {
   if (isModuleEnabled('testExplorer')) {
     // Initialize test run results view first
     OrgUtils.logDebug('[VisbalExt.Extension] activate -- Initializing TestRunningTaskView: Initialize test run results view first');
-    outputChannel.appendLine('[VisbalExt.Extension] activate -- Initializing TestRunningTaskView');
     testRunningTaskView = new TestRunningTaskView(context);
 
     // Initialize test results view
     OrgUtils.logDebug('[VisbalExt.Extension] activate -- Initializing TestSummaryView: Initialize test results view');
-    outputChannel.appendLine('[VisbalExt.Extension] activate -- Initializing TestSummaryView');
     const testSummaryView = new TestSummaryView(context.extensionUri);
 
     // Set reference to TestSummaryView in TestRunningTaskView for detailed error access
@@ -187,7 +184,6 @@ export async function activate(context: vscode.ExtensionContext) {
 
     // Initialize test class explorer view with test results view
     OrgUtils.logDebug('[VisbalExt.Extension] activate -- Initializing TestClassExplorerView: Initialize test class explorer view with test results view');
-    outputChannel.appendLine('[VisbalExt.Extension] activate -- Initializing TestClassExplorerView');
     const testClassExplorerView = new TestClassExplorerView(
         context.extensionUri,
         statusBarService,
@@ -572,13 +568,13 @@ export async function activate(context: vscode.ExtensionContext) {
   }
 
   // Initialize References View (using simple logging to avoid external processes)
-  outputChannel.appendLine('[VisbalExt.Extension] activate -- Initializing ReferencesView');
+  OrgUtils.logDebug('[VisbalExt.Extension] activate -- Initializing ReferencesView');
   referencesView = new ReferencesView(context);
 
   // Register @AuraEnabled report command
   const auraEnabledReportCommand = vscode.commands.registerCommand('visbal-ext.reportAuraEnabled', async (source?: string) => {
     try {
-      outputChannel.appendLine(`[VisbalExt.Extension] reportAuraEnabled -- Starting @AuraEnabled report generation (source: ${source || 'unknown'})`);
+      OrgUtils.logDebug(`[VisbalExt.Extension] reportAuraEnabled -- Starting @AuraEnabled report generation (source: ${source || 'unknown'})`);
       
       // Helper function to send progress updates to Traction tab
       const sendProgressToTraction = (title: string, description: string, percentage?: number) => {
@@ -593,7 +589,7 @@ export async function activate(context: vscode.ExtensionContext) {
       
       // When called from traction tab, always force fresh scan and clear any existing cache
       if (source === 'traction') {
-        outputChannel.appendLine('[VisbalExt.Extension] reportAuraEnabled -- Traction tab request: forcing fresh scan and clearing cache');
+        OrgUtils.logDebug('[VisbalExt.Extension] reportAuraEnabled -- Traction tab request: forcing fresh scan and clearing cache');
         const { AuraEnabledService } = await import('./services/auraEnabledService');
         // Clear any existing cache to ensure completely fresh results
         AuraEnabledService.clearCache();
@@ -608,7 +604,7 @@ export async function activate(context: vscode.ExtensionContext) {
         const cacheInfo = AuraEnabledService.getCacheInfo();
         
         if (cacheInfo.exists) {
-          outputChannel.appendLine('[VisbalExt.Extension] reportAuraEnabled -- Using cached results');
+          OrgUtils.logDebug('[VisbalExt.Extension] reportAuraEnabled -- Using cached results');
           
           const resultsByClass = AuraEnabledService.loadFromCache();
           
@@ -643,9 +639,9 @@ export async function activate(context: vscode.ExtensionContext) {
           }
         }
         
-        outputChannel.appendLine('[VisbalExt.Extension] reportAuraEnabled -- No cache found or cache empty, proceeding with fresh scan');
+        OrgUtils.logDebug('[VisbalExt.Extension] reportAuraEnabled -- No cache found or cache empty, proceeding with fresh scan');
       } else {
-        outputChannel.appendLine('[VisbalExt.Extension] reportAuraEnabled -- Source is traction tab, forcing fresh scan and cache update');
+        OrgUtils.logDebug('[VisbalExt.Extension] reportAuraEnabled -- Source is traction tab, forcing fresh scan and cache update');
       }
       
       vscode.window.withProgress({
@@ -762,12 +758,12 @@ export async function activate(context: vscode.ExtensionContext) {
           }
         } catch (error: any) {
           sendProgressToTraction('Error', `Failed to generate @AuraEnabled report: ${error.message}`, 0);
-          outputChannel.appendLine(`[VisbalExt.Extension] reportAuraEnabled -- Error: ${error.message}`);
+          OrgUtils.logDebug(`[VisbalExt.Extension] reportAuraEnabled -- Error: ${error.message}`);
           vscode.window.showErrorMessage(`Failed to generate @AuraEnabled report: ${error.message}`);
         }
       });
     } catch (error: any) {
-      outputChannel.appendLine(`[VisbalExt.Extension] reportAuraEnabled -- Error: ${error.message}`);
+      OrgUtils.logDebug(`[VisbalExt.Extension] reportAuraEnabled -- Error: ${error.message}`);
       vscode.window.showErrorMessage(`Failed to generate @AuraEnabled report: ${error.message}`);
     }
   });
@@ -1118,19 +1114,18 @@ export async function activate(context: vscode.ExtensionContext) {
   // Update debug event handlers
   vscode.debug.onDidStartDebugSession(() => {
     OrgUtils.logDebug('[VisbalExt.Extension] onDebugSessionStarted -- Debug session started');
-    outputChannel.appendLine('[Debug] Debug session started');
     debugConsoleView.clear();
     debugConsoleView.addOutput('Debug session started', 'info');
     testRunningTaskView?.clear();
   });
 
   vscode.debug.onDidTerminateDebugSession(() => {
-    outputChannel.appendLine('[Debug] Debug session ended');
+    OrgUtils.logDebug('[Debug] Debug session ended');
     debugConsoleView.addOutput('Debug session ended', 'info');
   });
 
   vscode.debug.onDidReceiveDebugSessionCustomEvent(event => {
-    outputChannel.appendLine(`[Debug] ${event.event}: ${JSON.stringify(event.body)}`);
+    OrgUtils.logDebug(`[Debug] ${event.event}: ${JSON.stringify(event.body)}`);
     debugConsoleView.addOutput(`${event.event}: ${JSON.stringify(event.body)}`, 'info');
   });
 
@@ -1515,7 +1510,7 @@ context.subscriptions.push(
     })
   );
 
-  outputChannel.appendLine('[VisbalExt.Extension] Visbal Extension activated successfully');
+  OrgUtils.logDebug('[VisbalExt.Extension] Visbal Extension activated successfully');
   
   // Only show output channel if configured to do so
   const showOutputOnActivation = vscode.workspace.getConfiguration('visbal').get('output.showOnActivation', false);
@@ -1526,7 +1521,7 @@ context.subscriptions.push(
 
 // This method is called when your extension is deactivated
 export function deactivate() {
-  outputChannel.appendLine('[VisbalExt.Extension] deactivate Deactivating Visbal Extension...');
+  OrgUtils.logDebug('[VisbalExt.Extension] deactivate Deactivating Visbal Extension...');
   statusBarService.dispose();
   if (outputChannel) {
     outputChannel.dispose();

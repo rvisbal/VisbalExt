@@ -57,7 +57,7 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
         this._cacheService = new CacheService(cachePath, this._sfdxService, this._orgListCacheService);
         this._logViewerService = new LogViewerService(_context);
         
-        // Initialize OrgUtils with context and logs
+        // Initialize OrgUtils with context and logs (will reuse existing output channel)
         OrgUtils.initialize(this._logs, _context, this._sfdxService, this._orgListCacheService);
         
         // Initialize from cache

@@ -80,6 +80,7 @@ export class OrgUtils {
     private static _cacheService: CacheService;
     private static _userIdCacheService: UserIdCacheService | null = null;
     private static _orgListCacheService: OrgListCacheService;
+    private static _outputChannel: vscode.OutputChannel;
     
     // Cache Management
     private static _orgAliasCache: { alias: string; timestamp: number } | null = null;
@@ -100,12 +101,19 @@ export class OrgUtils {
      * @param context VSCode extension context
      * @param sfdxService An instance of SfdxService
      * @param orgListCacheService An instance of OrgListCacheService
+     * @param outputChannel The output channel for logging (optional)
      */
-    public static initialize(logs: any[], context: vscode.ExtensionContext, sfdxService: SfdxService, orgListCacheService: OrgListCacheService): void {
+    public static initialize(logs: any[], context: vscode.ExtensionContext, sfdxService: SfdxService, orgListCacheService: OrgListCacheService, outputChannel?: vscode.OutputChannel): void {
         this._logs = logs;
         this._context = context;
         // Initialize sfdxService
         this._sfdxService = sfdxService;
+        // Initialize outputChannel (reuse existing or create new)
+        if (outputChannel) {
+            this._outputChannel = outputChannel;
+        } else if (!this._outputChannel) {
+            this._outputChannel = vscode.window.createOutputChannel('Visbal Extension');
+        }
         // Initialize cacheService
         const cachePath = OrgUtils.getCachePath();
         OrgUtils._cacheService = new CacheService(cachePath, sfdxService, orgListCacheService);
@@ -1368,6 +1376,7 @@ export class OrgUtils {
         const displayInConsole = config.get<boolean>('displayInConsole', true);
         const debugMaxLength = config.get<number>('debugMaxLength', 250); // Default value, can be configured
 
+
         OrgUtils.archiveDebugLog();
 
         if (saveToFile) {
@@ -1395,10 +1404,12 @@ export class OrgUtils {
         if (displayInConsole) {
             if (o !== undefined) {
                 console.log(`${message}`, o);
+                
             }
             else {
                 console.log(`${message}`);
             }
+            OrgUtils._outputChannel.appendLine(`${message}`);
         }
     }
 
@@ -1480,10 +1491,9 @@ export class OrgUtils {
     }
 
     public static openAndDisplayOutputTab(output: string): void {
-        const outputChannel = vscode.window.createOutputChannel('Visbal Extension');
-        outputChannel.appendLine(output);
+        OrgUtils._outputChannel.appendLine(output);
         // Only show output channel when explicitly requested, not by default
-        outputChannel.show(true);
+        OrgUtils._outputChannel.show(true);
     }
 
     // ============================================================================

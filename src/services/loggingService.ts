@@ -14,13 +14,14 @@ export class LoggingService {
     private debugConsoleView: any; // Will be set by DebugConsoleView
     private logLevel: LogLevel = LogLevel.INFO;
 
-    private constructor() {
-        this.outputChannel = vscode.window.createOutputChannel('Visbal Extension');
+    private constructor(outputChannel?: vscode.OutputChannel) {
+        // Reuse existing output channel or create new one
+        this.outputChannel = outputChannel || vscode.window.createOutputChannel('Visbal Extension');
     }
 
-    public static getInstance(): LoggingService {
+    public static getInstance(outputChannel?: vscode.OutputChannel): LoggingService {
         if (!LoggingService.instance) {
-            LoggingService.instance = new LoggingService();
+            LoggingService.instance = new LoggingService(outputChannel);
         }
         return LoggingService.instance;
     }
@@ -115,4 +116,5 @@ export class LoggingService {
     }
 }
 
-export const loggingService = LoggingService.getInstance(); 
+// Export without initializing to allow passing output channel later
+export const loggingService = LoggingService; 
