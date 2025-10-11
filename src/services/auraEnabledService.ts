@@ -6,6 +6,15 @@ import * as OrgUtilsModule from '../utils/orgUtils';
 const OrgUtils = OrgUtilsModule.OrgUtils;
 
 /**
+ * Represents a parameter in an @AuraEnabled method
+ */
+export interface MethodParameter {
+    name: string;
+    type: string;
+    fullDeclaration: string;
+}
+
+/**
  * Represents an @AuraEnabled method found in Apex classes
  */
 export interface AuraEnabledMethod {
@@ -18,7 +27,8 @@ export interface AuraEnabledMethod {
     isPublic: boolean;
     isStatic: boolean;
     returnType: string;
-    parameters: string;
+    parameters: string; // Raw parameter string
+    parsedParameters: MethodParameter[]; // Parsed parameter details
 }
 
 /**
@@ -83,7 +93,9 @@ export class AuraEnabledService {
                     // Handle methodDefinition if it exists
                     methodDefinition: (method as any).methodDefinition ? {
                         ...(method as any).methodDefinition,
-                        filePath: (method as any).methodDefinition.filePath.fsPath
+                        filePath: (method as any).methodDefinition.filePath.fsPath,
+                        // parsedParameters are already serializable objects
+                        parsedParameters: (method as any).methodDefinition.parsedParameters || []
                     } : undefined
                 }));
             }
@@ -137,7 +149,9 @@ export class AuraEnabledService {
                     methodDefinition: method.methodDefinition ? {
                         ...method.methodDefinition,
                         filePath: vscode.Uri.file(method.methodDefinition.filePath),
-                        position: new vscode.Position(method.methodDefinition.position.line, method.methodDefinition.position.character)
+                        position: new vscode.Position(method.methodDefinition.position.line, method.methodDefinition.position.character),
+                        // parsedParameters should already be proper objects
+                        parsedParameters: method.methodDefinition.parsedParameters || []
                     } : undefined
                 }));
                 resultsByClass.set(className, reconstructedMethods);
@@ -212,13 +226,24 @@ export class AuraEnabledService {
         // Find all @AuraEnabled methods
         const auraEnabledMethods = await this.scanAuraEnabledMethods();
         
-        // Group methods by class
+        // Group methods by class and deduplicate
         const methodsByClass = new Map<string, AuraEnabledMethod[]>();
         for (const method of auraEnabledMethods) {
             if (!methodsByClass.has(method.className)) {
                 methodsByClass.set(method.className, []);
             }
-            methodsByClass.get(method.className)!.push(method);
+            
+            const classMethods = methodsByClass.get(method.className)!;
+            
+            // Check for duplicates based on method name and parameters
+            const isDuplicate = classMethods.some(existingMethod => 
+                existingMethod.methodName === method.methodName &&
+                existingMethod.parameters === method.parameters
+            );
+            
+            if (!isDuplicate) {
+                classMethods.push(method);
+            }
         }
         
         // For each class, find references for all its methods
@@ -229,16 +254,31 @@ export class AuraEnabledService {
                 const references = await this.findLWCReferences(method);
                 
                 if (references.length > 0) {
-                    const symbolReference: SymbolReference & { methodDefinition?: { filePath: vscode.Uri; position: vscode.Position; lineText: string } } = {
+                    // Create parameter summary for context description
+                    const paramSummary = method.parsedParameters.length > 0 
+                        ? `(${method.parsedParameters.map(p => `${p.type} ${p.name}`).join(', ')})`
+                        : '()';
+                    
+                    const symbolReference: SymbolReference & { 
+                        methodDefinition?: { 
+                            filePath: vscode.Uri; 
+                            position: vscode.Position; 
+                            lineText: string;
+                            returnType: string;
+                            parsedParameters: MethodParameter[];
+                        } 
+                    } = {
                         symbol: method.methodName,
                         type: '@AuraEnabled Method',
                         className: method.className,
-                        contextDescription: `${method.methodName}()`,
+                        contextDescription: `${method.methodName}${paramSummary}`,
                         references: references,
                         methodDefinition: {
                             filePath: method.filePath,
                             position: method.position,
-                            lineText: method.lineText
+                            lineText: method.lineText,
+                            returnType: method.returnType,
+                            parsedParameters: method.parsedParameters
                         }
                     };
                     
@@ -268,7 +308,12 @@ export class AuraEnabledService {
         }
 
         const methods: AuraEnabledMethod[] = [];
-        const classesPath = path.join(workspaceFolders[0].uri.fsPath, 'force-app', 'main', 'default', 'classes');
+        // Check if we have a Salesforce project in the workspace, otherwise use the known path
+        const workspacePath = workspaceFolders[0].uri.fsPath;
+        const workspaceClassesPath = path.join(workspacePath, 'force-app', 'main', 'default', 'classes');
+        const securityReviewClassesPath = 'C:\\CURSOR\\SECURITY_REVIEW\\force-app\\main\\default\\classes';
+        
+        const classesPath = fs.existsSync(workspaceClassesPath) ? workspaceClassesPath : securityReviewClassesPath;
         
         if (!fs.existsSync(classesPath)) {
             OrgUtils.logDebug(`[VisbalExt.AuraEnabledService] Classes directory not found: ${classesPath}`);
@@ -291,21 +336,43 @@ export class AuraEnabledService {
                     const previousLine = i > 0 ? lines[i - 1].trim() : '';
                     
                     // Check if previous line has @AuraEnabled annotation
-                    if (previousLine.includes('@AuraEnabled') && this.isMethodDeclaration(line)) {
-                        const methodInfo = this.parseMethodDeclaration(line);
-                        if (methodInfo) {
-                            methods.push({
-                                className: className,
-                                methodName: methodInfo.name,
-                                methodSignature: line,
-                                filePath: fileUri,
-                                position: new vscode.Position(i, line.indexOf(methodInfo.name)),
-                                lineText: line,
-                                isPublic: line.includes('public'),
-                                isStatic: line.includes('static'),
-                                returnType: methodInfo.returnType,
-                                parameters: methodInfo.parameters
-                            });
+                    if (previousLine.includes('@AuraEnabled')) {
+                        // Handle both single-line and multi-line method declarations
+                        let fullMethodDeclaration = line;
+                        let methodStartIndex = i;
+                        
+                        // If this line doesn't end with a closing parenthesis followed by optional whitespace and {
+                        // then it's likely a multi-line method declaration
+                        if (!line.match(/\)\s*\{?\s*$/)) {
+                            // Look ahead to find the complete method declaration
+                            let j = i + 1;
+                            while (j < lines.length && !lines[j].trim().match(/\)\s*\{?\s*$/)) {
+                                fullMethodDeclaration += ' ' + lines[j].trim();
+                                j++;
+                            }
+                            // Include the final line with the closing parenthesis
+                            if (j < lines.length) {
+                                fullMethodDeclaration += ' ' + lines[j].trim();
+                            }
+                        }
+                        
+                        if (this.isMethodDeclaration(fullMethodDeclaration)) {
+                            const methodInfo = this.parseMethodDeclaration(fullMethodDeclaration);
+                            if (methodInfo) {
+                                methods.push({
+                                    className: className,
+                                    methodName: methodInfo.name,
+                                    methodSignature: fullMethodDeclaration,
+                                    filePath: fileUri,
+                                    position: new vscode.Position(methodStartIndex, line.indexOf(methodInfo.name) >= 0 ? line.indexOf(methodInfo.name) : 0),
+                                    lineText: fullMethodDeclaration,
+                                    isPublic: fullMethodDeclaration.includes('public'),
+                                    isStatic: fullMethodDeclaration.includes('static'),
+                                    returnType: methodInfo.returnType,
+                                    parameters: methodInfo.parameters,
+                                    parsedParameters: methodInfo.parsedParameters
+                                });
+                            }
                         }
                     }
                 }
@@ -327,7 +394,12 @@ export class AuraEnabledService {
         }
 
         const references: ReferenceLocation[] = [];
-        const lwcPath = path.join(workspaceFolders[0].uri.fsPath, 'force-app', 'main', 'default', 'lwc');
+        // Check if we have a Salesforce project in the workspace, otherwise use the known path
+        const workspacePath = workspaceFolders[0].uri.fsPath;
+        const workspaceLwcPath = path.join(workspacePath, 'force-app', 'main', 'default', 'lwc');
+        const securityReviewLwcPath = 'C:\\CURSOR\\SECURITY_REVIEW\\force-app\\main\\default\\lwc';
+        
+        const lwcPath = fs.existsSync(workspaceLwcPath) ? workspaceLwcPath : securityReviewLwcPath;
         
         if (!fs.existsSync(lwcPath)) {
             OrgUtils.logDebug(`[VisbalExt.AuraEnabledService] LWC directory not found: ${lwcPath}`);
@@ -398,27 +470,170 @@ export class AuraEnabledService {
      * Checks if a line is a method declaration
      */
     private static isMethodDeclaration(line: string): boolean {
-        // Look for method patterns: access modifier + optional static + return type + method name + parentheses
-        const methodPattern = /\b(public|private|protected|global)\s+(static\s+)?\w+\s+\w+\s*\(/;
-        return methodPattern.test(line.trim());
+        const trimmed = line.trim();
+        
+        // Skip constructors - they don't have return types and match ClassName(
+        // Constructor pattern: access modifier + ClassName + parentheses (no return type)
+        const constructorPattern = /\b(public|private|protected|global)\s+\w+\s*\(/;
+        if (constructorPattern.test(trimmed)) {
+            // Check if this looks like a constructor (method name matches potential class name)
+            const constructorMatch = trimmed.match(/\b(public|private|protected|global)\s+(\w+)\s*\(/);
+            if (constructorMatch) {
+                const methodName = constructorMatch[2];
+                // If method name starts with uppercase, it's likely a constructor
+                if (methodName[0] === methodName[0].toUpperCase()) {
+                    return false;
+                }
+            }
+        }
+        
+        // Look for proper method patterns: access modifier + optional static + return type + method name + parentheses
+        // Must have a return type (distinguishes from constructors)
+        const methodPattern = /\b(public|private|protected|global)\s+(static\s+)?[^(]+\s+\w+\s*\(/;
+        const hasReturnType = methodPattern.test(trimmed);
+        
+        // Additional check: ensure there's actually a return type between access modifier and method name
+        if (hasReturnType) {
+            const parts = trimmed.split(/\s+/);
+            if (parts.length < 3) {
+                return false; // Not enough parts for access + return type + method name
+            }
+            
+            // Skip if it looks like: public ClassName( (constructor pattern)
+            if (parts.length === 2 && parts[1].includes('(')) {
+                return false;
+            }
+        }
+        
+        return hasReturnType;
     }
 
     /**
      * Parses method declaration to extract method information
      */
-    private static parseMethodDeclaration(line: string): { name: string; returnType: string; parameters: string } | null {
+    private static parseMethodDeclaration(line: string): { name: string; returnType: string; parameters: string; parsedParameters: MethodParameter[] } | null {
         // Match method pattern: access modifier + optional static + return type + method name + parameters
-        const methodMatch = line.match(/\b(public|private|protected|global)\s+(static\s+)?(\w+)\s+(\w+)\s*\(([^)]*)\)/);
+        // Updated to handle complex generic types like Map<String, Map<String, String>>
+        const methodMatch = line.match(/\b(public|private|protected|global)\s+(static\s+)?(.+?)\s+(\w+)\s*\(([^)]*)\)/);
         
         if (methodMatch) {
+            const methodName = methodMatch[4];
+            const returnType = methodMatch[3].trim();
+            const parametersString = methodMatch[5];
+            
+            // Additional constructor check: if method name starts with uppercase and matches return type,
+            // it's likely a constructor and shouldn't be included
+            if (methodName[0] === methodName[0].toUpperCase() && 
+                (returnType === methodName || returnType.endsWith(methodName))) {
+                return null;
+            }
+            
+            const parsedParameters = this.parseParameters(parametersString);
+            
             return {
-                name: methodMatch[4],
-                returnType: methodMatch[3],
-                parameters: methodMatch[5]
+                name: methodName,
+                returnType: returnType,
+                parameters: parametersString,
+                parsedParameters: parsedParameters
             };
         }
         
         return null;
+    }
+
+    /**
+     * Parses parameter string into individual parameter objects
+     */
+    private static parseParameters(parametersString: string): MethodParameter[] {
+        if (!parametersString || parametersString.trim() === '') {
+            return [];
+        }
+
+        const parameters: MethodParameter[] = [];
+        
+        // Split by comma, but be careful about nested generics like List<String>
+        const paramParts = this.smartSplit(parametersString, ',');
+        
+        for (const paramPart of paramParts) {
+            const trimmed = paramPart.trim();
+            if (trimmed) {
+                const parameter = this.parseParameter(trimmed);
+                if (parameter) {
+                    parameters.push(parameter);
+                }
+            }
+        }
+        
+        return parameters;
+    }
+
+    /**
+     * Parses a single parameter string into a MethodParameter object
+     */
+    private static parseParameter(paramString: string): MethodParameter | null {
+        // Remove any leading/trailing whitespace
+        const cleaned = paramString.trim();
+        
+        // Match pattern: [final] Type paramName
+        // Handle cases like: String name, List<String> items, final Integer count, Map<String, Object> data
+        const paramMatch = cleaned.match(/^(?:final\s+)?(.+?)\s+(\w+)$/);
+        
+        if (paramMatch) {
+            const type = paramMatch[1].trim();
+            const name = paramMatch[2].trim();
+            
+            return {
+                name: name,
+                type: type,
+                fullDeclaration: cleaned
+            };
+        }
+        
+        // If no match, try to handle edge cases
+        const words = cleaned.split(/\s+/);
+        if (words.length >= 2) {
+            const name = words[words.length - 1];
+            const type = words.slice(0, -1).join(' ');
+            
+            return {
+                name: name,
+                type: type,
+                fullDeclaration: cleaned
+            };
+        }
+        
+        return null;
+    }
+
+    /**
+     * Smart split that respects nested brackets/generics
+     */
+    private static smartSplit(str: string, delimiter: string): string[] {
+        const result: string[] = [];
+        let current = '';
+        let depth = 0;
+        
+        for (let i = 0; i < str.length; i++) {
+            const char = str[i];
+            
+            if (char === '<' || char === '(' || char === '[') {
+                depth++;
+            } else if (char === '>' || char === ')' || char === ']') {
+                depth--;
+            } else if (char === delimiter && depth === 0) {
+                result.push(current);
+                current = '';
+                continue;
+            }
+            
+            current += char;
+        }
+        
+        if (current) {
+            result.push(current);
+        }
+        
+        return result;
     }
 
     /**
@@ -456,7 +671,33 @@ export class AuraEnabledService {
             const sortedMethods = methods.sort((a, b) => a.symbol.localeCompare(b.symbol));
             
             sortedMethods.forEach((method, methodIndex) => {
+                // Get method definition from the first reference (if available)
+                const methodDef = (method as any).methodDefinition;
+                
                 report += `### ${method.contextDescription}\n\n`;
+                
+                // Add method signature and parameters if available
+                if (methodDef && methodDef.lineText) {
+                    report += `**Method Signature:**\n`;
+                    report += `\`\`\`apex\n${methodDef.lineText.trim()}\n\`\`\`\n\n`;
+                    
+                    // Add return type
+                    if (methodDef.returnType) {
+                        report += `**Return Type:** \`${methodDef.returnType}\`\n\n`;
+                    }
+                    
+                    // Add parameter details if available
+                    if (methodDef.parsedParameters && methodDef.parsedParameters.length > 0) {
+                        report += `**Parameters:**\n`;
+                        methodDef.parsedParameters.forEach((param: MethodParameter, paramIndex: number) => {
+                            report += `${paramIndex + 1}. **${param.name}** (\`${param.type}\`)\n`;
+                        });
+                        report += `\n`;
+                    } else {
+                        report += `**Parameters:** None\n\n`;
+                    }
+                }
+                
                 report += `**References (${method.references.length}):**\n`;
                 
                 method.references.forEach(ref => {
@@ -470,5 +711,127 @@ export class AuraEnabledService {
         });
         
         return report;
+    }
+
+    /**
+     * Finds ALL @AuraEnabled methods regardless of whether they have LWC references
+     */
+    public static async findAllAuraEnabledMethods(): Promise<Map<string, AuraEnabledMethod[]>> {
+        const workspaceFolders = vscode.workspace.workspaceFolders;
+        if (!workspaceFolders) {
+            throw new Error('No workspace folder found');
+        }
+
+        const methodsByClass = new Map<string, AuraEnabledMethod[]>();
+        
+        // Find all @AuraEnabled methods
+        const auraEnabledMethods = await this.scanAuraEnabledMethods();
+        
+        // Group methods by class and deduplicate
+        for (const method of auraEnabledMethods) {
+            if (!methodsByClass.has(method.className)) {
+                methodsByClass.set(method.className, []);
+            }
+            
+            const classMethods = methodsByClass.get(method.className)!;
+            
+            // Check for duplicates based on method name and parameters
+            const isDuplicate = classMethods.some(existingMethod => 
+                existingMethod.methodName === method.methodName &&
+                existingMethod.parameters === method.parameters
+            );
+            
+            if (!isDuplicate) {
+                classMethods.push(method);
+            }
+        }
+        
+        return methodsByClass;
+    }
+
+    /**
+     * Exports @AuraEnabled methods list in the format: CLASS.METHOD | Parameters
+     * This includes ALL @AuraEnabled methods, not just those with LWC references
+     */
+    public static async exportMethodsList(): Promise<void> {
+        try {
+            OrgUtils.logDebug('[VisbalExt.AuraEnabledService] exportMethodsList -- Starting export');
+            
+            // Get ALL @AuraEnabled methods (not just those with references)
+            const allMethodsByClass = await this.findAllAuraEnabledMethods();
+            
+            if (allMethodsByClass.size === 0) {
+                vscode.window.showInformationMessage('No @AuraEnabled methods found to export');
+                return;
+            }
+
+            // Generate the export content
+            let exportContent = '';
+            const exportedEntries = new Set<string>(); // Track exported entries to prevent duplicates
+            
+            // Sort classes by name
+            const sortedClasses = Array.from(allMethodsByClass.entries()).sort(([a], [b]) => a.localeCompare(b));
+            
+            for (const [className, methods] of sortedClasses) {
+                // Sort methods by name
+                const sortedMethods = methods.sort((a, b) => a.methodName.localeCompare(b.methodName));
+                
+                for (const method of sortedMethods) {
+                    let parametersStr = '';
+                    
+                    if (method.parsedParameters && method.parsedParameters.length > 0) {
+                        parametersStr = method.parsedParameters
+                            .map((param: MethodParameter) => `${param.type} ${param.name}`)
+                            .join(', ');
+                    }
+                    
+                    const exportLine = `${className}.${method.methodName} | ${parametersStr}`;
+                    
+                    // Only add if not already exported (final deduplication)
+                    if (!exportedEntries.has(exportLine)) {
+                        exportedEntries.add(exportLine);
+                        exportContent += exportLine + '\n';
+                    }
+                }
+            }
+            
+            // Get workspace folder path
+            const workspaceFolders = vscode.workspace.workspaceFolders;
+            if (!workspaceFolders || workspaceFolders.length === 0) {
+                vscode.window.showErrorMessage('No workspace folder found');
+                return;
+            }
+            
+            const workspacePath = workspaceFolders[0].uri.fsPath;
+            
+            // Create .visbal/logs directory if it doesn't exist
+            const visbalLogsDir = path.join(workspacePath, '.visbal', 'logs');
+            if (!fs.existsSync(visbalLogsDir)) {
+                await fs.promises.mkdir(visbalLogsDir, { recursive: true });
+                OrgUtils.logDebug('[VisbalExt.AuraEnabledService] exportMethodsList -- Created .visbal/logs directory');
+            }
+            
+            // Generate filename with timestamp
+            const timestamp = new Date().toISOString().replace(/[:.]/g, '-').split('T');
+            const dateStr = timestamp[0];
+            const timeStr = timestamp[1].split('-').slice(0, 3).join('-'); // HH-MM-SS
+            const filename = `aura-enabled-methods-${dateStr}-${timeStr}.txt`;
+            const filePath = path.join(visbalLogsDir, filename);
+            
+            // Write the file
+            await fs.promises.writeFile(filePath, exportContent, 'utf8');
+            
+            // Open the file in Cursor IDE
+            const document = await vscode.workspace.openTextDocument(filePath);
+            await vscode.window.showTextDocument(document);
+            
+            vscode.window.showInformationMessage(`@AuraEnabled methods list exported to .visbal/logs/${filename}`);
+            OrgUtils.logDebug('[VisbalExt.AuraEnabledService] exportMethodsList -- Export completed successfully');
+            
+        } catch (error: any) {
+            const errorMessage = error instanceof Error ? error.message : String(error);
+            OrgUtils.logError('[VisbalExt.AuraEnabledService] exportMethodsList -- Error exporting methods list:', error);
+            vscode.window.showErrorMessage(`Failed to export @AuraEnabled methods list: ${errorMessage}`);
+        }
     }
 }

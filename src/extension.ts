@@ -16,6 +16,7 @@ import { OrgTabView } from './views/orgTab';
 import { DebugConsoleView } from './views/debugConsoleView';
 import { TestSummaryView } from './views/testSummarySidePanel';
 import { TestRunningTaskView, TestItem } from './views/testRunningTaskSidePanel';
+import { AuraEnabledService } from './services/auraEnabledService';
 
 import { join } from 'path';
 import { existsSync, mkdirSync } from 'fs';
@@ -234,6 +235,9 @@ export async function activate(context: vscode.ExtensionContext) {
             } else {
                 vscode.window.showErrorMessage('Test running task view is not initialized');
             }
+        }),
+        vscode.commands.registerCommand('visbal-ext.exportAuraEnabledMethods', async () => {
+            await AuraEnabledService.exportMethodsList();
         }),
         vscode.commands.registerCommand('visbal-ext.cleanupDebugFiles', async () => {
             try {

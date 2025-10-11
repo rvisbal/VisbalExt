@@ -160,6 +160,35 @@ export function getTractionHtml(): string {
             100% { transform: translateX(1000%); }
         }
         
+        .progress-actions {
+            margin-top: 8px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .stop-button {
+            background: var(--vscode-button-secondaryBackground);
+            color: var(--vscode-button-secondaryForeground);
+            border: 1px solid var(--vscode-button-border);
+            padding: 4px 8px;
+            border-radius: 3px;
+            font-size: 11px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            transition: background-color 0.2s;
+        }
+
+        .stop-button:hover {
+            background: var(--vscode-button-secondaryHoverBackground);
+        }
+
+        .stop-button .stop-icon {
+            font-size: 12px;
+        }
+        
         .dropdown-button-group {
             position: relative;
             display: inline-block;
@@ -562,6 +591,7 @@ export function getTractionHtml(): string {
                         <div class="dropdown-item" data-action="securityScanCurrent">Security Report - Current File</div>
                         <div class="dropdown-item" data-action="codeReviewCurrent">Code Review - Current File</div>
                         <div class="dropdown-item" data-action="nonReferenceMethods">Report Non Reference Methods</div>
+                        <div class="dropdown-item" data-action="testNonReferenceMethods">🧪 Test Non Reference (Quick)</div>
                     </div>
                 </div>
             </div>
@@ -575,6 +605,12 @@ export function getTractionHtml(): string {
             </div>
             <div class="progress-bar">
                 <div class="progress-bar-fill indeterminate" id="progress-bar-fill"></div>
+            </div>
+            <div class="progress-actions hidden" id="progress-actions">
+                <button class="stop-button" id="stop-non-reference-report" title="Stop Non-Reference Report">
+                    <span class="icon stop-icon">⏹</span>
+                    Stop Report
+                </button>
             </div>
         </div>
 
@@ -694,6 +730,7 @@ export function getTractionHtml(): string {
             const progressTitle = document.getElementById('progress-title');
             const progressDescription = document.getElementById('progress-description');
             const progressBarFill = document.getElementById('progress-bar-fill');
+            const progressActions = document.getElementById('progress-actions');
             
             // Security report elements
             const securityReportContainer = document.getElementById('security-report-container');
@@ -782,6 +819,19 @@ export function getTractionHtml(): string {
                 progressContainer.classList.remove('active');
                 progressBarFill.classList.remove('indeterminate');
                 progressBarFill.style.width = '0%';
+                hideStopButton();
+            }
+
+            function showStopButton() {
+                if (progressActions) {
+                    progressActions.classList.remove('hidden');
+                }
+            }
+
+            function hideStopButton() {
+                if (progressActions) {
+                    progressActions.classList.add('hidden');
+                }
             }
             
             // Security report functions
@@ -1367,6 +1417,15 @@ export function getTractionHtml(): string {
             
             deployOrgButton.addEventListener('click', deploy);
             
+            // Stop non-reference report button
+            const stopNonReferenceReportButton = document.getElementById('stop-non-reference-report');
+            stopNonReferenceReportButton.addEventListener('click', () => {
+                vscode.postMessage({
+                    command: 'stopNonReferenceReport'
+                });
+                updateStatus('Stopping non-reference report...');
+            });
+            
             // Terminal dropdown
             terminalMainButton.addEventListener('click', (e) => {
                 e.stopPropagation();
@@ -1510,6 +1569,10 @@ export function getTractionHtml(): string {
                     case 'showProgress':
                         console.log('[TractionTab] Received showProgress message:', message);
                         showProgress(message.title, message.description);
+                        // Show stop button if this is a non-reference report
+                        if (message.title && message.title.includes('Non-Reference')) {
+                            showStopButton();
+                        }
                         break;
                     case 'updateProgress':
                         console.log('[TractionTab] Received updateProgress message:', message);

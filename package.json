@@ -393,6 +393,12 @@
         "icon": "$(save-as)"
       },
       {
+        "command": "visbal-ext.exportAuraEnabledMethods",
+        "title": "Export @AuraEnabled Methods List",
+        "category": "Visbal",
+        "icon": "$(export)"
+      },
+      {
         "command": "visbal-ext.cleanupDebugFiles",
         "title": "Cleanup Debug Files",
         "category": "Visbal",
@@ -505,6 +511,11 @@
           "command": "visbal-ext.reloadAuraEnabledFromCache",
           "when": "view == referencesView",
           "group": "navigation@3"
+        },
+        {
+          "command": "visbal-ext.exportAuraEnabledMethods",
+          "when": "view == referencesView",
+          "group": "navigation@4"
         }
       ],
       "editor/title": [

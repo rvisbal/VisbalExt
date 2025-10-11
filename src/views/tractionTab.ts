@@ -7,7 +7,9 @@ import { getTractionHtml } from './tractionTabHTML';
 import { SecurityAnalysisService, SecurityReport } from '../services/securityAnalysisService';
 import { UnusedCodeService, UnusedCodeReport } from '../services/unusedCodeService';
 import { CodeReviewService, CodeReviewReport } from '../services/codeReviewService';
+import { NonReferenceReportService, NonReferenceReport } from '../services/nonReferenceReportService';
 import * as path from 'path';
+import * as fs from 'fs';
 
 export class TractionTab implements vscode.WebviewViewProvider {
     public static readonly viewType = 'visbal-traction';
@@ -20,6 +22,8 @@ export class TractionTab implements vscode.WebviewViewProvider {
     private _securityAnalysisService: SecurityAnalysisService;
     private _unusedCodeService: UnusedCodeService;
     private _codeReviewService: CodeReviewService;
+    private _nonReferenceReportService: NonReferenceReportService;
+    private _isNonReferenceReportRunning: boolean = false;
 
     constructor(private readonly _context: vscode.ExtensionContext) {
         const cachePath = OrgUtils.getCachePath();
@@ -27,6 +31,7 @@ export class TractionTab implements vscode.WebviewViewProvider {
         this._securityAnalysisService = SecurityAnalysisService.getInstance();
         this._unusedCodeService = UnusedCodeService.getInstance();
         this._codeReviewService = CodeReviewService.getInstance();
+        this._nonReferenceReportService = NonReferenceReportService.getInstance();
     }
 
     public resolveWebviewView(
@@ -82,6 +87,9 @@ export class TractionTab implements vscode.WebviewViewProvider {
                     break;
                 case 'runCodeReview':
                     await this._handleCodeReview(message.scanType);
+                    break;
+                case 'stopNonReferenceReport':
+                    await this._handleStopNonReferenceReport();
                     break;
             }
         });
@@ -288,7 +296,11 @@ export class TractionTab implements vscode.WebviewViewProvider {
                     return; // Early return since this doesn't create a terminal
                     
                 case 'nonReferenceMethods':
-                    await this._handleUnusedCodeAnalysis('workspace');
+                    await this._handleNonReferenceReport();
+                    return; // Early return since this doesn't create a terminal
+                    
+                case 'testNonReferenceMethods':
+                    await this._handleTestNonReferenceReport();
                     return; // Early return since this doesn't create a terminal
                     
                 default:
@@ -666,6 +678,274 @@ export class TractionTab implements vscode.WebviewViewProvider {
         } catch (error) {
             OrgUtils.logError('[VisbalExt.TractionTab] displayUnusedCodeReport -- Error displaying in references panel:', error);
         }
+    }
+
+    /**
+     * Handle non-reference report generation
+     */
+    private async _handleNonReferenceReport() {
+        try {
+            // Check if already running
+            if (this._isNonReferenceReportRunning) {
+                this._updateStatus('Non-reference report is already running. Use Stop button to cancel.', 'info');
+                return;
+            }
+
+            // Check for existing cache and ask user if they want to resume
+            let resumeFromCache = false;
+            try {
+                resumeFromCache = await this._nonReferenceReportService.checkForExistingCache();
+            } catch (error) {
+                OrgUtils.logDebug('[VisbalExt.TractionTab] _handleNonReferenceReport -- Error checking cache, starting fresh:', error);
+            }
+
+            OrgUtils.logDebug('[VisbalExt.TractionTab] _handleNonReferenceReport -- Starting non-reference report generation', {
+                resumeFromCache
+            });
+            
+            this._isNonReferenceReportRunning = true;
+            
+            const progressTitle = resumeFromCache ? 'Resuming Non-Reference Report' : 'Non-Reference Methods Report';
+            const progressDesc = resumeFromCache ? 
+                'Resuming from previous scan...' : 
+                'Scanning methods and checking for references (report-only)...';
+            
+            this._showProgress(progressTitle, progressDesc);
+            this._updateStatus('Generating non-reference methods report...', 'info');
+            
+            // Set up progress callback
+            this._nonReferenceReportService.setProgressCallback((message: string, percentage?: number) => {
+                this._updateProgress('Non-Reference Report', message, percentage);
+            });
+            
+            // Generate the report
+            const report = await this._nonReferenceReportService.generateNonReferenceReport(resumeFromCache);
+            
+            this._hideProgress();
+            this._isNonReferenceReportRunning = false;
+            
+            // Display the report in the webview
+            await this.displayNonReferenceReport(report);
+            
+            // Create status message based on report type
+            let summaryMessage: string;
+            if (report.isPartial) {
+                summaryMessage = `PARTIAL REPORT: Found ${report.methodsWithNoReferences} methods with no references so far (${report.filesProcessed}/${report.totalFilesFound} files processed, ${report.totalMethodsScanned} methods scanned)`;
+                this._updateStatus(summaryMessage, 'info');
+                
+                // Show detailed info about what was found
+                if (report.methodsWithNoReferences > 0) {
+                    const methodList = report.nonReferencedMethods.slice(0, 5).map(m => 
+                        `${m.className}.${m.methodName}`
+                    ).join(', ');
+                    const moreCount = report.methodsWithNoReferences > 5 ? ` and ${report.methodsWithNoReferences - 5} more` : '';
+                    OrgUtils.logDebug(`[TractionTab] Partial report found methods: ${methodList}${moreCount}`);
+                }
+            } else {
+                summaryMessage = `Non-reference report completed: Found ${report.methodsWithNoReferences} methods with no references out of ${report.totalMethodsScanned} total methods (${report.filesProcessed} files processed)`;
+                this._updateStatus(summaryMessage, report.methodsWithNoReferences > 0 ? 'info' : 'success');
+            }
+            
+            // Show option to open the report file
+            if (report.reportFilePath) {
+                const reportType = report.isPartial ? 'Partial report' : 'Report';
+                let message: string;
+                
+                if (report.isPartial) {
+                    const methodsInfo = report.methodsWithNoReferences > 0 ? 
+                        ` Found ${report.methodsWithNoReferences} methods with no references.` : 
+                        ' No non-referenced methods found so far.';
+                    message = `${reportType} saved to ${path.basename(report.reportFilePath)}. ${methodsInfo} You can resume later to complete the scan.`;
+                } else {
+                    message = `${reportType} saved to ${path.basename(report.reportFilePath)}`;
+                }
+                
+                const buttons = report.isPartial ? ['Open Report', 'Show Summary'] : ['Open Report'];
+                
+                vscode.window.showInformationMessage(message, ...buttons).then(selection => {
+                    if (selection === 'Open Report') {
+                        vscode.commands.executeCommand('vscode.open', vscode.Uri.file(report.reportFilePath!));
+                    } else if (selection === 'Show Summary' && report.isPartial) {
+                        this.showPartialReportSummary(report);
+                    }
+                });
+            }
+            
+        } catch (error: any) {
+            this._hideProgress();
+            this._isNonReferenceReportRunning = false;
+            
+            if (error.message.includes('cancelled')) {
+                // Check if we got a partial report back from the service
+                try {
+                    // The service should have returned a partial report - this will be caught by the success path above
+                    OrgUtils.logDebug('[VisbalExt.TractionTab] _handleNonReferenceReport -- Report generation cancelled, but partial report may have been generated');
+                    this._updateStatus('Non-reference report cancelled - partial report may have been saved', 'info');
+                } catch {
+                    this._updateStatus('Non-reference report cancelled by user', 'info');
+                }
+            } else {
+                OrgUtils.logError('[VisbalExt.TractionTab] _handleNonReferenceReport -- Error generating non-reference report:', error);
+                this._updateStatus(`Failed to generate non-reference report: ${error.message}`, 'error');
+                vscode.window.showErrorMessage(`Failed to generate non-reference report: ${error.message}`);
+            }
+        }
+    }
+
+    /**
+     * Handle test non-reference report generation (for specific files only)
+     */
+    private async _handleTestNonReferenceReport() {
+        try {
+            // Ask user which files to test
+            const testPattern = await vscode.window.showInputBox({
+                prompt: 'Enter filename pattern to test (e.g., RollerUpper.cls)',
+                placeHolder: 'RollerUpper.cls',
+                value: 'RollerUpper.cls'
+            });
+
+            if (!testPattern) {
+                return; // User cancelled
+            }
+
+            OrgUtils.logDebug('[VisbalExt.TractionTab] _handleTestNonReferenceReport -- Starting test mode for pattern:', testPattern);
+            
+            this._updateStatus(`Starting test mode for: ${testPattern}`, 'info');
+            
+            // Generate the test report
+            const report = await this._nonReferenceReportService.generateTestReport([testPattern]);
+            
+            // Show results
+            const methodsInfo = report.methodsWithNoReferences > 0 ?
+                ` Found ${report.methodsWithNoReferences} non-referenced methods.` :
+                ' No non-referenced methods found.';
+            
+            const message = `Test report saved to ${path.basename(report.reportFilePath!)}.${methodsInfo}`;
+            const buttons = ['Open Report', 'Show in Explorer'];
+            
+            vscode.window.showInformationMessage(message, ...buttons).then(selection => {
+                if (selection === 'Open Report' && report.reportFilePath) {
+                    vscode.workspace.openTextDocument(report.reportFilePath).then(doc => {
+                        vscode.window.showTextDocument(doc);
+                    });
+                } else if (selection === 'Show in Explorer' && report.reportFilePath) {
+                    vscode.commands.executeCommand('revealFileInOS', vscode.Uri.file(report.reportFilePath));
+                }
+            });
+            
+            this._updateStatus(`Test report complete: ${report.methodsWithNoReferences} non-referenced methods found`, 'success');
+            
+            // Clean up mock file if it was created
+            await this.cleanupMockFiles();
+            
+        } catch (error: any) {
+            OrgUtils.logError('[VisbalExt.TractionTab] _handleTestNonReferenceReport -- Error generating test report:', error);
+            this._updateStatus(`Failed to generate test report: ${error.message}`, 'error');
+            vscode.window.showErrorMessage(`Failed to generate test report: ${error.message}`);
+            
+            // Clean up mock files even on error
+            await this.cleanupMockFiles();
+        }
+    }
+
+    /**
+     * Clean up any mock files created during testing
+     */
+    private async cleanupMockFiles() {
+        try {
+            const workspaceFolders = vscode.workspace.workspaceFolders;
+            if (workspaceFolders) {
+                const mockFilePath = path.join(workspaceFolders[0].uri.fsPath, 'test-RollerUpper.cls');
+                try {
+                    await fs.promises.unlink(mockFilePath);
+                    OrgUtils.logDebug('[VisbalExt.TractionTab] Cleaned up mock file:', mockFilePath);
+                } catch {
+                    // File may not exist, ignore
+                }
+            }
+        } catch (error) {
+            OrgUtils.logDebug('[VisbalExt.TractionTab] Error cleaning up mock files:', error);
+        }
+    }
+
+    /**
+     * Handle stopping the non-reference report
+     */
+    private async _handleStopNonReferenceReport() {
+        try {
+            if (!this._isNonReferenceReportRunning) {
+                this._updateStatus('No non-reference report is currently running', 'info');
+                return;
+            }
+
+            OrgUtils.logDebug('[VisbalExt.TractionTab] _handleStopNonReferenceReport -- Stopping non-reference report');
+            
+            this._nonReferenceReportService.stopReport();
+            this._updateStatus('Stopping non-reference report...', 'info');
+            
+        } catch (error: any) {
+            OrgUtils.logError('[VisbalExt.TractionTab] _handleStopNonReferenceReport -- Error stopping report:', error);
+            this._updateStatus(`Failed to stop report: ${error.message}`, 'error');
+        }
+    }
+
+    /**
+     * Display the non-reference report in the webview
+     */
+    public async displayNonReferenceReport(report: NonReferenceReport) {
+        // Display in webview
+        this._view?.webview.postMessage({
+            command: 'displayNonReferenceReport',
+            report: report
+        });
+        
+        // Also display in References panel if there are non-referenced methods
+        if (report.methodsWithNoReferences > 0) {
+            try {
+                await vscode.commands.executeCommand('visbal-ext.displayNonReferenceReportInReferences', report);
+            } catch (error) {
+                OrgUtils.logError('[VisbalExt.TractionTab] displayNonReferenceReport -- Error displaying in references panel:', error);
+            }
+        }
+    }
+
+    /**
+     * Show a summary of the partial report findings
+     */
+    private showPartialReportSummary(report: NonReferenceReport) {
+        if (report.methodsWithNoReferences === 0) {
+            vscode.window.showInformationMessage(
+                `Partial scan results: No non-referenced methods found in ${report.filesProcessed} files processed so far.`
+            );
+            return;
+        }
+
+        // Create a summary of the methods found
+        const maxToShow = 10;
+        let summaryText = `Found ${report.methodsWithNoReferences} methods with no references so far:\n\n`;
+        
+        const methodsToShow = report.nonReferencedMethods.slice(0, maxToShow);
+        methodsToShow.forEach((method, index) => {
+            summaryText += `${index + 1}. ${method.className}.${method.methodName}\n`;
+            summaryText += `   File: ${method.fileName} (Line ${method.lineNumber})\n`;
+            summaryText += `   Visibility: ${method.visibility}${method.annotations.length > 0 ? ', Annotations: @' + method.annotations.join(', @') : ''}\n\n`;
+        });
+
+        if (report.methodsWithNoReferences > maxToShow) {
+            summaryText += `... and ${report.methodsWithNoReferences - maxToShow} more methods.\n\n`;
+        }
+
+        summaryText += `Scan progress: ${report.filesProcessed}/${report.totalFilesFound} files processed (${Math.round((report.filesProcessed / report.totalFilesFound) * 100)}%)\n`;
+        summaryText += `Total methods scanned: ${report.totalMethodsScanned}\n\n`;
+        summaryText += `You can resume the scan later to check the remaining files.`;
+
+        // Show in a new document for easy viewing
+        vscode.workspace.openTextDocument({
+            content: summaryText,
+            language: 'plaintext'
+        }).then(document => {
+            vscode.window.showTextDocument(document, { preview: true });
+        });
     }
 
     public refresh(): void {
