@@ -308,76 +308,125 @@ export class AuraEnabledService {
         }
 
         const methods: AuraEnabledMethod[] = [];
-        // Check if we have a Salesforce project in the workspace, otherwise use the known path
-        const workspacePath = workspaceFolders[0].uri.fsPath;
-        const workspaceClassesPath = path.join(workspacePath, 'force-app', 'main', 'default', 'classes');
-        const securityReviewClassesPath = 'C:\\CURSOR\\SECURITY_REVIEW\\force-app\\main\\default\\classes';
         
-        const classesPath = fs.existsSync(workspaceClassesPath) ? workspaceClassesPath : securityReviewClassesPath;
+        // Scan all workspace folders for Salesforce projects
+        const allClassesPaths: string[] = [];
         
-        if (!fs.existsSync(classesPath)) {
-            OrgUtils.logDebug(`[VisbalExt.AuraEnabledService] Classes directory not found: ${classesPath}`);
+        for (const workspaceFolder of workspaceFolders) {
+            const workspacePath = workspaceFolder.uri.fsPath;
+            const salesforceClassesPath = path.join(workspacePath, 'force-app', 'main', 'default', 'classes');
+            
+            // Check if this workspace folder contains a Salesforce project
+            if (fs.existsSync(salesforceClassesPath)) {
+                allClassesPaths.push(salesforceClassesPath);
+                OrgUtils.logDebug(`[VisbalExt.AuraEnabledService] Found Salesforce classes directory: ${salesforceClassesPath}`);
+            }
+        }
+        
+        // If no Salesforce projects found in workspace folders, return empty
+        if (allClassesPaths.length === 0) {
+            OrgUtils.logDebug(`[VisbalExt.AuraEnabledService] No Salesforce projects found in workspace folders`);
             return [];
         }
 
-        const classFiles = fs.readdirSync(classesPath).filter(file => file.endsWith('.cls'));
-        
-        for (const classFile of classFiles) {
-            const filePath = path.join(classesPath, classFile);
-            const fileUri = vscode.Uri.file(filePath);
-            const className = path.basename(classFile, '.cls');
+        // Scan all found Salesforce projects
+        for (const classesPath of allClassesPaths) {
+            OrgUtils.logDebug(`[VisbalExt.AuraEnabledService] Scanning classes directory: ${classesPath}`);
+            const classFiles = fs.readdirSync(classesPath).filter(file => file.endsWith('.cls'));
+            OrgUtils.logDebug(`[VisbalExt.AuraEnabledService] Found ${classFiles.length} class files in ${classesPath}`);
             
-            try {
-                const content = fs.readFileSync(filePath, 'utf8');
-                const lines = content.split('\n');
+            for (const classFile of classFiles) {
+                const filePath = path.join(classesPath, classFile);
+                const fileUri = vscode.Uri.file(filePath);
+                const className = path.basename(classFile, '.cls');
                 
-                for (let i = 0; i < lines.length; i++) {
-                    const line = lines[i].trim();
-                    const previousLine = i > 0 ? lines[i - 1].trim() : '';
+                // Debug logging for specific class
+                if (className === 'HierarchyDisplayUtils') {
+                    OrgUtils.logDebug(`[VisbalExt.AuraEnabledService] Processing HierarchyDisplayUtils: ${filePath}`);
+                }
+                
+                try {
+                    const content = fs.readFileSync(filePath, 'utf8');
+                    const lines = content.split('\n');
                     
-                    // Check if previous line has @AuraEnabled annotation
-                    if (previousLine.includes('@AuraEnabled')) {
-                        // Handle both single-line and multi-line method declarations
-                        let fullMethodDeclaration = line;
-                        let methodStartIndex = i;
+                    for (let i = 0; i < lines.length; i++) {
+                        const line = lines[i].trim();
+                        const previousLine = i > 0 ? lines[i - 1].trim() : '';
                         
-                        // If this line doesn't end with a closing parenthesis followed by optional whitespace and {
-                        // then it's likely a multi-line method declaration
-                        if (!line.match(/\)\s*\{?\s*$/)) {
-                            // Look ahead to find the complete method declaration
-                            let j = i + 1;
-                            while (j < lines.length && !lines[j].trim().match(/\)\s*\{?\s*$/)) {
-                                fullMethodDeclaration += ' ' + lines[j].trim();
-                                j++;
-                            }
-                            // Include the final line with the closing parenthesis
-                            if (j < lines.length) {
-                                fullMethodDeclaration += ' ' + lines[j].trim();
-                            }
-                        }
+                        // Check for @AuraEnabled annotation either on the previous line or current line
+                        const hasAuraEnabledAnnotation = previousLine.includes('@AuraEnabled') || line.includes('@AuraEnabled');
                         
-                        if (this.isMethodDeclaration(fullMethodDeclaration)) {
-                            const methodInfo = this.parseMethodDeclaration(fullMethodDeclaration);
-                            if (methodInfo) {
-                                methods.push({
-                                    className: className,
-                                    methodName: methodInfo.name,
-                                    methodSignature: fullMethodDeclaration,
-                                    filePath: fileUri,
-                                    position: new vscode.Position(methodStartIndex, line.indexOf(methodInfo.name) >= 0 ? line.indexOf(methodInfo.name) : 0),
-                                    lineText: fullMethodDeclaration,
-                                    isPublic: fullMethodDeclaration.includes('public'),
-                                    isStatic: fullMethodDeclaration.includes('static'),
-                                    returnType: methodInfo.returnType,
-                                    parameters: methodInfo.parameters,
-                                    parsedParameters: methodInfo.parsedParameters
-                                });
+                        if (hasAuraEnabledAnnotation) {
+                            // Debug logging for HierarchyDisplayUtils
+                            if (className === 'HierarchyDisplayUtils') {
+                                OrgUtils.logDebug(`[VisbalExt.AuraEnabledService] Found @AuraEnabled in HierarchyDisplayUtils at line ${i}: ${line}`);
+                            }
+                            // Handle both single-line and multi-line method declarations
+                            let fullMethodDeclaration = line;
+                            let methodStartIndex = i;
+                            
+                            // If @AuraEnabled is on the same line, we need to extract just the method part
+                            if (line.includes('@AuraEnabled')) {
+                                // Find where the method declaration starts after @AuraEnabled
+                                const auraEnabledMatch = line.match(/@AuraEnabled(\([^)]*\))?\s*(.*)/);
+                                if (auraEnabledMatch && auraEnabledMatch[2]) {
+                                    fullMethodDeclaration = auraEnabledMatch[2].trim();
+                                }
+                            }
+                            
+                            // If this line doesn't end with a closing parenthesis followed by optional whitespace and {
+                            // then it's likely a multi-line method declaration
+                            if (!fullMethodDeclaration.match(/\)\s*\{?\s*$/)) {
+                                // Look ahead to find the complete method declaration
+                                let j = i + 1;
+                                while (j < lines.length && !lines[j].trim().match(/\)\s*\{?\s*$/)) {
+                                    fullMethodDeclaration += ' ' + lines[j].trim();
+                                    j++;
+                                }
+                                // Include the final line with the closing parenthesis
+                                if (j < lines.length) {
+                                    fullMethodDeclaration += ' ' + lines[j].trim();
+                                }
+                            }
+                            
+                            if (this.isMethodDeclaration(fullMethodDeclaration)) {
+                                const methodInfo = this.parseMethodDeclaration(fullMethodDeclaration);
+                                if (methodInfo) {
+                                    // Debug logging for HierarchyDisplayUtils
+                                    if (className === 'HierarchyDisplayUtils') {
+                                        OrgUtils.logDebug(`[VisbalExt.AuraEnabledService] Successfully parsed method in HierarchyDisplayUtils: ${methodInfo.name}`);
+                                    }
+                                    
+                                    methods.push({
+                                        className: className,
+                                        methodName: methodInfo.name,
+                                        methodSignature: fullMethodDeclaration,
+                                        filePath: fileUri,
+                                        position: new vscode.Position(methodStartIndex, line.indexOf(methodInfo.name) >= 0 ? line.indexOf(methodInfo.name) : 0),
+                                        lineText: fullMethodDeclaration,
+                                        isPublic: fullMethodDeclaration.includes('public'),
+                                        isStatic: fullMethodDeclaration.includes('static'),
+                                        returnType: methodInfo.returnType,
+                                        parameters: methodInfo.parameters,
+                                        parsedParameters: methodInfo.parsedParameters
+                                    });
+                                } else {
+                                    // Debug logging for failed parsing
+                                    if (className === 'HierarchyDisplayUtils') {
+                                        OrgUtils.logDebug(`[VisbalExt.AuraEnabledService] Failed to parse method in HierarchyDisplayUtils: ${fullMethodDeclaration}`);
+                                    }
+                                }
+                            } else {
+                                // Debug logging for failed method declaration detection
+                                if (className === 'HierarchyDisplayUtils') {
+                                    OrgUtils.logDebug(`[VisbalExt.AuraEnabledService] Not recognized as method declaration in HierarchyDisplayUtils: ${fullMethodDeclaration}`);
+                                }
                             }
                         }
                     }
+                } catch (error) {
+                    console.error(`[VisbalExt.AuraEnabledService] Error reading class file ${filePath}:`, error);
                 }
-            } catch (error) {
-                console.error(`[VisbalExt.AuraEnabledService] Error reading class file ${filePath}:`, error);
             }
         }
         
@@ -394,71 +443,85 @@ export class AuraEnabledService {
         }
 
         const references: ReferenceLocation[] = [];
-        // Check if we have a Salesforce project in the workspace, otherwise use the known path
-        const workspacePath = workspaceFolders[0].uri.fsPath;
-        const workspaceLwcPath = path.join(workspacePath, 'force-app', 'main', 'default', 'lwc');
-        const securityReviewLwcPath = 'C:\\CURSOR\\SECURITY_REVIEW\\force-app\\main\\default\\lwc';
         
-        const lwcPath = fs.existsSync(workspaceLwcPath) ? workspaceLwcPath : securityReviewLwcPath;
+        // Scan all workspace folders for Salesforce LWC directories
+        const allLwcPaths: string[] = [];
         
-        if (!fs.existsSync(lwcPath)) {
-            OrgUtils.logDebug(`[VisbalExt.AuraEnabledService] LWC directory not found: ${lwcPath}`);
+        for (const workspaceFolder of workspaceFolders) {
+            const workspacePath = workspaceFolder.uri.fsPath;
+            const salesforceLwcPath = path.join(workspacePath, 'force-app', 'main', 'default', 'lwc');
+            
+            // Check if this workspace folder contains a Salesforce LWC directory
+            if (fs.existsSync(salesforceLwcPath)) {
+                allLwcPaths.push(salesforceLwcPath);
+                OrgUtils.logDebug(`[VisbalExt.AuraEnabledService] Found Salesforce LWC directory: ${salesforceLwcPath}`);
+            }
+        }
+        
+        // If no Salesforce LWC directories found in workspace folders, return empty
+        if (allLwcPaths.length === 0) {
+            OrgUtils.logDebug(`[VisbalExt.AuraEnabledService] No Salesforce LWC directories found in workspace folders`);
             return [];
         }
 
-        // Get all LWC component directories
-        const lwcDirs = fs.readdirSync(lwcPath).filter(dir => {
-            return fs.statSync(path.join(lwcPath, dir)).isDirectory();
-        });
-
-        for (const lwcDir of lwcDirs) {
-            const componentPath = path.join(lwcPath, lwcDir);
-            const jsFiles = fs.readdirSync(componentPath).filter(file => file.endsWith('.js'));
+        // Scan all found Salesforce LWC directories
+        for (const lwcPath of allLwcPaths) {
+            OrgUtils.logDebug(`[VisbalExt.AuraEnabledService] Scanning LWC directory: ${lwcPath}`);
             
-            for (const jsFile of jsFiles) {
-                const filePath = path.join(componentPath, jsFile);
-                const fileUri = vscode.Uri.file(filePath);
+            // Get all LWC component directories
+            const lwcDirs = fs.readdirSync(lwcPath).filter(dir => {
+                return fs.statSync(path.join(lwcPath, dir)).isDirectory();
+            });
+
+            for (const lwcDir of lwcDirs) {
+                const componentPath = path.join(lwcPath, lwcDir);
+                const jsFiles = fs.readdirSync(componentPath).filter(file => file.endsWith('.js'));
                 
-                try {
-                    const content = fs.readFileSync(filePath, 'utf8');
-                    const lines = content.split('\n');
+                for (const jsFile of jsFiles) {
+                    const filePath = path.join(componentPath, jsFile);
+                    const fileUri = vscode.Uri.file(filePath);
                     
-                    for (let i = 0; i < lines.length; i++) {
-                        const line = lines[i];
-                        const trimmedLine = line.trim();
+                    try {
+                        const content = fs.readFileSync(filePath, 'utf8');
+                        const lines = content.split('\n');
                         
-                        // Look for method references in various patterns
-                        const patterns = [
-                            // Import pattern: import methodName from '@salesforce/apex/ClassName.methodName'
-                            new RegExp(`import\\s+\\w+\\s+from\\s+['"]@salesforce/apex/${method.className}\\.${method.methodName}['"]`, 'i'),
-                            // Direct method call: ClassName.methodName
-                            new RegExp(`${method.className}\\.${method.methodName}\\b`, 'i'),
-                            // Method name in apex call
-                            new RegExp(`['"]${method.methodName}['"]`, 'i'),
-                            // Variable assignment or usage
-                            new RegExp(`\\b${method.methodName}\\b`, 'i')
-                        ];
-                        
-                        for (const pattern of patterns) {
-                            if (pattern.test(line)) {
-                                const match = line.match(pattern);
-                                if (match) {
-                                    const matchIndex = line.indexOf(match[0]);
-                                    references.push({
-                                        filePath: fileUri,
-                                        fileName: jsFile,
-                                        position: new vscode.Position(i, matchIndex),
-                                        lineText: line,
-                                        contextBefore: i > 0 ? lines[i - 1] : '',
-                                        contextAfter: i < lines.length - 1 ? lines[i + 1] : ''
-                                    });
-                                    break; // Only add one reference per line
+                        for (let i = 0; i < lines.length; i++) {
+                            const line = lines[i];
+                            const trimmedLine = line.trim();
+                            
+                            // Look for method references in various patterns
+                            const patterns = [
+                                // Import pattern: import methodName from '@salesforce/apex/ClassName.methodName'
+                                new RegExp(`import\\s+\\w+\\s+from\\s+['"]@salesforce/apex/${method.className}\\.${method.methodName}['"]`, 'i'),
+                                // Direct method call: ClassName.methodName
+                                new RegExp(`${method.className}\\.${method.methodName}\\b`, 'i'),
+                                // Method name in apex call
+                                new RegExp(`['"]${method.methodName}['"]`, 'i'),
+                                // Variable assignment or usage
+                                new RegExp(`\\b${method.methodName}\\b`, 'i')
+                            ];
+                            
+                            for (const pattern of patterns) {
+                                if (pattern.test(line)) {
+                                    const match = line.match(pattern);
+                                    if (match) {
+                                        const matchIndex = line.indexOf(match[0]);
+                                        references.push({
+                                            filePath: fileUri,
+                                            fileName: jsFile,
+                                            position: new vscode.Position(i, matchIndex),
+                                            lineText: line,
+                                            contextBefore: i > 0 ? lines[i - 1] : '',
+                                            contextAfter: i < lines.length - 1 ? lines[i + 1] : ''
+                                        });
+                                        break; // Only add one reference per line
+                                    }
                                 }
                             }
                         }
+                    } catch (error) {
+                        console.error(`[AuraEnabledService] Error reading LWC file ${filePath}:`, error);
                     }
-                } catch (error) {
-                    console.error(`[AuraEnabledService] Error reading LWC file ${filePath}:`, error);
                 }
             }
         }

@@ -152,6 +152,13 @@ export class OrgUtils {
         this._downloadedLogPaths = downloadedLogPaths;
     }
 
+    public static getDownloadedLogsData(): { downloadedLogs: Set<string>, downloadedLogPaths: Map<string, string> } {
+        return {
+            downloadedLogs: this._downloadedLogs,
+            downloadedLogPaths: this._downloadedLogPaths
+        };
+    }
+
     public static getWorkspaceFolder(): WorkspaceFolder {
         const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
         if (!workspaceFolder) {

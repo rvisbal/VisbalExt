@@ -2607,7 +2607,7 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
             this._view?.webview.postMessage({ 
                 command: 'downloadStatus', 
                 logId: logId, 
-                status: 'downloading' 
+                status: 'opening' 
             });
            
         
@@ -2693,6 +2693,14 @@ export class VisbalLogView implements vscode.WebviewViewProvider {
             const selectedOrg = await OrgUtils.getSelectedOrgForView(ViewId.APEX_LOG);
             const currentOrgAlias = selectedOrg?.alias || await OrgUtils.getCurrentOrgAlias();
             await OrgUtils.downloadLog(logId, currentOrgAlias);
+            
+            // Sync downloaded logs data from OrgUtils back to this instance
+            const { downloadedLogs, downloadedLogPaths } = OrgUtils.getDownloadedLogsData();
+            this._downloadedLogs = downloadedLogs;
+            this._downloadedLogPaths = downloadedLogPaths;
+            
+            // Save the updated downloaded logs to cache
+            await this._cacheService.saveDownloadedLogs(this._downloadedLogs, this._downloadedLogPaths);
             
             // Show success in status bar
             statusBarService.showSuccess(`Log ${logId} downloaded successfully`);

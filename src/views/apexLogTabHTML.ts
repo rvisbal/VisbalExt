@@ -1059,7 +1059,7 @@ export function getHtmlForWebview(
               handleDownloadStatus(message.logId, message.isDownloading);
               break;
             case 'downloadStatus':
-              handleDownloadStatus(message.logId, message.status === 'downloading', message.status, message.filePath, message.error);
+              handleDownloadStatus(message.logId, message.status === 'downloading' || message.status === 'opening', message.status, message.filePath, message.error);
               break;
             case 'debugStatus':
               if (message.success) {
@@ -1211,6 +1211,38 @@ export function getHtmlForWebview(
           
           // Update record count to show selection info
           updateRecordCount();
+        }
+        
+        // Handle download status updates for buttons
+        function handleDownloadStatus(logId, isDownloading, status, filePath, error) {
+          const downloadButton = document.querySelector('[data-id="' + logId + '"].download-icon');
+          const openButton = document.querySelector('[data-id="' + logId + '"].open-icon');
+          
+          if (!downloadButton || !openButton) {
+            return; // Buttons might not be rendered yet
+          }
+          
+          if (isDownloading) {
+            // During download/open operation
+            downloadButton.disabled = true;
+            downloadButton.title = status === 'downloading' ? 'Downloading...' : 'Processing...';
+            openButton.disabled = true;
+            openButton.title = status === 'opening' ? 'Opening...' : 'Processing...';
+          } else {
+            // After operation completes
+            downloadButton.disabled = false;
+            downloadButton.title = 'Download';
+            
+            if (status === 'downloaded' || status === 'opened') {
+              // Enable open button if log is downloaded/available
+              openButton.disabled = false;
+              openButton.title = 'Open';
+            } else if (error) {
+              // On error, restore original state
+              openButton.disabled = !filePath; // Enable only if file exists
+              openButton.title = 'Open';
+            }
+          }
         }
         
         // Format file size
