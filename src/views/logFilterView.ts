@@ -53,9 +53,9 @@ export class LogFilterView {
         // Handle messages from the webview
         this._panel.webview.onDidReceiveMessage(
             message => {
-                console.log('[LogFilterView-Extension] Received message:', message);
-                console.log('[LogFilterView-Extension] Message command:', message.command);
-                console.log('[LogFilterView-Extension] Message filterId:', message.filterId);
+                console.log('[VisbalExt.LogFilterView-Extension] Received message:', message);
+                console.log('[VisbalExt.LogFilterView-Extension] Message command:', message.command);
+                console.log('[VisbalExt.LogFilterView-Extension] Message filterId:', message.filterId);
                 switch (message.command) {
                     case 'createFilter':
                         this._createFilter(message.data);
@@ -64,8 +64,8 @@ export class LogFilterView {
                         this._updateFilter(message.filterId, message.data);
                         break;
                     case 'deleteFilter':
-                        console.log('[LogFilterView-Extension] DELETE FILTER case triggered');
-                        console.log('[LogFilterView-Extension] About to call _deleteFilter with:', message.filterId);
+                        console.log('[VisbalExt.LogFilterView-Extension] DELETE FILTER case triggered');
+                        console.log('[VisbalExt.LogFilterView-Extension] About to call _deleteFilter with:', message.filterId);
                         this._deleteFilter(message.filterId);
                         break;
                     case 'toggleFilter':
@@ -136,35 +136,35 @@ export class LogFilterView {
     }
 
     private _deleteFilter(filterId: string): void {
-        console.log('[LogFilterView-Extension] _deleteFilter ENTRY - filterId:', filterId);
-        console.log('[LogFilterView-Extension] _deleteFilter ENTRY - typeof filterId:', typeof filterId);
-        console.log('[LogFilterView-Extension] _deleteFilter ENTRY - logFilterService:', logFilterService);
+        console.log('[VisbalExt.LogFilterView-Extension] _deleteFilter ENTRY - filterId:', filterId);
+        console.log('[VisbalExt.LogFilterView-Extension] _deleteFilter ENTRY - typeof filterId:', typeof filterId);
+        console.log('[VisbalExt.LogFilterView-Extension] _deleteFilter ENTRY - logFilterService:', logFilterService);
         
         try {
-            console.log('[LogFilterView-Extension] Getting filter from service...');
+            console.log('[VisbalExt.LogFilterView-Extension] Getting filter from service...');
             const filter = logFilterService.getFilter(filterId);
-            console.log('[LogFilterView-Extension] Found filter:', filter);
+            console.log('[VisbalExt.LogFilterView-Extension] Found filter:', filter);
             
             if (!filter) {
-                console.log('[LogFilterView-Extension] Filter not found - showing error');
+                console.log('[VisbalExt.LogFilterView-Extension] Filter not found - showing error');
                 statusBarService.showError('Filter not found');
                 return;
             }
 
-            console.log('[LogFilterView-Extension] Filter found, checking if built-in:', filter.isBuiltIn);
-            console.log('[LogFilterView-Extension] Attempting to delete filter:', filter.name);
+            console.log('[VisbalExt.LogFilterView-Extension] Filter found, checking if built-in:', filter.isBuiltIn);
+            console.log('[VisbalExt.LogFilterView-Extension] Attempting to delete filter:', filter.name);
             
             const success = logFilterService.deleteFilter(filterId);
-            console.log('[LogFilterView-Extension] Delete operation result:', success);
+            console.log('[VisbalExt.LogFilterView-Extension] Delete operation result:', success);
             
             if (success) {
-                console.log('[LogFilterView-Extension] Delete successful, showing success message');
+                console.log('[VisbalExt.LogFilterView-Extension] Delete successful, showing success message');
                 statusBarService.showSuccess(`Filter "${filter.name}" deleted successfully`);
-                console.log('[LogFilterView-Extension] Calling _update to refresh UI');
+                console.log('[VisbalExt.LogFilterView-Extension] Calling _update to refresh UI');
                 this._update();
-                console.log('[LogFilterView-Extension] UI update complete');
+                console.log('[VisbalExt.LogFilterView-Extension] UI update complete');
             } else {
-                console.log('[LogFilterView-Extension] Delete failed, showing error message');
+                console.log('[VisbalExt.LogFilterView-Extension] Delete failed, showing error message');
                 statusBarService.showError('Failed to delete filter (built-in filters cannot be deleted)');
             }
         } catch (error: any) {
@@ -174,7 +174,7 @@ export class LogFilterView {
             statusBarService.showError(`Error deleting filter: ${error.message}`);
         }
         
-        console.log('[LogFilterView-Extension] _deleteFilter EXIT');
+        console.log('[VisbalExt.LogFilterView-Extension] _deleteFilter EXIT');
     }
 
     private _toggleFilter(filterId: string): void {

@@ -53,7 +53,7 @@ export class SecurityAnalysisService {
             {
                 pattern: /\b(?:insert|update|delete|upsert)\s+[a-zA-Z_][a-zA-Z0-9_]*(?:\s*;|\s+[a-zA-Z_][a-zA-Z0-9_]*)/gi,
                 severity: 'HIGH' as const,
-                title: 'DML Operation without CRUD/FLS Check',
+                title: 'ApexCRUDViolation - DML Operation without CRUD/FLS Check',
                 description: 'DML operation detected without proper CRUD/FLS permission checks',
                 recommendation: 'Use isAccessible(), isCreateable(), isUpdateable(), or isDeletable() before DML operations, or add WITH USER_MODE',
                 ruleSource: 'CRUD.md'
@@ -61,7 +61,7 @@ export class SecurityAnalysisService {
             {
                 pattern: /\[\s*SELECT\s+[\w,\s*]+\s+FROM\s+\w+(?:\s+WHERE.*?)?\s*\](?!.*WITH\s+(?:USER_MODE|SYSTEM_MODE))/gi,
                 severity: 'MEDIUM' as const,
-                title: 'SOQL Query without FLS Check or User Mode',
+                title: 'ApexCRUDViolation - SOQL Query without FLS Check or User Mode',
                 description: 'SOQL query detected without field-level security checks or WITH USER_MODE',
                 recommendation: 'Check field accessibility using Schema.DescribeFieldResult.isAccessible() or use WITH USER_MODE ',
                 ruleSource: 'write-secure-apex-controllers.md'
@@ -77,7 +77,7 @@ export class SecurityAnalysisService {
             {
                 pattern: /Database\.\w+\s*\([^)]+\)(?!.*AccessLevel\.USER_MODE)(?!.*stripInaccessible)/gi,
                 severity: 'MEDIUM' as const,
-                title: 'Database Method without User Mode or stripInaccessible',
+                title: 'ApexCRUDViolation - Database Method without User Mode or stripInaccessible',
                 description: 'Database method call without AccessLevel.USER_MODE or stripInaccessible() usage',
                 recommendation: 'Use AccessLevel.USER_MODE parameter or Security.stripInaccessible() for field-level security',
                 ruleSource: 'write-secure-apex-controllers.md'
@@ -97,7 +97,7 @@ export class SecurityAnalysisService {
             {
                 pattern: /\[\s*SELECT\s+[^]]*\+[^]]*\](?!.*String\.escapeSingleQuotes)(?!.*:\w+)/gi,
                 severity: 'HIGH' as const,
-                title: 'Potential SOQL Injection without Sanitization',
+                title: 'ApexSOQLInjection - Potential SOQL Injection without Sanitization',
                 description: 'String concatenation detected in SOQL query without proper sanitization or bind variables',
                 recommendation: 'Use bind variables (:variable) instead of string concatenation, or sanitize with String.escapeSingleQuotes()',
                 ruleSource: 'mitigate-soql-injection.md'
@@ -105,7 +105,7 @@ export class SecurityAnalysisService {
             {
                 pattern: /Database\.query\s*\(\s*[^)]*\+[^)]*\)(?!.*String\.escapeSingleQuotes)(?!.*escapeSingleQuotes)/gi,
                 severity: 'HIGH' as const,
-                title: 'Dynamic Database.query without Sanitization',
+                title: 'ApexSOQLInjection - Dynamic Database.query without Sanitization',
                 description: 'Dynamic Database.query() with string concatenation without proper sanitization',
                 recommendation: 'Use static SOQL with bind variables, or apply String.escapeSingleQuotes() for dynamic queries',
                 ruleSource: 'mitigate-soql-injection.md'
@@ -113,7 +113,7 @@ export class SecurityAnalysisService {
             {
                 pattern: /String\.format\s*\([^)]*SELECT[^)]*\)(?!.*String\.escapeSingleQuotes)/gi,
                 severity: 'MEDIUM' as const,
-                title: 'Dynamic SOQL Query without Sanitization',
+                title: 'ApexSOQLInjection - Dynamic SOQL Query without Sanitization',
                 description: 'Dynamic SOQL query construction detected without proper input sanitization',
                 recommendation: 'Validate inputs and use String.escapeSingleQuotes() or proper escaping mechanisms',
                 ruleSource: 'secure-codeing-sql-injection.md'
@@ -121,7 +121,7 @@ export class SecurityAnalysisService {
             {
                 pattern: /getWhereClause\s*\([^)]*\)(?!.*validateWhereClause)/gi,
                 severity: 'HIGH' as const,
-                title: 'Missing validateWhereClause() Call',
+                title: 'ApexSOQLInjection - Missing validateWhereClause() Call',
                 description: 'getWhereClause() called without subsequent validateWhereClause() validation',
                 recommendation: 'Always call SoqlQuerySanitizer.validateWhereClause() after getWhereClause()',
                 ruleSource: 'SOQL_Injections.md'
@@ -129,7 +129,7 @@ export class SecurityAnalysisService {
             {
                 pattern: /WHERE\s+[\w.]+\s*=\s*[^:][^'\s]+(?!.*String\.valueOf\s*\()(?!.*Integer\.valueOf\s*\()/gi,
                 severity: 'MEDIUM' as const,
-                title: 'Potential Type Casting Issue in SOQL',
+                title: 'ApexSOQLInjection - Potential Type Casting Issue in SOQL',
                 description: 'SOQL WHERE clause with variable that may need type casting for security',
                 recommendation: 'Use type casting with Integer.valueOf() or String.valueOf() for non-string inputs to prevent injection',
                 ruleSource: 'mitigate-soql-injection.md'
@@ -137,7 +137,7 @@ export class SecurityAnalysisService {
             {
                 pattern: /SELECT\s+[\w,\s*]+\s+FROM\s+[^WHERE\]]*\+[^WHERE\]]*(?!.*allowedFields|.*allowedObjects)/gi,
                 severity: 'MEDIUM' as const,
-                title: 'Dynamic Object/Field Selection without Allowlisting',
+                title: 'ApexSOQLInjection - Dynamic Object/Field Selection without Allowlisting',
                 description: 'Dynamic object or field selection without allowlisting validation',
                 recommendation: 'Implement allowlisting to validate user-supplied object and field names against known safe values',
                 ruleSource: 'mitigate-soql-injection.md'
@@ -147,7 +147,7 @@ export class SecurityAnalysisService {
             {
                 pattern: /(?:global|public)\s+class\s+\w+(?:\s+extends\s+\w+)?\s*\{(?!.*with\s+sharing|without\s+sharing|inherited\s+sharing)/gi,
                 severity: 'MEDIUM' as const,
-                title: 'Global/Public Class Missing Sharing Declaration',
+                title: 'ApexSharingViolations - Global/Public Class Missing Sharing Declaration',
                 description: 'Global or public class found without explicit sharing declaration (with sharing, without sharing, or inherited sharing)',
                 recommendation: 'Add "with sharing" for entry point classes, "without sharing" for system operations, or "inherited sharing" for flexible context',
                 ruleSource: 'write-secure-apex-controllers.md'
@@ -155,7 +155,7 @@ export class SecurityAnalysisService {
             {
                 pattern: /@AuraEnabled\s+(?:public|global|static)(?!.*(?:Profile|PermissionSet|hasAccess|canRead|canCreate|canUpdate|canDelete|with\s+sharing))/gi,
                 severity: 'HIGH' as const,
-                title: '@AuraEnabled Method without Access Control',
+                title: 'ApexSharingViolations - @AuraEnabled Method without Access Control',
                 description: '@AuraEnabled method accessible to all users without proper access control checks or sharing declaration',
                 recommendation: 'Ensure class uses "with sharing" and implement proper access control checks using Profile, PermissionSet, or permission methods',
                 ruleSource: 'write-secure-apex-controllers.md'
@@ -163,7 +163,7 @@ export class SecurityAnalysisService {
             {
                 pattern: /(?:global|public)\s+(?:with|without)\s+sharing\s+class\s+\w+\s+implements\s+\w*Batch\w*/gi,
                 severity: 'MEDIUM' as const,
-                title: 'Batch Class Sharing Context',
+                title: 'ApexSharingViolations - Batch Class Sharing Context',
                 description: 'Batch class with sharing declaration - verify if this is the intended behavior',
                 recommendation: 'Review if batch class should run with or without sharing based on business requirements',
                 ruleSource: 'write-secure-apex-controllers.md'
@@ -171,7 +171,7 @@ export class SecurityAnalysisService {
             {
                 pattern: /class\s+\w+\s*\{(?!.*with\s+sharing|without\s+sharing|inherited\s+sharing)[\s\S]*?(?:@AuraEnabled|@WebService|@RemoteAction)/gi,
                 severity: 'HIGH' as const,
-                title: 'Entry Point Class Missing Sharing Declaration',
+                title: 'ApexSharingViolations - Entry Point Class Missing Sharing Declaration',
                 description: 'Class with entry point annotations must have explicit sharing declaration',
                 recommendation: 'Add "with sharing" keyword to enforce user permissions and sharing rules',
                 ruleSource: 'write-secure-apex-controllers.md'
@@ -179,7 +179,7 @@ export class SecurityAnalysisService {
             {
                 pattern: /inherited\s+sharing\s+class(?!.*(?:AppExchange|flexible|runtime))/gi,
                 severity: 'LOW' as const,
-                title: 'Inherited Sharing Usage Verification',
+                title: 'ApexSharingViolations - Inherited Sharing Usage Verification',
                 description: 'inherited sharing detected - verify this is intentional for flexible sharing context',
                 recommendation: 'Ensure inherited sharing is used intentionally for classes that need flexible sharing context',
                 ruleSource: 'write-secure-apex-controllers.md'
@@ -187,7 +187,7 @@ export class SecurityAnalysisService {
             {
                 pattern: /@WebService\s+(?:public|global|static)(?!.*with\s+sharing)/gi,
                 severity: 'HIGH' as const,
-                title: '@WebService Method without Sharing Declaration',
+                title: 'ApexSharingViolations - @WebService Method without Sharing Declaration',
                 description: '@WebService method without explicit sharing context',
                 recommendation: 'Add "with sharing" to class declaration to enforce user permissions in web services',
                 ruleSource: 'write-secure-apex-controllers.md'
@@ -195,7 +195,7 @@ export class SecurityAnalysisService {
             {
                 pattern: /@RemoteAction\s+(?:public|global|static)(?!.*with\s+sharing)/gi,
                 severity: 'HIGH' as const,
-                title: '@RemoteAction Method without Sharing Declaration',
+                title: 'ApexSharingViolations - @RemoteAction Method without Sharing Declaration',
                 description: '@RemoteAction method without explicit sharing context',
                 recommendation: 'Add "with sharing" to class declaration to enforce user permissions in remote actions',
                 ruleSource: 'write-secure-apex-controllers.md'
@@ -239,7 +239,7 @@ export class SecurityAnalysisService {
             {
                 pattern: /\{\!\$Request\.[^}]*\}(?!.*SUBSTITUTE|.*HTMLENCODE)/gi,
                 severity: 'HIGH' as const,
-                title: 'Unescaped Request Parameter in Formula',
+                title: 'ApexXSSFromURLParam - Unescaped Request Parameter in Formula',
                 description: 'Request parameter used in formula expression without proper escaping',
                 recommendation: 'Use SUBSTITUTE() or HTMLENCODE() to escape user input in formula expressions',
                 ruleSource: 'securing-guidelines.md'
@@ -247,7 +247,7 @@ export class SecurityAnalysisService {
             {
                 pattern: /<apex:\w+\s+[^>]*escape\s*=\s*["']false["'][^>]*>/gi,
                 severity: 'HIGH' as const,
-                title: 'Disabled XSS Protection in Visualforce',
+                title: 'ApexXSSFromEscapeFalse - Disabled XSS Protection in Visualforce',
                 description: 'Visualforce component with escape="false" disables XSS protection',
                 recommendation: 'Remove escape="false" or ensure all data is properly sanitized before display',
                 ruleSource: 'securing-guidelines.md'
@@ -283,6 +283,38 @@ export class SecurityAnalysisService {
                 description: 'Form with dynamic action URL may be vulnerable to CSRF attacks',
                 recommendation: 'Implement CSRF protection tokens or use standard Salesforce controllers',
                 ruleSource: 'securing-guidelines.md'
+            },
+            {
+                pattern: /ApexPages\.currentPage\(\)\.getParameters\(\)\.get\s*\([^)]+\)(?!.*(?:HTMLENCODE|String\.escapeSingleQuotes|escapeHtml4))/gi,
+                severity: 'HIGH' as const,
+                title: 'ApexXSSFromURLParam - Unescaped URL Parameter Usage',
+                description: 'URL parameter retrieved without proper encoding or sanitization',
+                recommendation: 'Use HTMLENCODE(), String.escapeSingleQuotes(), or escapeHtml4() to sanitize URL parameters',
+                ruleSource: 'securing-guidelines.md'
+            },
+            {
+                pattern: /ApexPages\.addMessage\s*\([^)]*ApexPages\.currentPage\(\)\.getParameters\(\)[^)]*\)(?!.*(?:HTMLENCODE|String\.escapeSingleQuotes))/gi,
+                severity: 'HIGH' as const,
+                title: 'ApexXSSFromURLParam - Unescaped Parameter in Error Message',
+                description: 'URL parameter displayed in error message without proper encoding',
+                recommendation: 'Encode URL parameters with HTMLENCODE() or String.escapeSingleQuotes() before displaying',
+                ruleSource: 'securing-guidelines.md'
+            },
+            {
+                pattern: /PageReference\s*\(\s*[^)]*\+[^)]*\)(?!.*(?:Pattern\.matches|String\.valueOf|validateUrl))/gi,
+                severity: 'HIGH' as const,
+                title: 'ApexOpenRedirect - Dynamic PageReference without Validation',
+                description: 'PageReference with dynamic URL construction without proper validation',
+                recommendation: 'Validate redirect URLs against allowlisted patterns or use static references only',
+                ruleSource: 'securing-guidelines.md'
+            },
+            {
+                pattern: /response\.sendRedirect\s*\([^)]*\+[^)]*\)(?!.*(?:allowedDomains|Pattern\.matches|validateUrl))/gi,
+                severity: 'HIGH' as const,
+                title: 'ApexOpenRedirect - Dynamic Redirect without Validation',
+                description: 'Dynamic redirect without proper URL validation against trusted domains',
+                recommendation: 'Implement URL validation against allowlisted domains before redirecting',
+                ruleSource: 'securing-guidelines.md'
             }
         ],
         UI_SECURITY: [
@@ -297,10 +329,26 @@ export class SecurityAnalysisService {
             {
                 pattern: /System\.debug\s*\([^)]*(?:password|token|secret|key|credential|auth|api[_\s]?key|ssn|social.security|credit.card|financial)[^)]*\)/gi,
                 severity: 'HIGH' as const,
-                title: 'Sensitive Information in Debug',
+                title: 'ApexDangerousMethods - Sensitive Information in Debug',
                 description: 'Potential sensitive information exposure in debug statements',
                 recommendation: 'Never expose sensitive data in debug statements, use sanitized data for debugging',
                 ruleSource: 'information-leakage.md'
+            },
+            {
+                pattern: /\beval\s*\(/gi,
+                severity: 'HIGH' as const,
+                title: 'ApexDangerousMethods - Use of eval() Function',
+                description: 'eval() function usage detected which can lead to code injection vulnerabilities',
+                recommendation: 'Avoid using eval() function, use safer alternatives for dynamic code execution',
+                ruleSource: 'securing-guidelines.md'
+            },
+            {
+                pattern: /Runtime\.getRuntime\(\)\.exec\s*\(/gi,
+                severity: 'HIGH' as const,
+                title: 'ApexDangerousMethods - Runtime.exec() Usage',
+                description: 'Runtime.exec() detected which can lead to command injection vulnerabilities',
+                recommendation: 'Avoid using Runtime.exec(), use safer alternatives or proper input validation',
+                ruleSource: 'securing-guidelines.md'
             },
             {
                 pattern: /(?:console\.log|alert)\s*\([^)]*(?:password|token|secret|key|credential|ssn|social.security|credit.card)[^)]*\)/gi,
@@ -359,6 +407,54 @@ export class SecurityAnalysisService {
                 description: 'Schedulable class detected - ensure proper security context and permissions',
                 recommendation: 'Review security context and ensure scheduled jobs have appropriate permissions',
                 ruleSource: 'SECURITY_GUIDELINES.md'
+            },
+            {
+                pattern: /new\s+HttpRequest\s*\(\s*\)[\s\S]*?setEndpoint\s*\(\s*['"][^'"]*http:\/\/[^'"]*['"]\s*\)/gi,
+                severity: 'HIGH' as const,
+                title: 'ApexInsecureEndpoint - HTTP Endpoint Usage',
+                description: 'HTTP endpoint detected instead of HTTPS which transmits data in plaintext',
+                recommendation: 'Use HTTPS endpoints only to ensure encrypted data transmission',
+                ruleSource: 'securing-guidelines.md'
+            },
+            {
+                pattern: /setEndpoint\s*\(\s*['"][^'"]*(?:localhost|127\.0\.0\.1|192\.168\.|10\.|172\.1[6-9]\.|172\.2[0-9]\.|172\.3[01]\.)[^'"]*['"]\s*\)/gi,
+                severity: 'MEDIUM' as const,
+                title: 'ApexInsecureEndpoint - Internal Network Endpoint',
+                description: 'Internal network or localhost endpoint detected which may expose internal services',
+                recommendation: 'Avoid using internal network addresses in production code',
+                ruleSource: 'securing-guidelines.md'
+            },
+            {
+                pattern: /new\s+HttpRequest\s*\(\s*\)[\s\S]*?setEndpoint\s*\([^)]*\)(?!.*Named.*Credential)(?!.*callout:)/gi,
+                severity: 'MEDIUM' as const,
+                title: 'ApexSuggestUsingNamedCred - HTTP Callout without Named Credential',
+                description: 'HTTP callout detected without using Named Credentials for authentication',
+                recommendation: 'Use Named Credentials (callout:credential_name) for secure authentication management',
+                ruleSource: 'securing-guidelines.md'
+            },
+            {
+                pattern: /setHeader\s*\(\s*['"]Authorization['"][^)]*\)(?!.*callout:)/gi,
+                severity: 'MEDIUM' as const,
+                title: 'ApexSuggestUsingNamedCred - Hard-coded Authorization Header',
+                description: 'Hard-coded Authorization header detected instead of using Named Credentials',
+                recommendation: 'Use Named Credentials to securely manage authentication tokens and headers',
+                ruleSource: 'securing-guidelines.md'
+            },
+            {
+                pattern: /@HttpGet\s+(?:global|public)\s+(?!.*(?:PermissionSet|Profile|hasAccess|with\s+sharing))/gi,
+                severity: 'HIGH' as const,
+                title: 'ApexInsecureEndpoint - Unsecured REST Endpoint',
+                description: 'REST endpoint without proper access control or sharing declaration',
+                recommendation: 'Implement proper access control checks and use "with sharing" for user context',
+                ruleSource: 'securing-guidelines.md'
+            },
+            {
+                pattern: /@HttpPost\s+(?:global|public)\s+(?!.*(?:PermissionSet|Profile|hasAccess|with\s+sharing))/gi,
+                severity: 'HIGH' as const,
+                title: 'ApexInsecureEndpoint - Unsecured REST Endpoint',
+                description: 'REST endpoint without proper access control or sharing declaration',
+                recommendation: 'Implement proper access control checks and use "with sharing" for user context',
+                ruleSource: 'securing-guidelines.md'
             }
         ]
     };
@@ -496,7 +592,7 @@ export class SecurityAnalysisService {
                 allApexFiles = fallbackApexFiles;
             }
             
-            console.log(`[SecurityAnalysis] Found ${allApexFiles.length} Apex files to analyze`);
+            OrgUtils.logDebug(`[VisbalExt.SecurityAnalysis] Found ${allApexFiles.length} Apex files to analyze`);
             if (allApexFiles.length > 0) {
                 OrgUtils.logDebug(`[VisbalExt.SecurityAnalysis] Sample file paths:`, allApexFiles.slice(0, 3).map(f => f.fsPath));
             }

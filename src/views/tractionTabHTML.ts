@@ -791,17 +791,17 @@ export function getTractionHtml(): string {
             
             // Progress functions
             function showProgress(title = 'Processing...', description = '') {
-                console.log('[TractionTab] showProgress called:', title, description);
+                console.log('[VisbalExt.TractionTab] showProgress called:', title, description);
                 progressTitle.textContent = title;
                 progressDescription.textContent = description;
                 progressContainer.classList.add('active');
                 progressBarFill.classList.add('indeterminate');
                 progressBarFill.style.width = '30%';
-                console.log('[TractionTab] Progress container classes:', progressContainer.className);
+                console.log('[VisbalExt.TractionTab] Progress container classes:', progressContainer.className);
             }
             
             function updateProgress(title, description, percentage = null) {
-                console.log('[TractionTab] updateProgress called:', title, description, percentage);
+                console.log('[VisbalExt.TractionTab] updateProgress called:', title, description, percentage);
                 if (title) progressTitle.textContent = title;
                 if (description) progressDescription.textContent = description;
                 
@@ -815,7 +815,7 @@ export function getTractionHtml(): string {
             }
             
             function hideProgress() {
-                console.log('[TractionTab] hideProgress called');
+                console.log('[VisbalExt.TractionTab] hideProgress called');
                 progressContainer.classList.remove('active');
                 progressBarFill.classList.remove('indeterminate');
                 progressBarFill.style.width = '0%';
@@ -836,7 +836,7 @@ export function getTractionHtml(): string {
             
             // Security report functions
             function displaySecurityReport(report) {
-                console.log('[TractionTab] displaySecurityReport called:', report);
+                console.log('[VisbalExt.TractionTab] displaySecurityReport called:', report);
                 
                 currentSecurityReport = report;
                 currentCodeReviewReport = null; // Clear code review state
@@ -1134,7 +1134,7 @@ export function getTractionHtml(): string {
                     
                     // Check category filter - map to 'other' if not in predefined categories
                     const categoryKey = issue.category.toLowerCase().replace(/[^a-z0-9]/g, '-');
-                    const predefinedCategories = ['performance', 'security', 'maintainability', 'functionality', 'cleanup', 'constants', 'lifecycle', 'intent-verification'];
+                    const predefinedCategories = ['performance', 'security', 'maintainability', 'functionality', 'cleanup', 'constants', 'lifecycle', 'intent-verification', 'null-safety'];
                     const filterKey = predefinedCategories.includes(categoryKey) ? categoryKey : 'other';
                     const categoryMatch = enabledCategories.has(filterKey);
                     
@@ -1147,13 +1147,13 @@ export function getTractionHtml(): string {
 
             // Code review report functions
             function displayCodeReviewReport(report) {
-                console.log('[TractionTab] displayCodeReviewReport called:', report);
+                console.log('[VisbalExt.TractionTab] displayCodeReviewReport called:', report);
                 
                 currentCodeReviewReport = report;
                 
                 // Update summary counts using code review severity levels
-                highCountElement.textContent = report.criticalSeverityCount || 0; // Map Critical to High display
-                mediumCountElement.textContent = report.highSeverityCount + (report.mediumSeverityCount || 0);
+                highCountElement.textContent = (report.criticalSeverityCount || 0) + (report.highSeverityCount || 0); // Map both Critical and High to High display
+                mediumCountElement.textContent = report.mediumSeverityCount || 0;
                 lowCountElement.textContent = report.lowSeverityCount;
                 totalCountElement.textContent = report.totalIssues;
                 
@@ -1167,6 +1167,7 @@ export function getTractionHtml(): string {
                     'constants': 0,
                     'lifecycle': 0,
                     'intent-verification': 0,
+                    'null-safety': 0,
                     'other': 0
                 };
                 
@@ -1237,6 +1238,7 @@ export function getTractionHtml(): string {
                     { key: 'constants', label: 'Constants', count: categoryCounts.constants },
                     { key: 'lifecycle', label: 'Lifecycle', count: categoryCounts.lifecycle },
                     { key: 'intent-verification', label: 'Verification', count: categoryCounts['intent-verification'] },
+                    { key: 'null-safety', label: 'Null Safety', count: categoryCounts['null-safety'] },
                     { key: 'other', label: 'Other', count: categoryCounts.other }
                 ];
                 
@@ -1322,7 +1324,7 @@ export function getTractionHtml(): string {
                 
                 // Map category to dataset, fallback to 'other' if not in predefined list
                 const categoryKey = issue.category.toLowerCase().replace(/[^a-z0-9]/g, '-');
-                const predefinedCategories = ['performance', 'security', 'maintainability', 'functionality', 'cleanup', 'constants', 'lifecycle', 'intent-verification'];
+                const predefinedCategories = ['performance', 'security', 'maintainability', 'functionality', 'cleanup', 'constants', 'lifecycle', 'intent-verification', 'null-safety'];
                 const datasetCategory = predefinedCategories.includes(categoryKey) ? categoryKey : 'other';
                 
                 issueDiv.className = \`security-issue severity-\${severityClass}\`;
@@ -1504,7 +1506,7 @@ export function getTractionHtml(): string {
             // Export functionality
             if (exportSecurityReportButton && exportDropdownContent) {
                 exportSecurityReportButton.addEventListener('click', () => {
-                    console.log('Export button clicked, toggling dropdown');
+                    console.log('[VisbalExt.TractionTab] Export button clicked, toggling dropdown');
                     exportDropdownContent.classList.toggle('show');
                 });
                 
@@ -1517,10 +1519,10 @@ export function getTractionHtml(): string {
                 
                 // Handle export option clicks
                 const exportOptions = document.querySelectorAll('.export-option');
-                console.log('Found export options:', exportOptions.length);
+                console.log('[VisbalExt.TractionTab] Found export options:', exportOptions.length);
                 exportOptions.forEach(option => {
                     option.addEventListener('click', (event) => {
-                        console.log('Export option clicked:', event.currentTarget.dataset.format);
+                        console.log('[VisbalExt.TractionTab] Export option clicked:', event.currentTarget.dataset.format);
                         event.preventDefault();
                         event.stopPropagation();
                         const format = event.currentTarget.dataset.format;
@@ -1567,7 +1569,7 @@ export function getTractionHtml(): string {
                         updateStatus(\`Selected org: \${selectedOrg}\`, 'success');
                         break;
                     case 'showProgress':
-                        console.log('[TractionTab] Received showProgress message:', message);
+                        console.log('[VisbalExt.TractionTab] Received showProgress message:', message);
                         showProgress(message.title, message.description);
                         // Show stop button if this is a non-reference report
                         if (message.title && message.title.includes('Non-Reference')) {
@@ -1575,19 +1577,19 @@ export function getTractionHtml(): string {
                         }
                         break;
                     case 'updateProgress':
-                        console.log('[TractionTab] Received updateProgress message:', message);
+                        console.log('[VisbalExt.TractionTab] Received updateProgress message:', message);
                         updateProgress(message.title, message.description, message.percentage);
                         break;
                     case 'hideProgress':
-                        console.log('[TractionTab] Received hideProgress message');
+                        console.log('[VisbalExt.TractionTab] Received hideProgress message');
                         hideProgress();
                         break;
                     case 'displaySecurityReport':
-                        console.log('[TractionTab] Received displaySecurityReport message:', message);
+                        console.log('[VisbalExt.TractionTab] Received displaySecurityReport message:', message);
                         displaySecurityReport(message.report);
                         break;
                     case 'displayCodeReviewReport':
-                        console.log('[TractionTab] Received displayCodeReviewReport message:', message);
+                        console.log('[VisbalExt.TractionTab] Received displayCodeReviewReport message:', message);
                         displayCodeReviewReport(message.report);
                         break;
                 }

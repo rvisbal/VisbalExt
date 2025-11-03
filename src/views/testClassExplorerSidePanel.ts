@@ -4036,9 +4036,9 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                         allTestClasses = testClasses || [];
                         
                         // DEBUG: Log test class data for namespace analysis
-                        console.log('[TestClassExplorer] DEBUG: Received', allTestClasses.length, 'test classes');
-                        console.log('[TestClassExplorer] DEBUG: First few test classes (full structure):', allTestClasses.slice(0, 3));
-                        console.log('[TestClassExplorer] DEBUG: First few test classes (key properties):', allTestClasses.slice(0, 3).map(tc => ({
+                        console.log('[VisbalExt.TestClassExplorer] DEBUG: Received', allTestClasses.length, 'test classes');
+                        console.log('[VisbalExt.TestClassExplorer] DEBUG: First few test classes (full structure):', allTestClasses.slice(0, 3));
+                        console.log('[VisbalExt.TestClassExplorer] DEBUG: First few test classes (key properties):', allTestClasses.slice(0, 3).map(tc => ({
                             name: tc.name,
                             namePrefix: tc.namePrefix,
                             fullName: tc.fullName,
@@ -4084,7 +4084,7 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                             classesByNamespace[key]++;
                         });
                         
-                        console.log('[TestClassExplorer] DEBUG: Classes by detected namespace:', classesByNamespace);
+                        console.log('[VisbalExt.TestClassExplorer] DEBUG: Classes by detected namespace:', classesByNamespace);
                         
                         // Extract available namespaces
                         availableNamespaces.clear();
@@ -4108,7 +4108,7 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                         });
                         
                         // DEBUG: Log available namespaces
-                        console.log('[TestClassExplorer] DEBUG: Available namespaces found:', Array.from(availableNamespaces));
+                        console.log('[VisbalExt.TestClassExplorer] DEBUG: Available namespaces found:', Array.from(availableNamespaces));
                         
                         // Update filter menu
                         updateFilterMenu();
@@ -4126,8 +4126,8 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                         testClassesList.innerHTML = '';
                         
                         // DEBUG: Log current filter state
-                        console.log('[TestClassExplorer] DEBUG: Applying namespace filter:', currentNamespaceFilter);
-                        console.log('[TestClassExplorer] DEBUG: Total test classes:', allTestClasses.length);
+                        console.log('[VisbalExt.TestClassExplorer] DEBUG: Applying namespace filter:', currentNamespaceFilter);
+                        console.log('[VisbalExt.TestClassExplorer] DEBUG: Total test classes:', allTestClasses.length);
                         
                         // Filter test classes based on current namespace filter
                         let filteredClasses = allTestClasses;
@@ -4159,7 +4159,7 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                             });
                             
                             // DEBUG: Log filtering results
-                            console.log('[TestClassExplorer] DEBUG: After filtering by namespace "' + currentNamespaceFilter + '":', filteredClasses.length, 'classes remain');
+                            console.log('[VisbalExt.TestClassExplorer] DEBUG: After filtering by namespace "' + currentNamespaceFilter + '":', filteredClasses.length, 'classes remain');
                         }
                         
                         // Sort test classes alphabetically by name
@@ -4837,7 +4837,7 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                     // Function to clear all status indicators
                     function clearAllStatusIndicators() {
                         try {
-                            console.log('[TestClassExplorer] Clearing all status indicators');
+                            console.log('[VisbalExt.TestClassExplorer] Clearing all status indicators');
                             
                             // Remove all status indicators and classes
                             const statusIndicators = document.querySelectorAll('.test-status-indicator');
@@ -4860,7 +4860,7 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                     // Function to update test status indicators in the UI
                     function updateTestStatusInUI(className, methodName, status, logId, error) {
                         try {
-                            console.log('[TestClassExplorer] updateTestStatusInUI:', className, methodName, status);
+                            console.log('[VisbalExt.TestClassExplorer] updateTestStatusInUI:', className, methodName, status);
                             
                             // Find the method element
                             const methodSelector = \`[data-class-name="\${className}"] [data-method-name="\${methodName}"]\`;
@@ -4924,7 +4924,7 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                     // Function to restore running test state when tab becomes visible
                     function restoreRunningTestState(isRunning, testRunId) {
                         try {
-                            console.log('[TestClassExplorer] restoreRunningTestState:', isRunning, testRunId);
+                            console.log('[VisbalExt.TestClassExplorer] restoreRunningTestState:', isRunning, testRunId);
                             
                             if (isRunning) {
                                 // Show abort button and hide run buttons
@@ -4996,7 +4996,7 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                     // Function to update running status with testRunId
                     function updateRunningStatusWithId(testRunId) {
                         try {
-                            console.log('[TestClassExplorer] updateRunningStatusWithId:', testRunId);
+                            console.log('[VisbalExt.TestClassExplorer] updateRunningStatusWithId:', testRunId);
                             
                             const statusBar = document.getElementById('running-status-bar');
                             if (statusBar) {
@@ -5163,7 +5163,7 @@ export class TestClassExplorerView implements vscode.WebviewViewProvider {
                                 break;
                             case 'setDefaultNamespaceFilter':
                                 // DEBUG: Log the namespace being set
-                                console.log('[TestClassExplorer] DEBUG: Received setDefaultNamespaceFilter command with namespace:', message.namespace, 'silent:', message.silent);
+                                console.log('[VisbalExt.TestClassExplorer] DEBUG: Received setDefaultNamespaceFilter command with namespace:', message.namespace, 'silent:', message.silent);
                                 // Set the default namespace filter when org is selected
                                 if (message.namespace) {
                                     setNamespaceFilter(message.namespace);
